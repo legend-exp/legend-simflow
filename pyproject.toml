@@ -53,6 +53,7 @@ dependencies = [
     "pylegendmeta",
     "pip",
     "legend-dataflow-scripts >=0.1.2",
+    "dbetto",
     "pyyaml",
 ]
 
@@ -79,6 +80,9 @@ docs = [
     "sphinx_autodoc_typehints",
     "furo>=2023.08.17",
 ]
+
+[project.scripts]
+build_pdf                = "legendsimflow.scripts.build_pdf:build_pdf"
 
 [tool.uv.workspace]
 exclude = ["generated", "inputs", "software", "workflow"]

@@ -13,28 +13,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-for tier, simid, _ in simconfigs:
-
-    if tier in make_tiers:
-
-        rule:
-            f"""Produces plots for the primary event vertices of simid {simid} in tier {tier}"""
-            input:
-                aggregate.gen_list_of_simid_outputs(config, tier, simid, max_files=5),
-            output:
-                Path(patterns.plots_file_path(config, tier=tier, simid=simid))
-                / f"mage-event-vertices-tier_{tier}.png",
-            priority: 100  # prioritize producing the needed input files over the others
-            shell:
-                (
-                    " ".join(config["execenv"])
-                    + " python "
-                    + workflow.source_path("../scripts/plot_mage_vertices.py")
-                    + " -b -o {output} {input}"
-                )
-
-        utils.set_last_rule_name(workflow, f"plot_prim_vert_{simid}-tier_{tier}")
-
 
 rule print_stats:
     """Prints a table with summary runtime information for each `simid`.
@@ -58,6 +36,6 @@ if any([t in make_tiers for t in ("ver", "stp")]):
         """Reports any warning from the simulation job logs."""
         localrule: True
         params:
-            logdir=patterns.as_ro(config, config["paths"]["log"]),
+            logdir=utils.as_ro(config, Path(config["paths"]["log"]) / proctime),
         script:
             "../scripts/inspect_MaGe_logs.sh"

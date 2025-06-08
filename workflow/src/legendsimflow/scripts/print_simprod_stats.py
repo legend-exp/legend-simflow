@@ -20,6 +20,7 @@ import json
 from datetime import timedelta
 from pathlib import Path
 
+from snakemake.scripts import snakemake
 from utils import patterns
 
 

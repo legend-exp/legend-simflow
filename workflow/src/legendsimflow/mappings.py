@@ -16,6 +16,8 @@
 # ruff: noqa: F821, T201
 from __future__ import annotations
 
+from datetime import datetime
+
 from legendmeta import LegendMetadata
 
 # TODO: add support for SiPMs

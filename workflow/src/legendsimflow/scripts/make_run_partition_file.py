@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 
 import uproot
+from snakemake.scripts import snakemake
 from utils import utils
 
 with Path(snakemake.input.runinfo).open() as f:

@@ -18,6 +18,8 @@
 import os
 from pathlib import Path
 
+from snakemake.scripts import snakemake
+
 # TODO: generate the files from metadata inplace here
 # this script is run for each data taking run
 # snakemake.input[0] points to the legend-metadata clone in legend-simflow

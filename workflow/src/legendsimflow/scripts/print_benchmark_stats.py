@@ -18,6 +18,7 @@
 import csv
 from pathlib import Path
 
+from snakemake.scripts import snakemake
 from utils import patterns
 
 

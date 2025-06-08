@@ -63,10 +63,11 @@ def run_command(config, tier):
     return " ".join(config["execenv"]) + " " + config["runcmd"][tier]
 
 
-def log_file_path(config, **kwargs):
+def log_file_path(config, time, **kwargs):
     """Formats a log file path for a `simid` and `jobid`."""
     pat = str(
         Path(config["paths"]["log"])
+        / time
         / "{tier}"
         / (simjob_rel_basename() + "-tier_{tier}.log")
     )
@@ -89,11 +90,12 @@ def plots_file_path(config, **kwargs):
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
-def genmacro_log_file_path(config, **kwargs):
+def genmacro_log_file_path(config, time, **kwargs):
     """Formats a log file path for a `simid` and `jobid`."""
     return expand(
         str(
             Path(config["paths"]["log"])
+            / time
             / "macros"
             / "{tier}"
             / (simjob_rel_basename() + "-tier_{tier}.log")
@@ -215,8 +217,10 @@ def output_evt_filename(config, **kwargs):
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
-def log_evtfile_path(config, **kwargs):
-    pat = str(Path(config["paths"]["log"]) / "evt" / (evtfile_rel_basename() + ".log"))
+def log_evtfile_path(config, time, **kwargs):
+    pat = str(
+        Path(config["paths"]["log"]) / time, "evt" / (evtfile_rel_basename() + ".log")
+    )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
@@ -246,8 +250,10 @@ def output_pdf_filename(config, **kwargs):
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
-def log_pdffile_path(config, **kwargs):
-    pat = str(Path(config["paths"]["log"]) / "pdf" / (pdffile_rel_basename() + ".log"))
+def log_pdffile_path(config, time, **kwargs):
+    pat = str(
+        Path(config["paths"]["log"]) / time / "pdf" / (pdffile_rel_basename() + ".log")
+    )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 

@@ -15,10 +15,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import yaml
+from dbetto import Props
 
 from . import patterns, utils
 
@@ -76,11 +76,10 @@ def gen_list_of_plots_outputs(config, tier, simid):
 def collect_simconfigs(config, tiers):
     cfgs = []
     for tier in tiers:
-        with (
+        for sid, _val in Props.read_from(
             patterns.template_macro_dir(config, tier=tier) / "simconfig.yaml"
-        ).open() as f:
-            for sid, _val in json.load(f).items():
-                cfgs.append((tier, sid, get_simid_n_macros(config, tier, sid)))
+        ).items():
+            cfgs.append((tier, sid, get_simid_n_macros(config, tier, sid)))
 
     return cfgs
 
@@ -88,10 +87,9 @@ def collect_simconfigs(config, tiers):
 def gen_list_of_all_simids(config, tier):
     if tier not in ("ver", "stp"):
         tier = "stp"
-    with (
+    return Props.read_from(
         patterns.template_macro_dir(config, tier=tier) / "simconfig.yaml"
-    ).open() as f:
-        return json.load(f).keys()
+    ).keys()
 
 
 def gen_list_of_all_macros(config, tier):
@@ -153,7 +151,6 @@ def gen_list_of_all_tier_pdf_outputs(config):
     slist = gen_list_of_all_simids(config, tier="stp")
     for simid in slist:
         mlist += gen_list_of_tier_pdf_outputs(config, simid=simid)
-
     return mlist
 
 
