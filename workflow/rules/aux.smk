@@ -52,7 +52,7 @@ rule print_benchmark_stats:
         "../scripts/print_benchmark_stats.py"
 
 
-if any([t in make_tiers for t in ("ver", "raw")]):
+if any([t in make_tiers for t in ("ver", "stp")]):
 
     rule inspect_simjob_logs:
         """Reports any warning from the simulation job logs."""

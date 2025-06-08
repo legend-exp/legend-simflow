@@ -1,9 +1,8 @@
-# profit from Perlmutter's scratch area: https://docs.nersc.gov/filesystems/perlmutter-scratch
-# see: https://snakemake.readthedocs.io/en/stable/project_info/faq.html#how-can-i-make-use-of-node-local-storage-when-running-cluster-jobs
-# NOTE: this only works if paths to input/output files are NOT absolute! you
-# must not use the $_ special variable in config.json in front of paths that
-# should live in the scratch area and just specify a relative path.
-shadow-prefix: $PSCRATCH
+configfile: simflow-config.yaml
+keep-going: true
+rerun-incomplete: true
+config:
+  - system=nersc
 
 # NERSC uses the SLURM job scheduler
 # - https://snakemake.readthedocs.io/en/stable/executing/cluster.html#executing-on-slurm-clusters
@@ -36,16 +35,14 @@ default-resources:
 
 # number of threads used by each rule
 set-threads:
-  - build_tier_ver=1
-  - build_tier_raw=1
+  - build_tier_stp=1
 
 # we define groups in order to let Snakemake group rule instances in the same
 # SLURM job. relevant docs:
 # - https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#snakefiles-grouping
 # - https://snakemake.readthedocs.io/en/stable/executing/grouping.html#job-grouping
 groups:
-  - build_tier_ver=sims
-  - build_tier_raw=sims
+  - build_tier_stp=sims
 
 # disconnected parts of the workflow can run in parallel (at most 256 of them)
 # in a group

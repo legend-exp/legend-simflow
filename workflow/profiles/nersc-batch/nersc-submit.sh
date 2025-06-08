@@ -73,7 +73,7 @@ if [[ "$1" == "parallel" ]]; then
     simids=$(python -c '
 import json
 
-with open("inputs/simprod/config/tier/raw/l200a/simconfig.json") as f:
+with open("inputs/simprod/config/tier/stp/l200a/simconfig.json") as f:
     simids = json.load(f).keys()
 
 for s in simids:

@@ -16,39 +16,51 @@
 # ruff: noqa: F821, T201
 
 import csv
+import json
+from datetime import timedelta
 from pathlib import Path
 
 from utils import patterns
 
 
 def printline(*line):
-    print("{:<52}{:>16}{:>11}{:>23}".format(*line))
+    print("{:<50} {:>20} {:>6} {:>14} {:>10}".format(*line))
 
 
-printline("simid", "CPU time [ms/ev]", "evts / 1h", "jobs (1h) / 10^8 evts")
-printline("-----", "----------------", "---------", "---------------------")
+printline("     ", "wall time [s]", "    ", "wall time [s]", "         ")
+printline("simid", " (cumulative)", "jobs", "    (per job)", "primaries")
+printline("-----", "-------------", "----", "-------------", "---------")
 
 bdir = Path(patterns.as_ro(snakemake.config, snakemake.config["paths"]["benchmarks"]))
 
+tot_wall_time = 0
 for simd in sorted(bdir.glob("*/*")):
-    if simd.parent.name not in ("ver", "raw"):
-        continue
-
-    data = {"cpu_time": 0}
+    njobs = 0
+    data = {"wall_time": 0}
     for jobd in simd.glob("*.tsv"):
+        njobs += 1
         with jobd.open(newline="") as f:
             this_data = next(iter(csv.DictReader(f, delimiter="\t")))
-            data["cpu_time"] += float(this_data["cpu_time"])
+            data["wall_time"] += float(this_data["s"])
+    tot_wall_time += data["wall_time"]
 
-    speed = (
-        data["cpu_time"]
-        / snakemake.config["benchmark"]["n_primaries"][simd.parent.name]
-    )
-    evts_1h = int(60 * 60 / speed) if speed > 0 else "..."
-    njobs = int(1e8 / evts_1h) if not isinstance(evts_1h, str) else 0
+    if njobs == 0:
+        continue
+
+    tier = simd.parent.name if simd.parent.name in ("ver", "stp") else "stp"
+
+    tdir = patterns.template_macro_dir(snakemake.config, tier=tier)
+    with (tdir / "simconfig.json").open() as f:
+        config = json.load(f)[simd.name]
+
+    nprim = config["number_of_primaries"]
+
     printline(
         simd.parent.name + "." + simd.name,
-        "({:}s) {:.2f}".format(int(data["cpu_time"]), 1000 * speed),
-        evts_1h,
+        str(timedelta(seconds=int(data["wall_time"]))),
         njobs,
+        str(timedelta(seconds=int(data["wall_time"] / njobs))),
+        f"{nprim:.2E}",
     )
+
+print("\nTotal wall time:", str(timedelta(seconds=int(tot_wall_time))))

@@ -15,16 +15,25 @@
 
 from pathlib import Path
 
-from scripts.utils import utils, patterns, aggregate, tier_evt
+from dbetto import AttrsDict
+
+from legenddataflowscripts.workflow import execenv, utils
+from legendsimflow import patterns, aggregate, tier_evt
+from legendmeta import LegendMetadata
+
 
 if not config:
     raise RuntimeError("you must set a config file with --configfile")
 
-utils.subst_vars_in_snakemake_config(workflow, config)
-
 config.setdefault("benchmark", {"enabled": False})
-make_tiers = config.get("make_tiers", ["ver", "raw", "hit", "evt", "pdf"])
+make_tiers = config.get("make_tiers", ["ver", "stp", "hit", "evt", "pdf"])
 
+config = AttrsDict(utils.subst_vars_in_snakemake_config(workflow, config))
+
+# NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
+metadata = LegendMetadata(config.paths.metadata)
+if "legend_metadata_version" in config:
+    metadata.checkout(config.legend_metadata_version)
 
 wildcard_constraints:
     tier=r"\w+",
@@ -33,19 +42,30 @@ wildcard_constraints:
     runid=r"[-\w]+",
 
 
-if "raw" in make_tiers:
+onstart:
+    print("INFO: starting workflow")
+
+    # Make sure some packages are initialized before we begin to avoid race conditions
+    # https://numba.readthedocs.io/en/stable/developer/caching.html#cache-sharing
+    if not workflow.touch:
+        shell(
+            f"{execenv.execenv_pyexe(config, 'python')} "
+            f"-c '{", ".join(config.precompile_pkg)}'"
+        )
+
+
+if "stp" in make_tiers:
     rule gen_all_macros:
         """Aggregate and produce all the macro files."""
         input:
             aggregate.gen_list_of_all_macros(config, tier="ver"),
-            aggregate.gen_list_of_all_macros(config, tier="raw"),
+            aggregate.gen_list_of_all_macros(config, tier="stp"),
 
-
-    rule gen_all_tier_raw:
-        """Aggregate and produce all the raw tier files."""
+    rule gen_all_tier_stp:
+        """Aggregate and produce all the stp tier files."""
         input:
-            aggregate.gen_list_of_all_plots_outputs(config, tier="raw"),
-            aggregate.gen_list_of_all_simid_outputs(config, tier="raw"),
+            aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
+            aggregate.gen_list_of_all_simid_outputs(config, tier="stp"),
 
 
 if "hit" in make_tiers:
@@ -67,7 +87,6 @@ if "pdf" in make_tiers:
         """Aggregate and produce all the pdf tier files."""
         input:
             aggregate.gen_list_of_all_tier_pdf_outputs(config),
-
 
     rule gen_pdf_release:
         """Generates a tarball with all the pdf files."""
@@ -97,10 +116,10 @@ def gen_target_all():
             return rules.gen_all_tier_evt.output
         elif "hit" in make_tiers:
             return rules.gen_all_tier_hit.output
-        elif "raw" in make_tiers:
+        elif "stp" in make_tiers:
             return (
-                rules.gen_all_tier_raw.output,
-                aggregate.gen_list_of_all_plots_outputs(config, tier="raw"),
+                rules.gen_all_tier_stp.output,
+                aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
                 aggregate.gen_list_of_all_plots_outputs(config, tier="ver")
             )
     else:
@@ -116,10 +135,9 @@ rule all:
 # since the number of generated macros for the 'output' field
 # must be deduced at runtime from the JSON configuration, we need here to
 # generate a separate rule for each 'simid'
-simconfigs = aggregate.collect_simconfigs(config, ["ver", "raw"])
+simconfigs = aggregate.collect_simconfigs(config, ["ver", "stp"])
 
 for tier, simid, n_macros in simconfigs:
-
     if tier in make_tiers:
         rule:
             f"""Generates all needed simulation macros ({n_macros}) for {simid} in tier {tier}. No wildcards are used."""
@@ -140,7 +158,7 @@ for tier, simid, n_macros in simconfigs:
         utils.set_last_rule_name(workflow, f"gen_macros_{simid}-tier_{tier}")
 
 
-if "raw" in make_tiers:
+if "stp" in make_tiers:
     rule build_tier_ver:
         """Run a single simulation job for the ver tier.
         Uses wildcards `simid` and `jobid`.
@@ -167,8 +185,8 @@ if "raw" in make_tiers:
             patterns.run_command(config, "ver")
 
 
-    rule build_tier_raw:
-        """Run a single simulation job for the raw tier.
+    rule build_tier_stp:
+        """Run a single simulation job for the stp tier.
         Uses wildcards `simid` and `jobid`.
 
         Warning
@@ -180,34 +198,34 @@ if "raw" in make_tiers:
         to manually remove the output simulation files or force execution.
         """
         message:
-            "Producing output file for job raw.{wildcards.simid}.{wildcards.jobid}"
+            "Producing output file for job stp.{wildcards.simid}.{wildcards.jobid}"
         input:
-            macro=ancient(patterns.input_simjob_filename(config, tier="raw")),
-            verfile=lambda wildcards: patterns.smk_ver_filename_for_raw(config, wildcards),
+            macro=ancient(patterns.input_simjob_filename(config, tier="stp")),
+            verfile=lambda wildcards: patterns.smk_ver_filename_for_stp(config, wildcards),
         output:
-            protected(patterns.output_simjob_filename(config, tier="raw")),
+            protected(patterns.output_simjob_filename(config, tier="stp")),
         log:
-            patterns.log_file_path(config, tier="raw"),
+            patterns.log_file_path(config, tier="stp"),
         benchmark:
-            patterns.benchmark_file_path(config, tier="raw")
+            patterns.benchmark_file_path(config, tier="stp")
         shell:
-            patterns.run_command(config, "raw")
+            patterns.run_command(config, "stp")
 
 
 if "hit" in make_tiers:
     rule build_tier_hit:
-        """Produces a hit tier file starting from a single raw tier file."""
+        """Produces a hit tier file starting from a single stp tier file."""
         message:
             "Producing output file for job hit.{wildcards.simid}.{wildcards.jobid}"
         input:
-            raw_file=patterns.input_simjob_filename(config, tier="hit"),
+            stp_file=patterns.input_simjob_filename(config, tier="hit"),
             optmap_lar=config["paths"]["optical_maps"]["lar"],
             optmap_pen=config["paths"]["optical_maps"]["pen"],
             optmap_fiber=config["paths"]["optical_maps"]["fiber"],
         output:
             patterns.output_simjob_filename(config, tier="hit"),
         params:
-            ro_raw_file=lambda wildcards, input: patterns.as_ro(config, input.raw_file),
+            ro_stp_file=lambda wildcards, input: patterns.as_ro(config, input.stp_file),
         log:
             patterns.log_file_path(config, tier="hit"),
         benchmark:
@@ -287,7 +305,7 @@ if "pdf" in make_tiers:
         output:
             patterns.output_pdf_filename(config),
         params:
-            raw_files_regex=patterns.as_ro(config, patterns.output_simjob_regex(config, tier="raw")),
+            stp_files_regex=patterns.as_ro(config, patterns.output_simjob_regex(config, tier="stp")),
             ro_evt_files=lambda wildcards, input: patterns.as_ro(config, input.evt_files),
         log:
             patterns.log_pdffile_path(config),

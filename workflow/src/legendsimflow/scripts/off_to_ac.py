@@ -37,7 +37,7 @@ except shutil.Error as e:
 except OSError as e:
     print(f"Error: {e}")
 
-files = os.listdir(outpath + sub_path)
+files = os.listdir(outpath + sub_path)  # noqa: PTH208
 for f in files:
     if "l200" not in f:
         continue

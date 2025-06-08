@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# ruff: noqa: F821, T201, PGH001
+# ruff: noqa: F821, T201, S307
 
 from __future__ import annotations
 
@@ -560,7 +560,7 @@ for file_name in args.input_files:
 # now add them together to make the grouped hists
 # We don't need to worry about the AC dets as they will have zero entries
 logger.info("... making grouped pdfs")
-for _cut_name in hists:
+for _cut_name, _ in hists.item():
     hists[_cut_name]["all"] = ROOT.TH1F(
         f"{_cut_name}_all",
         "All energy deposits",

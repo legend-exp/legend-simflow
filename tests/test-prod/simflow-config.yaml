@@ -1,0 +1,70 @@
+experiment: l200a
+runlist:
+- l200-p03-r000-phy
+- l200-p04-r000-phy
+- l200-p04-r001-phy
+
+simlist: all
+
+make_tiers:
+- stp
+
+benchmark:
+  enabled: false
+  n_primaries:
+    stp: 5000
+    ver: 10000
+
+paths:
+  benchmarks: $_/generated/benchmarks
+  log: $_/generated/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    fiber: $_/inputs/simprod/l200a-optical-map-fiber.root
+    lar: $_/inputs/simprod/l200a-optical-map-lar.root
+    pen: $_/inputs/simprod/l200a-optical-map-pen.root
+
+  genconfig: $_/generated/config
+  macros: $_/generated/macros
+  tier_evt: $_/generated/tier/evt
+  tier_hit: ./generated/tier/hit
+  tier_pdf: $_/generated/tier/pdf
+  tier_stp: ./generated/tier/stp
+  tier_ver: ./generated/tier/ver
+  pdf_releases: $_/generated/releases
+  plots: $_/generated/plots
+
+precompile_pkg:
+  - lgdo
+  - matplotlib
+  - reboost
+  - legendhpges
+  - legendoptics
+  - pygeomtools
+
+execenv:
+  bare:
+    install: $_/.snakemake/legend-dataflow/venv
+    env:
+      NUMBA_CACHE_DIR: $_/.snakemake/legend-dataflow/venv/cache
+      HDF5_USE_FILE_LOCKING: "false"
+      TQDM_DISABLE: "true"
+
+  nersc:
+    init: shifterimg pull legendexp/remage:dev
+    cmd: shifter
+    arg: --image legendexp/remage:dev
+    install: /global/common/software/legend/lgsim/prodenv/v2.0.0a1/inner-venv
+    env:
+      NUMBA_CACHE_DIR: /global/common/software/legend/lgsim/prodenv/v2.0.0a1/inner-venv/cache
+      HDF5_USE_FILE_LOCKING: "false"
+      TQDM_DISABLE: "true"
+
+runcmd:
+  stp: remage -- {input.macro} &>2 {log}
+  evt: process_L200_evt.py -o {output} -c {input.config_file} -d {input.hpge_db} -s {params.evt_window[0]} -n {params.evt_window[1]} -- {params.hit_files_regex} &> {log}
+  hit: process_L200_hit.py --laroptmap {input.optmap_lar} --penoptmap {input.optmap_pen} --fiberoptmap {input.optmap_fiber} -o {output} -- {input.stp_file} &> {log}
+  pdf: python $_/workflow/scripts/build_pdf.py -c {input.config_file} -m $_/inputs -r {params.stp_files_regex} -o {output} -- {input.evt_files} &> {log}
+  ver: $_/workflow/scripts/MaGe.sh {input.macro} {log}

@@ -27,25 +27,30 @@ Definitions:
 """
 from __future__ import annotations
 
-import json
-import re
 from pathlib import Path
 
+import yaml
+from dbetto import AttrsDict
 from snakemake.io import expand
 
-
-def as_ro(config, path):
-    if "read_only_fs_sub_pattern" not in config:
-        return path
-
-    sub_pattern = config["read_only_fs_sub_pattern"]
-
-    if isinstance(path, str):
-        return re.sub(*sub_pattern, path)
-    if isinstance(path, Path):
-        return Path(re.sub(*sub_pattern, path.name))
-
-    return [as_ro(config, p) for p in path]
+FILETYPES = AttrsDict(
+    {
+        "input": {
+            "ver": ".mac",
+            "stp": ".mac",
+            "hit": ".lh5",
+            "evt": ".lh5",
+            "pdf": ".lh5",
+        },
+        "output": {
+            "ver": ".lh5",
+            "stp": ".lh5",
+            "hit": ".lh5",
+            "evt": ".lh5",
+            "pdf": ".lh5",
+        },
+    }
+)
 
 
 def simjob_rel_basename(**kwargs):
@@ -104,23 +109,23 @@ def template_macro_dir(config, **kwargs):
     return Path(config["paths"]["config"]) / "tier" / tier / config["experiment"]
 
 
-# ver, raw, hit tiers
+# ver, stp, hit tiers
 
 
 def macro_gen_inputs(config, tier, simid, **kwargs):
     """Return inputs for the Snakemake rules that generate macros."""
     tdir = template_macro_dir(config, tier=tier)
 
-    with (tdir / "simconfig.json").open() as f:
-        sconfig = json.load(f)[simid]
+    with (tdir / "simconfig.yaml").open() as f:
+        sconfig = yaml.safe_load(f)[simid]
 
     if "template" not in sconfig:
-        msg = "simconfig.json blocks must define a 'template' field."
+        msg = "simconfig.yaml blocks must define a 'template' field."
         raise RuntimeError(msg)
 
     expr = {
         "template": str(tdir / sconfig["template"]),
-        "cfgfile": str(tdir / "simconfig.json"),
+        "cfgfile": str(tdir / "simconfig.yaml"),
     }
     for k, v in expr.items():
         expr[k] = expand(v, **kwargs, allow_missing=True)[0]
@@ -129,40 +134,38 @@ def macro_gen_inputs(config, tier, simid, **kwargs):
 
 def input_simjob_filename(config, **kwargs):
     """Returns the full path to the input file for a `simid`, `tier` and job index."""
-    tier = kwargs.get("tier", None)
+    tier = kwargs.get("tier")
 
     if tier is None:
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    fname = simjob_rel_basename() + f"-tier_{tier}" + config["filetypes"]["input"][tier]
+    fname = simjob_rel_basename() + f"-tier_{tier}" + FILETYPES["input"][tier]
     expr = str(Path(config["paths"]["macros"]) / f"{tier}" / fname)
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
 def output_simjob_filename(config, **kwargs):
     """Returns the full path to the output file for a `simid`, `tier` and job index."""
-    tier = kwargs.get("tier", None)
+    tier = kwargs.get("tier")
 
     if tier is None:
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    fname = (
-        simjob_rel_basename() + f"-tier_{tier}" + config["filetypes"]["output"][tier]
-    )
+    fname = simjob_rel_basename() + f"-tier_{tier}" + FILETYPES["output"][tier]
     expr = str(Path(config["paths"][f"tier_{tier}"]) / fname)
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
 def output_simjob_regex(config, **kwargs):
-    tier = kwargs.get("tier", None)
+    tier = kwargs.get("tier")
 
     if tier is None:
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    fname = "*-tier_{tier}" + config["filetypes"]["output"][tier]
+    fname = "*-tier_{tier}" + FILETYPES["output"][tier]
     expr = str(Path(config["paths"][f"tier_{tier}"]) / "{simid}" / fname)
     return expand(expr, **kwargs, allow_missing=True)[0]
 
@@ -183,13 +186,13 @@ def output_simid_filenames(config, n_macros, **kwargs):
     return expand(pat, jobid=jobids, **kwargs, allow_missing=True)
 
 
-def smk_ver_filename_for_raw(config, wildcards):
-    """Returns the vertices file needed for the 'raw' tier job, if needed. Used
-    as lambda function in the `build_tier_raw` Snakemake rule."""
-    tdir = template_macro_dir(config, tier="raw")
+def smk_ver_filename_for_stp(config, wildcards):
+    """Returns the vertices file needed for the 'stp' tier job, if needed. Used
+    as lambda function in the `build_tier_stp` Snakemake rule."""
+    tdir = template_macro_dir(config, tier="stp")
 
-    with (tdir / "simconfig.json").open() as f:
-        sconfig = json.load(f)[wildcards.simid]
+    with (tdir / "simconfig.yaml").open() as f:
+        sconfig = yaml.safe_load(f)[wildcards.simid]
 
     if "vertices" in sconfig:
         return output_simjob_filename(config, tier="ver", simid=sconfig["vertices"])
@@ -207,7 +210,7 @@ def evtfile_rel_basename(**kwargs):
 def output_evt_filename(config, **kwargs):
     expr = str(
         Path(config["paths"]["tier_evt"])
-        / (evtfile_rel_basename() + config["filetypes"]["output"]["evt"])
+        / (evtfile_rel_basename() + FILETYPES["output"]["evt"])
     )
     return expand(expr, **kwargs, allow_missing=True)[0]
 
@@ -232,13 +235,13 @@ def pdffile_rel_basename(**kwargs):
 
 
 def pdf_config_path(config):
-    return template_macro_dir(config, tier="pdf") / "build-pdf-config.json"
+    return template_macro_dir(config, tier="pdf") / "build-pdf-config.yaml"
 
 
 def output_pdf_filename(config, **kwargs):
     expr = str(
         Path(config["paths"]["tier_pdf"])
-        / (pdffile_rel_basename() + config["filetypes"]["output"]["pdf"])
+        / (pdffile_rel_basename() + FILETYPES["output"]["pdf"])
     )
     return expand(expr, **kwargs, allow_missing=True)[0]
 
