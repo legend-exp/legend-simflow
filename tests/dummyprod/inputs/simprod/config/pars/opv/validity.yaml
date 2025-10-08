@@ -1,0 +1,2 @@
+- valid_from: 20250425T180115Z
+  apply: [l200-p14-r000-T%-all-opvs.yaml]
