@@ -56,9 +56,13 @@ FILETYPES = AttrsDict(
 )
 
 
-def simjob_rel_basename(**kwargs):
+def simjob_rel_basename(config, **kwargs):
     """Formats a partial output path for a `simid` and `jobid`."""
-    return expand("{simid}/{simid}_{jobid}", **kwargs, allow_missing=True)[0]
+    return expand(
+        "{simid}/" + config.experiment + "-{simid}_{jobid}",
+        **kwargs,
+        allow_missing=True,
+    )[0]
 
 
 def log_filename(config, time, **kwargs):
@@ -67,7 +71,7 @@ def log_filename(config, time, **kwargs):
         Path(config.paths.log)
         / time
         / "{tier}"
-        / (simjob_rel_basename() + "-tier_{tier}.log")
+        / (simjob_rel_basename(config) + "-tier_{tier}.log")
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
@@ -77,7 +81,7 @@ def benchmark_filename(config, **kwargs):
     pat = str(
         Path(config.paths.benchmarks)
         / "{tier}"
-        / (simjob_rel_basename() + "-tier_{tier}.tsv")
+        / (simjob_rel_basename(config) + "-tier_{tier}.tsv")
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
@@ -92,17 +96,27 @@ def plots_filepath(config, **kwargs):
 
 
 def geom_config(config, **kwargs):
-    pat = str(Path(config.paths.geom) / "{simid}-tier_{tier}-geom-config.yaml")
+    pat = str(
+        Path(config.paths.geom)
+        / (config.experiment + "-{simid}-tier_{tier}-geom-config.yaml")
+    )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
 def geom_gdml_filename(config, **kwargs):
-    pat = str(Path(config.paths.geom) / "{simid}-tier_{tier}-geom.gdml")
+    pat = str(
+        Path(config.paths.geom) / (config.experiment + "-{simid}-tier_{tier}-geom.gdml")
+    )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
 def geom_log_filename(config, time, **kwargs):
-    pat = str(Path(config.paths.log) / time / "{simid}-tier_{tier}-geom.log")
+    pat = str(
+        Path(config.paths.log)
+        / time
+        / "geom"
+        / (config.experiment + "-{simid}-tier_{tier}-geom.log")
+    )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
@@ -117,7 +131,7 @@ def input_simjob_filename(config, **kwargs):
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    fname = "{simid}" + f"-tier_{tier}" + FILETYPES["input"][tier]
+    fname = config.experiment + "-{simid}" + f"-tier_{tier}" + FILETYPES["input"][tier]
     expr = str(Path(config.paths.macros) / f"{tier}" / fname)
     return expand(expr, **kwargs, allow_missing=True)[0]
 
@@ -130,7 +144,7 @@ def output_simjob_filename(config, **kwargs):
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    fname = simjob_rel_basename() + f"-tier_{tier}" + FILETYPES["output"][tier]
+    fname = simjob_rel_basename(config) + f"-tier_{tier}" + FILETYPES["output"][tier]
     expr = str(Path(config.paths[f"tier_{tier}"]) / fname)
     return expand(expr, **kwargs, allow_missing=True)[0]
 
@@ -142,7 +156,7 @@ def output_simjob_regex(config, **kwargs):
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    fname = "*-tier_{tier}" + FILETYPES["output"][tier]
+    fname = config.experiment + "-*-tier_{tier}" + FILETYPES["output"][tier]
     expr = str(Path(config["paths"][f"tier_{tier}"]) / "{simid}" / fname)
     return expand(expr, **kwargs, allow_missing=True)[0]
 

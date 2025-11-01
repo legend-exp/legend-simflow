@@ -6,7 +6,6 @@ from pathlib import Path
 
 import legenddataflowscripts as lds
 import numpy as np
-from legendmeta import LegendMetadata
 
 from . import patterns
 from .exceptions import SimflowConfigError
@@ -15,7 +14,6 @@ from .utils import get_simconfig
 
 def remage_run(
     config: Mapping,
-    metadata: LegendMetadata,
     simid: str,
     tier: str = "stp",
     geom: str | Path = "{input.geom}",
@@ -70,10 +68,10 @@ def remage_run(
 
     # get the config block for this tier/simid
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig.{simid}"
-    sim_cfg = get_simconfig(config, metadata, tier, simid=simid)
+    sim_cfg = get_simconfig(config, tier, simid=simid)
 
     # get macro
-    macro_text, _ = make_remage_macro(config, metadata, simid, tier=tier)
+    macro_text, _ = make_remage_macro(config, simid, tier=tier)
 
     # need some modifications if this is a benchmark run
     try:
@@ -138,9 +136,7 @@ def remage_run(
     return shlex.join(cmd)
 
 
-def make_remage_macro(
-    config: Mapping, metadata: LegendMetadata, simid: str, tier: str = "stp"
-) -> (str, Path):
+def make_remage_macro(config: Mapping, simid: str, tier: str = "stp") -> (str, Path):
     """Render the remage macro for a given simulation and write it to disk.
 
     This function reads the simulation configuration for the provided tier/simid,
@@ -181,7 +177,7 @@ def make_remage_macro(
     """
     # get the config block for this tier/simid
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig.{simid}"
-    sim_cfg = get_simconfig(config, metadata, tier, simid=simid)
+    sim_cfg = get_simconfig(config, tier, simid=simid)
     mac_subs = {}
 
     # determine whether external vertices are required
@@ -202,7 +198,7 @@ def make_remage_macro(
 
         key = sim_cfg.generator.removeprefix("~defines:")
         try:
-            generator = metadata.simprod.config.tier[tier][
+            generator = config.metadata.simprod.config.tier[tier][
                 config.experiment
             ].generators[key]
         except KeyError as e:
@@ -220,7 +216,7 @@ def make_remage_macro(
             if sim_cfg.confinement.startswith("~defines:"):
                 key = sim_cfg.confinement.removeprefix("~defines:")
                 try:
-                    confinement = metadata.simprod.config.tier[tier][
+                    confinement = config.metadata.simprod.config.tier[tier][
                         config.experiment
                     ].confinement[key]
                 except KeyError as e:
@@ -273,7 +269,7 @@ def make_remage_macro(
     mac_subs |= sim_cfg.get("macro_substitutions", {})
 
     # read in template and substitute
-    template_path = get_simconfig(config, metadata, tier, simid=simid, field="template")
+    template_path = get_simconfig(config, tier, simid=simid, field="template")
     with Path(template_path).open() as f:
         text = lds.subst_vars(f.read().strip(), mac_subs, ignore_missing=False)
 

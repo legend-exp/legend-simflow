@@ -22,7 +22,7 @@ rule gen_all_tier_stp:
     """Build the entire `stp` tier."""
     input:
         # aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
-        aggregate.gen_list_of_all_simid_outputs(config, metadata, tier="stp"),
+        aggregate.gen_list_of_all_simid_outputs(config, tier="stp"),
 
 
 rule gen_geom_config:
@@ -41,7 +41,7 @@ rule gen_geom_config:
     params:
         # make this rule dependent on the actual simconfig block
         _simconfig_hash=lambda wc: utils.smk_hash_simconfig(
-            config, metadata, wc, "geom_config_extra"
+            config, wc, "geom_config_extra"
         ),
     run:
         from dbetto import utils as dbetto_utils
@@ -49,7 +49,7 @@ rule gen_geom_config:
 
         gconfig = dbetto_utils.load_dict(input[0])
         sconfig = utils.get_simconfig(
-            config, metadata, tier=wildcards.tier, simid=wildcards.simid
+            config, tier=wildcards.tier, simid=wildcards.simid
         )
 
         if "geom_config_extra" in sconfig:
@@ -78,7 +78,6 @@ def smk_remage_run(wildcards, input, output, threads):
     """Generate the remage command line for use in Snakemake rules."""
     return commands.remage_run(
         config,
-        metadata,
         wildcards.simid,
         tier="stp",
         geom=input.geom,
@@ -111,7 +110,7 @@ rule build_tier_stp:
         patterns.benchmark_filename(config, tier="stp")
     threads: 1
     conda:
-        f"{envs_dir}/remage.yaml"
+        f"{basedir}/envs/remage.yaml"
     params:
         cmd=smk_remage_run,
         # make this rule dependent on the actual simconfig block it is very
@@ -124,7 +123,6 @@ rule build_tier_stp:
         # `input.geom`.
         _simconfig_hash=lambda wc: utils.smk_hash_simconfig(
             config,
-            metadata,
             wc,
             tier="stp",
             ignore=["geom_config_extra", "number_of_jobs"],

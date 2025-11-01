@@ -19,7 +19,7 @@ from datetime import datetime
 from dbetto import AttrsDict
 
 import legenddataflowscripts as ldfs
-from legendsimflow import patterns, aggregate, tier_evt
+from legendsimflow import patterns, aggregate, tier_evt, utils
 from legendmeta import LegendMetadata
 
 # TODO:
@@ -35,17 +35,19 @@ config.setdefault("benchmark", {"enabled": False})
 make_tiers = config.get("make_tiers", ["stp", "hit"])
 ldfs.workflow.utils.subst_vars_in_snakemake_config(workflow, config)
 config = AttrsDict(config)
-envs_dir = f"{workflow.basedir}/envs"
+basedir = workflow.basedir
 
 proctime = datetime.now().strftime("%Y%m%dT%H%M%SZ")
 
 # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
-metadata = LegendMetadata(config.paths.metadata, lazy=True)
+# NOTE: don't use lazy=True, we need a fully functional TextDB
+_metadata = LegendMetadata(config.paths.metadata)
 if "legend_metadata_version" in config:
-    metadata.checkout(config.legend_metadata_version)
+    _metadata.checkout(config.legend_metadata_version)
+config["metadata"] = _metadata
 
 
-conda: f"{envs_dir}/global.yaml"
+conda: f"{basedir}/envs/global.yaml"
 
 
 wildcard_constraints:
@@ -58,6 +60,8 @@ wildcard_constraints:
 
 onstart:
     print("INFO: starting workflow")
+
+    utils.setup_logdir_link(config, proctime)
 
     if not config.benchmark:
         # instantiate Julia project
@@ -96,7 +100,7 @@ def gen_target_all():
                 # aggregate.gen_list_of_all_plots_outputs(config, tier="ver"),
             )
     else:
-        return aggregate.process_simlist(config, metadata)
+        return aggregate.process_simlist(config)
 
 
 rule all:

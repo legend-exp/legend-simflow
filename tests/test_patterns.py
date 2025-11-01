@@ -4,7 +4,7 @@ from legendsimflow import patterns as p
 
 
 def test_all(config):
-    assert isinstance(p.simjob_rel_basename(), str)
+    assert isinstance(p.simjob_rel_basename(config), str)
     assert isinstance(p.log_filename(config, "now"), str)
     assert isinstance(p.plots_filepath(config), str)
     assert isinstance(p.benchmark_filename(config), str)

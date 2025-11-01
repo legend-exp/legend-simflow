@@ -15,15 +15,19 @@
 
 from __future__ import annotations
 
+import logging
+
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata
 from legendmeta.police import validate_dict_schema
 
 from . import patterns, utils
+from .exceptions import SimflowConfigError
 from .utils import get_simconfig
 
+log = logging.getLogger(__name__)
 
-def get_simid_njobs(config, metadata, tier, simid):
+
+def get_simid_njobs(config, tier, simid):
     """Returns the number of macros that will be generated for a given `tier`
     and `simid`."""
     if tier not in ("ver", "stp"):
@@ -32,24 +36,24 @@ def get_simid_njobs(config, metadata, tier, simid):
     if "benchmark" in config and config.benchmark.get("enabled", False):
         return 1
 
-    sconfig = get_simconfig(config, metadata, tier, simid=simid)
+    sconfig = get_simconfig(config, tier, simid=simid)
 
     if "vertices" in sconfig and "number_of_jobs" not in sconfig:
-        return len(gen_list_of_simid_outputs(config, metadata, "ver", sconfig.vertices))
+        return len(gen_list_of_simid_outputs(config, "ver", sconfig.vertices))
     if "number_of_jobs" in sconfig:
         return sconfig.number_of_jobs
-    return get_simconfig(config, metadata, tier, simid=simid, field="number_of_jobs")
+    return get_simconfig(config, tier, simid=simid, field="number_of_jobs")
 
 
-def gen_list_of_simid_inputs(config, metadata, tier, simid):
+def gen_list_of_simid_inputs(config, tier, simid):
     """Generates the full list of input files for a `tier` and `simid`."""
-    n_jobs = get_simid_njobs(config, metadata, tier, simid)
+    n_jobs = get_simid_njobs(config, tier, simid)
     return patterns.input_simid_filenames(config, n_jobs, tier=tier, simid=simid)
 
 
-def gen_list_of_simid_outputs(config, metadata, tier, simid, max_files=None):
+def gen_list_of_simid_outputs(config, tier, simid, max_files=None):
     """Generates the full list of output files for a `simid`."""
-    n_jobs = get_simid_njobs(config, metadata, tier, simid)
+    n_jobs = get_simid_njobs(config, tier, simid)
     if max_files is not None:
         n_jobs = min(n_jobs, max_files)
     return patterns.output_simid_filenames(config, n_jobs, tier=tier, simid=simid)
@@ -67,35 +71,39 @@ def gen_list_of_plots_outputs(config, tier, simid):
 # simid independent stuff
 
 
-def collect_simconfigs(config, metadata, tiers):
+def get_runlist(config):
+    return sorted(utils.get_some_list(config.runlist))
+
+
+def collect_simconfigs(config, tiers):
     cfgs = []
     for tier in tiers:
-        for sid in get_simconfig(config, metadata, tier):
+        for sid in get_simconfig(config, tier):
             cfgs.append((tier, sid))
 
     return cfgs
 
 
-def gen_list_of_all_simids(config, metadata, tier):
+def gen_list_of_all_simids(config, tier):
     if tier not in ("ver", "stp"):
         tier = "stp"
 
-    return get_simconfig(config, metadata, tier).keys()
+    return get_simconfig(config, tier).keys()
 
 
-def gen_list_of_all_simid_outputs(config, metadata, tier):
+def gen_list_of_all_simid_outputs(config, tier):
     mlist = []
-    slist = gen_list_of_all_simids(config, metadata, tier)
+    slist = gen_list_of_all_simids(config, tier)
     for simid in slist:
-        mlist += gen_list_of_simid_outputs(config, metadata, tier, simid)
+        mlist += gen_list_of_simid_outputs(config, tier, simid)
 
     return mlist
 
 
-def gen_list_of_all_plots_outputs(config, metadata, tier):
+def gen_list_of_all_plots_outputs(config, tier):
     mlist = []
-    for simid in gen_list_of_all_simids(config, metadata, tier):
-        mlist += gen_list_of_plots_outputs(config, metadata, tier, simid)
+    for simid in gen_list_of_all_simids(config, tier):
+        mlist += gen_list_of_plots_outputs(config, tier, simid)
 
     return mlist
 
@@ -103,7 +111,7 @@ def gen_list_of_all_plots_outputs(config, metadata, tier):
 # drift time maps
 
 
-def crystal_meta(metadata: LegendMetadata, diode_meta: AttrsDict) -> AttrsDict:
+def crystal_meta(config: AttrsDict, diode_meta: AttrsDict) -> AttrsDict:
     """Get the crystal metadata starting from the diode metadata."""
     ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
     crystal_name = (
@@ -111,51 +119,55 @@ def crystal_meta(metadata: LegendMetadata, diode_meta: AttrsDict) -> AttrsDict:
         + format(diode_meta.production.order, "02d")
         + diode_meta.production.crystal
     )
-    crystal_db = metadata.hardware.detectors.germanium.crystals
+    crystal_db = config.metadata.hardware.detectors.germanium.crystals
     if crystal_name in crystal_db:
         return crystal_db[crystal_name]
     return None
 
 
-def start_key(metadata: LegendMetadata, runid: str) -> str:
+def start_key(config: AttrsDict, runid: str) -> str:
     """Get the start key for a runid."""
     _, period, run, datatype = runid.split("-")
-    return metadata.datasets.runinfo[period][run][datatype].start_key
+    return config.metadata.datasets.runinfo[period][run][datatype].start_key
 
 
-def gen_list_of_hpges_valid_for_dtmap(
-    metadata: LegendMetadata, runid: str
-) -> list[str]:
+def gen_list_of_hpges_valid_for_dtmap(config: AttrsDict, runid: str) -> list[str]:
     """Make a list of HPGe detector for which we want to generate a drift time map.
 
     It generates the list of deployed detectors in `runid` via the LEGEND
     channelmap, then checks if in the crystal metadata there's all the
     information required to generate a drift time map.
     """
-    chmap = metadata.hardware.configuration.channelmaps.on(start_key(metadata, runid))
+    chmap = config.metadata.hardware.configuration.channelmaps.on(
+        start_key(config, runid)
+    )
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
         m = crystal_meta(
-            metadata, metadata.hardware.detectors.germanium.diodes[hpge.name]
+            config, config.metadata.hardware.detectors.germanium.diodes[hpge.name]
         )
 
         if m is not None:
-            schema = {"impurity_curve": {"parameters": [], "corrections": {"scale": 0}}}
+            schema = {
+                "impurity_curve": {"parameters": None, "corrections": {"scale": 0}}
+            }
 
             if validate_dict_schema(
                 m, schema, greedy=False, typecheck=False, verbose=False
             ):
                 hpges.append(hpge.name)
 
+    if len(hpges) == 0:
+        msg = f"the list of HPGes valid for drift time map generation in {runid} is empty!"
+        log.warning(msg)
+
     return hpges
 
 
-def gen_list_of_dtmaps(
-    config: AttrsDict, metadata: LegendMetadata, runid: str
-) -> list[str]:
+def gen_list_of_dtmaps(config: AttrsDict, runid: str) -> list[str]:
     """Generate the list of HPGe drift time map files for a `runid`."""
-    hpges = gen_list_of_hpges_valid_for_dtmap(metadata, runid)
+    hpges = gen_list_of_hpges_valid_for_dtmap(config, runid)
     return [
         patterns.output_dtmap_filename(config, hpge_detector=hpge, runid=runid)
         for hpge in hpges
@@ -164,9 +176,9 @@ def gen_list_of_dtmaps(
 
 def gen_list_of_merged_dtmaps(config: AttrsDict) -> list[str]:
     r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
-    runlist = utils.get_some_list(config.runlist)
     return [
-        patterns.output_dtmap_merged_filename(config, runid=runid) for runid in runlist
+        patterns.output_dtmap_merged_filename(config, runid=runid)
+        for runid in get_runlist(config)
     ]
 
 
@@ -174,10 +186,8 @@ def gen_list_of_merged_dtmaps(config: AttrsDict) -> list[str]:
 
 
 def gen_list_of_tier_evt_outputs(config, simid):
-    runlist = utils.get_some_list(config.runlist)
-
     mlist = []
-    for runid in runlist:
+    for runid in get_runlist(config):
         mlist += [patterns.output_evt_filename(config, simid=simid, runid=runid)]
 
     return mlist
@@ -207,7 +217,7 @@ def gen_list_of_all_tier_pdf_outputs(config):
     return mlist
 
 
-def process_simlist(config, metadata, simlist=None):
+def process_simlist(config, simlist=None):
     if simlist is None:
         simlist = config.simlist
 
@@ -219,12 +229,19 @@ def process_simlist(config, metadata, simlist=None):
     mlist = []
     for line in simlist:
         # each line is in the format <tier>.<simid>
+        if len(line.split(".")) != 2:
+            msg = (
+                "simflow-config.simlist",
+                f"item '{line}' is not in the format <tier>.<simid>",
+            )
+            raise SimflowConfigError(*msg)
+
         tier = line.split(".")[0].strip()
         simid = line.split(".")[1].strip()
 
         # mlist += gen_list_of_plots_outputs(config, tier, simid)
         if tier in ("ver", "stp", "hit"):
-            mlist += gen_list_of_simid_outputs(config, metadata, tier, simid)
+            mlist += gen_list_of_simid_outputs(config, tier, simid)
         elif tier == "evt":
             mlist += gen_list_of_tier_evt_outputs(config, simid)
         elif tier == "pdf":
