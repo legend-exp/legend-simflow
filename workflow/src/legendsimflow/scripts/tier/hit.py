@@ -16,7 +16,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import awkward as ak
-import h5py
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import legendhpges
@@ -32,8 +31,10 @@ import reboost.math.functions
 import reboost.spms
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
-from lgdo import LGDO, lh5
+from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
+
+from legendsimflow import reboost as reboost_utils
 
 stp_file = snakemake.input.stp_file  # noqa: F821
 hit_file = snakemake.output[0]  # noqa: F821
@@ -44,63 +45,6 @@ metadata = snakemake.config.metadata  # noqa: F821
 hpge_dtmap_files = snakemake.input.hpge_dtmaps  # noqa: F821
 
 
-def get_sensvols(geom, det_type: str | None = None) -> list[str]:
-    sensvols = pygeomtools.detectors.get_all_sensvols(geom)
-    if det_type is not None:
-        return [k for k, v in sensvols.items() if v.detector_type == det_type]
-    return list(sensvols.keys())
-
-
-def make_output_chunk(chunk: LGDO) -> lgdo.Table:
-    out = lgdo.Table(size=len(chunk))
-
-    if "t0" in chunk and isinstance(chunk.t0, lgdo.Array):
-        t0 = chunk.t0
-    else:
-        t0 = lgdo.Array(
-            ak.fill_none(ak.firsts(chunk.time.view_as("ak"), axis=-1), 0),
-            attrs={"units": "ns"},
-        )
-
-    if isinstance(chunk.evtid, lgdo.Array):
-        evtid = chunk.evtid
-    else:
-        evtid = lgdo.Array(
-            ak.fill_none(ak.firsts(chunk.evtid.view_as("ak"), axis=-1), 0)
-        )
-
-    out.add_field("t0", t0)
-    out.add_field("evtid", evtid)
-
-    return out
-
-
-def write_chunk(iterator, table, det_name, uid):
-    wo_mode = "append_column" if iterator.current_i_entry == 0 else "append"
-    lh5.write(
-        table,
-        f"hit/{det_name}",
-        hit_file,
-        wo_mode=wo_mode,
-    )
-    if iterator.current_i_entry == 0:
-        if "hit/__by_uid__" not in lh5.ls(hit_file, "hit/"):
-            log.debug("creating hit/__by_uid__ folder")
-            lh5.write(lgdo.Struct(), "hit/__by_uid__", hit_file)
-
-        msg = f"creating soft link hit/__by_uid__/det{uid} -> hit/{det_name}"
-        log.debug(msg)
-        with h5py.File(hit_file, "r+") as f:
-            # create uid -> det_name symlink
-            f[f"hit/__by_uid__/det{uid}"] = h5py.SoftLink(f"/hit/{det_name}")
-            # updated the struct datatype attribute by adding the new symlink
-            dt = f["hit/__by_uid__"].attrs.pop("datatype")
-            fields = [*lgdo.lh5.datatype.get_struct_fields(dt), f"det{uid}"]
-            f["hit/__by_uid__"].attrs["datatype"] = (
-                "struct{" + ",".join(sorted(fields)) + "}"
-            )
-
-
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
@@ -108,10 +52,7 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sensvols = pygeomtools.detectors.get_all_sensvols(geom)
 
-# create the output file
-lh5.write(lgdo.Struct(), "hit", hit_file, wo_mode="write_safe")
-
-# loop over the registered sensitive volumes
+# loop over the sensitive volumes registered in the geometry
 for det_name, geom_meta in sensvols.items():
     if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
         msg = (
@@ -129,6 +70,11 @@ for det_name, geom_meta in sensvols.items():
         msg = f"processing the {det_name} output table..."
         log.info(msg)
 
+        log.debug("creating an legendhpges.HPGe object")
+        pyobj = legendhpges.make_hpge(
+            geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
+        )
+
         det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
 
         has_fccd_meta = validate_dict_schema(
@@ -145,29 +91,21 @@ for det_name, geom_meta in sensvols.items():
         else:
             fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
 
-        log.debug("creating an legendhpges.HPGe object")
-        pyobj = legendhpges.make_hpge(
-            geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
-        )
-
         det_loc = geom.physicalVolumeDict[det_name].position
 
         if len(lh5.ls(hpge_dtmap_files[0], f"{det_name}/drift_time_*")) >= 2:
-            has_dtmap = True
+            log.debug("loading drift time maps")
+            dt_map = {}
+            for angle in ("000", "045"):
+                dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
+                    hpge_dtmap_files[0], det_name, f"drift_time_{angle}_deg"
+                )
         else:
             msg = (
                 f"no valid time maps found for {det_name} in {hpge_dtmap_files[0]}, "
                 "drift time will be set to NaN"
             )
             log.warning(msg)
-            has_dtmap = False
-
-        if has_dtmap:
-            log.debug("loading drift time map")
-            dt_map = reboost.hpge.utils.get_hpge_scalar_rz_field(
-                hpge_dtmap_files[0], det_name, "drift_time_000_deg"
-            )
-        else:
             dt_map = None
 
         # iterate over input data
@@ -195,26 +133,46 @@ for det_name, geom_meta in sensvols.items():
 
             energy = ak.sum(chunk.edep * _activeness, axis=-1)
 
-            if has_dtmap:
-                _drift_time = reboost.hpge.psd.drift_time(
-                    chunk.xloc,
-                    chunk.yloc,
-                    chunk.zloc,
-                    dt_map,
-                    coord_offset=det_loc,
+            if dt_map is not None:
+                _phi = np.arctan2(
+                    chunk.yloc * 1000 - det_loc.eval()[1],
+                    chunk.xloc * 1000 - det_loc.eval()[0],
+                )
+
+                _drift_time = {}
+                for angle, _map in dt_map.items():
+                    _drift_time[angle] = reboost.hpge.psd.drift_time(
+                        chunk.xloc,
+                        chunk.yloc,
+                        chunk.zloc,
+                        _map,
+                        coord_offset=det_loc,
+                    ).view_as("ak")
+
+                _drift_time_corr = (
+                    _drift_time["045"]
+                    + (_drift_time["000"] - _drift_time["045"])
+                    * (1 - np.cos(4 * _phi))
+                    / 2
                 )
 
                 dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
-                    _drift_time, chunk.edep
+                    _drift_time_corr, chunk.edep
                 )
             else:
                 dt_heuristic = np.full(len(chunk), np.nan)
 
-            out_table = make_output_chunk(lgdo_chunk)
+            out_table = reboost_utils.make_output_chunk(lgdo_chunk)
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
             out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
 
-            write_chunk(iterator, out_table, det_name, geom_meta.uid)
+            reboost_utils.write_chunk(
+                iterator.current_i_entry,
+                out_table,
+                f"/hit/{det_name}",
+                hit_file,
+                geom_meta.uid,
+            )
 
     # process the scintillator output
     if geom_meta.detector_type == "scintillator" and det_name == "lar":
@@ -226,7 +184,7 @@ for det_name, geom_meta in sensvols.items():
             _scint_ph = reboost.spms.pe.emitted_scintillation_photons(
                 chunk.edep, chunk.particle, "lar"
             )
-            for sipm in get_sensvols(geom, "optical"):
+            for sipm in reboost_utils.get_sensvols(geom, "optical"):
                 sipm_uid = sensvols[sipm].uid
 
                 msg = f"applying optical map for SiPM {sipm} (uid={sipm_uid})"
@@ -247,9 +205,15 @@ for det_name, geom_meta in sensvols.items():
                     map_scaling=0.1,
                 )
 
-                out_table = make_output_chunk(lgdo_chunk)
+                out_table = reboost_utils.make_output_chunk(lgdo_chunk)
                 out_table.add_field("time", photoelectrons)
-                write_chunk(iterator, out_table, sipm, sipm_uid)
+                reboost_utils.write_chunk(
+                    iterator.current_i_entry,
+                    out_table,
+                    f"/hit/{sipm}",
+                    hit_file,
+                    sipm_uid,
+                )
 
 # build the TCM
 # use tables keyed by UID in the __by_uid__ group.  in this way, the
