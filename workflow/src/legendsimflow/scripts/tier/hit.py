@@ -25,6 +25,7 @@ import pyg4ometry
 import pygama.evt
 import pygeomtools
 import reboost.hpge.surface
+import reboost.hpge.utils
 import reboost.math.functions
 import reboost.spms
 from dbetto import AttrsDict
@@ -38,7 +39,7 @@ optmap_lar_file = snakemake.input.optmap_lar  # noqa: F821
 gdml_file = snakemake.input.geom  # noqa: F821
 log_file = snakemake.log[0]  # noqa: F821
 metadata = snakemake.config.metadata  # noqa: F821
-hpge_dtmap_files = snakemake.inputs.hpge_dtmaps  # noqa: F821
+hpge_dtmap_files = snakemake.input.hpge_dtmaps  # noqa: F821
 
 
 def get_sensvols(geom, det_type: str | None = None) -> list[str]:
@@ -150,7 +151,7 @@ for det_name, geom_meta in sensvols.items():
         det_loc = geom.physicalVolumeDict[det_name].position.eval()
 
         log.debug("loading drift time map")
-        dt_map = reboost.hpge.get_hpge_scalar_rz_field(
+        dt_map = reboost.hpge.utils.get_hpge_scalar_rz_field(
             hpge_dtmap_files[0], det_name, "drift_time_000_deg"
         )
 
