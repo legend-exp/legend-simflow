@@ -21,9 +21,11 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import legendhpges
 import lgdo
+import numpy as np
 import pyg4ometry
 import pygama.evt
 import pygeomtools
+import reboost.hpge.psd
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
@@ -148,12 +150,25 @@ for det_name, geom_meta in sensvols.items():
             geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
         )
 
-        det_loc = geom.physicalVolumeDict[det_name].position.eval()
+        det_loc = geom.physicalVolumeDict[det_name].position
 
-        log.debug("loading drift time map")
-        dt_map = reboost.hpge.utils.get_hpge_scalar_rz_field(
-            hpge_dtmap_files[0], det_name, "drift_time_000_deg"
-        )
+        if len(lh5.ls(hpge_dtmap_files[0], f"{det_name}/drift_time_*")) >= 2:
+            has_dtmap = True
+        else:
+            msg = (
+                f"no valid time maps found for {det_name} in {hpge_dtmap_files[0]}, "
+                "drift time will be set to NaN"
+            )
+            log.warning(msg)
+            has_dtmap = False
+
+        if has_dtmap:
+            log.debug("loading drift time map")
+            dt_map = reboost.hpge.utils.get_hpge_scalar_rz_field(
+                hpge_dtmap_files[0], det_name, "drift_time_000_deg"
+            )
+        else:
+            dt_map = None
 
         # iterate over input data
         for lgdo_chunk in iterator:
@@ -166,7 +181,7 @@ for det_name, geom_meta in sensvols.items():
                     chunk.yloc * 1000,  # mm
                     chunk.zloc * 1000,  # mm
                     pyobj,
-                    det_loc,
+                    det_loc.eval(),
                     distances_precompute=chunk.dist_to_surf * 1000,
                     precompute_cutoff=(fccd + 1),
                     surface_type="nplus",
@@ -180,15 +195,20 @@ for det_name, geom_meta in sensvols.items():
 
             energy = ak.sum(chunk.edep * _activeness, axis=-1)
 
-            _drift_time = reboost.hpge.psd.drift_time(
-                chunk.xloc,
-                chunk.yloc,
-                chunk.zloc,
-                dt_map,
-                det_loc,
-            )
+            if has_dtmap:
+                _drift_time = reboost.hpge.psd.drift_time(
+                    chunk.xloc,
+                    chunk.yloc,
+                    chunk.zloc,
+                    dt_map,
+                    coord_offset=det_loc,
+                )
 
-            dt_heuristic = reboost.hpge.psd.drift_time(_drift_time, chunk.edep)
+                dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
+                    _drift_time, chunk.edep
+                )
+            else:
+                dt_heuristic = np.full(len(chunk), np.nan)
 
             out_table = make_output_chunk(lgdo_chunk)
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
