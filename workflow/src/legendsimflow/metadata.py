@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 from dbetto import AttrsDict
+from legendmeta import LegendMetadata
 from snakemake.io import Wildcards
 
 from . import SimflowConfig
@@ -115,3 +117,40 @@ def smk_hash_simconfig(
                 scfg.pop(f)
 
     return hash_dict(scfg)
+
+
+def runid2timestamp(metadata: LegendMetadata, runid: str) -> str:
+    """Convert a LEGEND run identifier to a LEGEND timestamp.
+
+    For example: ``l200-p16-r008-ssc`` -> ``20251006T205904Z``.
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata database.
+    runid
+        a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
+    """
+    _, period, run, datatype = re.split(r"\W+", runid)
+    return metadata.datasets.runinfo[period][run][datatype].start_key
+
+
+def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
+    """Extract simflow parameters for a certain LEGEND run.
+
+    Queries the simflow parameters database stored under
+    ``simprod.config.pars`` by parameter name `par` and LEGEND run identifier
+    `runid`.
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata database.
+    par
+        name of directory under ``metadata.simprod.config.pars``.
+    runid
+        a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
+    """
+    datatype = re.split(r"\W+", runid)[-1]
+    directory = metadata["simprod/config/pars"][par]
+    return directory.on(runid2timestamp(metadata, runid), system=datatype)

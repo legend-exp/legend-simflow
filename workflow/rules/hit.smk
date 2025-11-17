@@ -1,4 +1,5 @@
 from legendsimflow import patterns, aggregate
+from legendsimflow import metadata as mutils
 
 
 rule gen_all_tier_hit:
@@ -46,12 +47,10 @@ def smk_hpge_drift_time_map_inputs(wildcards):
         _m / f"hardware/detectors/germanium/diodes/{wildcards.hpge_detector}.yaml",
     )
     crystal = _m / f"hardware/detectors/germanium/crystals/{crystal_name}.yaml"
-    opv = _m / f"simprod/config/pars/opv/{runid_no_dt}-T%-all-opvs.yaml"
 
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
-        "opv_file": opv,
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -72,6 +71,9 @@ rule build_hpge_drift_time_map:
     threads: 1
     params:
         metadata_path=config.paths.metadata,
+        operational_voltage=lambda wc: mutils.simpars(
+            config.metadata, "opv", wc.runid
+        )[wc.hpge_detector].operational_voltage_in_V,
     conda:
         f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     # NOTE: not using the `script` directive here since Snakemake has no nice
@@ -81,7 +83,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
-        "    --opv-file {input.opv_file}"
+        "    --opv {params.operational_voltage}"
         "    --output-file {output} &> {log}"
 
 
