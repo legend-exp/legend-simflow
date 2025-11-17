@@ -16,6 +16,7 @@
 """Rules to build the `stp` tier."""
 
 from legendsimflow import aggregate, commands, utils, patterns
+from legendsimflow import metadata as mutils
 
 
 rule gen_all_tier_stp:
@@ -40,7 +41,7 @@ rule gen_geom_config:
         patterns.geom_config_filename(config),
     params:
         # make this rule dependent on the actual simconfig block
-        _simconfig_hash=lambda wc: utils.smk_hash_simconfig(
+        _simconfig_hash=lambda wc: mutils.smk_hash_simconfig(
             config, wc, "geom_config_extra"
         ),
     run:
@@ -48,7 +49,7 @@ rule gen_geom_config:
         from legendsimflow import utils
 
         gconfig = dbetto_utils.load_dict(input[0])
-        sconfig = utils.get_simconfig(
+        sconfig = mutils.get_simconfig(
             config, tier=wildcards.tier, simid=wildcards.simid
         )
 
@@ -121,7 +122,7 @@ rule build_tier_stp:
         # files with a different number of primaries on disk. Bonus: we ignore
         # `geom_config_extra` because that dependency is already tracked by
         # `input.geom`.
-        _simconfig_hash=lambda wc: utils.smk_hash_simconfig(
+        _simconfig_hash=lambda wc: mutils.smk_hash_simconfig(
             config,
             wc,
             tier="stp",

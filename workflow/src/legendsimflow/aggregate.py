@@ -24,7 +24,7 @@ from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .utils import get_simconfig
+from .metadata import get_simconfig
 
 log = logging.getLogger(__name__)
 
