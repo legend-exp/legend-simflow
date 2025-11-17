@@ -97,7 +97,9 @@ rule merge_hpge_drift_time_maps:
     output:
         patterns.output_dtmap_merged_filename(config),
     params:
-        input_regex=patterns.output_dtmap_filename(config, hpge_detector="*"),
+        input_regex=lambda wc: patterns.output_dtmap_filename(
+            config, runid=wc.runid, hpge_detector="*"
+        ),
     conda:
         f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     shell:
@@ -120,7 +122,7 @@ rule merge_hpge_drift_time_maps:
 
         # merge top-level objects from the rest
         for f in "$@"; do
-          h5ls -1 "$f" | while read -r o; do
+          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
             h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
           done
         done
