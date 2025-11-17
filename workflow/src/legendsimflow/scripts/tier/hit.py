@@ -187,10 +187,10 @@ for det_name, geom_meta in sensvols.items():
             for sipm in reboost_utils.get_sensvols(geom, "optical"):
                 sipm_uid = sensvols[sipm].uid
 
-                msg = f"applying optical map for SiPM {sipm} (uid={sipm_uid})"
+                msg = f"applying optical map for SiPM {sipm}"
                 log.debug(msg)
 
-                optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm_uid)
+                optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
 
                 photoelectrons = reboost.spms.pe.detected_photoelectrons(
                     _scint_ph,
@@ -201,7 +201,7 @@ for det_name, geom_meta in sensvols.items():
                     chunk.zloc,
                     optmap,
                     "lar",
-                    sipm_uid,
+                    sipm,
                     map_scaling=0.1,
                 )
 

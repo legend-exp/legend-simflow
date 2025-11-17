@@ -63,7 +63,7 @@ runprod = [
     "pygments",
     "snakemake-storage-plugin-fs",
     "legend-pygeom-l200",
-    "reboost >=0.7",
+    "reboost >=0.8.1",
     "pygama >=2.2.3",
 #    "remage",  # FIXME: loosen remage internal reboost bound
 ]
@@ -176,6 +176,6 @@ pygments = "*"
 snakemake = ">=8.16"
 snakemake-storage-plugin-fs = "*"
 legend-pygeom-l200 = "*"
-reboost = ">=0.7"
+reboost = ">=0.8.1"
 pygama = ">=2.2.3"
 # remage",  # FIXME: loosen remage internal reboost bound
