@@ -49,11 +49,8 @@ example [uv](https://docs.astral.sh/uv/):
 ```console
 > uv venv
 > source .venv/bin/activate
-> uv pip install '.[runprod]'
+> uv pip install .
 ```
-
-The `runprod` extra includes dependencies required to actually run the workflow,
-like Snakemake.
 
 :::{tip}
 
