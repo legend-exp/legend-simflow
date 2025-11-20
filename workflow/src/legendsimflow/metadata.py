@@ -147,10 +147,13 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     metadata
         LEGEND metadata database.
     par
-        name of directory under ``metadata.simprod.config.pars``.
+        name of directory under ``metadata.simprod.config.pars``. Can be a
+        nested property, as in e.g. ``geds.opv.value``. ``.`` and ``/`` are
+        allowed separators.
     runid
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
     """
+    par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
     directory = metadata["simprod/config/pars"][par]
     return directory.on(runid2timestamp(metadata, runid), system=datatype)

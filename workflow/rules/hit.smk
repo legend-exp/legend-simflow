@@ -72,7 +72,7 @@ rule build_hpge_drift_time_map:
     params:
         metadata_path=config.paths.metadata,
         operational_voltage=lambda wc: mutils.simpars(
-            config.metadata, "opv", wc.runid
+            config.metadata, "geds.opv", wc.runid
         )[wc.hpge_detector].operational_voltage_in_V,
     conda:
         f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
