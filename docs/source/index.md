@@ -1,8 +1,58 @@
 # legend-simflow
 
-legend-simflow is a Python package based on
-[Snakemake](https://snakemake.readthedocs.io/en/stable/index.html) for running
-the simulation production workflow for the LEGEND experiment.
+End-to-end Snakemake workflow to run Monte Carlo simulations of signal and
+background signatures in the LEGEND experiment and produce probability-density
+functions (pdfs). Configuration metadata (e.g. rules for generating simulation
+macros or post-processing settings) is stored at
+[legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
+
+## Key concepts
+
+- Simulations are labeled by an unique identifier (e.g. `hpge-bulk-2vbb`), often
+  referred as `simid` (simID). The identifiers are defined in
+  [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config)
+  through `simconfig.yaml` files in tier directories `stp` and `ver`.
+- Each simulation is defined by a template macro (also stored as metadata) and
+  by a set of rules (in `simconfig.yaml`) needed to generate the actual macros
+  (template variable substitutions, number of primaries, number of jobs, etc).
+- The production is organized in tiers. The state of a simulation in a certain
+  tier is labeled as `<tier>.<simid>`. Snakemake understands this syntax.
+- The generated pdfs refer to a user-defined selection of LEGEND data taking
+  runs. Such a list of runs is specified through the configuration file.
+- The production can be restricted to a subset of simulations by passing a list
+  of identifiers to Snakemake.
+
+### Workflow steps (tiers)
+
+1. Tier `ver` building: run simulations that generate Monte Carlo event vertices
+   needed to some simulations in the next tier. Simulations that do not need a
+   special event vertices will directly start from tier `raw`.
+1. Tier `stp` building: run full event simulations. Simulation macro commands
+   are generated according to rules defined in the metadata.
+1. Tier `hit` building: run the first (hit-oriented) step of simulation
+   post-processing. Here, "hit" represents a collection of Geant4 "step" in a
+   single detector (sensitive volume). In this tier, hit-wise operations like
+   optical map or HPGe detector models application are typically performed. The
+   "run partitioning" is also performed at this stage (see below).
+1. Tier `evt` building: multiple operations are performed in order to build
+   actual events.
+1. Tier `pdf` building: summarize `evt`-tier output into histograms (the pdfs).
+
+### Run partitioning
+
+"Run partitioning" refers to incorporating information about the experiment's
+data taking runs for which the user wants to build pdfs:
+
+- Partition the `hit` event statistics into fractions corresponding to the
+  actual total livetime fraction spanned by each selected run. This information
+  is extracted from
+  [`legend-metadata/datasets/runinfo.yaml`](https://github.com/legend-exp/legend-datasets/blob/main/runinfo.yaml)
+- For each partition, apply HPGe models such as energy resolution or
+  pulse-shape.
+- ...apply optical models (detection probability lookup tables) for the
+  scintillators.
+- ...apply detector status flags (available in
+  [`legend-metadata/datasets/statuses`](https://github.com/legend-exp/legend-datasets/blob/main/statuses))
 
 ## Next steps
 
@@ -16,7 +66,7 @@ Snakemake rules <api/snakemake_rules>
 ```{toctree}
 :maxdepth: 1
 
-user_manual
+manual/index
 ```
 
 ```{toctree}

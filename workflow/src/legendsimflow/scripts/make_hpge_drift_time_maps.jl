@@ -237,8 +237,8 @@ function main()
         required = true
     end
     @add_arg_table s begin
-        "--opv-file"
-        help = "Path to file with operational voltages"
+        "--opv"
+        help = "detector operational voltage in V"
         required = true
     end
     @add_arg_table s begin
@@ -291,7 +291,7 @@ function main()
 
     det = parsed_args["detector"]
     meta_path = parsed_args["metadata"]
-    opv_path = parsed_args["opv-file"]
+    opv = parsed_args["opv"]
     output_file = parsed_args["output-file"]
 
     isfile(output_file) && error("output file already exists")
@@ -306,8 +306,7 @@ function main()
 
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
 
-    meta.characterization.l200_site.recommended_voltage_in_V =
-        readprops("$opv_path")[Symbol(det)].operational_voltage_in_V
+    meta.characterization.l200_site.recommended_voltage_in_V = parse(Float32, opv)
 
     if (!handle_nplus)
         meta.production.characterization.manufacturer.dl_thickness_in_mm = 0.1

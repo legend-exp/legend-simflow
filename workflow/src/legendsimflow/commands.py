@@ -22,7 +22,7 @@ import numpy as np
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .utils import get_simconfig
+from .metadata import get_simconfig
 
 
 def remage_run(

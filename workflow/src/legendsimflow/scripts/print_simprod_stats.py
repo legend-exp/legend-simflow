@@ -23,7 +23,7 @@ from pathlib import Path
 import legenddataflowscripts as ldfs
 from legendmeta import LegendMetadata
 
-from legendsimflow import utils
+from legendsimflow import metadata as mutils
 
 
 def printline(*line):
@@ -53,7 +53,7 @@ for simd in sorted(bdir.glob("*/*")):
 
     tier = simd.parent.name if simd.parent.name in ("ver", "stp") else "stp"
 
-    config = utils.get_simconfig(snakemake.config, tier, simd.name)
+    config = mutils.get_simconfig(snakemake.config, tier, simd.name)
     nprim = config.number_of_jobs * config.primaries_per_job
 
     printline(

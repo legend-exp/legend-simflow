@@ -67,7 +67,6 @@ dependencies = [
 runprod = [
     "pygments",
     "snakemake-storage-plugin-fs",
-#    "remage",  # FIXME: loosen remage internal reboost bound
 ]
 test = [
     "legend_simflow[runprod]",

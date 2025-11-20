@@ -32,7 +32,8 @@ from pathlib import Path
 
 from snakemake.io import expand
 
-from . import SimflowConfig, utils
+from . import SimflowConfig
+from . import metadata as metautils
 
 
 def _expand(pattern: str | Path, keep_list: bool = False, **kwargs) -> str | Path:
@@ -165,7 +166,7 @@ def output_simid_filenames(config: SimflowConfig, n_macros, **kwargs):
 def ver_filename_for_stp(config: SimflowConfig, simid: str) -> Path | list:
     """Returns the vertices file needed for the 'stp' tier job, if needed. Used
     as lambda function in the `build_tier_stp` Snakemake rule."""
-    sconfig = utils.get_simconfig(config, "stp", simid)
+    sconfig = metautils.get_simconfig(config, "stp", simid)
     if "vertices" in sconfig:
         return output_simjob_filename(config, tier="ver", simid=sconfig.vertices)
     return []

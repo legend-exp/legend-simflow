@@ -1,0 +1,3 @@
+- valid_from: 20220102T000000Z
+  apply:
+    - l200-p02-r%-T%-all-opvs.yaml

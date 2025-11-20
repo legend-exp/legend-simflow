@@ -15,18 +15,14 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import datetime
 from pathlib import Path
 
 import legenddataflowscripts as ldfs
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
-from snakemake.io import Wildcards
 
 from . import SimflowConfig
-from .exceptions import SimflowConfigError
 
 
 def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
@@ -63,98 +59,6 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
             "proctime": datetime.now().strftime("%Y%m%dT%H%M%SZ"),
         }
     )
-
-
-def get_simconfig(
-    config: SimflowConfig,
-    tier: str,
-    simid: str | None = None,
-    field: str | None = None,
-) -> AttrsDict:
-    """Get the simulation configuration.
-
-    Gets the simconfig and throws proper exceptions.
-
-    Parameters
-    ----------
-    config
-        Snakemake config.
-    tier
-        tier name.
-    simid
-        simulation identifier.
-    field
-        if not none, return the value of this key in the simconfig.
-    """
-    try:
-        _m = config.metadata.simprod.config
-    except FileNotFoundError as e:
-        raise SimflowConfigError(e) from e
-
-    block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig"
-    try:
-        if simid is None:
-            block = f"simprod.config.tier.{tier}.{config.experiment}"
-            return _m.tier[tier][config.experiment].simconfig
-        if field is None:
-            return _m.tier[tier][config.experiment].simconfig[simid]
-        return _m.tier[tier][config.experiment].simconfig[simid][field]
-
-    except KeyError as e:
-        msg = f"key {e} not found!"
-        raise SimflowConfigError(msg, block) from e
-    except FileNotFoundError as e:
-        raise SimflowConfigError(e, block) from e
-
-
-def hash_dict(d):
-    """Compute the hash of a Python dict."""
-    if isinstance(d, AttrsDict):
-        d = d.to_dict()
-
-    s = json.dumps(d, sort_keys=True)
-    return hashlib.sha256(s.encode()).hexdigest()
-
-
-def smk_hash_simconfig(
-    config: SimflowConfig,
-    wildcards: Wildcards,
-    field: str | None = None,
-    ignore: list | None = None,
-    **kwargs,
-):
-    """Get the dictionary hash for use in Snakemake rules.
-
-    Parameters
-    ----------
-    config
-        Snakemake config.
-    wildcards
-        Snakemake wildcards object.
-    field
-        if not none, return the value of this key in the simconfig.
-    ignore
-        exclude these fields from the hash.
-    kwargs
-        provide a value for wildcards that might not be present in `wildcards`.
-    """
-    tier = kwargs["tier"] if "tier" in kwargs else wildcards.tier  # noqa: SIM401
-    simid = kwargs["simid"] if "simid" in kwargs else wildcards.simid  # noqa: SIM401
-
-    scfg = get_simconfig(config, tier, simid)
-
-    if field is not None:
-        scfg = scfg.get(field)
-
-    if ignore is not None:
-        if not isinstance(ignore, tuple | list):
-            ignore = [ignore]
-
-        for f in ignore:
-            if f in scfg:
-                scfg.pop(f)
-
-    return hash_dict(scfg)
 
 
 def setup_logdir_link(config: SimflowConfig, proctime):
