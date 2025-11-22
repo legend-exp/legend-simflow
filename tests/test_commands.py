@@ -19,7 +19,7 @@ def test_make_macro(config):
     assert fmac.is_file()
 
     assert set(
-        config.metadata.simprod.config.tier.stp.l200p03.confinement["birds-nest"]
+        config.metadata.simprod.config.tier.stp.l200p03.confinement["birds_nest"]
     ).issubset(text.split("\n"))
     assert set(
         config.metadata.simprod.config.tier.stp.l200p03.generators["K40"]
@@ -27,7 +27,7 @@ def test_make_macro(config):
 
     text, fmac = commands.make_remage_macro(config, "pen_plates_Ra224_to_Pb208", "stp")
     assert set(
-        config.metadata.simprod.config.tier.stp.l200p03.generators["Ra224-to-Pb208"]
+        config.metadata.simprod.config.tier.stp.l200p03.generators["Ra224_to_Pb208"]
     ).issubset(text.split("\n"))
 
     confine = [
