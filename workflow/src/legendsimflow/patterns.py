@@ -53,7 +53,7 @@ def _expand(pattern: str | Path, keep_list: bool = False, **kwargs) -> str | Pat
 
 def simjob_base_segment(config: SimflowConfig, **kwargs) -> str:
     """Formats a segment for a path including wildcards `simid` and `jobid`."""
-    return _expand("{simid}/" + config.experiment + "-{simid}_{jobid}", **kwargs)
+    return _expand("{simid}/" + config.experiment + "-{simid}-job_{jobid}", **kwargs)
 
 
 def log_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
