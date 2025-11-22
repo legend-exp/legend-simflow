@@ -9,20 +9,20 @@ from legendsimflow import aggregate as agg
 
 def test_simid_aggregates(fresh_config):
     config = fresh_config
-    assert agg.get_simid_njobs(config, "stp", "birds-nest-K40") == 2
+    assert agg.get_simid_njobs(config, "stp", "birds_nest_K40") == 2
     assert isinstance(
-        agg.gen_list_of_simid_inputs(config, "stp", "birds-nest-K40"),
+        agg.gen_list_of_simid_inputs(config, "stp", "birds_nest_K40"),
         list,
     )
     assert isinstance(
-        agg.gen_list_of_simid_outputs(config, "stp", "birds-nest-K40"),
+        agg.gen_list_of_simid_outputs(config, "stp", "birds_nest_K40"),
         list,
     )
 
     config.benchmark.enabled = True
     config.benchmark.n_primaries.stp = 999
 
-    assert agg.get_simid_njobs(config, "stp", "birds-nest-K40") == 1
+    assert agg.get_simid_njobs(config, "stp", "birds_nest_K40") == 1
 
 
 def test_simid_harvesting(config):
@@ -46,11 +46,11 @@ def test_simid_outputs(config):
 def test_process_simlist(config):
     targets = agg.process_simlist(
         config,
-        simlist=["stp.birds-nest-K40", "stp.pen-plates-Ra224-to-Pb208"],
+        simlist=["stp.birds_nest_K40", "stp.pen_plates_Ra224_to_Pb208"],
     )
     assert targets == agg.gen_list_of_simid_outputs(
-        config, "stp", "birds-nest-K40"
-    ) + agg.gen_list_of_simid_outputs(config, "stp", "pen-plates-Ra224-to-Pb208")
+        config, "stp", "birds_nest_K40"
+    ) + agg.gen_list_of_simid_outputs(config, "stp", "pen_plates_Ra224_to_Pb208")
 
 
 def test_dtmap_stuff(config):

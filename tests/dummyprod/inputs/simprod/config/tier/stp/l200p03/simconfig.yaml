@@ -1,25 +1,25 @@
-birds-nest-K40:
+birds_nest_K40:
   template: $_/template.mac
   generator: ~defines:K40
   confinement: ~defines:birds-nest
   primaries_per_job: 10_000
   number_of_jobs: 2
 
-pen-plates-Ra224-to-Pb208:
+pen_plates_Ra224_to_Pb208:
   template: $_/template.mac
   generator: ~defines:Ra224-to-Pb208
   confinement: ~volumes.bulk:pen.*
   primaries_per_job: 10_000
   number_of_jobs: 3
 
-hpge-bulk-Rn222-to-Po214:
+hpge_bulk_Rn222_to_Po214:
   template: $_/template.mac
   generator: ~defines:Rn222-to-Po214
   confinement: ~defines:hpge-bulk
   primaries_per_job: 10_000
   number_of_jobs: 4
 
-phbr-surface-Ra228-to-Ac228:
+phbr_surface_Ra228_to_Ac228:
   template: $_/template.mac
   generator: ~defines:Ra228-to-Ac228
   confinement:
@@ -28,7 +28,7 @@ phbr-surface-Ra228-to-Ac228:
   primaries_per_job: 10_000
   number_of_jobs: 5
 
-sis1-z8224-src1-Ra224-to-Pb208:
+sis1_z8224_src1_Ra224_to_Pb208:
   template: $_/template.mac
   geom_config_extra:
     sis:
@@ -44,7 +44,7 @@ sis1-z8224-src1-Ra224-to-Pb208:
   primaries_per_job: 10_000
   number_of_jobs: 2
 
-hpge-bulk-high-thr-Rn222-to-Po214:
+hpge_bulk_high_thr_Rn222_to_Po214:
   template: $_/template-cal.mac
   generator: ~defines:Rn222-to-Po214
   confinement: ~defines:hpge-bulk
