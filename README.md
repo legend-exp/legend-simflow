@@ -9,3 +9,9 @@
 ![GitHub issues](https://img.shields.io/github/issues/legend-exp/legend-simflow?logo=github)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/legend-exp/legend-simflow?logo=github)
 ![License](https://img.shields.io/github/license/legend-exp/legend-simflow)
+
+End-to-end Snakemake workflow to run Monte Carlo simulations of signal and
+background signatures in the LEGEND experiment and produce probability-density
+functions (pdfs). Configuration metadata (e.g. rules for generating simulation
+macros or post-processing settings) is stored at
+[legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
