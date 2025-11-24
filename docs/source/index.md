@@ -11,7 +11,10 @@ macros or post-processing settings) is stored at
 - Simulations are labeled by an unique identifier (e.g. `hpge-bulk-2vbb`), often
   referred as `simid` (simID). The identifiers are defined in
   [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config)
-  through `simconfig.yaml` files in tier directories `stp` and `ver`.
+  through `simconfig.yaml` files in tier directories `stp` and `vtx`.
+- A simulation (`simid`) can consist of several jobs (simulation jobs with
+  different random seeds run in parallel). Each job is assigned its own `jobid`
+  (integer number).
 - Each simulation is defined by a template macro (also stored as metadata) and
   by a set of rules (in `simconfig.yaml`) needed to generate the actual macros
   (template variable substitutions, number of primaries, number of jobs, etc).
@@ -24,7 +27,7 @@ macros or post-processing settings) is stored at
 
 ### Workflow steps (tiers)
 
-1. Tier `ver` building: run simulations that generate Monte Carlo event vertices
+1. Tier `vtx` building: run simulations that generate Monte Carlo event vertices
    needed to some simulations in the next tier. Simulations that do not need a
    special event vertices will directly start from tier `raw`.
 1. Tier `stp` building: run full event simulations. Simulation macro commands

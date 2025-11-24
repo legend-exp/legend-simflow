@@ -60,16 +60,14 @@ dependencies = [
     "legend-pygeom-hpges",
     "reboost >=0.8.1",
     "pygama >=2.2.3",
-]
-
-[project.optional-dependencies]
-# these are needed to run the data production
-runprod = [
+    # the following are needed to run the data production
     "pygments",
     "snakemake-storage-plugin-fs",
 ]
+
+[project.optional-dependencies]
 test = [
-    "legend_simflow[runprod]",
+    "legend_simflow",
     "pylegendtestdata",
     "pytest>=6",
     "pytest-cov>=3",
@@ -83,7 +81,7 @@ docs = [
     "furo>=2023.08.17",
 ]
 all = [
-    "legend_simflow[runprod,test,docs]",
+    "legend_simflow[test,docs]",
     "pre-commit",
 ]
 
@@ -179,4 +177,4 @@ snakemake-storage-plugin-fs = "*"
 legend-pygeom-l200 = "*"
 reboost = ">=0.8.1"
 pygama = ">=2.2.3"
-# remage",  # FIXME: loosen remage internal reboost bound
+remage = ">=0.16"

@@ -1,50 +1,50 @@
-birds-nest:
+birds_nest:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume top_plate
 
-pen-plates:
+pen_plates:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume pen.*
 
-hpge-bulk:
+hpge_bulk:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume V.*
   - /RMG/Generator/Confinement/Physical/AddVolume B.*
   - /RMG/Generator/Confinement/Physical/AddVolume C.*
   - /RMG/Generator/Confinement/Physical/AddVolume P.*
 
-sipm-arrays:
+sipm_arrays:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume S.*
 
 fibers:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume fiber.*
-fibers-inner:
+fibers_inner:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume fiber_inner.*
 
-fibers-outer:
+fibers_outer:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume fiber_outer.*
 
-wls-reflector:
+wls_reflector:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume wlsr.*
 
-calibration-tubes:
+calibration_tubes:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume calibration_tube.*
 
-hpge-support-copper:
+hpge_support_copper:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume hpge_support_copper.*
 
-mini-shroud:
+mini_shroud:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/Physical/AddVolume minishroud.*
 
-mini-shroud-surface:
+mini_shroud_surface:
   - /RMG/Generator/Confine Volume
   - /RMG/Generator/Confinement/SampleOnSurface True
   - /RMG/Generator/Confinement/Physical/AddVolume minishroud.*
