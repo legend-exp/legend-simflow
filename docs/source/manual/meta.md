@@ -42,6 +42,45 @@ In this section, the specification of the metadata format is documented.
 Metadata is organized in this directory by tier (first level) and experimental
 configuration (second level).
 
+(vtx-tier-meta)=
+
+### `vtx` tier
+
+This section specifies how to configure simulations for the `vtx` tier,
+consisting of simulated event vertices for the `stp` tier.
+
+The configuration folder must contain the following files:
+
+- `tier/vtx/{experiment}/simconfig.yaml`
+
+(vtx-simconfig.yaml)=
+
+#### `simconfig.yaml`
+
+This file defines a dictionary of commands used to generate vertices. The keys
+in this dictionary can be referenced in the `stp` tier configuration metadata
+({ref}`simconfig.yaml`).
+
+The configuration block must contain the `command` key, defining the command
+block that should be used to generate the vertices. Then command string must
+contain the following variables, that will be automatically substituted by the
+simflow at runtime:
+
+- `GDML_FILE`: path to the GDML file defining the geometry that is being
+  simulated. This is typically a required input of vertex generators.
+- `OUTPUT_FILE`: output file where the vertices will be saved. This file will be
+  an input of consumer `stp`-tier jobs.
+- `N_EVENTS`: number of vertices to generate.
+
+Example:
+
+```yaml
+hpge_surface:
+  command: >-
+    revertex hpge-surf-pos --detectors [VB]* --surface-type nplus --gdml
+    {INPUT_FILE} --out-file {OUTPUT_FILE} --n-events {N_EVENTS}
+```
+
 ### `stp` tier
 
 This section specifies how to configure
@@ -75,14 +114,28 @@ Supported fields per `simid`:
   placeholders used by the workflow (see {ref}`macro-templates-subst`). The
   special variable `$_` is substituted with the path to the directory that
   contains the configuration file.
-- `generator` — a string reference prefixed by `~defines:NAME`, where NAME is
-  defined in {ref}`generators.yaml`.
+- `generator` — a string:
+  - formatted as `~defines:NAME`, where `NAME` is defined in
+    {ref}`generators.yaml`.
+  - formatted as `~vertices:NAME`, where `NAME` references a vertices simulation
+    from the `vtx` tier (see {ref}`vtx-tier-meta`).
+
+    :::{note}
+
+    If vertices are selected as generator, it means that they include vertex
+    position _and_ kinematics. In this situation, the `confinement` key (see
+    below) is forbidden.
+
+    :::
+
 - `confinement` — one of:
   - `~defines:NAME` to reference a confinement block in {ref}`confinement.yaml`
   - `~volumes.bulk:PATTERN` to confine to physical volumes matching `PATTERN`
   - `~volumes.surface:PATTERN` to sample on the surface of volumes matching
     `PATTERN`
   - a list of the above strings to combine multiple volume patterns
+  - `~vertices:NAME` to used the vertex positions similated by the `vtx` tier
+    generator `NAME` (see {ref}`vtx-tier-meta`).
 - `primaries_per_job` — integer, the number of primaries per job; becomes
   `N_EVENTS` in the macro file.
 - `number_of_jobs` — integer, how many jobs to split the simulation into.
@@ -92,7 +145,6 @@ Supported fields per `simid`:
   for this `simid`. This configuration block is injected unmodified to the
   geometry tooling (currently
   [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io)).
-- `vertices`: Not yet supported (reserved).
 
 Example:
 

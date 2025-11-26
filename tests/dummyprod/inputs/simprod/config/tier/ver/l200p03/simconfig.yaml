@@ -1,3 +1,0 @@
-weird-lar-vertices:
-  primaries_per_job: 100_000
-  number_of_jobs: 10

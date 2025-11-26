@@ -52,3 +52,23 @@ hpge_bulk_high_thr_Rn222_to_Po214:
     HPGE_ENERGY_THRESHOLD: 450 keV
   primaries_per_job: 10_000
   number_of_jobs: 4
+
+lar_hpge_shell_K42:
+  template: $_/template.mac
+  generator: ~defines:K42
+  confinement: ~vertices:hpge_surface
+  primaries_per_job: 10_000
+  number_of_jobs: 4
+
+exotic_physics_process:
+  template: $_/template.mac
+  generator: ~vertices:exotic_process
+  primaries_per_job: 10_000
+  number_of_jobs: 4
+
+exotic_physics_hpge:
+  template: $_/template.mac
+  generator: ~vertices:exotic_process
+  confinement: ~defines:hpge_bulk
+  primaries_per_job: 10_000
+  number_of_jobs: 4

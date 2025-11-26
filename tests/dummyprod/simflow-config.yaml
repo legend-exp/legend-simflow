@@ -27,6 +27,6 @@ paths:
   tier_hit: ./generated/tier/hit
   tier_pdf: $_/generated/tier/pdf
   tier_stp: ./generated/tier/stp
-  tier_ver: ./generated/tier/ver
+  tier_vtx: ./generated/tier/vtx
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots
