@@ -53,6 +53,42 @@ def test_make_macro(config):
     )
     assert text is not None
 
+    text, fmac = commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")
+    confine = [
+        "/RMG/Generator/Confine FromFile",
+        "/RMG/Generator/FromFile/FileName "
+        + str(
+            patterns.vtx_filename_for_stp(config, "lar_hpge_shell_K42", jobid="{JOBID}")
+        ),
+    ]
+    assert set(confine).issubset(text.split("\n"))
+
+    text, fmac = commands.make_remage_macro(config, "exotic_physics_process", "stp")
+    confine = [
+        "/RMG/Generator/Confine FromFile",
+        "/RMG/Generator/FromFile/FileName "
+        + str(
+            patterns.vtx_filename_for_stp(
+                config, "exotic_physics_process", jobid="{JOBID}"
+            )
+        ),
+    ]
+    assert set(confine).issubset(text.split("\n"))
+    assert "/RMG/Generator/Select" not in text
+
+    text, fmac = commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
+    confine = [
+        "/RMG/Generator/Confine FromFile",
+        "/RMG/Generator/FromFile/FileName "
+        + str(
+            patterns.vtx_filename_for_stp(
+                config, "exotic_physics_hpge", jobid="{JOBID}"
+            )
+        ),
+    ]
+    assert set(confine).issubset(text.split("\n"))
+    assert "/RMG/Generator/Confine Volume" in text
+
 
 def test_make_macro_errors_1(fresh_config):
     config = fresh_config
@@ -101,10 +137,27 @@ def test_make_macro_errors_2(fresh_config):
         commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
 
+def test_make_macro_errors_vertices(fresh_config):
+    config = fresh_config
+    metadata = fresh_config.metadata
+
+    metadata.simprod.config.tier.stp.l200p03.simconfig.exotic_physics_process[
+        "confinement"
+    ] = "~vertices:blah"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+    metadata.simprod.config.tier.stp.l200p03.simconfig.exotic_physics_process.pop(
+        "generator"
+    )
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+
 def test_remage_cli(fresh_config):
     config = fresh_config
 
-    cmd = commands.remage_run(config, "birds_nest_K40", "stp")
+    cmd = commands.remage_run(config, "birds_nest_K40", tier="stp")
     assert isinstance(cmd, str)
     assert len(cmd) > 0
     assert (
@@ -114,13 +167,17 @@ def test_remage_cli(fresh_config):
         ).as_posix()
     )
 
-    cmd = commands.remage_run(config, "birds_nest_K40", "stp", macro_free=True)
+    cmd = commands.remage_run(config, "birds_nest_K40", tier="stp", macro_free=True)
     mac_cmds = shlex.split(cmd.partition(" -- ")[2])
     assert all(cmd[0] == "/" for cmd in mac_cmds)
 
     config.benchmark.enabled = True
     config.benchmark.n_primaries.stp = 999
 
-    cmd = commands.remage_run(config, "birds_nest_K40", "stp")
+    cmd = commands.remage_run(config, "birds_nest_K40", tier="stp")
     cmdline = shlex.split(cmd.partition(" -- ")[0])
     assert "N_EVENTS=999" in cmdline
+
+    cmd = commands.remage_run(config, "lar_hpge_shell_K42", tier="stp", jobid="0001")
+    cmdline = shlex.split(cmd.partition(" -- ")[0])
+    assert "JOBID=0001" in cmdline

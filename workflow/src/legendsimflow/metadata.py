@@ -157,3 +157,32 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     datatype = re.split(r"\W+", runid)[-1]
     directory = metadata["simprod/config/pars"][par]
     return directory.on(runid2timestamp(metadata, runid), system=datatype)
+
+
+def get_vtx_simconfig(config, simid):
+    """Get the vertex generation configuration for a stp-tier `simid`.
+
+    Returns the ``vtx``-tier generator requested by the ``stp``-tier simulation
+    with identifier `simid`.
+
+    Parameters
+    ----------
+    config
+        Snakemake config.
+    simid
+        simulation identifier.
+    """
+    vtx_key = set()
+    sconfig = get_simconfig(config, "stp", simid)
+    for field in ("generator", "confinement"):
+        if field in sconfig and sconfig[field].startswith("~vertices:"):
+            vtx_key.add(sconfig[field].partition(":")[2])
+
+    if len(vtx_key) == 0:
+        msg = f"{simid} does not specify vertices? This is unexpected, please file a bug report"
+        raise RuntimeError(msg)
+
+    if len(vtx_key) > 1:
+        raise NotImplementedError()
+
+    return get_simconfig(config, "vtx", vtx_key.pop())

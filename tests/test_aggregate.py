@@ -9,24 +9,28 @@ from legendsimflow import aggregate as agg
 
 def test_simid_aggregates(fresh_config):
     config = fresh_config
-    assert agg.get_simid_njobs(config, "stp", "birds_nest_K40") == 2
-    assert isinstance(
-        agg.gen_list_of_simid_inputs(config, "stp", "birds_nest_K40"),
-        list,
-    )
-    assert isinstance(
-        agg.gen_list_of_simid_outputs(config, "stp", "birds_nest_K40"),
-        list,
-    )
+    assert agg.get_simid_njobs(config, "birds_nest_K40") == 2
+
+    val = agg.gen_list_of_simid_inputs(config, "stp", "birds_nest_K40")
+    assert isinstance(val, list)
+    assert len(val) == 1
+
+    val = agg.gen_list_of_simid_outputs(config, "stp", "birds_nest_K40")
+    assert isinstance(val, list)
+    assert len(val) == 2
+
+    val = agg.gen_list_of_simid_outputs(config, "vtx", "birds_nest_K40")
+    assert isinstance(val, list)
+    assert len(val) == 2
 
     config.benchmark.enabled = True
     config.benchmark.n_primaries.stp = 999
 
-    assert agg.get_simid_njobs(config, "stp", "birds_nest_K40") == 1
+    assert agg.get_simid_njobs(config, "birds_nest_K40") == 1
 
 
 def test_simid_harvesting(config):
-    simids = agg.gen_list_of_all_simids(config, "stp")
+    simids = agg.gen_list_of_all_simids(config)
     assert isinstance(simids, type({}.keys()))
     assert all(isinstance(s, str) for s in simids)
 
@@ -36,10 +40,7 @@ def test_simid_outputs(config):
     assert isinstance(outputs, list)
     assert all(isinstance(s, Path) for s in outputs)
     assert len(outputs) == sum(
-        [
-            agg.get_simid_njobs(config, "stp", s)
-            for s in agg.gen_list_of_all_simids(config, "stp")
-        ]
+        [agg.get_simid_njobs(config, s) for s in agg.gen_list_of_all_simids(config)]
     )
 
 

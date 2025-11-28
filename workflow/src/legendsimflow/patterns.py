@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from legendmeta.police import validate_dict_schema
 from snakemake.io import expand
 
 from . import SimflowConfig
@@ -107,7 +108,7 @@ def geom_log_filename(config: SimflowConfig, time: str, **kwargs) -> str:
     return _expand(pat, **kwargs)
 
 
-# ver, stp, hit tiers
+# vtx, stp, hit tiers
 
 
 def input_simjob_filename(config: SimflowConfig, **kwargs) -> Path:
@@ -118,7 +119,7 @@ def input_simjob_filename(config: SimflowConfig, **kwargs) -> Path:
         msg = "the 'tier' argument is mandatory"
         raise RuntimeError(msg)
 
-    ext = ".mac" if tier in ("ver", "stp") else ".lh5"
+    ext = ".mac" if tier == "stp" else ".lh5"
     fname = config.experiment + "-{simid}" + f"-tier_{tier}" + ext
     return _expand(config.paths.macros / f"{tier}" / fname, **kwargs)
 
@@ -163,12 +164,23 @@ def output_simid_filenames(config: SimflowConfig, n_macros, **kwargs):
     return _expand(pat, jobid=jobids, keep_list=True, **kwargs)
 
 
-def ver_filename_for_stp(config: SimflowConfig, simid: str) -> Path | list:
-    """Returns the vertices file needed for the 'stp' tier job, if needed. Used
-    as lambda function in the `build_tier_stp` Snakemake rule."""
+def vtx_filename_for_stp(config: SimflowConfig, simid: str, **kwargs) -> Path | list:
+    """Returns the vertices file needed for the 'stp' tier job, if needed.
+
+    Used as lambda function in the `build_tier_stp` Snakemake rule.
+    """
+    # check the stp configuration for simid
     sconfig = metautils.get_simconfig(config, "stp", simid)
-    if "vertices" in sconfig:
-        return output_simjob_filename(config, tier="ver", simid=sconfig.vertices)
+
+    # return vertices file only if present in the configuration
+    for field in ("generator", "confinement"):
+        if validate_dict_schema(
+            sconfig, {field: ""}, greedy=False, verbose=False
+        ) and sconfig[field].startswith("~vertices:"):
+            return _expand(
+                output_simjob_filename(config, tier="vtx", simid=simid), **kwargs
+            )
+
     return []
 
 

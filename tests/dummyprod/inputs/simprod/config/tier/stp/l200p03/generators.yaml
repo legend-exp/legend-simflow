@@ -4,6 +4,12 @@ K40:
   - /gps/energy 0 eV
   - /gps/ion 19 40
 
+K42:
+  - /RMG/Generator/Select GPS
+  - /gps/particle ion
+  - /gps/energy 0 eV
+  - /gps/ion 19 42
+
 Ra224_to_Pb208:
   - /RMG/Generator/Select GPS
   - /gps/particle ion
