@@ -151,8 +151,8 @@ Example:
 ```yaml
 hpge_bulk_Rn222_to_Po214:
   template: $_/template.mac
-  generator: ~defines:Rn222-to-Po214
-  confinement: ~defines:hpge-bulk
+  generator: ~defines:Rn222_to_Po214
+  confinement: ~defines:hpge_bulk
   primaries_per_job: 10_000
   number_of_jobs: 4
 ```
