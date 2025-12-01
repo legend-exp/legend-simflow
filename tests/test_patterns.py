@@ -21,3 +21,7 @@ def test_all(config):
     assert isinstance(p.output_simid_filenames(config, 2, tier="stp"), list)
 
     assert isinstance(p.output_dtmap_filename(config, hpge_detector="boh"), Path)
+
+    assert isinstance(p.vtx_filename_for_stp(config, "lar_hpge_shell_K42"), Path)
+    assert p.vtx_filename_for_stp(config, "hpge_bulk_high_thr_Rn222_to_Po214") == []
+    assert p.vtx_filename_for_stp(config, "phbr_surface_Ra228_to_Ac228") == []

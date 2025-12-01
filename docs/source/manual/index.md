@@ -1,7 +1,7 @@
 # User manual
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 3
 
 setup
 meta

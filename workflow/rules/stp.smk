@@ -80,6 +80,7 @@ def smk_remage_run(wildcards, input, output, threads):
     return commands.remage_run(
         config,
         wildcards.simid,
+        jobid=wildcards.jobid,
         tier="stp",
         geom=input.geom,
         output=output,
@@ -101,7 +102,7 @@ rule build_tier_stp:
     message:
         "Producing output file for job stp.{wildcards.simid}.{wildcards.jobid}"
     input:
-        # verfile=lambda wc: patterns.ver_filename_for_stp(config, wc.simid),
+        verfile=lambda wc: patterns.vtx_filename_for_stp(config, wc.simid),
         geom=patterns.geom_gdml_filename(config, tier="stp"),
     output:
         protected(patterns.output_simjob_filename(config, tier="stp")),
