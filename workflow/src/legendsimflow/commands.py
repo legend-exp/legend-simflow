@@ -28,6 +28,8 @@ from .metadata import get_simconfig
 def remage_run(
     config: SimflowConfig,
     simid: str,
+    *,
+    jobid: str | None = None,
     tier: str = "stp",
     geom: str | Path = "{input.geom}",
     procs: int = 1,
@@ -51,6 +53,8 @@ def remage_run(
     - Two substitutions are always provided:
       ``N_EVENTS`` (from ``primaries_per_job`` or benchmark override) and
       ``SEED`` (a random 32-bit integer).
+    - The ``JOBID`` substitution is also provided if the `jobid` argument is
+      not ``None``.
     - If ``config.runcmd.remage`` is set, it is used to determine the remage
       executable (split with :func:`shlex.split`), otherwise ``remage`` is used.
 
@@ -62,6 +66,10 @@ def remage_run(
         sections.
     simid
         Simulation identifier for which to construct the command.
+    jobid
+        Job identifier for the simulation run (string holding a zero-padded
+        integer). Used as remage CLI macro substitution in case the macro
+        contains it (e.g. if a vertices file is used).
     tier
         Simulation tier (e.g., ``"stp"``, ``"ver"``). Default is ``"stp"``.
     geom
@@ -108,6 +116,8 @@ def remage_run(
             0, np.iinfo(np.int32).max + 1, dtype=np.uint32
         ),
     }
+    if jobid is not None:
+        cli_subs["JOBID"] = jobid
 
     # prepare command line
     if "runcmd" in config and "remage" in config.runcmd:
@@ -199,41 +209,62 @@ def make_remage_macro(
     sim_cfg = get_simconfig(config, tier, simid=simid)
     mac_subs = {}
 
-    # determine whether external vertices are required
-    if "vertices" in sim_cfg:
-        raise NotImplementedError()
-        mac_subs.update({"VERTICES_FILE": None})
-
     # configure generator
     if "generator" in sim_cfg:
-        if not isinstance(sim_cfg.generator, str) or not sim_cfg.generator.startswith(
-            "~defines:"
-        ):
+        if not isinstance(sim_cfg.generator, str):
             msg = (
-                "the field must be a string prefixed by ~define:",
+                "the field must be a string",
                 f"{block}.generator",
             )
             raise SimflowConfigError(*msg)
 
-        key = sim_cfg.generator.removeprefix("~defines:")
-        try:
-            generator = config.metadata.simprod.config.tier[tier][
-                config.experiment
-            ].generators[key]
-        except KeyError as e:
-            msg = f"key {e} not found!"
-            raise SimflowConfigError(msg, block) from e
+        if sim_cfg.generator.startswith("~defines:"):
+            key = sim_cfg.generator.removeprefix("~defines:")
+            try:
+                generator_lines = config.metadata.simprod.config.tier[tier][
+                    config.experiment
+                ].generators[key]
+            except KeyError as e:
+                msg = f"key {e} not found!"
+                raise SimflowConfigError(msg, block) from e
 
-        if not isinstance(generator, str):
-            generator = "\n".join(generator)
+        elif sim_cfg.generator.startswith("~vertices:"):
+            vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
+            generator_lines = [
+                "/RMG/Generator/Confine FromFile",
+                f"/RMG/Generator/FromFile/FileName {vtx_file}",
+            ]
+            # in this case, vertex confinement is not required
+            mac_subs["CONFINEMENT"] = None
+        else:
+            msg = (
+                "the field must be prefixed with ~vertices: or ~defines:",
+                f"{block}.generator",
+            )
+            raise SimflowConfigError(*msg)
 
-        mac_subs["GENERATOR"] = generator
+        mac_subs["GENERATOR"] = "\n".join(generator_lines)
 
-    # configure generator
+    # configure confinement
     if "confinement" in sim_cfg:
         confinement = None
+
         if isinstance(sim_cfg.confinement, str):
-            if sim_cfg.confinement.startswith("~defines:"):
+            if sim_cfg.confinement.startswith("~vertices:"):
+                if sim_cfg.get("generator", "").startswith("~vertices:"):
+                    msg = (
+                        "no vertices in confinement field allowed if vertices are already specified as the generator",
+                        f"{block}.confinement",
+                    )
+                    raise SimflowConfigError(*msg)
+
+                vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
+                confinement = [
+                    "/RMG/Generator/Confine FromFile",
+                    f"/RMG/Generator/FromFile/FileName {vtx_file}",
+                ]
+
+            elif sim_cfg.confinement.startswith("~defines:"):
                 key = sim_cfg.confinement.removeprefix("~defines:")
                 try:
                     confinement = config.metadata.simprod.config.tier[tier][
@@ -253,8 +284,6 @@ def make_remage_macro(
                 ]
                 if sim_cfg.confinement.startswith("~volumes.surface:"):
                     confinement += ["/RMG/Generator/Confinement/SampleOnSurface true"]
-            else:
-                confinement = None
 
         elif isinstance(sim_cfg.confinement, list | tuple):
             confinement = ["/RMG/Generator/Confine Volume"]
@@ -292,7 +321,11 @@ def make_remage_macro(
     # read in template and substitute
     template_path = get_simconfig(config, tier, simid=simid, field="template")
     with Path(template_path).open() as f:
-        text = lds.subst_vars(f.read().strip(), mac_subs, ignore_missing=False)
+        try:
+            text = lds.subst_vars(f.read().strip(), mac_subs, ignore_missing=False)
+        except KeyError as e:
+            msg = f"no rules found to substitute variable {e} in the macro template"
+            raise SimflowConfigError(msg) from e
 
     # now write the macro to disk
     ofile = patterns.input_simjob_filename(config, tier=tier, simid=simid)

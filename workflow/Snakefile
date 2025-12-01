@@ -51,7 +51,7 @@ onstart:
 include: "rules/aux.smk"
 
 
-make_tiers = config.get("make_tiers", ["stp", "hit"])
+make_tiers = config.get("make_tiers", ["vtx", "stp", "hit"])
 for tier in make_tiers:
 
     include: f"rules/{tier}.smk"
@@ -69,7 +69,7 @@ def gen_target_all():
             return (
                 rules.gen_all_tier_stp.input,
                 # aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
-                # aggregate.gen_list_of_all_plots_outputs(config, tier="ver"),
+                # aggregate.gen_list_of_all_plots_outputs(config, tier="vtx"),
             )
     else:
         return aggregate.process_simlist(config)

@@ -1,0 +1,15 @@
+hpge_surface:
+  command: >-
+    revertex hpge-surf-pos
+    --detectors [VBCP]*
+    --surface-type nplus
+    --gdml {GDML_FILE}
+    --out-file {OUTPUT_FILE}
+    --n-events {N_EVENTS}
+
+exotic_process:
+  command: >-
+    my-exotic-physics-generator
+    --gdml {GDML_FILE}
+    --out-file {OUTPUT_FILE}
+    --n-events {N_EVENTS}

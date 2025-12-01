@@ -11,6 +11,7 @@ experiment: l200p15
 simlist: all
 
 make_tiers:
+  - vtx
   - stp
   - hit
 
@@ -20,7 +21,7 @@ benchmark:
   enabled: false
   n_primaries:
     stp: 5000
-    ver: 10000
+    vtx: 10000
 
 paths:
   benchmarks: $_/generated/benchmarks
@@ -41,7 +42,7 @@ paths:
   tier_hit: $_/generated/tier/hit
   tier_pdf: $_/generated/tier/pdf
   tier_stp: $_/generated/tier/stp
-  tier_ver: $_/generated/tier/ver
+  tier_vtx: $_/generated/tier/vtx
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots
 #
