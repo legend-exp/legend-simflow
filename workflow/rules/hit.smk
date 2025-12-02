@@ -8,6 +8,51 @@ rule gen_all_tier_hit:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
 
 
+rule make_simstat_partition_file:
+    """Creates the file containing the simulation event statistics partitioning file.
+
+    This rule maps chunks of event indices to partitions associated to the data
+    taking runs specified in the "runlist" (from e.g. `config.runlist`) and
+    stores them on disk as YAML files. The format is the following:
+
+    ```yaml
+    job_000:
+      l200-p03-r001-phy: [0, 300]
+      l200-p03-r002-phy: [301, 456]
+    job_001:
+      l200-p03-r002-phy: [0, 200]
+      l200-p03-r003-phy: [201, 156]
+    job_002:
+      l200-p03-r003-phy: [0, 50]
+    ```
+
+    The events simulated in job `0` (456) are split between `r001` and `r002`.
+    The partition corresponding to `r002` is however incomplete, and 200 events
+    are taken from the simulation job `1`.
+
+    The fraction of total simulated events (summed over all simulation jobs)
+    that belong to a partition is determined by weighting with the fraction of
+    livetime that belongs to that run.
+
+    Uses wildcard `simid`.
+    """
+    input:
+        stp_files=lambda wildcards: aggregate.gen_list_of_simid_outputs(
+            config, tier="stp", simid=wildcards.simid
+        ),
+    log:
+        patterns.log_simstat_part_filename(config, SIMFLOW_CONTEXT.proctime),
+    output:
+        config.paths.genconfig / "simstat" / "{simid}-simstat-partition.yaml",
+    params:
+        # NOTE: these are not strictly needed here, but in this way Snakemake
+        # can track these dependencies
+        runinfo=config.metadata.datasets.runinfo,
+        runlist=aggregate.get_runlist(config),
+    script:
+        "../src/legendsimflow/scripts/make_simstat_partition_file.py"
+
+
 # NOTE: we don't rely on rules from other tiers here (e.g.
 # rules.build_tiers_stp.output) because we want to support making only the hit
 # tier via the config.make_tiers option

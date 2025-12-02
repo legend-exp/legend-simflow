@@ -119,10 +119,8 @@ def smk_hash_simconfig(
     return hash_dict(scfg)
 
 
-def runid2timestamp(metadata: LegendMetadata, runid: str) -> str:
-    """Convert a LEGEND run identifier to a LEGEND timestamp.
-
-    For example: ``l200-p16-r008-ssc`` -> ``20251006T205904Z``.
+def runinfo(metadata: LegendMetadata, runid: str) -> str:
+    """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 
     Parameters
     ----------
@@ -132,7 +130,7 @@ def runid2timestamp(metadata: LegendMetadata, runid: str) -> str:
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
     """
     _, period, run, datatype = re.split(r"\W+", runid)
-    return metadata.datasets.runinfo[period][run][datatype].start_key
+    return metadata.datasets.runinfo[period][run][datatype]
 
 
 def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
@@ -156,7 +154,7 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
     directory = metadata["simprod/config/pars"][par]
-    return directory.on(runid2timestamp(metadata, runid), system=datatype)
+    return directory.on(runinfo(metadata, runid).start_key, system=datatype)
 
 
 def get_vtx_simconfig(config, simid):
