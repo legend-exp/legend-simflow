@@ -13,6 +13,7 @@ simlist: all
 make_tiers:
   - vtx
   - stp
+  - opt
   - hit
 
 # legend_metadata_version: main
@@ -20,8 +21,7 @@ make_tiers:
 benchmark:
   enabled: false
   n_primaries:
-    stp: 5000
-    vtx: 10000
+    stp: 10_000
 
 paths:
   benchmarks: $_/generated/benchmarks
