@@ -43,7 +43,6 @@ smk = snakemake  # noqa: F821
 stp_file = snakemake.input.stp_file  # noqa: F821
 jobid = snakemake.wildcards.jobid  # noqa: F821
 hit_file = snakemake.output[0]  # noqa: F821
-optmap_lar_file = snakemake.input.optmap_lar  # noqa: F821
 gdml_file = snakemake.input.geom  # noqa: F821
 log_file = snakemake.log[0]  # noqa: F821
 metadata = snakemake.config.metadata  # noqa: F821
@@ -233,47 +232,6 @@ for runid, tcm_idx_range in partitions.items():
                     geom_meta.uid,
                     runid,
                 )
-
-        # process the scintillator output
-        if geom_meta.detector_type == "scintillator" and det_name == "lar":
-            log.info("processing the 'lar' scintillator table...")
-
-            for lgdo_chunk in iterator:
-                chunk = lgdo_chunk.view_as("ak")
-
-                _scint_ph = reboost.spms.pe.emitted_scintillation_photons(
-                    chunk.edep, chunk.particle, "lar"
-                )
-                for sipm in reboost_utils.get_sensvols(geom, "optical"):
-                    sipm_uid = sensvols[sipm].uid
-
-                    msg = f"applying optical map for SiPM {sipm}"
-                    log.debug(msg)
-
-                    optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
-
-                    photoelectrons = reboost.spms.pe.detected_photoelectrons(
-                        _scint_ph,
-                        chunk.particle,
-                        chunk.time,
-                        chunk.xloc,
-                        chunk.yloc,
-                        chunk.zloc,
-                        optmap,
-                        "lar",
-                        sipm,
-                        map_scaling=0.1,
-                    )
-
-                    out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-                    out_table.add_field("time", photoelectrons)
-                    reboost_utils.write_chunk(
-                        out_table,
-                        f"/hit/{sipm}",
-                        hit_file,
-                        sipm_uid,
-                        runid,
-                    )
 
 # build the TCM
 # use tables keyed by UID in the __by_uid__ group.  in this way, the

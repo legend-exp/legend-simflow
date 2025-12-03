@@ -112,7 +112,7 @@ def geom_log_filename(config: SimflowConfig, time: str, **kwargs) -> str:
     return _expand(pat, **kwargs)
 
 
-# vtx, stp, hit tiers
+# vtx, stp, opt, hit tiers
 
 
 def input_simjob_filename(config: SimflowConfig, **kwargs) -> Path:

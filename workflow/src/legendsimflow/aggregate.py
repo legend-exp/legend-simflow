@@ -272,7 +272,7 @@ def process_simlist(
         simid = line.split(".")[1].strip()
 
         # mlist += gen_list_of_plots_outputs(config, tier, simid)
-        if tier in ("vtx", "stp", "hit"):
+        if tier in ("vtx", "stp", "opt", "hit"):
             mlist += gen_list_of_simid_outputs(config, tier, simid)
         elif tier == "evt":
             mlist += gen_list_of_tier_evt_outputs(config, simid)

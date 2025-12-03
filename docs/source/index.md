@@ -30,15 +30,22 @@ macros or post-processing settings) is stored at
 1. Tier `vtx` building: run simulations that generate Monte Carlo event vertices
    needed to some simulations in the next tier. Simulations that do not need a
    special event vertices will directly start from tier `raw`.
+
 1. Tier `stp` building: run full event simulations. Simulation macro commands
    are generated according to rules defined in the metadata.
-1. Tier `hit` building: run the first (hit-oriented) step of simulation
-   post-processing. Here, "hit" represents a collection of Geant4 "step" in a
-   single detector (sensitive volume). In this tier, hit-wise operations like
-   optical map or HPGe detector models application are typically performed. The
-   "run partitioning" is also performed at this stage (see below).
+
+1. Run the first (hit-oriented) step of simulation post-processing. Here, a
+   "hit" represents a collection of Geant4 "step" in a single detector
+   (sensitive volume). In these tiers, hit-wise operations like optical map or
+   HPGe detector models application are typically performed. The "run
+   partitioning" is also performed at this stage (see below). Two tiers belong
+   to this group:
+   - Tier `opt`: convolution of the optical models (i.e. optical "maps")
+   - Tier `hit`: convolution of HPGe detector models (energy and pulse shape)
+
 1. Tier `evt` building: multiple operations are performed in order to build
    actual events.
+
 1. Tier `pdf` building: summarize `evt`-tier output into histograms (the pdfs).
 
 ### Run partitioning
@@ -46,7 +53,7 @@ macros or post-processing settings) is stored at
 "Run partitioning" refers to incorporating information about the experiment's
 data taking runs for which the user wants to build pdfs:
 
-- Partition the `hit` event statistics into fractions corresponding to the
+- Partition the simulated event statistics into fractions corresponding to the
   actual total livetime fraction spanned by each selected run. This information
   is extracted from
   [`legend-metadata/datasets/runinfo.yaml`](https://github.com/legend-exp/legend-datasets/blob/main/runinfo.yaml)

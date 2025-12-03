@@ -65,7 +65,6 @@ rule build_tier_hit:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=config.paths.optical_maps.lar,
         # NOTE: we pass here the full list of maps, but likely not all of them
         # will be used. room for improvement
         hpge_dtmaps=aggregate.gen_list_of_merged_dtmaps(config),

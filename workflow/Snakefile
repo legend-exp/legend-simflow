@@ -51,7 +51,7 @@ onstart:
 include: "rules/aux.smk"
 
 
-make_tiers = config.get("make_tiers", ["vtx", "stp", "hit"])
+make_tiers = config.get("make_tiers", ["vtx", "stp", "opt", "hit"])
 for tier in make_tiers:
 
     include: f"rules/{tier}.smk"
@@ -65,6 +65,8 @@ def gen_target_all():
             return rules.gen_all_tier_evt.input
         elif "hit" in make_tiers:
             return rules.gen_all_tier_hit.input
+        elif "opt" in make_tiers:
+            return rules.gen_all_tier_opt.input
         elif "stp" in make_tiers:
             return (
                 rules.gen_all_tier_stp.input,
