@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import awkward as ak
+import dbetto.utils
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import legendhpges
@@ -34,15 +35,20 @@ from legendmeta.police import validate_dict_schema
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import patterns
 from legendsimflow import reboost as reboost_utils
 
+smk = snakemake  # noqa: F821
+
 stp_file = snakemake.input.stp_file  # noqa: F821
+jobid = snakemake.wildcards.jobid  # noqa: F821
 hit_file = snakemake.output[0]  # noqa: F821
 optmap_lar_file = snakemake.input.optmap_lar  # noqa: F821
 gdml_file = snakemake.input.geom  # noqa: F821
 log_file = snakemake.log[0]  # noqa: F821
 metadata = snakemake.config.metadata  # noqa: F821
 hpge_dtmap_files = snakemake.input.hpge_dtmaps  # noqa: F821
+simstat_part_file = snakemake.input.simstat_part_file  # noqa: F821
 
 
 # setup logging
@@ -52,168 +58,222 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sensvols = pygeomtools.detectors.get_all_sensvols(geom)
 
-# loop over the sensitive volumes registered in the geometry
-for det_name, geom_meta in sensvols.items():
-    if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
-        msg = (
-            f"detector {det_name} not found in {stp_file}. "
-            "possibly because it was not read-out or there were no hits recorded"
-        )
-        log.warning(msg)
-        continue
+# load TCM, to be used to chunk the event statistics according to the run partitioning
+tcm = lh5.read_as("tcm", stp_file, library="ak")
+partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
-    # initialize the stp file iterator
-    iterator = LH5Iterator(stp_file, f"stp/{det_name}", buffer_len=100_000)
 
-    # process the HPGe output
-    if geom_meta.detector_type == "germanium":
-        msg = f"processing the {det_name} output table..."
-        log.info(msg)
+# loop over the partitions for this file
+for runid, tcm_idx_range in partitions.items():
+    msg = f"processing partition corresponding to {runid}, event range {tcm_idx_range}"
+    log.info(msg)
 
-        log.debug("creating an legendhpges.HPGe object")
-        pyobj = legendhpges.make_hpge(
-            geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
-        )
+    # loop over the sensitive volumes registered in the geometry
+    for det_name, geom_meta in sensvols.items():
+        msg = f"looking for data from sensitive volume {det_name} (uid={geom_meta.uid})..."
+        log.debug(msg)
 
-        det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
-
-        has_fccd_meta = validate_dict_schema(
-            det_meta.characterization,
-            {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
-            greedy=False,
-            verbose=False,
-        )
-
-        if not has_fccd_meta:
-            msg = f"{det_name} metadata does not seem to contain usable FCCD data, setting to 1 mm"
-            log.warning(msg)
-            fccd = 1
-        else:
-            fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
-
-        det_loc = geom.physicalVolumeDict[det_name].position
-
-        if len(lh5.ls(hpge_dtmap_files[0], f"{det_name}/drift_time_*")) >= 2:
-            log.debug("loading drift time maps")
-            dt_map = {}
-            for angle in ("000", "045"):
-                dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
-                    hpge_dtmap_files[0], det_name, f"drift_time_{angle}_deg"
-                )
-        else:
+        if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
             msg = (
-                f"no valid time maps found for {det_name} in {hpge_dtmap_files[0]}, "
-                "drift time will be set to NaN"
+                f"detector {det_name} not found in {stp_file}. "
+                "possibly because it was not read-out or there were no hits recorded"
             )
             log.warning(msg)
-            dt_map = None
+            continue
 
-        # iterate over input data
-        for lgdo_chunk in iterator:
-            chunk = lgdo_chunk.view_as("ak")
-            _distance_to_surf = AttrsDict()
+        # ask the TCM which rows we should read from the hit table
+        tcm_part = tcm[tcm_idx_range[0] : tcm_idx_range[1]]
+        entry_list = ak.flatten(
+            tcm_part[tcm_part.table_key == geom_meta.uid].row_in_table
+        ).to_list()
 
-            for surf in ("nplus", "pplus", "passive"):
-                _distance_to_surf[surf] = reboost.hpge.surface.distance_to_surface(
-                    chunk.xloc * 1000,  # mm
-                    chunk.yloc * 1000,  # mm
-                    chunk.zloc * 1000,  # mm
-                    pyobj,
-                    det_loc.eval(),
-                    distances_precompute=chunk.dist_to_surf * 1000,
-                    precompute_cutoff=(fccd + 1),
-                    surface_type="nplus",
-                )
+        if len(entry_list) > 0:
+            assert list(range(entry_list[0], entry_list[-1] + 1)) == entry_list
 
-            _activeness = reboost.math.functions.piecewise_linear_activeness(
-                _distance_to_surf.nplus,
-                fccd=fccd,
-                dlf=0.2,
+            msg = (
+                f"hits with indices in [{entry_list[0]}, {entry_list[-1]}] "
+                "recorded in the events belonging to this partition"
+            )
+            log.debug(msg)
+
+            i_start = entry_list[0]
+            n_entries = entry_list[-1] - entry_list[0]
+
+        else:
+            msg = f"no hits recorded in {det_name} in the events belonging to this partition"
+            log.warning(msg)
+
+            i_start = 0
+            n_entries = None
+
+        # initialize the stp file iterator
+        # NOTE: if the entry list is empty, there will be no processing but an
+        # empty output table will be nonetheless created. this is important for
+        # the buil_tcm() step at the end
+        iterator = LH5Iterator(
+            stp_file,
+            f"stp/{det_name}",
+            i_start=i_start,
+            n_entries=n_entries,
+            buffer_len="500*MB",
+        )
+
+        # process the HPGe output
+        if geom_meta.detector_type == "germanium":
+            msg = f"processing the {det_name} output table..."
+            log.info(msg)
+
+            log.debug("creating an legendhpges.HPGe object")
+            pyobj = legendhpges.make_hpge(
+                geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
             )
 
-            energy = ak.sum(chunk.edep * _activeness, axis=-1)
+            det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
 
-            if dt_map is not None:
-                _phi = np.arctan2(
-                    chunk.yloc * 1000 - det_loc.eval()[1],
-                    chunk.xloc * 1000 - det_loc.eval()[0],
+            has_fccd_meta = validate_dict_schema(
+                det_meta.characterization,
+                {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
+                greedy=False,
+                verbose=False,
+            )
+
+            if not has_fccd_meta:
+                msg = f"{det_name} metadata does not seem to contain usable FCCD data, setting to 1 mm"
+                log.warning(msg)
+                fccd = 1
+            else:
+                fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
+
+            det_loc = geom.physicalVolumeDict[det_name].position
+
+            # NOTE: we don't use the dtmap array provided as input, as it's not keyed by runid
+            hpge_dtmap_file = patterns.output_dtmap_merged_filename(
+                smk.config, runid=runid
+            )
+
+            if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
+                log.debug("loading drift time maps")
+                dt_map = {}
+                for angle in ("000", "045"):
+                    dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
+                        hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
+                    )
+            else:
+                msg = (
+                    f"no valid time maps found for {det_name} in {hpge_dtmap_files[0]}, "
+                    "drift time will be set to NaN"
+                )
+                log.warning(msg)
+                dt_map = None
+
+            # iterate over input data
+            for lgdo_chunk in iterator:
+                chunk = lgdo_chunk.view_as("ak")
+                _distance_to_surf = AttrsDict()
+
+                for surf in ("nplus", "pplus", "passive"):
+                    _distance_to_surf[surf] = reboost.hpge.surface.distance_to_surface(
+                        chunk.xloc * 1000,  # mm
+                        chunk.yloc * 1000,  # mm
+                        chunk.zloc * 1000,  # mm
+                        pyobj,
+                        det_loc.eval(),
+                        distances_precompute=chunk.dist_to_surf * 1000,
+                        precompute_cutoff=(fccd + 1),
+                        surface_type="nplus",
+                    )
+
+                _activeness = reboost.math.functions.piecewise_linear_activeness(
+                    _distance_to_surf.nplus,
+                    fccd=fccd,
+                    dlf=0.2,
                 )
 
-                _drift_time = {}
-                for angle, _map in dt_map.items():
-                    _drift_time[angle] = reboost.hpge.psd.drift_time(
+                energy = ak.sum(chunk.edep * _activeness, axis=-1)
+
+                if dt_map is not None:
+                    _phi = np.arctan2(
+                        chunk.yloc * 1000 - det_loc.eval()[1],
+                        chunk.xloc * 1000 - det_loc.eval()[0],
+                    )
+
+                    _drift_time = {}
+                    for angle, _map in dt_map.items():
+                        _drift_time[angle] = reboost.hpge.psd.drift_time(
+                            chunk.xloc,
+                            chunk.yloc,
+                            chunk.zloc,
+                            _map,
+                            coord_offset=det_loc,
+                        ).view_as("ak")
+
+                    _drift_time_corr = (
+                        _drift_time["045"]
+                        + (_drift_time["000"] - _drift_time["045"])
+                        * (1 - np.cos(4 * _phi))
+                        / 2
+                    )
+
+                    dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
+                        _drift_time_corr, chunk.edep
+                    )
+                else:
+                    dt_heuristic = np.full(len(chunk), np.nan)
+
+                out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+                out_table.add_field(
+                    "energy", lgdo.Array(energy, attrs={"units": "keV"})
+                )
+                out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
+
+                reboost_utils.write_chunk(
+                    out_table,
+                    f"/hit/{det_name}",
+                    hit_file,
+                    geom_meta.uid,
+                    runid,
+                )
+
+        # process the scintillator output
+        if geom_meta.detector_type == "scintillator" and det_name == "lar":
+            log.info("processing the 'lar' scintillator table...")
+
+            for lgdo_chunk in iterator:
+                chunk = lgdo_chunk.view_as("ak")
+
+                _scint_ph = reboost.spms.pe.emitted_scintillation_photons(
+                    chunk.edep, chunk.particle, "lar"
+                )
+                for sipm in reboost_utils.get_sensvols(geom, "optical"):
+                    sipm_uid = sensvols[sipm].uid
+
+                    msg = f"applying optical map for SiPM {sipm}"
+                    log.debug(msg)
+
+                    optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
+
+                    photoelectrons = reboost.spms.pe.detected_photoelectrons(
+                        _scint_ph,
+                        chunk.particle,
+                        chunk.time,
                         chunk.xloc,
                         chunk.yloc,
                         chunk.zloc,
-                        _map,
-                        coord_offset=det_loc,
-                    ).view_as("ak")
+                        optmap,
+                        "lar",
+                        sipm,
+                        map_scaling=0.1,
+                    )
 
-                _drift_time_corr = (
-                    _drift_time["045"]
-                    + (_drift_time["000"] - _drift_time["045"])
-                    * (1 - np.cos(4 * _phi))
-                    / 2
-                )
-
-                dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
-                    _drift_time_corr, chunk.edep
-                )
-            else:
-                dt_heuristic = np.full(len(chunk), np.nan)
-
-            out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-            out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
-            out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
-
-            reboost_utils.write_chunk(
-                iterator.current_i_entry,
-                out_table,
-                f"/hit/{det_name}",
-                hit_file,
-                geom_meta.uid,
-            )
-
-    # process the scintillator output
-    if geom_meta.detector_type == "scintillator" and det_name == "lar":
-        log.info("processing the 'lar' scintillator table...")
-
-        for lgdo_chunk in iterator:
-            chunk = lgdo_chunk.view_as("ak")
-
-            _scint_ph = reboost.spms.pe.emitted_scintillation_photons(
-                chunk.edep, chunk.particle, "lar"
-            )
-            for sipm in reboost_utils.get_sensvols(geom, "optical"):
-                sipm_uid = sensvols[sipm].uid
-
-                msg = f"applying optical map for SiPM {sipm}"
-                log.debug(msg)
-
-                optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
-
-                photoelectrons = reboost.spms.pe.detected_photoelectrons(
-                    _scint_ph,
-                    chunk.particle,
-                    chunk.time,
-                    chunk.xloc,
-                    chunk.yloc,
-                    chunk.zloc,
-                    optmap,
-                    "lar",
-                    sipm,
-                    map_scaling=0.1,
-                )
-
-                out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-                out_table.add_field("time", photoelectrons)
-                reboost_utils.write_chunk(
-                    iterator.current_i_entry,
-                    out_table,
-                    f"/hit/{sipm}",
-                    hit_file,
-                    sipm_uid,
-                )
+                    out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+                    out_table.add_field("time", photoelectrons)
+                    reboost_utils.write_chunk(
+                        out_table,
+                        f"/hit/{sipm}",
+                        hit_file,
+                        sipm_uid,
+                        runid,
+                    )
 
 # build the TCM
 # use tables keyed by UID in the __by_uid__ group.  in this way, the

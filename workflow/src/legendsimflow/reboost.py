@@ -20,6 +20,7 @@ from pathlib import Path
 import awkward as ak
 import h5py
 import lgdo
+import numpy as np
 import pygeomtools
 from lgdo import LGDO, lh5
 
@@ -50,12 +51,22 @@ def make_output_chunk(chunk: LGDO) -> lgdo.Table:
     return out
 
 
-def write_chunk(chunk_idx, chunk, objname, outfile, objuid):
+def write_chunk(chunk, objname, outfile, objuid, runid):
     if not Path(outfile).is_file():
         # create the output file
         lh5.write(lgdo.Struct(), "hit", outfile, wo_mode="write_safe")
 
-    wo_mode = "append_column" if chunk_idx == 0 else "append"
+    wo_mode = (
+        "append_column"
+        if objname.strip("/") not in lh5.ls(outfile, "hit/")
+        else "append"
+    )
+
+    # add runid column to chunk
+    # NOTE: is this ok?
+    dtype = h5py.string_dtype(encoding="utf-8", length=len(runid))
+    runid = np.full(len(chunk), fill_value=runid, dtype=dtype)
+    chunk.add_field("runid", lgdo.Array(runid))
 
     lh5.write(
         chunk,

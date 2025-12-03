@@ -34,7 +34,7 @@ paths:
     lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
     pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
 
-  genconfig: $_/generated/config
+  genmeta: $_/generated/metadata
   macros: $_/generated/macros
   geom: $_/generated/geom
   dtmaps: $_/generated/dtmaps

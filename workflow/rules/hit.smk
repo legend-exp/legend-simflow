@@ -1,3 +1,5 @@
+from dbetto.utils import load_dict
+
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
 
@@ -43,7 +45,7 @@ rule make_simstat_partition_file:
     log:
         patterns.log_simstat_part_filename(config, SIMFLOW_CONTEXT.proctime),
     output:
-        config.paths.genconfig / "simstat" / "{simid}-simstat-partition.yaml",
+        config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
     params:
         # NOTE: these are not strictly needed here, but in this way Snakemake
         # can track these dependencies
@@ -64,7 +66,12 @@ rule build_tier_hit:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         optmap_lar=config.paths.optical_maps.lar,
+        # NOTE: we pass here the full list of maps, but likely not all of them
+        # will be used. room for improvement
         hpge_dtmaps=aggregate.gen_list_of_merged_dtmaps(config),
+        # NOTE: technically this rule only depends on one block in the
+        # partitioning file, but in practice the full file will always change
+        simstat_part_file=rules.make_simstat_partition_file.output[0],
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
