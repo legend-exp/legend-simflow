@@ -57,14 +57,12 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sensvols = pygeomtools.detectors.get_all_sensvols(geom)
 
-# load TCM, to be used to chunk the event statistics according to the run partitioning
-tcm = lh5.read_as("tcm", stp_file, library="ak")
 partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
 
 # loop over the partitions for this file
-for runid, tcm_idx_range in partitions.items():
-    msg = f"processing partition corresponding to {runid}, event range {tcm_idx_range}"
+for runid, evt_idx_range in partitions.items():
+    msg = f"processing partition corresponding to {runid}, event range {evt_idx_range}"
     log.info(msg)
 
     # loop over the sensitive volumes registered in the geometry
@@ -80,30 +78,9 @@ for runid, tcm_idx_range in partitions.items():
             log.warning(msg)
             continue
 
-        # ask the TCM which rows we should read from the hit table
-        tcm_part = tcm[tcm_idx_range[0] : tcm_idx_range[1]]
-        entry_list = ak.flatten(
-            tcm_part[tcm_part.table_key == geom_meta.uid].row_in_table
-        ).to_list()
-
-        if len(entry_list) > 0:
-            assert list(range(entry_list[0], entry_list[-1] + 1)) == entry_list
-
-            msg = (
-                f"hits with indices in [{entry_list[0]}, {entry_list[-1]}] "
-                "recorded in the events belonging to this partition"
-            )
-            log.debug(msg)
-
-            i_start = entry_list[0]
-            n_entries = entry_list[-1] - entry_list[0]
-
-        else:
-            msg = f"no hits recorded in {det_name} in the events belonging to this partition"
-            log.warning(msg)
-
-            i_start = 0
-            n_entries = None
+        i_start, n_entries = reboost_utils.get_remage_hit_range(
+            stp_file, det_name, geom_meta.uid, evt_idx_range
+        )
 
         # initialize the stp file iterator
         # NOTE: if the entry list is empty, there will be no processing but an

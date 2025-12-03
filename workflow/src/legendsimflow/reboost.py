@@ -129,3 +129,37 @@ def load_hpge_dtmaps(
         )
         log.warning(msg)
         dt_map = None
+
+
+def get_remage_hit_range(
+    stp_file: str | Path, det_name: str, uid: int, evt_idx_range: list[int]
+) -> tuple[int]:
+    # load TCM, to be used to chunk the event statistics according to the run partitioning
+    tcm = lh5.read_as("tcm", stp_file, library="ak")
+
+    # ask the TCM which rows we should read from the hit table
+    tcm_part = tcm[evt_idx_range[0] : evt_idx_range[1]]
+    entry_list = ak.flatten(tcm_part[tcm_part.table_key == uid].row_in_table).to_list()
+
+    if len(entry_list) > 0:
+        assert list(range(entry_list[0], entry_list[-1] + 1)) == entry_list
+
+        msg = (
+            f"hits with indices in [{entry_list[0]}, {entry_list[-1]}] "
+            "recorded in the events belonging to this partition"
+        )
+        log.debug(msg)
+
+        i_start = entry_list[0]
+        n_entries = entry_list[-1] - entry_list[0]
+
+    else:
+        msg = (
+            f"no hits recorded in {det_name} in the events belonging to this partition"
+        )
+        log.warning(msg)
+
+        i_start = 0
+        n_entries = None
+
+    return i_start, n_entries
