@@ -39,6 +39,7 @@ gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
+buffer_len = args.params.buffer_len
 
 
 # setup logging
@@ -67,7 +68,7 @@ for det_name, geom_meta in sensvols.items():
     iterator = LH5Iterator(
         stp_file,
         f"stp/{det_name}",
-        buffer_len="500*MB",
+        buffer_len=buffer_len,
     )
 
     # process the scintillator output

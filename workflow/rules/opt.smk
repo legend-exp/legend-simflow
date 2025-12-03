@@ -22,6 +22,7 @@ rule build_tier_opt:
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         optmap_lar=config.paths.optical_maps.lar,
     params:
+        buffer_len="500*MB",
         optmap_per_sipm=True,
     output:
         patterns.output_simjob_filename(config, tier="opt"),

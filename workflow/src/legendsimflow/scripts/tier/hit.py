@@ -48,6 +48,7 @@ log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 simstat_part_file = args.input.simstat_part_file
+buffer_len = args.params.buffer_len
 
 
 # setup logging
@@ -114,7 +115,7 @@ for runid, tcm_idx_range in partitions.items():
             f"stp/{det_name}",
             i_start=i_start,
             n_entries=n_entries,
-            buffer_len="500*MB",
+            buffer_len=buffer_len,
         )
 
         # process the HPGe output
