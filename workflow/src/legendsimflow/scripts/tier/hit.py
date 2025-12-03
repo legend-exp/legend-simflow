@@ -35,7 +35,6 @@ from legendmeta.police import validate_dict_schema
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
-from legendsimflow import patterns
 from legendsimflow import reboost as reboost_utils
 
 args = snakemake  # noqa: F821
@@ -146,26 +145,7 @@ for runid, tcm_idx_range in partitions.items():
 
             det_loc = geom.physicalVolumeDict[det_name].position
 
-            # NOTE: we don't use the dtmap array provided as input, as it's not keyed by runid
-            hpge_dtmap_file = patterns.output_dtmap_merged_filename(
-                snakemake.config,  # noqa: F821
-                runid=runid,
-            )
-
-            if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
-                log.debug("loading drift time maps")
-                dt_map = {}
-                for angle in ("000", "045"):
-                    dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
-                        hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
-                    )
-            else:
-                msg = (
-                    f"no valid time maps found for {det_name} in {hpge_dtmap_files[0]}, "
-                    "drift time will be set to NaN"
-                )
-                log.warning(msg)
-                dt_map = None
+            dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
 
             # iterate over input data
             for lgdo_chunk in iterator:

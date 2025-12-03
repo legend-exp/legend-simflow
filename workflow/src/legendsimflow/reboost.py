@@ -22,7 +22,11 @@ import h5py
 import lgdo
 import numpy as np
 import pygeomtools
+import reboost.hpge.utils
 from lgdo import LGDO, lh5
+
+from . import patterns
+from .utils import SimflowConfig
 
 log = logging.getLogger(__name__)
 
@@ -101,3 +105,27 @@ def get_sensvols(geom, det_type: str | None = None) -> list[str]:
     if det_type is not None:
         return [k for k, v in sensvols.items() if v.detector_type == det_type]
     return list(sensvols.keys())
+
+
+def load_hpge_dtmaps(
+    config: SimflowConfig, det_name: str, runid: str
+) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
+    hpge_dtmap_file = patterns.output_dtmap_merged_filename(
+        config,
+        runid=runid,
+    )
+
+    if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
+        log.debug("loading drift time maps")
+        dt_map = {}
+        for angle in ("000", "045"):
+            dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
+                hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
+            )
+    else:
+        msg = (
+            f"no valid time maps found for {det_name} in {hpge_dtmap_file}, "
+            "drift time will be set to NaN"
+        )
+        log.warning(msg)
+        dt_map = None
