@@ -34,6 +34,12 @@ log = logging.getLogger(__name__)
 
 
 def make_output_chunk(chunk: LGDO) -> lgdo.Table:
+    """Prepare output detector table chunk for the hit tier.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     out = lgdo.Table(size=len(chunk))
 
     if "t0" in chunk and isinstance(chunk.t0, lgdo.Array):
@@ -60,6 +66,12 @@ def make_output_chunk(chunk: LGDO) -> lgdo.Table:
 def write_chunk(
     chunk: lgdo.Table, objname: str, outfile: str, objuid: int, runid: str | None = None
 ) -> None:
+    """Write detector table chunks for the hit tier to disk.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     if not Path(outfile).is_file():
         # create the output file
         lh5.write(lgdo.Struct(), "hit", outfile, wo_mode="write_safe")
@@ -112,6 +124,14 @@ def get_sensvols(geom, det_type: str | None = None) -> list[str]:
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
 ) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
+    """Load HPGe drift time maps from disk.
+
+    Automatically finds and loads drift time maps for crystal axes <100> <110>.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     hpge_dtmap_file = patterns.output_dtmap_merged_filename(
         config,
         runid=runid,
@@ -172,6 +192,12 @@ def hpge_corrected_dt_heuristic(
     dt_map: reboost.hpge.utils.HPGeScalarRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
 ) -> ak.Array:
+    """HPGe drift time heuristic corrected for crystal axis effects.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     _phi = np.arctan2(
         chunk.yloc * 1000 - det_loc.eval()[1],
         chunk.xloc * 1000 - det_loc.eval()[0],
@@ -196,6 +222,12 @@ def hpge_corrected_dt_heuristic(
 
 
 def build_tcm(hit_file: str | Path) -> None:
+    """Re-create the TCM table from remage.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     # use tables keyed by UID in the __by_uid__ group.  in this way, the
     # TCM will index tables by UID.  the coincidence criterium is based
     # on Geant4 event identifier and time of the hits
