@@ -31,10 +31,10 @@ import reboost.hpge.utils
 import reboost.math.functions
 import reboost.spms
 from dbetto import AttrsDict
-from legendmeta.police import validate_dict_schema
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import metadata as mutils
 from legendsimflow import reboost as reboost_utils
 
 args = snakemake  # noqa: F821
@@ -104,21 +104,7 @@ for runid, evt_idx_range in partitions.items():
                 geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
             )
 
-            det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
-
-            has_fccd_meta = validate_dict_schema(
-                det_meta.characterization,
-                {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
-                greedy=False,
-                verbose=False,
-            )
-
-            if not has_fccd_meta:
-                msg = f"{det_name} metadata does not seem to contain usable FCCD data, setting to 1 mm"
-                log.warning(msg)
-                fccd = 1
-            else:
-                fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
+            fccd = mutils.get_sanitized_fccd(metadata, det_name)
 
             det_loc = geom.physicalVolumeDict[det_name].position
 

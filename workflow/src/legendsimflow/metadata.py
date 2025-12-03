@@ -17,14 +17,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
+from legendmeta.police import validate_dict_schema
 from snakemake.io import Wildcards
 
 from . import SimflowConfig
 from .exceptions import SimflowConfigError
+
+log = logging.getLogger(__name__)
 
 
 def get_simconfig(
@@ -184,3 +188,23 @@ def get_vtx_simconfig(config, simid):
         raise NotImplementedError()
 
     return get_simconfig(config, "vtx", vtx_key.pop())
+
+
+def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
+    det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+
+    has_fccd_meta = validate_dict_schema(
+        det_meta.characterization,
+        {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
+        greedy=False,
+        verbose=False,
+    )
+
+    if not has_fccd_meta:
+        msg = f"{det_name} metadata does not seem to contain usable FCCD data, setting to 1 mm"
+        log.warning(msg)
+        fccd = 1
+    else:
+        fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
+
+    return fccd
