@@ -105,9 +105,7 @@ for runid, evt_idx_range in partitions.items():
             )
 
             fccd = mutils.get_sanitized_fccd(metadata, det_name)
-
             det_loc = geom.physicalVolumeDict[det_name].position
-
             dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
 
             # iterate over input data
@@ -136,30 +134,8 @@ for runid, evt_idx_range in partitions.items():
                 energy = ak.sum(chunk.edep * _activeness, axis=-1)
 
                 if dt_map is not None:
-                    _phi = np.arctan2(
-                        chunk.yloc * 1000 - det_loc.eval()[1],
-                        chunk.xloc * 1000 - det_loc.eval()[0],
-                    )
-
-                    _drift_time = {}
-                    for angle, _map in dt_map.items():
-                        _drift_time[angle] = reboost.hpge.psd.drift_time(
-                            chunk.xloc,
-                            chunk.yloc,
-                            chunk.zloc,
-                            _map,
-                            coord_offset=det_loc,
-                        ).view_as("ak")
-
-                    _drift_time_corr = (
-                        _drift_time["045"]
-                        + (_drift_time["000"] - _drift_time["045"])
-                        * (1 - np.cos(4 * _phi))
-                        / 2
-                    )
-
-                    dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
-                        _drift_time_corr, chunk.edep
+                    rdt_heuristic = reboost_utils.hpge_corrected_dt_heuristic(
+                        chunk, dt_map, det_loc
                     )
                 else:
                     dt_heuristic = np.full(len(chunk), np.nan)

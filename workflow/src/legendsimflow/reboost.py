@@ -21,6 +21,7 @@ import awkward as ak
 import h5py
 import lgdo
 import numpy as np
+import pyg4ometry
 import pygeomtools
 import reboost.hpge.utils
 from lgdo import LGDO, lh5
@@ -163,3 +164,31 @@ def get_remage_hit_range(
         n_entries = None
 
     return i_start, n_entries
+
+
+def hpge_corrected_dt_heuristic(
+    chunk: ak.Array,
+    dt_map: reboost.hpge.utils.HPGeScalarRZField,
+    det_loc: pyg4ometry.gdml.Defines.Position,
+) -> ak.Array:
+    _phi = np.arctan2(
+        chunk.yloc * 1000 - det_loc.eval()[1],
+        chunk.xloc * 1000 - det_loc.eval()[0],
+    )
+
+    _drift_time = {}
+    for angle, _map in dt_map.items():
+        _drift_time[angle] = reboost.hpge.psd.drift_time(
+            chunk.xloc,
+            chunk.yloc,
+            chunk.zloc,
+            _map,
+            coord_offset=det_loc,
+        ).view_as("ak")
+
+    _drift_time_corr = (
+        _drift_time["045"]
+        + (_drift_time["000"] - _drift_time["045"]) * (1 - np.cos(4 * _phi)) / 2
+    )
+
+    return reboost.hpge.psd.drift_time_heuristic(_drift_time_corr, chunk.edep)
