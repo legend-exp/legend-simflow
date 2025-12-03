@@ -30,15 +30,15 @@ from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import reboost as reboost_utils
 
-smk = snakemake  # noqa: F821
+args = snakemake  # noqa: F821
 
-stp_file = snakemake.input.stp_file  # noqa: F821
-jobid = snakemake.wildcards.jobid  # noqa: F821
-hit_file = snakemake.output[0]  # noqa: F821
-optmap_lar_file = snakemake.input.optmap_lar  # noqa: F821
-gdml_file = snakemake.input.geom  # noqa: F821
-log_file = snakemake.log[0]  # noqa: F821
-metadata = snakemake.config.metadata  # noqa: F821
+stp_file = args.input.stp_file
+hit_file = args.output[0]
+optmap_lar_file = args.input.optmap_lar
+gdml_file = args.input.geom
+log_file = args.log[0]
+metadata = args.config.metadata
+optmap_per_sipm = args.params.optmap_per_sipm
 
 
 # setup logging
@@ -74,19 +74,50 @@ for det_name, geom_meta in sensvols.items():
     if geom_meta.detector_type == "scintillator" and det_name == "lar":
         log.info("processing the 'lar' scintillator table...")
 
+        # QUESTION/FIXME: what is the right loop order? load a map and process
+        # all chunks or load a chunk and loop over the maps?
+        if not optmap_per_sipm:
+            optmap = reboost.spms.pe.load_optmap_all(optmap_lar_file)
+
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak")
 
             _scint_ph = reboost.spms.pe.emitted_scintillation_photons(
                 chunk.edep, chunk.particle, "lar"
             )
-            for sipm in reboost_utils.get_sensvols(geom, "optical"):
-                sipm_uid = sensvols[sipm].uid
 
-                msg = f"applying optical map for SiPM {sipm}"
-                log.debug(msg)
+            if optmap_per_sipm:
+                for sipm in reboost_utils.get_sensvols(geom, "optical"):
+                    sipm_uid = sensvols[sipm].uid
 
-                optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
+                    msg = f"applying optical map for SiPM {sipm}"
+                    log.debug(msg)
+
+                    optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
+
+                    photoelectrons = reboost.spms.pe.detected_photoelectrons(
+                        _scint_ph,
+                        chunk.particle,
+                        chunk.time,
+                        chunk.xloc,
+                        chunk.yloc,
+                        chunk.zloc,
+                        optmap,
+                        "lar",
+                        sipm,
+                        map_scaling=0.1,
+                    )
+
+                    out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+                    out_table.add_field("time", photoelectrons)
+                    reboost_utils.write_chunk(
+                        out_table,
+                        f"/hit/{sipm}",
+                        hit_file,
+                        sipm_uid,
+                    )
+            else:
+                log.debug("applying sum optical map")
 
                 photoelectrons = reboost.spms.pe.detected_photoelectrons(
                     _scint_ph,
@@ -97,7 +128,7 @@ for det_name, geom_meta in sensvols.items():
                     chunk.zloc,
                     optmap,
                     "lar",
-                    sipm,
+                    "all",
                     map_scaling=0.1,
                 )
 
@@ -105,10 +136,11 @@ for det_name, geom_meta in sensvols.items():
                 out_table.add_field("time", photoelectrons)
                 reboost_utils.write_chunk(
                     out_table,
-                    f"/hit/{sipm}",
+                    "/hit/lar",
                     hit_file,
-                    sipm_uid,
+                    geom_meta.uid,
                 )
+
 
 # build the TCM
 # use tables keyed by UID in the __by_uid__ group.  in this way, the

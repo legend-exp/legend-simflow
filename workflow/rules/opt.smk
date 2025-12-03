@@ -21,6 +21,8 @@ rule build_tier_opt:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         optmap_lar=config.paths.optical_maps.lar,
+    params:
+        optmap_per_sipm=True,
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:

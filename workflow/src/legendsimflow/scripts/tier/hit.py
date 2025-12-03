@@ -38,16 +38,16 @@ from lgdo.lh5 import LH5Iterator
 from legendsimflow import patterns
 from legendsimflow import reboost as reboost_utils
 
-smk = snakemake  # noqa: F821
+args = snakemake  # noqa: F821
 
-stp_file = snakemake.input.stp_file  # noqa: F821
-jobid = snakemake.wildcards.jobid  # noqa: F821
-hit_file = snakemake.output[0]  # noqa: F821
-gdml_file = snakemake.input.geom  # noqa: F821
-log_file = snakemake.log[0]  # noqa: F821
-metadata = snakemake.config.metadata  # noqa: F821
-hpge_dtmap_files = snakemake.input.hpge_dtmaps  # noqa: F821
-simstat_part_file = snakemake.input.simstat_part_file  # noqa: F821
+stp_file = args.input.stp_file
+jobid = args.wildcards.jobid
+hit_file = args.output[0]
+gdml_file = args.input.geom
+log_file = args.log[0]
+metadata = args.config.metadata
+hpge_dtmap_files = args.input.hpge_dtmaps
+simstat_part_file = args.input.simstat_part_file
 
 
 # setup logging
@@ -147,7 +147,8 @@ for runid, tcm_idx_range in partitions.items():
 
             # NOTE: we don't use the dtmap array provided as input, as it's not keyed by runid
             hpge_dtmap_file = patterns.output_dtmap_merged_filename(
-                smk.config, runid=runid
+                snakemake.config,  # noqa: F821
+                runid=runid,
             )
 
             if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
