@@ -23,7 +23,6 @@ import legendhpges
 import lgdo
 import numpy as np
 import pyg4ometry
-import pygama.evt
 import pygeomtools
 import reboost.hpge.psd
 import reboost.hpge.surface
@@ -154,17 +153,5 @@ for runid, evt_idx_range in partitions.items():
                     runid,
                 )
 
-# build the TCM
-# use tables keyed by UID in the __by_uid__ group.  in this way, the
-# TCM will index tables by UID.  the coincidence criterium is based
-# on Geant4 event identifier and time of the hits
-# NOTE: uses the same time window as in build_hit() reshaping
 log.debug("building the TCM")
-pygama.evt.build_tcm(
-    [(hit_file, r"hit/__by_uid__/*")],  # input_tables
-    ["evtid", "t0"],  # coin_cols
-    hash_func=r"(?<=hit/__by_uid__/det)\d+",
-    coin_windows=[0, 10_000],
-    out_file=hit_file,
-    wo_mode="write_safe",
-)
+reboost_utils.build_tcm(hit_file)
