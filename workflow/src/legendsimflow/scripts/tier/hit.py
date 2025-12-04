@@ -33,6 +33,7 @@ from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import metadata as mutils
+from legendsimflow import partitioning
 from legendsimflow import reboost as reboost_utils
 
 args = snakemake  # noqa: F821
@@ -142,12 +143,13 @@ for runid, evt_idx_range in partitions.items():
                 )
                 out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
 
+                partitioning.add_field_runid(out_table, runid)
+
                 reboost_utils.write_chunk(
                     out_table,
                     f"/hit/{det_name}",
                     hit_file,
                     geom_meta.uid,
-                    runid,
                 )
 
 log.debug("building the TCM")

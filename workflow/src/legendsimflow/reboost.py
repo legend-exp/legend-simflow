@@ -63,9 +63,7 @@ def make_output_chunk(chunk: LGDO) -> lgdo.Table:
     return out
 
 
-def write_chunk(
-    chunk: lgdo.Table, objname: str, outfile: str, objuid: int, runid: str | None = None
-) -> None:
+def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> None:
     """Write detector table chunks for the hit tier to disk.
 
     Note
@@ -81,13 +79,6 @@ def write_chunk(
         if objname.strip("/") not in lh5.ls(outfile, "hit/")
         else "append"
     )
-
-    # add runid column to chunk
-    # NOTE: is this ok?
-    if runid is not None:
-        dtype = h5py.string_dtype(encoding="utf-8", length=len(runid))
-        runid = np.full(len(chunk), fill_value=runid, dtype=dtype)
-        chunk.add_field("runid", lgdo.Array(runid))
 
     lh5.write(
         chunk,

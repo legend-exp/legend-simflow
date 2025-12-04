@@ -16,6 +16,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
+import h5py
+import lgdo
+import numpy as np
+
 
 def partition_simstat(
     n_events: Mapping[str, int],
@@ -108,3 +112,15 @@ def partition_simstat(
         raise RuntimeError(msg)
 
     return job_partitions
+
+
+def add_field_runid(chunk: lgdo.Table, runid: str) -> None:
+    """Add the runid of the partition the hit belongs to.
+
+    This is done in an HDF5-friendly way by storing the runid as a fixed-length
+    string.
+    """
+    # NOTE: is this ok? will it compress well?
+    dtype = h5py.string_dtype(encoding="utf-8", length=len(runid))
+    runid = np.full(len(chunk), fill_value=runid, dtype=dtype)
+    chunk.add_field("runid", lgdo.Array(runid))
