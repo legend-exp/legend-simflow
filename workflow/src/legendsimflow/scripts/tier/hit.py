@@ -19,10 +19,10 @@ import awkward as ak
 import dbetto.utils
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-import legendhpges
 import lgdo
 import numpy as np
 import pyg4ometry
+import pygeomhpges
 import pygeomtools
 import reboost.hpge.psd
 import reboost.hpge.surface
@@ -98,8 +98,8 @@ for runid, evt_idx_range in partitions.items():
             msg = f"processing the {det_name} output table..."
             log.info(msg)
 
-            log.debug("creating an legendhpges.HPGe object")
-            pyobj = legendhpges.make_hpge(
+            log.debug("creating an pygeomhpges.HPGe object")
+            pyobj = pygeomhpges.make_hpge(
                 geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
             )
 
