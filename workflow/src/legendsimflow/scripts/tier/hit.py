@@ -29,7 +29,6 @@ import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
 import reboost.spms
-from dbetto import AttrsDict
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
@@ -110,22 +109,20 @@ for runid, evt_idx_range in partitions.items():
             # iterate over input data
             for lgdo_chunk in iterator:
                 chunk = lgdo_chunk.view_as("ak")
-                _distance_to_surf = AttrsDict()
 
-                for surf in ("nplus", "pplus", "passive"):
-                    _distance_to_surf[surf] = reboost.hpge.surface.distance_to_surface(
-                        chunk.xloc * 1000,  # mm
-                        chunk.yloc * 1000,  # mm
-                        chunk.zloc * 1000,  # mm
-                        pyobj,
-                        det_loc.eval(),
-                        distances_precompute=chunk.dist_to_surf * 1000,
-                        precompute_cutoff=(fccd + 1),
-                        surface_type="nplus",
-                    )
+                _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
+                    chunk.xloc * 1000,  # mm
+                    chunk.yloc * 1000,  # mm
+                    chunk.zloc * 1000,  # mm
+                    pyobj,
+                    det_loc.eval(),
+                    distances_precompute=chunk.dist_to_surf * 1000,
+                    precompute_cutoff=(fccd + 1),
+                    surface_type="nplus",
+                )
 
                 _activeness = reboost.math.functions.piecewise_linear_activeness(
-                    _distance_to_surf.nplus,
+                    _distance_to_nplus,
                     fccd=fccd,
                     dlf=0.2,
                 )
