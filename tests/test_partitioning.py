@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from legendsimflow.partitioning import partition_simstat
 
 

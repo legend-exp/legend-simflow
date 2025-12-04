@@ -156,6 +156,25 @@ def load_hpge_dtmaps(
 def get_remage_hit_range(
     stp_file: str | Path, det_name: str, uid: int, evt_idx_range: list[int]
 ) -> tuple[int]:
+    """Extract the range of remage output rows for an event range.
+
+    Queries the remage TCM (stored below ``/tcm`` in `stp_file`) with the input
+    `evt_idx_range` to extract the first and last index of rows (hits) in the
+    `det_name` detector table that correspond to the input event range. Returns
+    the first and last index as a tuple.
+
+    Parameters
+    ----------
+    stp_file
+        path to remage output file.
+    det_name
+        name of the detector table in `stp_file`.
+    uid
+        remage unique identifier for detector `det_name`.
+    evt_idx_range
+        first and last index of events of interest present in the remage output
+        file.
+    """
     # load TCM, to be used to chunk the event statistics according to the run partitioning
     tcm = lh5.read_as("tcm", stp_file, library="ak")
 
