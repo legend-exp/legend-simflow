@@ -16,7 +16,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import legenddataflowscripts as ldfs
-import legenddataflowscripts.utils
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.psd
@@ -77,7 +76,7 @@ for det_name, geom_meta in sensvols.items():
         # QUESTION/FIXME: what is the right loop order? load a map and process
         # all chunks or load a chunk and loop over the maps?
         if not optmap_per_sipm:
-            optmap = reboost.spms.pe.load_optmap_all(optmap_lar_file)
+            optmap = reboost.spms.pe.load_optmap(optmap_lar_file, "all")
 
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak")
@@ -136,7 +135,7 @@ for det_name, geom_meta in sensvols.items():
                 out_table.add_field("time", photoelectrons)
                 reboost_utils.write_chunk(
                     out_table,
-                    "/hit/lar",
+                    "/hit/spms",
                     hit_file,
                     geom_meta.uid,
                 )

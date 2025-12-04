@@ -23,7 +23,7 @@ rule build_tier_opt:
         optmap_lar=config.paths.optical_maps.lar,
     params:
         buffer_len="500*MB",
-        optmap_per_sipm=True,
+        optmap_per_sipm=False,
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:
