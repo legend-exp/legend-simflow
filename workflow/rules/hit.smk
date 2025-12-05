@@ -1,3 +1,5 @@
+from dbetto.utils import load_dict
+
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
 
@@ -6,6 +8,51 @@ rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
+
+
+rule make_simstat_partition_file:
+    """Creates the file containing the simulation event statistics partitioning file.
+
+    This rule maps chunks of event indices to partitions associated to the data
+    taking runs specified in the "runlist" (from e.g. `config.runlist`) and
+    stores them on disk as YAML files. The format is the following:
+
+    ```yaml
+    job_000:
+      l200-p03-r001-phy: [0, 300]
+      l200-p03-r002-phy: [301, 456]
+    job_001:
+      l200-p03-r002-phy: [0, 200]
+      l200-p03-r003-phy: [201, 156]
+    job_002:
+      l200-p03-r003-phy: [0, 50]
+    ```
+
+    The events simulated in job `0` (456) are split between `r001` and `r002`.
+    The partition corresponding to `r002` is however incomplete, and 200 events
+    are taken from the simulation job `1`.
+
+    The fraction of total simulated events (summed over all simulation jobs)
+    that belong to a partition is determined by weighting with the fraction of
+    livetime that belongs to that run.
+
+    Uses wildcard `simid`.
+    """
+    input:
+        stp_files=lambda wildcards: aggregate.gen_list_of_simid_outputs(
+            config, tier="stp", simid=wildcards.simid
+        ),
+    log:
+        patterns.log_simstat_part_filename(config, SIMFLOW_CONTEXT.proctime),
+    output:
+        config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
+    params:
+        # NOTE: these are not strictly needed here, but in this way Snakemake
+        # can track these dependencies
+        runinfo=config.metadata.datasets.runinfo,
+        runlist=aggregate.get_runlist(config),
+    script:
+        "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.
@@ -18,8 +65,14 @@ rule build_tier_hit:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=config.paths.optical_maps.lar,
+        # NOTE: we pass here the full list of maps, but likely not all of them
+        # will be used. room for improvement
         hpge_dtmaps=aggregate.gen_list_of_merged_dtmaps(config),
+        # NOTE: technically this rule only depends on one block in the
+        # partitioning file, but in practice the full file will always change
+        simstat_part_file=rules.make_simstat_partition_file.output[0],
+    params:
+        buffer_len="500*MB",
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:

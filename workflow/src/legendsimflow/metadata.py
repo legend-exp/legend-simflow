@@ -17,14 +17,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
+from legendmeta.police import validate_dict_schema
 from snakemake.io import Wildcards
 
 from . import SimflowConfig
 from .exceptions import SimflowConfigError
+
+log = logging.getLogger(__name__)
 
 
 def get_simconfig(
@@ -119,10 +123,8 @@ def smk_hash_simconfig(
     return hash_dict(scfg)
 
 
-def runid2timestamp(metadata: LegendMetadata, runid: str) -> str:
-    """Convert a LEGEND run identifier to a LEGEND timestamp.
-
-    For example: ``l200-p16-r008-ssc`` -> ``20251006T205904Z``.
+def runinfo(metadata: LegendMetadata, runid: str) -> str:
+    """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 
     Parameters
     ----------
@@ -132,7 +134,7 @@ def runid2timestamp(metadata: LegendMetadata, runid: str) -> str:
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
     """
     _, period, run, datatype = re.split(r"\W+", runid)
-    return metadata.datasets.runinfo[period][run][datatype].start_key
+    return metadata.datasets.runinfo[period][run][datatype]
 
 
 def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
@@ -156,7 +158,7 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
     directory = metadata["simprod/config/pars"][par]
-    return directory.on(runid2timestamp(metadata, runid), system=datatype)
+    return directory.on(runinfo(metadata, runid).start_key, system=datatype)
 
 
 def get_vtx_simconfig(config, simid):
@@ -186,3 +188,23 @@ def get_vtx_simconfig(config, simid):
         raise NotImplementedError()
 
     return get_simconfig(config, "vtx", vtx_key.pop())
+
+
+def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
+    det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+
+    has_fccd_meta = validate_dict_schema(
+        det_meta.characterization,
+        {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
+        greedy=False,
+        verbose=False,
+    )
+
+    if not has_fccd_meta:
+        msg = f"{det_name} metadata does not seem to contain usable FCCD data, setting to 1 mm"
+        log.warning(msg)
+        fccd = 1
+    else:
+        fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
+
+    return fccd

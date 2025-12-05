@@ -20,13 +20,26 @@ from pathlib import Path
 import awkward as ak
 import h5py
 import lgdo
+import numpy as np
+import pyg4ometry
+import pygama.evt
 import pygeomtools
+import reboost.hpge.utils
 from lgdo import LGDO, lh5
+
+from . import patterns
+from .utils import SimflowConfig
 
 log = logging.getLogger(__name__)
 
 
 def make_output_chunk(chunk: LGDO) -> lgdo.Table:
+    """Prepare output detector table chunk for the hit tier.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     out = lgdo.Table(size=len(chunk))
 
     if "t0" in chunk and isinstance(chunk.t0, lgdo.Array):
@@ -50,12 +63,22 @@ def make_output_chunk(chunk: LGDO) -> lgdo.Table:
     return out
 
 
-def write_chunk(chunk_idx, chunk, objname, outfile, objuid):
+def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> None:
+    """Write detector table chunks for the hit tier to disk.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
     if not Path(outfile).is_file():
         # create the output file
         lh5.write(lgdo.Struct(), "hit", outfile, wo_mode="write_safe")
 
-    wo_mode = "append_column" if chunk_idx == 0 else "append"
+    wo_mode = (
+        "append_column"
+        if objname.strip("/") not in lh5.ls(outfile, "hit/")
+        else "append"
+    )
 
     lh5.write(
         chunk,
@@ -87,3 +110,143 @@ def get_sensvols(geom, det_type: str | None = None) -> list[str]:
     if det_type is not None:
         return [k for k, v in sensvols.items() if v.detector_type == det_type]
     return list(sensvols.keys())
+
+
+def load_hpge_dtmaps(
+    config: SimflowConfig, det_name: str, runid: str
+) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
+    """Load HPGe drift time maps from disk.
+
+    Automatically finds and loads drift time maps for crystal axes <100> <110>.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
+    hpge_dtmap_file = patterns.output_dtmap_merged_filename(
+        config,
+        runid=runid,
+    )
+
+    if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
+        log.debug("loading drift time maps")
+        dt_map = {}
+        for angle in ("000", "045"):
+            dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
+                hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
+            )
+    else:
+        msg = (
+            f"no valid time maps found for {det_name} in {hpge_dtmap_file}, "
+            "drift time will be set to NaN"
+        )
+        log.warning(msg)
+        dt_map = None
+
+
+def get_remage_hit_range(
+    stp_file: str | Path, det_name: str, uid: int, evt_idx_range: list[int]
+) -> tuple[int]:
+    """Extract the range of remage output rows for an event range.
+
+    Queries the remage TCM (stored below ``/tcm`` in `stp_file`) with the input
+    `evt_idx_range` to extract the first and last index of rows (hits) in the
+    `det_name` detector table that correspond to the input event range. Returns
+    the first and last index as a tuple.
+
+    Parameters
+    ----------
+    stp_file
+        path to remage output file.
+    det_name
+        name of the detector table in `stp_file`.
+    uid
+        remage unique identifier for detector `det_name`.
+    evt_idx_range
+        first and last index of events of interest present in the remage output
+        file.
+    """
+    # load TCM, to be used to chunk the event statistics according to the run partitioning
+    tcm = lh5.read_as("tcm", stp_file, library="ak")
+
+    # ask the TCM which rows we should read from the hit table
+    tcm_part = tcm[evt_idx_range[0] : evt_idx_range[1]]
+    entry_list = ak.flatten(tcm_part[tcm_part.table_key == uid].row_in_table).to_list()
+
+    if len(entry_list) > 0:
+        assert list(range(entry_list[0], entry_list[-1] + 1)) == entry_list
+
+        msg = (
+            f"hits with indices in [{entry_list[0]}, {entry_list[-1]}] "
+            "recorded in the events belonging to this partition"
+        )
+        log.debug(msg)
+
+        i_start = entry_list[0]
+        n_entries = entry_list[-1] - entry_list[0]
+
+    else:
+        msg = (
+            f"no hits recorded in {det_name} in the events belonging to this partition"
+        )
+        log.warning(msg)
+
+        i_start = 0
+        n_entries = None
+
+    return i_start, n_entries
+
+
+def hpge_corrected_dt_heuristic(
+    chunk: ak.Array,
+    dt_map: reboost.hpge.utils.HPGeScalarRZField,
+    det_loc: pyg4ometry.gdml.Defines.Position,
+) -> ak.Array:
+    """HPGe drift time heuristic corrected for crystal axis effects.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
+    _phi = np.arctan2(
+        chunk.yloc * 1000 - det_loc.eval()[1],
+        chunk.xloc * 1000 - det_loc.eval()[0],
+    )
+
+    _drift_time = {}
+    for angle, _map in dt_map.items():
+        _drift_time[angle] = reboost.hpge.psd.drift_time(
+            chunk.xloc,
+            chunk.yloc,
+            chunk.zloc,
+            _map,
+            coord_offset=det_loc,
+        ).view_as("ak")
+
+    _drift_time_corr = (
+        _drift_time["045"]
+        + (_drift_time["000"] - _drift_time["045"]) * (1 - np.cos(4 * _phi)) / 2
+    )
+
+    return reboost.hpge.psd.drift_time_heuristic(_drift_time_corr, chunk.edep)
+
+
+def build_tcm(hit_file: str | Path) -> None:
+    """Re-create the TCM table from remage.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+    """
+    # use tables keyed by UID in the __by_uid__ group.  in this way, the
+    # TCM will index tables by UID.  the coincidence criterium is based
+    # on Geant4 event identifier and time of the hits
+    # NOTE: uses the same time window as in build_hit() reshaping
+    pygama.evt.build_tcm(
+        [(hit_file, r"hit/__by_uid__/*")],  # input_tables
+        ["evtid", "t0"],  # coin_cols
+        hash_func=r"(?<=hit/__by_uid__/det)\d+",
+        coin_windows=[0, 10_000],
+        out_file=hit_file,
+        wo_mode="write_safe",
+    )

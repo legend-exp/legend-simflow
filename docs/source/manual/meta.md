@@ -2,7 +2,7 @@
 
 ## File naming conventions
 
-The file naming convention for the `stp` and `hit` tiers is:
+The file naming convention for the `stp`, `opt` and `hit` tiers is:
 
 ```
 {experiment}-{simid}-job_{jobid}-tier_{tier}.{extension}
@@ -22,7 +22,7 @@ underscores: `_`). Do not use dashes (`-`) or other characters.
   that labels independent jobs across which the simulation is split.
 
 - `tier` — the three-character label of the tier. At the moment the simflow
-  supports `vtx`, `stp` and `hit` tiers.
+  supports `vtx`, `stp`, `opt` and `hit` tiers.
 
 - `extension` — file extension. `lh5` for LEGEND HDF5 files, `gdml` for GDML
   geometry files, `yaml` for plain-text YAML configuration files, `log` for log

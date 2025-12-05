@@ -57,11 +57,15 @@ def simjob_base_segment(config: SimflowConfig, **kwargs) -> str:
     return _expand("{simid}/" + config.experiment + "-{simid}-job_{jobid}", **kwargs)
 
 
+def log_dirname(config: SimflowConfig, time: str) -> Path:
+    """Directory where log files are stored."""
+    return config.paths.log / time
+
+
 def log_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     """Formats a log file path for a `simid` and `jobid`."""
     pat = (
-        config.paths.log
-        / time
+        log_dirname(config, time)
         / "{tier}"
         / (simjob_base_segment(config) + "-tier_{tier}.log")
     )
@@ -108,7 +112,7 @@ def geom_log_filename(config: SimflowConfig, time: str, **kwargs) -> str:
     return _expand(pat, **kwargs)
 
 
-# vtx, stp, hit tiers
+# vtx, stp, opt, hit tiers
 
 
 def input_simjob_filename(config: SimflowConfig, **kwargs) -> Path:
@@ -200,11 +204,18 @@ def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     pat = (
-        config.paths.log
-        / time
+        log_dirname(config, time)
         / "hpge_dtmaps"
         / "{runid}-{hpge_detector}-drift-time-map.log"
     )
+    return _expand(pat, **kwargs)
+
+
+# hit tier
+
+
+def log_simstat_part_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
+    pat = log_dirname(config, time) / "simstat" / "{simid}-simstat-partition.log"
     return _expand(pat, **kwargs)
 
 
