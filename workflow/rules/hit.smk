@@ -48,9 +48,10 @@ rule make_simstat_partition_file:
         config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
     params:
         # NOTE: these are not strictly needed here, but in this way Snakemake
-        # can track these dependencies
+        # can track these dependencies. these variables *do get used* in the
+        # script.
         runinfo=config.metadata.datasets.runinfo,
-        runlist=aggregate.get_runlist(config),
+        runlist=lambda wc: aggregate.get_runlist(config, wc.simid),
     script:
         "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
@@ -67,7 +68,7 @@ rule build_tier_hit:
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         # NOTE: we pass here the full list of maps, but likely not all of them
         # will be used. room for improvement
-        hpge_dtmaps=aggregate.gen_list_of_merged_dtmaps(config),
+        hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=rules.make_simstat_partition_file.output[0],

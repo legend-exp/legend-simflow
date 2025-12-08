@@ -24,7 +24,7 @@ from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .metadata import get_simconfig
+from .metadata import get_runlist, get_simconfig
 
 log = logging.getLogger(__name__)
 
@@ -75,23 +75,6 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
 
 
 # simid independent stuff
-
-
-def get_runlist(config: SimflowConfig) -> list[str]:
-    """Sanitized sorted list of runs from the simflow `config`."""
-    field = config.runlist
-
-    # Get a list, whether it's in a file or directly specified
-    if isinstance(field, str):
-        if Path(field).is_file():
-            with Path(field).open() as f:
-                slist = [line.rstrip() for line in f.readlines()]
-        else:
-            slist = [field]
-    elif isinstance(field, list):
-        slist = field
-
-    return sorted(slist)
 
 
 def gen_list_of_all_simids(config: SimflowConfig) -> list[str]:
@@ -187,11 +170,11 @@ def gen_list_of_dtmaps(config: SimflowConfig, runid: str) -> list[str]:
     ]
 
 
-def gen_list_of_merged_dtmaps(config: SimflowConfig) -> list[str]:
+def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[str]:
     r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
     return [
         patterns.output_dtmap_merged_filename(config, runid=runid)
-        for runid in get_runlist(config)
+        for runid in get_runlist(config, simid)
     ]
 
 
