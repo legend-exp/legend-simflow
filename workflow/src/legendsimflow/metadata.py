@@ -265,6 +265,7 @@ def expand_runlist(
     """Expands a runlist as passed to the Simflow configuration.
 
     A runlist is a list of:
+
     - runids in the form accepted by :func:`is_runid`;
     - runlist DB queries in the form ``<tag>.<datatype>.<period>`` (see
       :func:`query_runlist_db`).
