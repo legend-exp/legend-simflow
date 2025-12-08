@@ -178,41 +178,6 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[str]:
     ]
 
 
-# evt tier
-
-
-def gen_list_of_tier_evt_outputs(config: SimflowConfig, simid):
-    mlist = []
-    for runid in get_runlist(config):
-        mlist += [patterns.output_evt_filename(config, simid=simid, runid=runid)]
-
-    return mlist
-
-
-def gen_list_of_all_tier_evt_outputs(config: SimflowConfig):
-    mlist = []
-    slist = gen_list_of_all_simids(config)
-    for sid in slist:
-        mlist += gen_list_of_tier_evt_outputs(config, simid=sid)
-
-    return mlist
-
-
-# pdf tier
-
-
-def gen_list_of_tier_pdf_outputs(config: SimflowConfig, simid):
-    return [patterns.output_pdf_filename(config, simid=simid)]
-
-
-def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig):
-    mlist = []
-    slist = gen_list_of_all_simids(config)
-    for simid in slist:
-        mlist += gen_list_of_tier_pdf_outputs(config, simid=simid)
-    return mlist
-
-
 def process_simlist(
     config: SimflowConfig, simlist: Iterable[str] | None = None
 ) -> list[Path]:
@@ -257,9 +222,7 @@ def process_simlist(
         # mlist += gen_list_of_plots_outputs(config, tier, simid)
         if tier in ("vtx", "stp", "opt", "hit"):
             mlist += gen_list_of_simid_outputs(config, tier, simid)
-        elif tier == "evt":
-            mlist += gen_list_of_tier_evt_outputs(config, simid)
-        elif tier == "pdf":
-            mlist += gen_list_of_tier_pdf_outputs(config, simid)
+        elif tier in ("evt", "pdf"):
+            raise NotImplementedError()
 
     return mlist
