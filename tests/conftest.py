@@ -44,10 +44,15 @@ def make_config(legend_testdata):
 
     config["paths"] = _make_path(config["paths"])
 
+    def _copy_skip_existing(src, dst):
+        if not Path(dst).exists():
+            shutil.copy2(src, dst)
+
     for fd in ("hardware", "datasets"):
         shutil.copytree(
             legend_testdata[f"legend/metadata/{fd}"],
             testprod / "inputs" / fd,
+            copy_function=_copy_skip_existing,
             dirs_exist_ok=True,
         )
 

@@ -1,0 +1,7 @@
+phbr_surface_Ra228_to_Ac228:
+  runlist:
+    - l200-p02-r000-phy
+    - l200-p02-r001-phy
+
+sis1_z8224_src1_Ra224_to_Pb208:
+  runlist: ~runlists:valid.phy.p02
