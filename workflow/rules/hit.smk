@@ -42,16 +42,16 @@ rule make_simstat_partition_file:
         stp_files=lambda wildcards: aggregate.gen_list_of_simid_outputs(
             config, tier="stp", simid=wildcards.simid
         ),
-    log:
-        patterns.log_simstat_part_filename(config, SIMFLOW_CONTEXT.proctime),
-    output:
-        config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
     params:
         # NOTE: these are not strictly needed here, but in this way Snakemake
         # can track these dependencies. these variables *do get used* in the
         # script.
         runinfo=config.metadata.datasets.runinfo,
         runlist=lambda wc: aggregate.get_runlist(config, wc.simid),
+    output:
+        config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
+    log:
+        patterns.log_simstat_part_filename(config, SIMFLOW_CONTEXT.proctime),
     script:
         "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
@@ -118,18 +118,20 @@ rule build_hpge_drift_time_map:
         "Generating drift time map for HPGe detector {wildcards.hpge_detector} in run {wildcards.runid}"
     input:
         unpack(smk_hpge_drift_time_map_inputs),
-    output:
-        temp(patterns.output_dtmap_filename(config)),
-    log:
-        patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
-    threads: 1
     params:
         metadata_path=config.paths.metadata,
         operational_voltage=lambda wc: mutils.simpars(
             config.metadata, "geds.opv", wc.runid
         )[wc.hpge_detector].operational_voltage_in_V,
+    output:
+        temp(patterns.output_dtmap_filename(config)),
+    log:
+        patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
+    threads: 1
     conda:
         f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
+    benchmark:
+        patterns.benchmark_dtmap_filename(config)
     # NOTE: not using the `script` directive here since Snakemake has no nice
     # way to handle package dependencies nor Project.toml
     shell:
@@ -150,12 +152,12 @@ rule merge_hpge_drift_time_maps:
         "Merging HPGe drift time map files for {wildcards.runid}"
     input:
         lambda wc: aggregate.gen_list_of_dtmaps(config, wc.runid),
-    output:
-        patterns.output_dtmap_merged_filename(config),
     params:
         input_regex=lambda wc: patterns.output_dtmap_filename(
             config, runid=wc.runid, hpge_detector="*"
         ),
+    output:
+        patterns.output_dtmap_merged_filename(config),
     conda:
         f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     shell:
