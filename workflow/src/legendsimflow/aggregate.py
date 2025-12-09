@@ -24,7 +24,7 @@ from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .metadata import get_simconfig
+from .metadata import get_runlist, get_simconfig
 
 log = logging.getLogger(__name__)
 
@@ -75,23 +75,6 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
 
 
 # simid independent stuff
-
-
-def get_runlist(config: SimflowConfig) -> list[str]:
-    """Sanitized sorted list of runs from the simflow `config`."""
-    field = config.runlist
-
-    # Get a list, whether it's in a file or directly specified
-    if isinstance(field, str):
-        if Path(field).is_file():
-            with Path(field).open() as f:
-                slist = [line.rstrip() for line in f.readlines()]
-        else:
-            slist = [field]
-    elif isinstance(field, list):
-        slist = field
-
-    return sorted(slist)
 
 
 def gen_list_of_all_simids(config: SimflowConfig) -> list[str]:
@@ -187,47 +170,12 @@ def gen_list_of_dtmaps(config: SimflowConfig, runid: str) -> list[str]:
     ]
 
 
-def gen_list_of_merged_dtmaps(config: SimflowConfig) -> list[str]:
+def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[str]:
     r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
     return [
         patterns.output_dtmap_merged_filename(config, runid=runid)
-        for runid in get_runlist(config)
+        for runid in get_runlist(config, simid)
     ]
-
-
-# evt tier
-
-
-def gen_list_of_tier_evt_outputs(config: SimflowConfig, simid):
-    mlist = []
-    for runid in get_runlist(config):
-        mlist += [patterns.output_evt_filename(config, simid=simid, runid=runid)]
-
-    return mlist
-
-
-def gen_list_of_all_tier_evt_outputs(config: SimflowConfig):
-    mlist = []
-    slist = gen_list_of_all_simids(config)
-    for sid in slist:
-        mlist += gen_list_of_tier_evt_outputs(config, simid=sid)
-
-    return mlist
-
-
-# pdf tier
-
-
-def gen_list_of_tier_pdf_outputs(config: SimflowConfig, simid):
-    return [patterns.output_pdf_filename(config, simid=simid)]
-
-
-def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig):
-    mlist = []
-    slist = gen_list_of_all_simids(config)
-    for simid in slist:
-        mlist += gen_list_of_tier_pdf_outputs(config, simid=simid)
-    return mlist
 
 
 def process_simlist(
@@ -274,9 +222,7 @@ def process_simlist(
         # mlist += gen_list_of_plots_outputs(config, tier, simid)
         if tier in ("vtx", "stp", "opt", "hit"):
             mlist += gen_list_of_simid_outputs(config, tier, simid)
-        elif tier == "evt":
-            mlist += gen_list_of_tier_evt_outputs(config, simid)
-        elif tier == "pdf":
-            mlist += gen_list_of_tier_pdf_outputs(config, simid)
+        elif tier in ("evt", "pdf"):
+            raise NotImplementedError()
 
     return mlist

@@ -211,6 +211,15 @@ def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+def benchmark_dtmap_filename(config: SimflowConfig, **kwargs):
+    pat = (
+        config.paths.benchmarks
+        / "hpge_dtmaps"
+        / "{runid}-{hpge_detector}-drift-time-map.tsv"
+    )
+    return expand(pat, **kwargs, allow_missing=True)[0]
+
+
 # hit tier
 
 

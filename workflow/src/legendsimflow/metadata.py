@@ -19,6 +19,7 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Collection
 
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
@@ -73,7 +74,7 @@ def get_simconfig(
         raise SimflowConfigError(e, block) from e
 
 
-def hash_dict(d):
+def hash_dict(d: dict | AttrsDict) -> str:
     """Compute the hash of a Python dict."""
     if isinstance(d, AttrsDict):
         d = d.to_dict()
@@ -88,7 +89,7 @@ def smk_hash_simconfig(
     field: str | None = None,
     ignore: list | None = None,
     **kwargs,
-):
+) -> str:
     """Get the dictionary hash for use in Snakemake rules.
 
     Parameters
@@ -208,3 +209,105 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
         fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
 
     return fccd
+
+
+def is_runid(runid: str) -> bool:
+    """Is a runid (run identifier) correctly formatted?
+
+    It should be in the form
+    ``l200-<period>-<run>-<datatype>``/``l200-pNN-rMMM-AAA``.
+    """
+    return re.match(r"^l200-p(\d{2})-r(\d{3})-([A-Za-z]+)$", runid) is not None
+
+
+def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
+    """Query the runlist DB stored in legend-datasets.
+
+    Run expressions of the form ``r00n..r00m`` are automatically expanded into
+    full run lists. If for example ``metadata.datasets.runlists.valid.phy.p02
+    == "r000..r002"``:
+
+    >>> query_runlist_db(metadata, "valid.phy.p02")
+    ["l200-p02-r000-phy", "l200-p02-r001-phy", "l200-p02-r002-phy"]
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata instance.
+    query
+        expression in the form `<tag>.<datatype>.<period>` (see contents of
+        ``runlists.yaml`` in legend-datasets.
+    """
+    group, dtype, period = re.split(r"\W+", query)
+
+    run_exprs = metadata.datasets.runlists[group][dtype][period]
+
+    if not isinstance(run_exprs, list | tuple):
+        run_exprs = [run_exprs]
+
+    runs: list[str] = []
+    for item in run_exprs:
+        m = re.match(r"^r(\d+)\.\.r(\d+)$", item)
+        if m is not None:
+            r1, r2 = m.groups()
+            runs.extend(
+                [f"l200-{period}-r{r:03d}-{dtype}" for r in range(int(r1), int(r2) + 1)]
+            )
+        else:
+            runs.append(item)
+
+    return sorted(runs)
+
+
+def expand_runlist(
+    metadata: LegendMetadata, runlist: str | Collection[str]
+) -> list[str]:
+    """Expands a runlist as passed to the Simflow configuration.
+
+    A runlist is a list of:
+
+    - runids in the form accepted by :func:`is_runid`;
+    - runlist DB queries in the form ``<tag>.<datatype>.<period>`` (see
+      :func:`query_runlist_db`).
+    """
+    if not isinstance(runlist, list | tuple):
+        runlist = [runlist]
+
+    runs = []
+    for item in runlist:
+        if item.startswith("~runlists:"):
+            runs.extend(query_runlist_db(metadata, item.partition("~runlists:")[2]))
+        else:
+            if not is_runid(item):
+                msg = f"{item} is not a valid runid"
+                raise ValueError(msg)
+
+            runs.append(item)
+    return sorted(runs)
+
+
+def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
+    """Gets the runlist assigned to a simulation.
+
+    If not overridden in the hit-tier `simconfig`, returns the global runlist
+    stored in ``config.runlist``.
+    """
+    default = config.get("runlist", None)
+    simcfg = get_simconfig(config, "hit")
+
+    try:
+        simcfg = simcfg[simid]
+        runlist = simcfg["runlist"]
+    except KeyError as e:
+        if default is not None:
+            runlist = default
+        else:
+            key = e.args[0]
+            path = f"simprod.config.tier.hit.{config.experiment}.simconfig"
+            if key == "runlist":
+                path += f".{simid}"
+
+            msg = f"'{key}' key not found and config.runlist fallback undefined"
+            raise SimflowConfigError(msg, path) from e
+
+    return expand_runlist(config.metadata, runlist)

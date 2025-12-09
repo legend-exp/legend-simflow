@@ -19,15 +19,15 @@ def test_make_macro(config):
     assert fmac.is_file()
 
     assert set(
-        config.metadata.simprod.config.tier.stp.l200p03.confinement["birds_nest"]
+        config.metadata.simprod.config.tier.stp.l200p02.confinement["birds_nest"]
     ).issubset(text.split("\n"))
     assert set(
-        config.metadata.simprod.config.tier.stp.l200p03.generators["K40"]
+        config.metadata.simprod.config.tier.stp.l200p02.generators["K40"]
     ).issubset(text.split("\n"))
 
     text, fmac = commands.make_remage_macro(config, "pen_plates_Ra224_to_Pb208", "stp")
     assert set(
-        config.metadata.simprod.config.tier.stp.l200p03.generators["Ra224_to_Pb208"]
+        config.metadata.simprod.config.tier.stp.l200p02.generators["Ra224_to_Pb208"]
     ).issubset(text.split("\n"))
 
     confine = [
@@ -94,19 +94,19 @@ def test_make_macro_errors_1(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig["birds_nest_K40"][
+    metadata.simprod.config.tier.stp.l200p02.simconfig["birds_nest_K40"][
         "generator"
     ] = "coddue"
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig["birds_nest_K40"][
+    metadata.simprod.config.tier.stp.l200p02.simconfig["birds_nest_K40"][
         "generator"
     ] = "~coddue:boh"
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig["birds_nest_K40"][
+    metadata.simprod.config.tier.stp.l200p02.simconfig["birds_nest_K40"][
         "generator"
     ] = "~defines:boh"
     with pytest.raises(SimflowConfigError):
@@ -117,20 +117,20 @@ def test_make_macro_errors_2(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig["birds_nest_K40"][
+    metadata.simprod.config.tier.stp.l200p02.simconfig["birds_nest_K40"][
         "confinement"
     ] = "~baaaaaa:beh"
 
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig["birds_nest_K40"][
+    metadata.simprod.config.tier.stp.l200p02.simconfig["birds_nest_K40"][
         "confinement"
     ] = "~defines:beh"
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig["birds_nest_K40"][
+    metadata.simprod.config.tier.stp.l200p02.simconfig["birds_nest_K40"][
         "confinement"
     ] = {}
     with pytest.raises(SimflowConfigError):
@@ -141,13 +141,13 @@ def test_make_macro_errors_vertices(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig.exotic_physics_process[
+    metadata.simprod.config.tier.stp.l200p02.simconfig.exotic_physics_process[
         "confinement"
     ] = "~vertices:blah"
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "exotic_physics_process", "stp")
 
-    metadata.simprod.config.tier.stp.l200p03.simconfig.exotic_physics_process.pop(
+    metadata.simprod.config.tier.stp.l200p02.simconfig.exotic_physics_process.pop(
         "generator"
     )
     with pytest.raises(SimflowConfigError):

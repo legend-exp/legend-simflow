@@ -249,3 +249,83 @@ canonical input path for the job. It then builds the
 either by passing this macro file with `--macro-substitutions` (`SEED` and
 `N_EVENTS`), or by inlining the commands directly when using
 [_remage_'s "inline" mode](https://remage.readthedocs.io/en/stable/manual/running.html#executing-commands-in-batch-mode).
+
+### `hit` tier
+
+This section specifies how to configure the post-processing of the
+[_remage_](https://remage.readthedocs.io/) simulations from the `stp` tier.
+
+#### Run partitioning
+
+An important post-processing step of the workflow is to fold detector models
+with parameters that vary during the livetime of the experiment (across "data
+taking runs"), satisfying the following requirements:
+
+- the contribution of each data taking run over the total in terms of livetime
+  must be represented in the final simulated event sample;
+- the statistical properties of the simulated event sample must be kept intact.
+
+Ultimately, the simulated event sample must be directly comparable to the
+observed event sample. The Simflow will partition the total simulated event
+sample (across all simulation jobs) according to the livetime fraction of each
+run (taken from
+[legend-datasets](https://github.com/legend-exp/legend-datasets)) and apply run
+parameters to each partition. The partitions will still all live in the same
+table in the `hit` file. A new column named `runid` holding the runid of each
+event is appended for convenience.
+
+The user selects a list of data taking runs ("run list" or "data set") that they
+want to simulate. Runs are specified by run-ids ("run identifiers") in the
+format:
+
+```
+l200-<period>-<run>-<datatype>
+```
+
+where
+
+- `period` is `p03`, `p04`, ...
+- `run` is `r000`, `r001`, ...
+- `datatype` is `phy`, `cal`, `ssc`, ...
+
+In addition, the Simflow gives the possibility to get the runlist from the
+`runlists.yaml` database file stored in the
+[legend-datasets](https://github.com/legend-exp/legend-datasets) repository by
+prefixing the runid string with `~runlists:`, followed by a dot-separated path
+to the database entry. For example:
+
+```
+~runlists:valid.phy.p04 -> [
+  'l200-p04-r000-phy',
+  'l200-p04-r001-phy',
+  'l200-p04-r002-phy',
+  'l200-p04-r003-phy'
+]
+```
+
+Run lists passed to the Simflow can include both runids and
+runlist-file-queries.
+
+The Simflow supports specifying a global runlist in the main configuration file,
+under the field `runlist`:
+
+```{code-block} yaml
+:caption: simflow-config.yaml
+
+runlist:
+  - l200-p03-r000-phy
+  - l200-p03-r001-phy
+  - ~runlists:valid.phy.p04
+```
+
+which can be overridden for selected simulations by setting the `runlist` field
+for the corresponding `simid` in the `hit`-tier `simconfig.yaml` file:
+
+```{code-block} yaml
+:caption: /.../simprod/config/tier/hit/simconfig.yaml
+
+hpge_bulk_Rn222_to_Po214:
+  runlist:
+    - l200-p03-r003-phy
+    - l200-p03-r004-phy
+```
