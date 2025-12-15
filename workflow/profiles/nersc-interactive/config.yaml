@@ -4,7 +4,7 @@ rerun-incomplete: true
 cores: all
 
 # we can use conda environments on NERSC
-software-deployment-method: conda
+# software-deployment-method: conda
 
 # I/O on scratch disk for performance
 default-storage-provider: fs
