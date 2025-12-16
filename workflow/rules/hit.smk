@@ -2,6 +2,7 @@ from dbetto.utils import load_dict
 
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
+from legendsimflow import nersc
 
 
 rule gen_all_tier_hit:

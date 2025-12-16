@@ -18,11 +18,15 @@ from datetime import datetime
 
 from dbetto import AttrsDict
 
-from legendsimflow import aggregate, utils
+from legendsimflow import aggregate, nersc, utils
 
 
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
+
+
+def dvs_ro(x):
+    return nersc.dvs_ro(config, x)
 
 
 wildcard_constraints:
