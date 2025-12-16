@@ -31,3 +31,7 @@ paths:
   tier_pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots
+
+nersc:
+  dvs_ro: false
+  scratch: false
