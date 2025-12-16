@@ -111,8 +111,6 @@ rule build_tier_stp:
     benchmark:
         patterns.benchmark_filename(config, tier="stp")
     threads: 1
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/remage.yaml"
     params:
         cmd=smk_remage_run,
         # make this rule dependent on the actual simconfig block it is very

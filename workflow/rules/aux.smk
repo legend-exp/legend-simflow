@@ -37,8 +37,6 @@ rule _init_julia_env:
         "Initializing Julia environment"
     output:
         f"{SIMFLOW_CONTEXT.basedir}/.snakemake/.julia-env-initialized",
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     shell:
         "cd workflow/src/legendsimflow/scripts && "
         "julia --project=. ./init-julia-env.jl && "

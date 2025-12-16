@@ -25,9 +25,6 @@ SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
 
 
-conda: f"{SIMFLOW_CONTEXT.basedir}/envs/global.yaml"
-
-
 wildcard_constraints:
     tier=r"\w+",
     simid=r"[-\w]+",

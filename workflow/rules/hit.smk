@@ -128,8 +128,6 @@ rule build_hpge_drift_time_map:
     log:
         patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
     threads: 1
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     benchmark:
         patterns.benchmark_dtmap_filename(config)
     # NOTE: not using the `script` directive here since Snakemake has no nice
@@ -158,8 +156,6 @@ rule merge_hpge_drift_time_maps:
         ),
     output:
         patterns.output_dtmap_merged_filename(config),
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     shell:
         r"""
         shopt -s nullglob

@@ -1,5 +1,0 @@
-channels:
-  - conda-forge
-  - nodefaults
-dependencies:
-  - remage ==0.15.2
