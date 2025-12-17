@@ -50,13 +50,19 @@ def dvs_ro_snakemake(snakemake: Snakemake) -> Snakemake:
     --------
     dvs_ro
     """
-    # use the read-only path in all input items
-    new_input_dict = {
-        k: dvs_ro(snakemake.config, v) for k, v in snakemake.input.items()
-    }
+    # is this a named list?
+    if len(snakemake.input.keys()) != 0:
+        # use the read-only path in all input items
+        new_input_dict = {
+            k: dvs_ro(snakemake.config, v) for k, v in snakemake.input.items()
+        }
 
-    # hack the inputs of the original snakemake object
-    snakemake.input = InputFiles(fromdict=new_input_dict, plainstr=True)
+        # hack the inputs of the original snakemake object
+        snakemake.input = InputFiles(fromdict=new_input_dict, plainstr=True)
+    # or an un-named list?
+    else:
+        new_input_list = [dvs_ro(snakemake.config, v) for v in snakemake.input]
+        snakemake.input = InputFiles(toclone=new_input_list, plainstr=True)
 
     return snakemake
 
