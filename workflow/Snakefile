@@ -65,7 +65,10 @@ def gen_target_all():
         elif "evt" in make_tiers:
             return rules.gen_all_tier_evt.input
         elif "hit" in make_tiers:
-            return rules.gen_all_tier_hit.input
+            return (
+                rules.gen_all_tier_hit.input,
+                aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
+            )
         elif "opt" in make_tiers:
             return rules.gen_all_tier_opt.input
         elif "stp" in make_tiers:

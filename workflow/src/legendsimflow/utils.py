@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -66,6 +67,10 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     if "legend_metadata_version" in config:
         metadata.checkout(config.legend_metadata_version)
     config["metadata"] = metadata
+
+    # make sure all simflow plots are made with a consistent style
+    # I have verified only that this variable is visible in scripts (not shell directives)
+    os.environ["MPLCONFIGDIR"] = f"{workflow.basedir}/src/legendsimflow"
 
     return AttrsDict(
         {
