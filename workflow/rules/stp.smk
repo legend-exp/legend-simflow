@@ -128,7 +128,10 @@ rule build_tier_stp:
             ignore=["geom_config_extra", "number_of_jobs"],
         ),
     shell:
-        "{params.cmd} &> {log}"
+        # NOTE: since this can be a chain of commands, let's wrap it in {} to
+        # make sure that all stderr/stdout is properly redirected to the log
+        # file
+        "{{ {params.cmd}; }} &> {log}"
 
 
 # rule:

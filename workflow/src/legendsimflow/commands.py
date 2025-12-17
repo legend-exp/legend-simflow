@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import shlex
+from copy import copy
 from pathlib import Path
 
 import legenddataflowscripts as lds
@@ -57,6 +58,11 @@ def remage_run(
       not ``None``.
     - If ``config.runcmd.remage`` is set, it is used to determine the remage
       executable (split with :func:`shlex.split`), otherwise ``remage`` is used.
+    - If ``config.nersc.dvs_ro`` is set, remage is set to read all inputs from
+      the read-only filesystem mount ``/dvs/ro`` at NERSC.
+    - If ``config.nersc.scratch`` is set, the command will write the output
+      file on the scratch disk and move it to the final expected destination at
+      the end.
 
     Parameters
     ----------
@@ -87,6 +93,8 @@ def remage_run(
     -------
     A shell-escaped command line suitable for direct execution.
     """
+    if not isinstance(output, Path):
+        output = Path(str(output))
 
     # get the config block for this tier/simid
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig.{simid}"
@@ -125,6 +133,10 @@ def remage_run(
     else:
         remage_exe = ["remage"]
 
+    output_final = copy(output)
+    if nersc.is_scratch_enabled(config):
+        output = nersc.on_scratch(config, output)
+
     cmd = [
         *remage_exe,
         "--ignore-warnings",
@@ -160,7 +172,12 @@ def remage_run(
             patterns.input_simjob_filename(config, tier=tier, simid=simid).as_posix()
         ]
 
-    return shlex.join(cmd)
+    joined_cmd = shlex.join(cmd)
+
+    if nersc.is_scratch_enabled(config):
+        joined_cmd += f" && mv -v {output} {output_final}"
+
+    return joined_cmd
 
 
 def make_remage_macro(
@@ -203,6 +220,8 @@ def make_remage_macro(
       optional `macro_substitutions` field.
     - The macro is written to the canonical path returned by
       :func:`.patterns.input_simjob_filename`.
+    - If ``config.nersc.dvs_ro`` is set, the vertices file will be read from
+      the read-only filesystem mount ``/dvs_ro`` at NERSC.
     """
     # get the config block for this tier/simid
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig.{simid}"
