@@ -66,7 +66,7 @@ function compute_drift_map_for_angle(
     sim,
     meta,
     T,
-    angle_deg,
+    angle_deg
 )
     @info "Computing drift time map at angle $angle_deg deg..."
 
@@ -128,9 +128,9 @@ function compute_drift_map_for_angle(
 
     function get_positions(idx, verbose = true)
         pos_candidate = spawn_positions[idx]
-        
+
         # if the point isn't inside the contact do nothing
-        if ( (!in(pos_candidate, sim.detector.contacts)))
+        if ((!in(pos_candidate, sim.detector.contacts)))
             return pos_candidate
         else
             min_dist = Inf
@@ -171,7 +171,7 @@ function compute_drift_map_for_angle(
         wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
 
         dt_threaded[i] =
-                compute_drift_time(ustrip(wf.signal), rise_convergence_criteria, tint)
+            compute_drift_time(ustrip(wf.signal), rise_convergence_criteria, tint)
     end
     dt = dt_threaded
 
@@ -239,8 +239,8 @@ function main()
     sim = Simulation{T}(LegendData, meta, xtal)
 
     charge_drift_model = ADLChargeDriftModel(
-                "$meta_path/simprod/config/pars/ssd/adl-2016-temp-model.yaml"
-            )
+        "$meta_path/simprod/config/pars/ssd/adl-2016-temp-model.yaml"
+    )
     sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
 
     sim.detector = SolidStateDetector(
@@ -285,7 +285,7 @@ function main()
             sim,
             meta,
             T,
-            eff_angle,
+            eff_angle
         )
 
         key = Symbol("drift_time_$(lpad(string(a), 3, '0'))_deg")
