@@ -54,3 +54,37 @@ hand.
 :::
 
 Now you can proceed with setting up and running the production workflow.
+
+### I/O optimization
+
+On NERSC, the
+[Community File System (CFS)](https://docs.nersc.gov/filesystems/community/) I/O
+performance can be a bottleneck for I/O-intensive parts of the workflow (for
+example, the `stp` tier production). NERSC provides two relevant mitigations.
+The first is the
+[scratch filesystem](https://docs.nersc.gov/filesystems/perlmutter-scratch/),
+based on solid-state disks and offering very high performance. The second is a
+faster, read-only mount of `/global/cfs` at
+[`/dvs_ro/cfs`](https://docs.nersc.gov/performance/io/dvs/).
+
+For temporary productions, it is recommended to run the full Simflow entirely on
+scratch and, if needed, move the data to CFS at the end. Alternatively, if the
+simflow is hosted on CFS, it can automatically read input files from DVS and
+temporarily write the output of some I/O-intensive jobs to scratch, then move it
+to the expected CFS location at completion. These features can be enabled via
+the following block in `simflow-config.yaml`:
+
+```yaml
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/<SUBFOLDER>
+```
+
+Both features can be disabled by setting the corresponding fields to false.
+
+:::{warning
+
+These features are implemented manually for each Snakemake rule, so it could be
+that some rules are unaffected by them.
+
+:::
