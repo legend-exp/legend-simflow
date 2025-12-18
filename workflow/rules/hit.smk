@@ -2,12 +2,14 @@ from dbetto.utils import load_dict
 
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
+from legendsimflow import nersc
 
 
 rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
+        aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
 
 
 rule make_simstat_partition_file:
@@ -128,8 +130,6 @@ rule build_hpge_drift_time_map:
     log:
         patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
     threads: 1
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     benchmark:
         patterns.benchmark_dtmap_filename(config)
     # NOTE: not using the `script` directive here since Snakemake has no nice
@@ -141,6 +141,21 @@ rule build_hpge_drift_time_map:
         f"   --metadata {config.paths.metadata}"
         "    --opv {params.operational_voltage}"
         "    --output-file {output} &> {log}"
+
+
+rule plot_hpge_drift_time_maps:
+    """Produce a validation plot of an HPGe drift time map.
+
+    Uses wildcards `hpge_detector` and `runid`.
+    """
+    message:
+        "Plotting HPGe drift time map for {wildcards.hpge_detector} in {wildcards.runid}"
+    input:
+        rules.build_hpge_drift_time_map.output,
+    output:
+        patterns.plot_dtmap_filename(config),
+    script:
+        "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 
 
 rule merge_hpge_drift_time_maps:
@@ -158,8 +173,6 @@ rule merge_hpge_drift_time_maps:
         ),
     output:
         patterns.output_dtmap_merged_filename(config),
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/julia.yaml"
     shell:
         r"""
         shopt -s nullglob

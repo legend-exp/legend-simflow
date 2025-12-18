@@ -211,6 +211,15 @@ def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = (
+        config.paths.plots
+        / "hpge_dtmaps"
+        / "{runid}-{hpge_detector}-drift-time-map.pdf"
+    )
+    return _expand(pat, **kwargs)
+
+
 def benchmark_dtmap_filename(config: SimflowConfig, **kwargs):
     pat = (
         config.paths.benchmarks

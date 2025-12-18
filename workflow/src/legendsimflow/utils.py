@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -25,12 +26,27 @@ from legendmeta import LegendMetadata
 from . import SimflowConfig
 
 
+def _merge_defaults(user: dict, default: dict) -> dict:
+    # merge default into user without overwriting user values
+    result = dict(default)
+    for k, v in user.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _merge_defaults(v, result[k])
+        else:
+            result[k] = v
+    return result
+
+
 def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     if not raw_config:
         msg = "you must set a config file with --configfile"
         raise RuntimeError(msg)
 
-    raw_config.setdefault("benchmark", {"enabled": False})
+    raw_config = _merge_defaults(
+        raw_config,
+        {"benchmark": {"enabled": False}, "nersc": {"dvs_ro": False, "scratch": False}},
+    )
+
     ldfs.workflow.utils.subst_vars_in_snakemake_config(workflow, raw_config)
     config = AttrsDict(raw_config)
 
@@ -51,6 +67,10 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     if "legend_metadata_version" in config:
         metadata.checkout(config.legend_metadata_version)
     config["metadata"] = metadata
+
+    # make sure all simflow plots are made with a consistent style
+    # I have verified only that this variable is visible in scripts (not shell directives)
+    os.environ["MPLCONFIGDIR"] = f"{workflow.basedir}/src/legendsimflow"
 
     return AttrsDict(
         {

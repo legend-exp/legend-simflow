@@ -1,8 +1,0 @@
-channels:
-  - conda-forge
-  - bioconda
-  - nodefaults
-dependencies:
-  - reboost ==0.7.0
-  - legend-pygeom-l200 ==0.5.1
-  - snakemake-storage-plugin-fs ==1.1.*

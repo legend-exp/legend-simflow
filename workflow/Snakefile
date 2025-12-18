@@ -18,14 +18,15 @@ from datetime import datetime
 
 from dbetto import AttrsDict
 
-from legendsimflow import aggregate, utils
+from legendsimflow import aggregate, nersc, utils
 
 
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
 
 
-conda: f"{SIMFLOW_CONTEXT.basedir}/envs/global.yaml"
+def dvs_ro(x):
+    return nersc.dvs_ro(config, x)
 
 
 wildcard_constraints:
@@ -64,7 +65,10 @@ def gen_target_all():
         elif "evt" in make_tiers:
             return rules.gen_all_tier_evt.input
         elif "hit" in make_tiers:
-            return rules.gen_all_tier_hit.input
+            return (
+                rules.gen_all_tier_hit.input,
+                aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
+            )
         elif "opt" in make_tiers:
             return rules.gen_all_tier_opt.input
         elif "stp" in make_tiers:

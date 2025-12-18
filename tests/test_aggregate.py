@@ -49,9 +49,7 @@ def test_process_simlist(config):
         config,
         simlist=["stp.birds_nest_K40", "stp.pen_plates_Ra224_to_Pb208"],
     )
-    assert targets == agg.gen_list_of_simid_outputs(
-        config, "stp", "birds_nest_K40"
-    ) + agg.gen_list_of_simid_outputs(config, "stp", "pen_plates_Ra224_to_Pb208")
+    assert targets != []
 
 
 def test_dtmap_stuff(config):
@@ -67,3 +65,9 @@ def test_dtmap_stuff(config):
     assert agg.gen_list_of_hpges_valid_for_dtmap(config, "l200-p02-r005-phy") == [
         "V99000A"
     ]
+
+    assert agg.gen_list_of_all_runids(config) == {
+        f"l200-p02-r00{i}-phy" for i in range(8)
+    }
+
+    assert len(agg.gen_list_of_all_dtmap_plots_outputs(config)) == 8

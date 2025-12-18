@@ -3,12 +3,11 @@ keep-going: true
 rerun-incomplete: true
 cores: all
 
-# we can use conda environments on NERSC
-software-deployment-method: conda
-
 # I/O on scratch disk for performance
 default-storage-provider: fs
+# "local" refers to the scratch disk
 local-storage-prefix: $SCRATCH/legend-simflow
+# while the "remote" or "shared" storage is the CFS
 shared-fs-usage:
   - persistence
   - software-deployment

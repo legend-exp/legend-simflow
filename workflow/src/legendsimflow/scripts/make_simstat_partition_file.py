@@ -24,11 +24,12 @@ import legenddataflowscripts.utils
 from lgdo import lh5
 
 from legendsimflow import metadata as mutils
+from legendsimflow import nersc
 from legendsimflow.partitioning import partition_simstat
 
-args = snakemake  # noqa: F821
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
-stp_files = sorted(args.input.stp_files)
+stp_files = nersc.dvs_ro(args.config, sorted(args.input.stp_files))
 runinfo = args.params.runinfo
 output_file = Path(args.output[0])
 log_file = args.log[0]

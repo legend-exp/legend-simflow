@@ -111,8 +111,6 @@ rule build_tier_stp:
     benchmark:
         patterns.benchmark_filename(config, tier="stp")
     threads: 1
-    conda:
-        f"{SIMFLOW_CONTEXT.basedir}/envs/remage.yaml"
     params:
         cmd=smk_remage_run,
         # make this rule dependent on the actual simconfig block it is very
@@ -130,7 +128,10 @@ rule build_tier_stp:
             ignore=["geom_config_extra", "number_of_jobs"],
         ),
     shell:
-        "{params.cmd} &> {log}"
+        # NOTE: since this can be a chain of commands, let's wrap it in {} to
+        # make sure that all stderr/stdout is properly redirected to the log
+        # file
+        "{{ {params.cmd}; }} &> {log}"
 
 
 # rule:
