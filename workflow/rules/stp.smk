@@ -127,7 +127,7 @@ rule build_tier_stp:
         patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="stp"),
     benchmark:
         patterns.benchmark_filename(config, tier="stp")
-    threads: 1
+    threads: workflow.cores
     shell:
         # NOTE: since this can be a chain of commands, let's wrap it in {} to
         # make sure that all stderr/stdout is properly redirected to the log

@@ -33,11 +33,6 @@ default-resources:
   - mem_mb=1000
   - slurm_extra="--qos regular --licenses scratch,cfs" # --mail-type end,fail --mail-user luigi.pertoldi@tum.d
 
-set-resources:
-  build_hpge_drift_time_map:
-    runtime: 20 # in minutes
-    mem_mb: 2000
-
 # number of threads used by each rule
 set-threads:
   - build_tier_stp=1
