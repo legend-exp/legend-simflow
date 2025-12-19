@@ -58,6 +58,7 @@ precompile_pkg:
   - pygeomoptics
   - pygeomtools
   - reboost
+  - remage
   - revertex
 #
 # runcmd:
