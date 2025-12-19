@@ -242,7 +242,7 @@ function main()
     sim = Simulation{T}(LegendData, meta, xtal)
 
     charge_drift_model = ADLChargeDriftModel(
-        "$meta_path/simprod/config/pars/ssd/adl-2016-temp-model.yaml"
+        "$meta_path/simprod/config/pars/geds/ssd/adl-2016-temp-model.yaml"
     )
     sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
 
@@ -267,12 +267,12 @@ function main()
     catch e
         @error "Detector is not depleted!"
     end
-    @info "Simulated depletion is $dep V"
+    @info "Simulated depletion is $dep"
 
-    dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V]
-    @info "Depletion measured during characterization is $dep_meas V"
+    dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
+    @info "Depletion measured during characterization is $dep_meas"
 
-    if abs(dep_meas - dep) > 100
+    if abs(dep_meas - dep) > 100 * u"V"
         @error "difference between measured and simulated depletion is larger than 100 V!"
     end
 
@@ -287,12 +287,11 @@ function main()
     # Compute and save drift-time maps for different angles
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
-        eff_angle = use_sqrt ? (a - 45) : a
         out = compute_drift_map_for_angle(
             sim,
             meta,
             T,
-            eff_angle
+            a
         )
 
         key = Symbol("drift_time_$(lpad(string(a), 3, '0'))_deg")
