@@ -37,13 +37,13 @@ rule gen_geom_config:
         "Generating geometry configuration for {wildcards.tier}.{wildcards.simid}"
     input:
         Path(config.paths.config) / "geom" / (config.experiment + "-geom-config.yaml"),
-    output:
-        patterns.geom_config_filename(config),
     params:
         # make this rule dependent on the actual simconfig block
         _simconfig_hash=lambda wc: mutils.smk_hash_simconfig(
             config, wc, "geom_config_extra"
         ),
+    output:
+        patterns.geom_config_filename(config),
     run:
         from dbetto import utils as dbetto_utils
         from legendsimflow import utils
@@ -104,13 +104,6 @@ rule build_tier_stp:
     input:
         verfile=lambda wc: patterns.vtx_filename_for_stp(config, wc.simid),
         geom=patterns.geom_gdml_filename(config, tier="stp"),
-    output:
-        protected(patterns.output_simjob_filename(config, tier="stp")),
-    log:
-        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="stp"),
-    benchmark:
-        patterns.benchmark_filename(config, tier="stp")
-    threads: 1
     params:
         cmd=smk_remage_run,
         # make this rule dependent on the actual simconfig block it is very
@@ -127,6 +120,13 @@ rule build_tier_stp:
             tier="stp",
             ignore=["geom_config_extra", "number_of_jobs"],
         ),
+    output:
+        protected(patterns.output_simjob_filename(config, tier="stp")),
+    log:
+        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="stp"),
+    benchmark:
+        patterns.benchmark_filename(config, tier="stp")
+    threads: 1
     shell:
         # NOTE: since this can be a chain of commands, let's wrap it in {} to
         # make sure that all stderr/stdout is properly redirected to the log

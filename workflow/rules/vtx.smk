@@ -26,14 +26,14 @@ rule build_tier_vtx:
         "Producing output file for job vtx.{wildcards.simid}.{wildcards.jobid}"
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
+    params:
+        # NOTE: a change in the simconfig command will be detected by Snakemake
+        cmd=smk_build_tier_vtx_shell_cmd,
     output:
         patterns.output_simjob_filename(config, tier="vtx"),
     log:
         patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="vtx"),
     benchmark:
         patterns.benchmark_filename(config, tier="vtx")
-    params:
-        # NOTE: a change in the simconfig command will be detected by Snakemake
-        cmd=smk_build_tier_vtx_shell_cmd,
     shell:
         "{params.cmd} &> {log}"

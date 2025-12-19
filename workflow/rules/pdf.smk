@@ -12,11 +12,11 @@ rule gen_pdf_release:
         "Generating pdf release"
     input:
         aggregate.gen_list_of_all_tier_pdf_outputs(config),
-    output:
-        Path(config["paths"]["pdf_releases"]) / (config["experiment"] + "-pdfs.tar.xz"),
     params:
         exp=config["experiment"],
         ro_input=lambda wildcards, input: utils.as_ro(config, input),
+    output:
+        Path(config["paths"]["pdf_releases"]) / (config["experiment"] + "-pdfs.tar.xz"),
     shell:
         r"""
         tar --create --xz \
@@ -35,13 +35,13 @@ rule build_tier_pdf:
             config, wildcards.simid
         ),
         config_file=patterns.pdf_config_path(config),
-    output:
-        patterns.output_pdf_filename(config),
     params:
         stp_files_regex=utils.as_ro(
             config, patterns.output_simjob_regex(config, tier="stp")
         ),
         ro_evt_files=lambda wildcards, input: utils.as_ro(config, input.evt_files),
+    output:
+        patterns.output_pdf_filename(config),
     log:
         patterns.log_pdffile_path(config, proctime),
     benchmark:
