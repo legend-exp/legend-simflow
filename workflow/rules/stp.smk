@@ -121,7 +121,8 @@ rule build_tier_stp:
             ignore=["geom_config_extra", "number_of_jobs"],
         ),
     output:
-        protected(patterns.output_simjob_filename(config, tier="stp")),
+        # TODO: protected()
+        patterns.output_simjob_filename(config, tier="stp"),
     log:
         patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="stp"),
     benchmark:
