@@ -28,6 +28,7 @@ using RadiationDetectorDSP
 
 
 GRID_SIZE = 0.0005 # in m
+# <001> <110>
 CRYSTAL_AXIS_ANGLES = [0, 45] # in deg
 
 
@@ -224,7 +225,9 @@ function main()
     opv = parsed_args["opv"]
     output_file = parsed_args["output-file"]
 
-    isfile(output_file) && error("output file already exists")
+    isfile(output_file) && error("Output file already exists")
+
+    @info "Operating $det at $opv V"
 
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
 
@@ -262,13 +265,17 @@ function main()
     try
         dep = estimate_depletion_voltage(sim)
     catch e
-        @info "detector is not depleted"
+        @error "Detector is not depleted!"
     end
+    @info "Simulated depletion is $dep V"
 
     dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V]
+    @info "Depletion measured during characterization is $dep_meas V"
 
-    @info "Measured depletion is $dep_meas V"
-    @info "Simulated depletion is $dep V"
+    if abs(dep_meas - dep) > 100
+        @error "difference between measured and simulated depletion is larger than 100 V!"
+    end
+
     @info "Calculating weighting potential..."
     calculate_weighting_potential!(
         sim,

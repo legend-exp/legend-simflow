@@ -1,4 +1,7 @@
-experiment: l200p15
+# reserved first-level fields:
+#   - metadata
+
+experiment: l200cfg09
 
 # runlist:
 # - l200-p03-r000-phy
@@ -37,7 +40,7 @@ paths:
   genmeta: $_/generated/metadata
   macros: $_/generated/macros
   geom: $_/generated/geom
-  dtmaps: $_/generated/dtmaps
+  dtmaps: $_/generated/hpge/dtmaps
   tier_vtx: $_/generated/tier/vtx
   tier_stp: $_/generated/tier/stp
   tier_opt: $_/generated/tier/opt
@@ -46,14 +49,20 @@ paths:
   tier_pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots
-#
-# precompile_pkg:
-#   - lgdo
-#   - matplotlib
-#   - reboost
-#   - legendhpges
-#   - legendoptics
-#   - pygeomtools
+
+precompile_pkg:
+  - lgdo
+  - matplotlib
+  - pygama
+  - pygeomhpges
+  - pygeomoptics
+  - pygeomtools
+  - reboost
+  - revertex
 #
 # runcmd:
 #   remage: apptainer run --cleanenv /home/gipert/sw/apptainer/remage_latest.sif
+#
+# nersc:
+#   dvs_ro: true
+#   scratch: $SCRATCH/legend-simflow
