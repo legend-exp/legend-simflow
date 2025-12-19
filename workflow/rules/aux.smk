@@ -36,7 +36,7 @@ rule _init_julia_env:
     message:
         "Initializing Julia environment"
     output:
-        f"{SIMFLOW_CONTEXT.basedir}/.snakemake/.julia-env-initialized",
+        config.paths.dtmaps / ".julia-env-initialized",
     shell:
         "cd workflow/src/legendsimflow/scripts && "
         "julia --project=. ./init-julia-env.jl && "
