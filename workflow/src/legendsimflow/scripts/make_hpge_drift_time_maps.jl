@@ -66,11 +66,7 @@ function compute_drift_map_for_angle(
     sim,
     meta,
     T,
-    angle_deg,
-    get_drift_time,
-    use_triangle,
-    only_holes,
-    handle_nplus
+    angle_deg
 )
     @info "Computing drift time map at angle $angle_deg deg..."
 
@@ -114,14 +110,7 @@ function compute_drift_map_for_angle(
             push!(idx_spawn_positions, CartesianIndex(i, k))
         end
     end
-    if (!handle_nplus)
-        in_idx = findall(
-            x -> in(x, sim.detector) && (!in(x, sim.detector.contacts)),
-            spawn_positions
-        )
-    else
-        in_idx = findall(x -> in(x, sim.detector), spawn_positions)
-    end
+    in_idx = findall(x -> in(x, sim.detector), spawn_positions)
 
     # simulate events
     time_step = T(1)u"ns"
@@ -134,25 +123,14 @@ function compute_drift_map_for_angle(
     tint = Intersect(mintot = 0)
 
     function deriv(wf)
-        if (!use_triangle)
-            return argmax(ustrip(wf.signal))
-        else
-            trap = TrapezoidalChargeFilter(50u"ns", 5u"ns", 50u"ns")
-
-            wf_shift = RDWaveform(wf.time, wf.signal .- wf.signal[begin])
-            wf_ext = add_baseline_and_extend_tail(wf_shift, 100, 4000)
-            wf_no_units = RDWaveform(wf_ext.time, ustrip.(wf_ext.signal))
-            curr_wf = trap(wf_no_units)
-
-            idx_A = argmax(curr_wf.signal)
-            return idx_A
-        end
+        return argmax(ustrip(wf.signal))
     end
 
-    function get_positions(idx, handle_nplus_local = false, verbose = true)
+    function get_positions(idx, verbose = true)
         pos_candidate = spawn_positions[idx]
-        # if we dont shift points inside or if the point isn't inside the contact do nothing
-        if (!handle_nplus_local || (!in(pos_candidate, sim.detector.contacts)))
+
+        # if the point isn't inside the contact do nothing
+        if ((!in(pos_candidate, sim.detector.contacts)))
             return pos_candidate
         else
             min_dist = Inf
@@ -186,22 +164,14 @@ function compute_drift_map_for_angle(
             println("...simulating $i out of $n ($x %)")
         end
 
-        p = get_positions(in_idx[i], handle_nplus)
+        p = get_positions(in_idx[i])
         e = SSD.Event([p], [2039u"keV"])
         simulate!(e, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
 
-        if (only_holes)
-            wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
-        else
-            wf = e.waveforms[1]
-        end
+        wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
 
-        if (get_drift_time)
-            dt_threaded[i] =
-                compute_drift_time(ustrip(wf.signal), rise_convergence_criteria, tint)
-        else
-            dt_threaded[i] = deriv(wf)
-        end
+        dt_threaded[i] =
+            compute_drift_time(ustrip(wf.signal), rise_convergence_criteria, tint)
     end
     dt = dt_threaded
 
@@ -247,46 +217,6 @@ function main()
         required = true
     end
 
-
-    @add_arg_table s begin
-        "--use-sqrt"
-        help = "Use square-root temperature model"
-        action = :store_true
-    end
-    @add_arg_table s begin
-        "--use-sqrt-new"
-        help = "Use square-root temperature model with 2016 inputs"
-        action = :store_true
-    end
-    @add_arg_table s begin
-        "--get-max-time"
-        help = "Get the time of the maximum"
-        action = :store_true
-    end
-    @add_arg_table s begin
-        "--only-holes"
-        help = "Use only the hole contribution"
-        action = :store_true
-    end
-    @add_arg_table s begin
-        "--use-bulk-drift-time"
-        help = "Use the drift time for the nearest bulk point for surface events"
-        action = :store_true
-    end
-    @add_arg_table s begin
-        "--use-corrections"
-        help = "Use the corrections"
-        action = :store_true
-    end
-
-    get_drift_time = true
-    use_triangle = false
-    use_sqrt = false
-    use_sqrt_new = true
-    handle_nplus = true
-    only_holes = true
-    use_corrections = true
-
     parsed_args = parse_args(s)
 
     det = parsed_args["detector"]
@@ -296,52 +226,22 @@ function main()
 
     isfile(output_file) && error("output file already exists")
 
-    use_sqrt = parsed_args["use-sqrt"]
-    handle_nplus = parsed_args["use-bulk-drift-time"]
-    use_sqrt_new = parsed_args["use-sqrt-new"]
-    get_drift_time = !parsed_args["get-max-time"]
-    only_holes = parsed_args["only-holes"]
-    use_corrections = parsed_args["use-corrections"]
-
-
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
 
     meta.characterization.l200_site.recommended_voltage_in_V = parse(Float32, opv)
-
-    if (!handle_nplus)
-        meta.production.characterization.manufacturer.dl_thickness_in_mm = 0.1
-        meta.characterization.combined_0vbb_analysis.fccd_in_mm.value = 0.1
-    end
 
     ids = Dict("bege" => "B", "coax" => "C", "ppc" => "P", "icpc" => "V")
     crystal =
         ids[meta.type] * @sprintf("%02d", meta.production.order) * meta.production.crystal
     xtal = readprops("$meta_path/hardware/detectors/germanium/crystals/$crystal.yaml")
 
-    if (!use_corrections && (:corrections in keys(xtal.impurity_curve)))
-        xtal.impurity_curve.corrections.scale = 1
-    end
-
     # make the simulation
     sim = Simulation{T}(LegendData, meta, xtal)
 
-    if (use_sqrt)
-        charge_drift_model = ADLChargeDriftModel(
-            joinpath(
-                SolidStateDetectors.get_path_to_example_config_files(),
-                "ADLChargeDriftModel",
-                "drift_velocity_config_squareroot.yaml"
-            )
-        )
-        sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
-    end
-
-    if (use_sqrt_new)
-        charge_drift_model = ADLChargeDriftModel(
-            "$meta_path/simprod/config/pars/ssd/adl-2016-temp-model.yaml"
-        )
-        sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
-    end
+    charge_drift_model = ADLChargeDriftModel(
+        "$meta_path/simprod/config/pars/ssd/adl-2016-temp-model.yaml"
+    )
+    sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
 
     sim.detector = SolidStateDetector(
         sim.detector,
@@ -385,11 +285,7 @@ function main()
             sim,
             meta,
             T,
-            eff_angle,
-            get_drift_time,
-            use_triangle,
-            only_holes,
-            handle_nplus
+            eff_angle
         )
 
         key = Symbol("drift_time_$(lpad(string(a), 3, '0'))_deg")
