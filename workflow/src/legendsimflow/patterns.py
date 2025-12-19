@@ -205,26 +205,20 @@ def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     pat = (
         log_dirname(config, time)
-        / "hpge_dtmaps"
-        / "{runid}-{hpge_detector}-drift-time-map.log"
+        / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.log"
     )
     return _expand(pat, **kwargs)
 
 
 def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = (
-        config.paths.plots
-        / "hpge_dtmaps"
-        / "{runid}-{hpge_detector}-drift-time-map.pdf"
-    )
+    pat = config.paths.plots / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.pdf"
     return _expand(pat, **kwargs)
 
 
 def benchmark_dtmap_filename(config: SimflowConfig, **kwargs):
     pat = (
         config.paths.benchmarks
-        / "hpge_dtmaps"
-        / "{runid}-{hpge_detector}-drift-time-map.tsv"
+        / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.tsv"
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
