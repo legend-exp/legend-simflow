@@ -84,7 +84,7 @@ def smk_remage_run(wildcards, input, output, threads):
         tier="stp",
         geom=input.geom,
         output=output,
-        procs=threads,
+        threads=threads,
         macro_free=True,
     )
 

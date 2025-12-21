@@ -33,7 +33,7 @@ def remage_run(
     jobid: str | None = None,
     tier: str = "stp",
     geom: str | Path = "{input.geom}",
-    procs: int = 1,
+    threads: str | int = "{threads}",
     output: str | Path = "{output}",
     macro_free: bool = False,
 ) -> str:
@@ -46,7 +46,7 @@ def remage_run(
 
     Notes
     -----
-    - Compatible with remage >= v0.16.
+    - Compatible with remage >= v0.15.2.
     - When ``macro_free`` is False (default), the command passes the macro file
       path and supplies macro substitutions via ``--macro-substitutions``.
     - When ``macro_free`` is True, the rendered macro content is inlined on the
@@ -80,9 +80,8 @@ def remage_run(
         Simulation tier (e.g., ``"stp"``, ``"ver"``). Default is ``"stp"``.
     geom
         Path (or Snakemake placeholder) to the GDML geometry file.
-    procs
-        Number of threads to pass to remage (integer or Snakemake placeholder).
-        Internally uses remage's ``--procs``.
+    threads
+        Number of threads to pass to remage (int or Snakemake placeholder).
     output
         Path (or Snakemake placeholder) to the output remage file.
     macro_free
@@ -118,7 +117,7 @@ def remage_run(
 
     # substitution rules
     cli_subs = {
-        "N_EVENTS": int(n_prim_pj / int(procs)),
+        "N_EVENTS": int(n_prim_pj),
         # TODO: check correct range
         "SEED": np.random.default_rng().integers(
             0, np.iinfo(np.int32).max + 1, dtype=np.uint32
@@ -142,8 +141,8 @@ def remage_run(
         "--ignore-warnings",
         "--merge-output-files",
         "--log-level=detail",
-        "--procs",
-        str(procs),
+        "--threads",
+        str(threads),
         "--gdml-files",
         str(nersc.dvs_ro(config, geom)),
         "--output-file",
