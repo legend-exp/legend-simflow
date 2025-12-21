@@ -190,7 +190,7 @@ pygama = ">=2.2.3"
 reboost = ">=0.8.3"
 
 # tier stp
-remage = ">=0.18"
+remage = ">=0.16,<0.17"
 
 # drift-time maps and other SSD.jl jobs
 julia = ">=1.12"
