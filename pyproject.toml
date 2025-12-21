@@ -54,7 +54,7 @@ dependencies = [
     "h5py",
     "legend-dataflow-scripts >=0.2.2",
     "legend-pydataobj",
-    "legend-pygeom-l200 >=0.7",
+    "legend-pygeom-l200 >=0.8",
     "legend-pygeom-tools >=0.1",
     "legend-pygeom-hpges >=0.9",
     "numpy",
@@ -174,7 +174,7 @@ awkward = "*"
 dbetto = ">=1.3.2"
 # legend-dataflow-scripts = "..."  # not on conda-forge
 legend-pydataobj = "*"
-legend-pygeom-l200 = ">=0.7"
+legend-pygeom-l200 = ">=0.8"
 legend-pygeom-tools = ">=0.1"
 numpy = "*"
 pylegendmeta = ">=1.3.3"
