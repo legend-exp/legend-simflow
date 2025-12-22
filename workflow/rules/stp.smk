@@ -22,7 +22,7 @@ from legendsimflow import metadata as mutils
 rule gen_all_tier_stp:
     """Build the entire `stp` tier."""
     input:
-        # aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
+        aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
         aggregate.gen_list_of_all_simid_outputs(config, tier="stp"),
 
 
@@ -127,7 +127,7 @@ rule build_tier_stp:
         patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="stp"),
     benchmark:
         patterns.benchmark_filename(config, tier="stp")
-    threads: workflow.cores
+    threads: 1
     shell:
         # NOTE: since this can be a chain of commands, let's wrap it in {} to
         # make sure that all stderr/stdout is properly redirected to the log
@@ -135,19 +135,19 @@ rule build_tier_stp:
         "{{ {params.cmd}; }} &> {log}"
 
 
-# rule:
-#     """Produces plots for the primary event vertices of simid {simid} in tier {tier}"""
-#     input:
-#         aggregate.gen_list_of_simid_outputs(config, tier, simid, max_files=5),
-#     output:
-#         Path(patterns.plots_filepath(config, tier=tier, simid=simid))
-#         / f"mage-event-vertices-tier_{tier}.png",
-#     priority: 100  # prioritize producing the needed input files over the others
-#     shell:
-#         (
-#             " ".join(config["execenv"])
-#             + " python "
-#             + workflow.source_path("../scripts/plot_mage_vertices.py")
-#             + " -b -o {output} {input}"
-#         )
-# ldfs.workflow.utils.set_last_rule_name(workflow, f"plot_prim_vert_{simid}-tier_{tier}")
+rule plot_tier_stp_vertices:
+    """Produces plots of the primary event vertices of tier `stp`.
+
+    Only the first file of the simulation (i.e. job ID 0) is used. The rule
+    is given a high priority to make sure that the plot is produced early. The
+    maximum number of plotted events is set in the plotting script.
+
+    Uses wildcard `simid`.
+    """
+    input:
+        patterns.output_simjob_filename(config, tier="stp", jobid="0000"),
+    output:
+        patterns.plot_tier_stp_vertices_filename(config),
+    priority: 100  # prioritize producing the needed input files over the others
+    script:
+        "../src/legendsimflow/scripts/plots/tier_stp_vertices.py"
