@@ -16,9 +16,17 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
+from datetime import timedelta
 
 from dbetto import utils
+from dbetto.time import str_to_datetime
 from legendmeta import LegendMetadata, LegendSlowControlDB
+
+
+def round_step_5(x):
+    return int(5 * math.floor(x / 5 + 0.5))
+
 
 parser = argparse.ArgumentParser()
 
@@ -48,17 +56,26 @@ timestamp = lmeta.datasets.runinfo[period][run][datatype].start_key
 msg = f"start timestamp of {args.runsel} is {timestamp}"
 log.info(msg)
 
-chmap = lmeta.channelmap(timestamp).group("system").geds
+# add 30 minutes to avoid any slow control time lag
+timestamp = str_to_datetime(timestamp) + timedelta(minutes=30)
+
+chmap = lmeta.channelmap(timestamp).group("system").geds.map("name")
 
 log.info("querying the LEGEND Slow Control...")
 
 voltages = {}
-for _, meta in chmap.items():
-    vset = scdb.status(meta, on=timestamp).vset
+for name in sorted(chmap):
+    meta = chmap[name]
+    status = scdb.status(meta, on=timestamp)
 
-    msg = f"voltage set for channel {meta.name} is {vset} V"
+    msg = f"voltage set/mon for channel {name} is {status.vset}/{status.vmon} V"
     logging.info(msg)
 
-    voltages[meta.name] = {"operational_voltage_in_V": vset}
+    if abs(status.vset - status.vmon) > 5:
+        logging.warning("set and monitored voltage differ by more than 5 V!")
+
+    # use monitored voltage: I noticed that sometimes vset can be different
+    # from vmon for a long time period (and vmon is always correct)
+    voltages[name] = {"operational_voltage_in_V": round_step_5(status.vmon)}
 
 utils.write_dict(voltages, args.output)
