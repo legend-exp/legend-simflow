@@ -55,3 +55,16 @@ def test_run_stuff(config):
     assert metadata.get_runlist(config, "sis1_z8224_src1_Ra224_to_Pb208") == [
         f"l200-p02-r00{r}-phy" for r in range(8)
     ]
+
+    assert (
+        metadata.reference_cal_run(config.metadata, "l200-p16-r006-phy")
+        == "l200-p16-r006-cal"
+    )
+    assert (
+        metadata.reference_cal_run(config.metadata, "l200-p16-r008-ssc")
+        == "l200-p16-r007-cal"
+    )
+    assert (
+        metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
+        == "l200-p16-r007-cal"
+    )
