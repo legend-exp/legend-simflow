@@ -188,6 +188,12 @@ def vtx_filename_for_stp(config: SimflowConfig, simid: str, **kwargs) -> Path | 
     return []
 
 
+def plot_tier_stp_vertices_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="stp") / "tier-stp-vertices.pdf", **kwargs
+    )
+
+
 # drift time maps
 
 

@@ -74,8 +74,7 @@ def gen_target_all():
         elif "stp" in make_tiers:
             return (
                 rules.gen_all_tier_stp.input,
-                # aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
-                # aggregate.gen_list_of_all_plots_outputs(config, tier="vtx"),
+                aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
             )
     else:
         return aggregate.process_simlist(config)

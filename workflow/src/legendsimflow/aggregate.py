@@ -68,11 +68,8 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
     """Generate the list of plots files for a `tier.simid`."""
     if tier == "hit":
         return gen_list_of_dtmap_plots_outputs(config, simid)
-    # if tier == "stp":
-    #     return [
-    #         patterns.plots_dirname(config, tier=tier, simid=simid)
-    #         / "event-vertices-tier_stp.pdf"
-    #     ]
+    if tier == "stp":
+        return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
     return []
 
 
