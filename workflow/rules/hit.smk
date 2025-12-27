@@ -205,7 +205,7 @@ rule merge_hpge_drift_time_maps:
 
 def smk_extract_current_pulse_model_inputs(wildcards):
     """Prepare inputs for the HPGe current model extraction rule."""
-    raw_file, wf_idx, dsp_cfg_file = hpge_pars.current_pulse_model_inputs(
+    raw_file, wf_idx, dsp_cfg_file = hpge_pars.find_current_pulse_model_inputs(
         config,
         wildcards.runid,
         wildcards.hpge_detector,

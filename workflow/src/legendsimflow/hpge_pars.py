@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import logging
 import re
 from pathlib import Path
@@ -9,59 +8,21 @@ import awkward as ak
 import dbetto
 import numpy as np
 from dspeed.vis import WaveformBrowser
-from legendmeta import LegendMetadata
 from lgdo import lh5
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 from scipy.optimize import curve_fit
 
-from . import SimflowConfig
+from . import SimflowConfig, utils
 from . import metadata as mutils
 
 log = logging.getLogger(__name__)
 
 
-# FIXME: this should be removed once the PRL25 data is reprocessed
-def get_lh5_table(
-    metadata: LegendMetadata,
-    fname: str | Path,
-    hpge: str,
-    tier: str,
-    runid: str,
-) -> str:
-    """The correct LH5 table path.
-
-    Determines the correct path to a `hpge` detector table in tier `tier`.
-    """
-    # check if the latest format is available
-    path = f"{tier}/{hpge}"
-    if lh5.ls(fname, path) == [path]:
-        return path
-
-    # otherwise fall back to the old format
-    timestamp = mutils.runinfo(metadata, runid).start_key
-    rawid = metadata.channelmap(timestamp)[hpge].daq.rawid
-    return f"ch{rawid}/{tier}"
-
-
-def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
-    """Get the ``scipy.curve_fit()`` parameter results as a dictionary"""
-    params = list(inspect.signature(current_pulse_model).parameters)
-    param_names = params[1:]
-
-    popt_dict = dict(zip(param_names, popt, strict=True))
-    popt_dict["mean_AoE"] = popt_dict["amax"] / 1593
-
-    for key, value in popt_dict.items():
-        popt_dict[key] = float(f"{value:.3g}")
-
-    return popt_dict
-
-
-def find_best_event_idx(
+def lookup_currmod_fit_data(
     hit_files: list[str, Path],
     lh5_group: str,
     ewin_center: float = 1593,
@@ -69,8 +30,9 @@ def find_best_event_idx(
 ) -> tuple[int, int]:
     """Extract the index of the event to fit.
 
-    Returns the index of the event in the file and the index of the file in the
-    input file list.
+    Considers events with |A/E| < 1.5 and finds the one that is closest to the
+    median of the distribution.  Returns the index of the event in the file and
+    the index of the file in the input file list.
 
     Parameters
     ----------
@@ -135,7 +97,7 @@ def find_best_event_idx(
     return idx, file_idx
 
 
-def fit_current_pulse(times: NDArray, current: NDArray) -> tuple:
+def fit_currmod(times: NDArray, current: NDArray) -> tuple:
     """Fit the model to the raw HPGe current pulse.
 
     Uses :func:`scipy.curve_fit` to fit
@@ -194,7 +156,6 @@ def get_current_pulse(
     lh5_group: str,
     idx: int,
     dsp_config: str,
-    *,
     dsp_output: str = "curr_av",
     align: str = "tp_aoe_max",
 ) -> tuple:
@@ -233,7 +194,7 @@ def get_current_pulse(
     return t, A
 
 
-def plot_fit_result(
+def plot_currmod_fit_result(
     t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
 ) -> tuple[Figure, Axes]:
     """Plot the best fit results."""
@@ -245,13 +206,13 @@ def plot_fit_result(
     ax.legend()
     ax.set_xlim(-1200, 1200)
 
-    ax.set_xlabel("time [ns]")
+    ax.set_xlabel("Time [ns]")
     ax.set_ylabel("Current [ADC]")
 
     return fig, ax
 
 
-def current_pulse_model_inputs(
+def lookup_currmod_fit_inputs(
     config: SimflowConfig,
     runid: str,
     hpge: str,
@@ -307,11 +268,11 @@ def current_pulse_model_inputs(
         msg = f"no hit tier files found in {hit_path}/cal/{period}/{run}"
         raise ValueError(msg)
 
-    lh5_group = get_lh5_table(config.metadata, hit_files[0], hpge, "hit", runid)
+    lh5_group = utils._get_lh5_table(config.metadata, hit_files[0], hpge, "hit", runid)
 
     msg = "looking for best event to fit"
     log.debug(msg)
-    wf_idx, file_idx = find_best_event_idx(hit_files, lh5_group)
+    wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
 
     raw_path = Path(df_cfg["tier_raw"].replace("$_", str(l200data)))
     hit_file = hit_files[file_idx]

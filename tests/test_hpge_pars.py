@@ -15,7 +15,7 @@ def test_fit():
     t = np.linspace(-1000, 2000, 3001)
     A = norm.pdf(t, loc=0, scale=50)
 
-    res = hpge_pars.fit_current_pulse(t, A)
+    res = hpge_pars.fit_currmod(t, A)
 
     assert isinstance(res[0], np.ndarray)
     assert isinstance(res[1], np.ndarray)
@@ -28,7 +28,7 @@ def test_get_index(legend_testdata):
     files = [str(p) for p in path.glob("*")]
 
     # we have to be very generous with the (low stats) test file
-    idx, file_idx = hpge_pars.find_best_event_idx(
+    idx, file_idx = hpge_pars.lookup_currmod_fit_data(
         files, "ch1084803/hit", ewin_center=100, ewin_width=20
     )
 
@@ -66,16 +66,9 @@ def test_get_waveform(legend_testdata):
 
 
 def test_plot():
-    fig, ax = hpge_pars.plot_fit_result(
+    fig, ax = hpge_pars.plot_currmod_fit_result(
         [1, 2, 3], [0, 10, 20], np.linspace(0, 3, 1000), np.linspace(0, 3, 1000)
     )
 
     assert isinstance(fig, Figure)
     assert isinstance(ax, Axes)
-
-
-def test_get_parameter_dict():
-    popt = [100, 10, 60, 0.6, 100, 0.2, 60]
-
-    popt_dict = hpge_pars._curve_fit_popt_to_dict(popt)
-    assert len(popt_dict) == 8

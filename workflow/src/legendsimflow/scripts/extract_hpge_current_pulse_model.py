@@ -20,7 +20,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import matplotlib.pyplot as plt
 
-from legendsimflow import hpge_pars, nersc
+from legendsimflow import hpge_pars, nersc, utils
 from legendsimflow.plot import decorate
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -37,11 +37,11 @@ log_file = args.log[0]
 # setup logging
 logger = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
-raw_file, wf_idx, dsp_cfg_file = hpge_pars.current_pulse_model_inputs(
+raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     config,
     runid,
     hpge,
-    hit_tier_name=hit_tier_name,
+    hit_tier_name,
 )
 
 lh5_group = hpge_pars.get_lh5_table(
@@ -53,21 +53,15 @@ lh5_group = hpge_pars.get_lh5_table(
 )
 
 logger.info("fetching the current pulse")
-t, A = hpge_pars.get_current_pulse(
-    raw_file,
-    current="curr_av",
-    lh5_group=lh5_group,
-    dsp_config=str(dsp_cfg_file),
-    idx=wf_idx,
-)
+t, A = hpge_pars.get_current_pulse(raw_file, lh5_group, wf_idx, str(dsp_cfg_file))
 
 logger.info("fitting the current pulse to extract the model")
-popt, x, y = hpge_pars.fit_current_pulse(t, A)
+popt, x, y = hpge_pars.fit_currmod(t, A)
 
 # now plot
 logger.info("plotting the fit result")
-fig, _ = hpge_pars.plot_fit_result(t, A, x, y)
+fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
 decorate(fig)
 plt.savefig(plot_file)
 
-dbetto.utils.write_dict(hpge_pars._curve_fit_popt_to_dict(popt), pars_file)
+dbetto.utils.write_dict(utils._curve_fit_popt_to_dict(popt), pars_file)
