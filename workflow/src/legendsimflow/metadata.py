@@ -20,6 +20,7 @@ import json
 import logging
 import re
 from collections.abc import Collection
+from pathlib import Path
 
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
@@ -124,6 +125,11 @@ def smk_hash_simconfig(
     return hash_dict(scfg)
 
 
+def extract_integer(file_path: Path) -> int:
+    with file_path.open() as f:
+        return int(f.read().strip())
+
+
 def runinfo(metadata: LegendMetadata, runid: str) -> str:
     """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 
@@ -136,6 +142,38 @@ def runinfo(metadata: LegendMetadata, runid: str) -> str:
     """
     _, period, run, datatype = re.split(r"\W+", runid)
     return metadata.datasets.runinfo[period][run][datatype]
+
+
+def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
+    """The reference calibration run for `runid`.
+
+    Warning
+    -------
+    This function does not account for dataflow overrides (e.g. calibration
+    back-applying)!
+    """
+    exp, period, run, datatype = re.split(r"\W+", runid)
+
+    if datatype == "cal":
+        return runid
+
+    p_runinfo = metadata.datasets.runinfo[period]
+
+    if "cal" in p_runinfo[run]:
+        return f"{exp}-{period}-{run}-cal"
+
+    runs = sorted(p_runinfo.keys())
+    index = runs.index(run)
+
+    while True:
+        index -= 1
+        if index < 0:
+            msg = f"there is no previous calibration run in {period} for {runid}"
+            raise RuntimeError(msg)
+
+        prev_r = runs[index]
+        if "cal" in p_runinfo[prev_r]:
+            return f"{exp}-{period}-{prev_r}-cal"
 
 
 def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:

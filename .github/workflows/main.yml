@@ -51,6 +51,11 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install non-python (homebrew) dependencies
+        if: ${{ matrix.os == 'macOS-latest' }}
+        run: |
+          brew update
+          brew install opencascade cgal gmp mpfr boost
       - name: Get dependencies and install legend-simflow
         run: |
           python -m pip install --upgrade pip wheel setuptools
