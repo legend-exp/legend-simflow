@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import logging
+import re
 from pathlib import Path
 
 import awkward as ak
@@ -13,19 +15,81 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import ArrayLike, NDArray
-from reboost.hpge.psd import _current_pulse_model as model
+from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 from scipy.optimize import curve_fit
 
+from . import SimflowConfig
+from . import metadata as mutils
 
-def get_index(
-    files: list, lh5_group: str, peak: float = 1593, peak_range: float = 5
+log = logging.getLogger(__name__)
+
+
+# FIXME: this should be removed once the PRL25 data is reprocessed
+def get_lh5_table(
+    metadata: LegendMetadata,
+    fname: str | Path,
+    hpge: str,
+    tier: str,
+    runid: str,
+) -> str:
+    """The correct LH5 table path.
+
+    Determines the correct path to a `hpge` detector table in tier `tier`.
+    """
+    # check if the latest format is available
+    path = f"{tier}/{hpge}"
+    if lh5.ls(fname, path) == [path]:
+        return path
+
+    # otherwise fall back to the old format
+    timestamp = mutils.runinfo(metadata, runid).start_key
+    rawid = metadata.channelmap(timestamp)[hpge].daq.rawid
+    return f"ch{rawid}/{tier}"
+
+
+def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
+    """Get the ``scipy.curve_fit()`` parameter results as a dictionary"""
+    params = list(inspect.signature(current_pulse_model).parameters)
+    param_names = params[1:]
+
+    popt_dict = dict(zip(param_names, popt, strict=True))
+    popt_dict["mean_AoE"] = popt_dict["amax"] / 1593
+
+    for key, value in popt_dict.items():
+        popt_dict[key] = float(f"{value:.3g}")
+
+    return popt_dict
+
+
+def find_best_event_idx(
+    hit_files: list[str, Path],
+    lh5_group: str,
+    ewin_center: float = 1593,
+    ewin_width: float = 10,
 ) -> tuple[int, int]:
-    """Extract the index of the event to fit"""
+    """Extract the index of the event to fit.
+
+    Returns the index of the event in the file and the index of the file in the
+    input file list.
+
+    Parameters
+    ----------
+    hit_files
+        tier-hit files used to determine the best index.
+    lh5_group
+        where the tier-hit data is found in the files.
+    ewin_center
+        center of the energy window to use for the event search (same units as
+        in data).
+    ewin_width
+        width of the energy window to use for the event search (dame units as
+        in data).
+    """
     idxs = []
     energies = []
     dts = []
 
-    for file in files:
+    for file in hit_files:
         energy = lh5.read(f"{lh5_group}/cuspEmax_ctc_cal", file).view_as("np")
         AoE = lh5.read(f"{lh5_group}/AoE_Classifier", file).view_as("np")
 
@@ -35,19 +99,21 @@ def get_index(
         else:
             dt_eff = np.zeros(len(AoE))
 
-        idx = np.where((abs(energy - peak) < peak_range) & (abs(AoE) < 1.5))[0]
+        idx = np.where((abs(energy - ewin_center) < ewin_width / 2) & (abs(AoE) < 1.5))[
+            0
+        ]
         idxs.append(idx)
         energies.append(energy[idx])
         dts.append(dt_eff[idx])
+
         n = sum(len(d) for d in dts)
 
         if n > 500:
             break
 
     # now chose the best index (closest to median)
-
     if len(dts) == 0:
-        msg = "No data found in files"
+        msg = "no data found in the considered hit files"
         raise ValueError(msg)
 
     dts = ak.Array(dts)
@@ -69,30 +135,23 @@ def get_index(
     return idx, file_idx
 
 
-def get_raw_file(
-    hit_file: Path, hit_path: Path, raw_path: Path, hit_name: str = "pht"
-) -> Path:
-    """Get the raw file from the paths"""
+def fit_current_pulse(times: NDArray, current: NDArray) -> tuple:
+    """Fit the model to the raw HPGe current pulse.
 
-    raw_file = hit_file.relative_to(hit_path)
-    file = Path(raw_path) / raw_file
-
-    return file.parent / file.name.replace(hit_name, "raw")
-
-
-def fit_waveform(times: NDArray, current: NDArray) -> tuple:
-    """Fit the waveform
+    Uses :func:`scipy.curve_fit` to fit
+    :func:`reboost.hpge.psd._current_pulse_model` to the input raw pulse.
 
     Parameters
     ----------
     times
-        The timesteps of the waveform
+        the timesteps of the pulse.
     current
-        The values of the waveform
+        the values of the pulse.
 
     Returns
     -------
-        tuple of the best fit parameters, and arrays of the best fit model (time and current).
+        tuple of the best fit parameters, and arrays of the best fit model
+        (time and current).
     """
     t = times
     A = current
@@ -113,11 +172,11 @@ def fit_waveform(times: NDArray, current: NDArray) -> tuple:
         [height * 2, max_t + 100, 500, 1, 800, 1, 800],
     ]
     x = np.linspace(low, high, 1000)
-    y = model(x, *p0)
+    y = current_pulse_model(x, *p0)
 
     # do the fit
     popt, _ = curve_fit(
-        model,
+        current_pulse_model,
         t[(t > low) & (t < high)],
         A[(t > low) & (t < high)],
         p0=p0,
@@ -125,42 +184,59 @@ def fit_waveform(times: NDArray, current: NDArray) -> tuple:
     )
 
     x = np.linspace(low, high, int(100 * (high - low)))
-    y = model(x, *popt)
+    y = current_pulse_model(x, *popt)
 
     return popt, x, y
 
 
-def get_waveform(
+def get_current_pulse(
     raw_file: Path | str,
     lh5_group: str,
     idx: int,
     dsp_config: str,
     *,
-    current: str = "curr_av",
+    dsp_output: str = "curr_av",
     align: str = "tp_aoe_max",
 ) -> tuple:
-    """Extract the current waveform"""
+    """Extract the current pulse.
+
+    Parameters
+    ----------
+    raw_file
+        path to the raw tier file.
+    lh5_group
+        where to find the waveform table.
+    idx
+        the index of the waveform to read.
+    dsp_config
+        the :mod:`dspeed` configuration file defining the DSP processing chain
+        to estimate the current pulse.
+    dsp_output
+        the name of the DSP output corresponding to the current pulse.
+    align
+        DSP value around which the pulses are aligned.
+    """
 
     browser = WaveformBrowser(
         str(raw_file),
         lh5_group,
         dsp_config=dsp_config,
-        lines=[current],
+        lines=[dsp_output],
         align=align,
     )
 
     browser.find_entry(idx)
 
-    t = browser.lines[current][0].get_xdata()
-    A = browser.lines[current][0].get_ydata()
+    t = browser.lines[dsp_output][0].get_xdata()
+    A = browser.lines[dsp_output][0].get_ydata()
 
     return t, A
 
 
-def plot_fit(
+def plot_fit_result(
     t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
 ) -> tuple[Figure, Axes]:
-    """Plot the best fit reconstruction"""
+    """Plot the best fit results."""
     fig, ax = plt.subplots()
 
     ax.plot(t, A, linewidth=2, label="Waveform")
@@ -175,125 +251,89 @@ def plot_fit(
     return fig, ax
 
 
-def get_parameter_dict(popt: ArrayLike) -> dict:
-    """Get the parameter results as a dictionary"""
-
-    params = list(inspect.signature(model).parameters)
-    param_names = params[1:]
-
-    popt_dict = dict(zip(param_names, popt, strict=True))
-    popt_dict["mean_AoE"] = popt_dict["amax"] / 1593
-
-    for key, value in popt_dict.items():
-        popt_dict[key] = float(f"{value:.3g}")
-
-    return popt_dict
-
-
-def get_pulse_pars(
+def current_pulse_model_inputs(
+    config: SimflowConfig,
+    runid: str,
     hpge: str,
-    prod_cycle_path: str,
-    period: str,
-    run: str,
-    plot_path: str | None = None,
-    hit_tier: str = "pht",
-    use_channel_name: bool = False,
-    meta: LegendMetadata | None = None,
-) -> dict:
-    """Get the parameters of the fitted waveform
+    hit_tier_name: str = "hit",
+) -> tuple[Path, int, Path]:
+    """Find the raw file, event index and DSP configuration file.
 
     Parameters
     ----------
+    config
+        simflow configuration object.
+    runid
+        LEGEND-200 run identifier.
     hpge
-        The hpgeector name
-    prod_cycle_path
-        The path to the production cycle with data.
-    period
-        The period to inspect.
-    run
-        The run to inspect.
-    plot_path
-        Optional path to save a plot.
-    hit_tier
-        The name of the hit level tier (typically hit or pht)
-    use_channel_name
-        Whether the data is the new format referenced by channel name, or the old one.
-    meta
-        The legendMetadata instance, if `None` will be constructed.
+        name of the HPGe detector
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
     """
+    l200data = config.paths.l200data
 
-    # extract some metadata
+    # get the reference cal run
+    cal_runid = mutils.reference_cal_run(config.metadata, runid)
+    _, period, run, _ = re.split(r"\W+", cal_runid)
 
-    config_path = next(
-        p
-        for p in Path(f"{prod_cycle_path}/").glob("*config.*")
-        if not p.name.startswith(".")
-    )
-    central_config = dbetto.utils.load_dict(str(config_path))
+    msg = f"inferred reference calibration run: {cal_runid}"
+    log.debug(msg)
 
-    if meta is None:
-        meta = LegendMetadata()
+    # look for the dataflow config file
+    df_cfgs = [p for p in l200data.glob("*config.*") if not p.name.startswith(".")]
 
-    timestamp = meta.datasets.runinfo[period][run].cal.start_key
+    if len(df_cfgs) > 1:
+        msg = f"found multiple configuration files in {l200data}, this cannot be!"
+        raise RuntimeError(msg)
 
-    chmap = meta.channelmap(timestamp)
-    rawid = chmap[hpge].daq.rawid
+    msg = f"found dataflow configuration file: {df_cfgs[0]}"
+    log.debug(msg)
+    central_config = dbetto.utils.load_dict(df_cfgs[0])
 
-    # get the paths
-    c_dict = (
+    # get the paths to hit and raw tier files
+    df_cfg = (
         central_config["setups"]["l200"]["paths"]
         if ("setups" in central_config)
         else central_config["paths"]
     )
 
-    hit_path = c_dict[f"tier_{hit_tier}"].replace("$_", prod_cycle_path)
+    hit_path = Path(df_cfg[f"tier_{hit_tier_name}"].replace("$_", str(l200data)))
+    msg = f"looking for hit tier files in {hit_path / 'cal' / period / run}/*"
+    log.debug(msg)
 
-    raw_path = c_dict["tier_raw"].replace("$_", prod_cycle_path)
+    hit_files = list((hit_path / "cal" / period / run).glob("*"))
 
-    files = list(Path(f"{hit_path}/cal/{period}/{run}/").glob("*"))
-
-    if len(files) == 0:
-        msg = f"No files found in {hit_path}/cal/{period}/{run}"
+    if len(hit_files) == 0:
+        msg = f"no hit tier files found in {hit_path}/cal/{period}/{run}"
         raise ValueError(msg)
 
-    idx, file_idx = get_index(
-        files, f"hit/{hpge}" if use_channel_name else f"ch{rawid}/hit"
+    lh5_group = get_lh5_table(config.metadata, hit_files[0], hpge, "hit", runid)
+
+    msg = "looking for best event to fit"
+    log.debug(msg)
+    wf_idx, file_idx = find_best_event_idx(hit_files, lh5_group)
+
+    raw_path = Path(df_cfg["tier_raw"].replace("$_", str(l200data)))
+    hit_file = hit_files[file_idx]
+    raw_file = raw_path / str(hit_file.relative_to(hit_path)).replace(
+        hit_tier_name, "raw"
     )
 
-    raw_file = get_raw_file(
-        files[file_idx], hit_path, raw_path, hit_name=hit_tier
-    ).resolve()
+    msg = f"determined raw file: {raw_file} (event index {wf_idx})"
+    log.debug(msg)
 
-    # extract the waveform to fit
+    dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
+    dsp_cfg_files = list(
+        (l200data / "inputs/dataprod/config/tier_dsp").glob(dsp_cfg_regex)
+    )
 
-    if Path(f"{prod_cycle_path}/inputs/dataprod/config/tier_dsp/").exists():
-        path = Path(f"{prod_cycle_path}/inputs/dataprod/config/tier_dsp/")
-    elif Path(f"{prod_cycle_path}/inputs/dataprod/config/tier/dsp/").exists():
-        path = Path(f"{prod_cycle_path}/inputs/dataprod/config/tier/dsp/")
-    else:
-        msg = "No path with dsp config file found!"
+    if dsp_cfg_files == []:
+        dsp_cfg_files = list(
+            (l200data / "inputs/dataprod/config/tier/dsp").glob(dsp_cfg_regex)
+        )
+
+    if len(dsp_cfg_files) != 1:
+        msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
         raise RuntimeError(msg)
 
-    config = str(next(path.glob("l200-*-r%-T%-ICPC-dsp_proc_chain.*")))
-
-    t, A = get_waveform(
-        raw_file,
-        current="curr_av",
-        lh5_group=f"raw/{hpge}" if use_channel_name else f"ch{rawid}/raw",
-        dsp_config=config,
-        idx=idx,
-    )
-
-    # now perform the fit
-    popt, x, y = fit_waveform(t, A)
-
-    # now plot
-    if plot_path is not None:
-        fig, _ = plot_fit(t, A, x, y)
-        plt.savefig(f"{plot_path}/current_fit-{period}-{run}-{hpge}.pdf")
-        plt.close(fig)
-
-    # get the results as a dict
-    popt_dict = get_parameter_dict(popt)
-
-    return popt_dict, t, A
+    return raw_file.resolve(), wf_idx, dsp_cfg_files[0]

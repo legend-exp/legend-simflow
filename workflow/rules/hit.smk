@@ -1,6 +1,8 @@
+import re
+
 from dbetto.utils import load_dict
 
-from legendsimflow import patterns, aggregate
+from legendsimflow import patterns, aggregate, hpge_pars
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc
 
@@ -68,9 +70,10 @@ rule build_tier_hit:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        # NOTE: we pass here the full list of maps, but likely not all of them
-        # will be used. room for improvement
+        # NOTE: we pass here the full list of maps/current models, but likely
+        # not all of them will be used. room for improvement
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
+        hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=rules.make_simstat_partition_file.output[0],
@@ -87,6 +90,7 @@ rule build_tier_hit:
 
 
 def smk_hpge_drift_time_map_inputs(wildcards):
+    """Prepare inputs for the HPGe drift time map rule."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
     ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
     crystal_name = (
@@ -197,3 +201,85 @@ rule merge_hpge_drift_time_maps:
           done
         done
         """
+
+
+def smk_extract_current_pulse_model_inputs(wildcards):
+    """Prepare inputs for the HPGe current model extraction rule."""
+    raw_file, wf_idx, dsp_cfg_file = hpge_pars.current_pulse_model_inputs(
+        config,
+        wildcards.runid,
+        wildcards.hpge_detector,
+        hit_tier_name="hit",
+        use_hpge_name="true",
+    )
+
+    evt_idx_file = patterns.input_currmod_evt_idx_file(
+        config, runid=wildcards.runid, hpge_detector=wildcards.hpge_detector
+    )
+
+    with evt_idx_file.open() as f:
+        f.write(wf_idx)
+
+    return {
+        "raw_file": raw_file,
+        "raw_wf_idx_file": evt_idx_file,
+        "dsp_cfg_file": dsp_cfg_file,
+    }
+
+
+rule extract_current_pulse_model:
+    """Extract the HPGe current signal model.
+
+    Perform a fit of the current waveform and stores the best-fit model
+    parameters in a YAML file.
+
+    :::{warning}
+    This rule does not have the relevant LEGEND-200 data files as input, since
+    they are dynamically discovered and this would therefore slow down the DAG
+    generation. Therefore, remember to force-rerun if the input data is
+    updated!
+    :::
+
+    Uses wildcards `runid` and `hpge_detector`.
+    """
+    message:
+        "Extracting current model for detector {wildcards.hpge_detector} in {wildcards.runid}"
+    # NOTE: we don't list the file dependencies here because they are
+    # dynamically generated, and that would slow down the DAG generation
+    # input:
+    #     unpack(smk_extract_current_pulse_model_inputs),
+    params:
+        # evt_idx=parse_input(input.raw_wf_idx_file, parser=mutils.extract_integer),
+        hit_tier_name="hit",
+    output:
+        pars_file=temp(patterns.output_currmod_filename(config)),
+        plot_file=patterns.plot_currmod_filename(config),
+    log:
+        patterns.log_currmod_filename(config, SIMFLOW_CONTEXT.proctime),
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_current_pulse_model.py"
+
+
+rule merge_current_pulse_model_pars:
+    """Merge the HPGe current signal model parameters in a single file per `runid`.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Merging current model parameters in {wildcards.runid}"
+    input:
+        lambda wc: aggregate.gen_list_of_currmods(config, wc.runid),
+    output:
+        patterns.output_currmod_merged_filename(config),
+    run:
+        import dbetto
+        from legendsimflow.aggregate import gen_list_of_hpges_valid_for_dtmap
+
+        # NOTE: this is guaranteed to be sorted as in the input file list
+        hpges = gen_list_of_hpges_valid_for_dtmap(config, wildcards.runid)
+
+        out_dict = {}
+        for i, f in enumerate(input):
+            out_dict[hpges[i]] = dbetto.utils.load_dict(f)
+
+        dbetto.utils.write_dict(out_dict, output[0])

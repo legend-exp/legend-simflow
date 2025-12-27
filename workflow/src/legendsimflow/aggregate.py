@@ -127,7 +127,7 @@ def start_key(config: SimflowConfig, runid: str) -> str:
 
 
 def gen_list_of_hpges_valid_for_dtmap(config: SimflowConfig, runid: str) -> list[str]:
-    """Make a list of HPGe detector for which we want to generate a drift time map.
+    """Make a sorted list of HPGe detector for which we want to generate a drift time map.
 
     It generates the list of deployed detectors in `runid` via the LEGEND
     channelmap, then checks if in the crystal metadata there's all the
@@ -139,6 +139,10 @@ def gen_list_of_hpges_valid_for_dtmap(config: SimflowConfig, runid: str) -> list
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
+        # TEMPORARY HACK
+        if hpge.name in ("V00050A", "V13046A", "V00048B", "V14654A"):
+            continue
+
         m = crystal_meta(
             config, config.metadata.hardware.detectors.germanium.diodes[hpge.name]
         )
@@ -157,7 +161,7 @@ def gen_list_of_hpges_valid_for_dtmap(config: SimflowConfig, runid: str) -> list
         msg = f"the list of HPGes valid for drift time map generation in {runid} is empty!"
         log.warning(msg)
 
-    return hpges
+    return sorted(hpges)
 
 
 def gen_list_of_all_runids(config):
@@ -205,6 +209,23 @@ def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[str]:
         files.update(gen_list_of_dtmap_plots_outputs(config, simid))
 
     return files
+
+
+def gen_list_of_currmods(config: SimflowConfig, runid: str) -> list[str]:
+    """Generate the list of HPGe current model parameter files for a `runid`."""
+    hpges = gen_list_of_hpges_valid_for_dtmap(config, runid)
+    return [
+        patterns.output_currmod_filename(config, hpge_detector=hpge, runid=runid)
+        for hpge in hpges
+    ]
+
+
+def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[str]:
+    r"""Generate the list of (merged) HPGe current model parameter files for all requested `runid`\ s."""
+    return [
+        patterns.output_currmod_merged_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
 
 
 def process_simlist(

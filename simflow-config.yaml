@@ -27,6 +27,7 @@ benchmark:
     stp: 10_000
 
 paths:
+  l200data: <...>/public/prodenv/prod-blind/ref-v1.0.0
   benchmarks: $_/generated/benchmarks
   log: $_/generated/log
 

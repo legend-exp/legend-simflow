@@ -20,6 +20,7 @@ import json
 import logging
 import re
 from collections.abc import Collection
+from pathlib import Path
 
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
@@ -122,6 +123,11 @@ def smk_hash_simconfig(
                 scfg.pop(f)
 
     return hash_dict(scfg)
+
+
+def extract_integer(file_path: Path) -> int:
+    with file_path.open() as f:
+        return int(f.read().strip())
 
 
 def runinfo(metadata: LegendMetadata, runid: str) -> str:
