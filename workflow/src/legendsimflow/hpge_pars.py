@@ -201,10 +201,9 @@ def plot_currmod_fit_result(
     fig, ax = plt.subplots()
 
     ax.plot(t, A, linewidth=2, label="Waveform")
-    ax.plot(model_t, model_A, color="red", linewidth=2, label="Fit")
+    ax.plot(model_t, model_A, linewidth=1, label="Fit")
 
     ax.legend()
-    ax.set_xlim(-1200, 1200)
 
     ax.set_xlabel("Time [ns]")
     ax.set_ylabel("Current [ADC]")
