@@ -79,6 +79,7 @@ intersphinx_mapping = {
     "dbetto": ("https://dbetto.readthedocs.io/en/stable", None),
     "pylegendmeta": ("https://pylegendmeta.readthedocs.io/en/stable", None),
     "reboost": ("https://reboost.readthedocs.io/en/stable", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy", None),
 }  # add new intersphinx mappings here
 
 # sphinx-autodoc

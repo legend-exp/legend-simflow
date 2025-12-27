@@ -30,9 +30,9 @@ def lookup_currmod_fit_data(
 ) -> tuple[int, int]:
     """Extract the index of the event to fit.
 
-    Considers events with |A/E| < 1.5 and finds the one that is closest to the
-    median of the distribution.  Returns the index of the event in the file and
-    the index of the file in the input file list.
+    Considers events with ``abs(A/E) < 1.5`` and finds the one that is closest
+    to the median of the distribution.  Returns the index of the event in the
+    file and the index of the file in the input file list.
 
     Parameters
     ----------
