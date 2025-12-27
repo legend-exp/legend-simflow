@@ -44,7 +44,7 @@ raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     hit_tier_name,
 )
 
-lh5_group = hpge_pars.get_lh5_table(
+lh5_group = utils._get_lh5_table(
     metadata,
     raw_file,
     hpge,
