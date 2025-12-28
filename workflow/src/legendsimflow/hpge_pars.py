@@ -53,15 +53,15 @@ def lookup_currmod_fit_data(
 
     for file in hit_files:
         energy = lh5.read(f"{lh5_group}/cuspEmax_ctc_cal", file).view_as("np")
-        AoE = lh5.read(f"{lh5_group}/AoE_Classifier", file).view_as("np")
+        aoe = lh5.read(f"{lh5_group}/AoE_Classifier", file).view_as("np")
 
         # get drift time if possible
         if f"{lh5_group}/dt_eff" in lh5.ls(file):
             dt_eff = lh5.read(f"{lh5_group}/dt_eff", file).view_as("np")
         else:
-            dt_eff = np.zeros(len(AoE))
+            dt_eff = np.zeros(len(aoe))
 
-        idx = np.where((abs(energy - ewin_center) < ewin_width / 2) & (abs(AoE) < 1.5))[
+        idx = np.where((abs(energy - ewin_center) < ewin_width / 2) & (abs(aoe) < 1.5))[
             0
         ]
         idxs.append(idx)

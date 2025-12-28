@@ -43,6 +43,20 @@ def _merge_defaults(user: dict, default: dict) -> dict:
 
 
 def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
+    """Pre-process and sanitize the Simflow configuration.
+
+    - set default configuration fields;
+    - substitute ``$_`` and environment variables;
+    - convert to :class:`~dbetto.attrsdict.AttrsDict`;
+    - cast filesystem paths to :class:`pathlib.Path`;
+    - clone and configure `legend-metadata`;
+    - attach a :class:`legendmeta.LegendMetadata` instance to the Simflow
+      configuration;
+    - export important environment variables.
+
+    Returns a dictionary with useful objects to be used in the Simflow
+    Snakefiles (i.e. the "context").
+    """
     if not raw_config:
         msg = "you must set a config file with --configfile"
         raise RuntimeError(msg)
@@ -87,6 +101,7 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
 
 
 def setup_logdir_link(config: SimflowConfig, proctime):
+    """Set up the timestamp-tagged directory for the workflow log files."""
     logdir = Path(config.paths.log)
     logdir.mkdir(parents=True, exist_ok=True)
 
@@ -121,12 +136,12 @@ def _get_lh5_table(
 
 
 def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
-    """Get the ``scipy.curve_fit()`` parameter results as a dictionary"""
+    """Get the :func:`scipy.curve_fit` parameter results as a dictionary"""
     params = list(inspect.signature(current_pulse_model).parameters)
     param_names = params[1:]
 
     popt_dict = dict(zip(param_names, popt, strict=True))
-    popt_dict["mean_AoE"] = popt_dict["amax"] / 1593
+    popt_dict["mean_aoe"] = popt_dict["amax"] / 1593
 
     for key, value in popt_dict.items():
         popt_dict[key] = float(f"{value:.3g}")
