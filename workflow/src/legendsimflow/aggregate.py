@@ -135,9 +135,10 @@ def gen_list_of_hpges_valid_for_modeling(
     channelmap, then checks if in the crystal metadata there's all the
     information required to generate a drift time map etc.
     """
-    chmap = config.metadata.hardware.configuration.channelmaps.on(
-        start_key(config, runid)
-    )
+    timestamp = start_key(config, runid)
+    metadata = config.metadata
+    chmap = metadata.hardware.configuration.channelmaps.on(timestamp)
+    statuses = metadata.datasets.statuses.on(timestamp)
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
@@ -145,8 +146,12 @@ def gen_list_of_hpges_valid_for_modeling(
         if hpge.name in ("V00050A", "V13046A", "V00048B", "V14654A"):
             continue
 
+        # we don't model detectors that are OFF or AC
+        if statuses[hpge.name].usability != "on":
+            continue
+
         m = crystal_meta(
-            config, config.metadata.hardware.detectors.germanium.diodes[hpge.name]
+            config, metadata.hardware.detectors.germanium.diodes[hpge.name]
         )
 
         if m is not None:
