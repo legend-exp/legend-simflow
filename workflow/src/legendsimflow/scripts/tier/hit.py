@@ -33,7 +33,7 @@ from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc, partitioning
+from legendsimflow import nersc, partitioning, patterns
 from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -45,9 +45,9 @@ gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
+hpge_currmods_files = args.input.hpge_currmods
 simstat_part_file = args.input.simstat_part_file
 buffer_len = args.params.buffer_len
-
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -63,6 +63,13 @@ partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 for runid, evt_idx_range in partitions.items():
     msg = f"processing partition corresponding to {runid}, event range {evt_idx_range}"
     log.info(msg)
+
+    # load in parameters of the HPGe current signal model
+    currmod_pars_file = patterns.output_currmod_merged_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
 
     # loop over the sensitive volumes registered in the geometry
     for det_name, geom_meta in sensvols.items():
@@ -105,7 +112,10 @@ for runid, evt_idx_range in partitions.items():
 
             fccd = mutils.get_sanitized_fccd(metadata, det_name)
             det_loc = geom.physicalVolumeDict[det_name].position
+            # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
             dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
+
+            currmod_pars = currmod_pars_all.get(det_name, None)
 
             # iterate over input data
             for lgdo_chunk in iterator:
@@ -128,20 +138,45 @@ for runid, evt_idx_range in partitions.items():
                     dlf=0.2,
                 )
 
-                energy = ak.sum(chunk.edep * _activeness, axis=-1)
+                edep_active = chunk.edep * _activeness
+                energy = ak.sum(edep_active, axis=-1)
+
+                # default to NaN for some PSD fields
+                dt_heuristic = np.full(len(chunk), np.nan)
+                aoe = np.full(len(chunk), np.nan)
 
                 if dt_map is not None:
-                    rdt_heuristic = reboost_utils.hpge_corrected_dt_heuristic(
+                    drift_time = reboost_utils.hpge_corrected_drift_time(
                         chunk, dt_map, det_loc
                     )
-                else:
-                    dt_heuristic = np.full(len(chunk), np.nan)
+                    dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
+                        drift_time, chunk.edep
+                    )
+
+                    if currmod_pars is not None:
+                        # current pulse template domain in ns (step is 1 ns)
+                        t_domain = {"low": -1000, "high": 4000, "step": 1}
+
+                        # instantiate the template
+                        a_tmpl = reboost.hpge.psd.get_current_template(
+                            **t_domain,
+                            **currmod_pars,
+                        )
+                        # and calculate A/E
+                        a_max = reboost.hpge.psd.maximum_current(
+                            chunk.edep_active,
+                            drift_time,
+                            template=a_tmpl,
+                            times=np.arange(t_domain["low"], t_domain["high"]),
+                        )
+                        aoe = a_max / energy
 
                 out_table = reboost_utils.make_output_chunk(lgdo_chunk)
                 out_table.add_field(
                     "energy", lgdo.Array(energy, attrs={"units": "keV"})
                 )
                 out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
+                out_table.add_field("aoe", lgdo.Array(aoe))
 
                 partitioning.add_field_runid(out_table, runid)
 

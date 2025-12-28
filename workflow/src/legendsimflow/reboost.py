@@ -197,7 +197,7 @@ def get_remage_hit_range(
     return i_start, n_entries
 
 
-def hpge_corrected_dt_heuristic(
+def hpge_corrected_drift_time(
     chunk: ak.Array,
     dt_map: reboost.hpge.utils.HPGeScalarRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
@@ -208,14 +208,14 @@ def hpge_corrected_dt_heuristic(
     ----
     This function will be moved to :mod:`reboost`.
     """
-    _phi = np.arctan2(
+    phi = np.arctan2(
         chunk.yloc * 1000 - det_loc.eval()[1],
         chunk.xloc * 1000 - det_loc.eval()[0],
     )
 
-    _drift_time = {}
+    drift_time = {}
     for angle, _map in dt_map.items():
-        _drift_time[angle] = reboost.hpge.psd.drift_time(
+        drift_time[angle] = reboost.hpge.psd.drift_time(
             chunk.xloc,
             chunk.yloc,
             chunk.zloc,
@@ -223,12 +223,10 @@ def hpge_corrected_dt_heuristic(
             coord_offset=det_loc,
         ).view_as("ak")
 
-    _drift_time_corr = (
-        _drift_time["045"]
-        + (_drift_time["000"] - _drift_time["045"]) * (1 - np.cos(4 * _phi)) / 2
+    return (
+        drift_time["045"]
+        + (drift_time["000"] - drift_time["045"]) * (1 - np.cos(4 * phi)) / 2
     )
-
-    return reboost.hpge.psd.drift_time_heuristic(_drift_time_corr, chunk.edep)
 
 
 def build_tcm(hit_file: str | Path) -> None:
