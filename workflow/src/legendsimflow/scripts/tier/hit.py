@@ -115,6 +115,7 @@ for runid, evt_idx_range in partitions.items():
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
             dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
 
+            # load parameters of the current model
             currmod_pars = currmod_pars_all.get(det_name, None)
 
             # iterate over input data
@@ -141,35 +142,25 @@ for runid, evt_idx_range in partitions.items():
                 edep_active = chunk.edep * _activeness
                 energy = ak.sum(edep_active, axis=-1)
 
-                # default to NaN for some PSD fields
+                # PSD: if the drift time map is none, it means that we don't
+                # have the detector model to simulate PSD in a more advanced
+                # way
+
+                # default to NaN
                 dt_heuristic = np.full(len(chunk), np.nan)
                 aoe = np.full(len(chunk), np.nan)
 
                 if dt_map is not None:
-                    drift_time = reboost_utils.hpge_corrected_drift_time(
+                    _drift_time = reboost_utils.hpge_corrected_drift_time(
                         chunk, dt_map, det_loc
                     )
                     dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
-                        drift_time, chunk.edep
+                        _drift_time, chunk.edep
                     )
-
-                    if currmod_pars is not None:
-                        # current pulse template domain in ns (step is 1 ns)
-                        t_domain = {"low": -1000, "high": 4000, "step": 1}
-
-                        # instantiate the template
-                        a_tmpl = reboost.hpge.psd.get_current_template(
-                            **t_domain,
-                            **currmod_pars,
-                        )
-                        # and calculate A/E
-                        a_max = reboost.hpge.psd.maximum_current(
-                            chunk.edep_active,
-                            drift_time,
-                            template=a_tmpl,
-                            times=np.arange(t_domain["low"], t_domain["high"]),
-                        )
-                        aoe = a_max / energy
+                    _a_max = reboost_utils.hpge_max_current_cal(
+                        edep_active, _drift_time, currmod_pars
+                    )
+                    aoe = _a_max / energy
 
                 out_table = reboost_utils.make_output_chunk(lgdo_chunk)
                 out_table.add_field(

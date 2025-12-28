@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
@@ -226,6 +227,44 @@ def hpge_corrected_drift_time(
     return (
         drift_time["045"]
         + (drift_time["000"] - drift_time["045"]) * (1 - np.cos(4 * phi)) / 2
+    )
+
+
+def hpge_max_current_cal(
+    edep: ak.Array,
+    drift_time: ak.Array,
+    currmod_pars: Mapping,
+) -> ak.Array:
+    """Calculate the maximum of the current pulse.
+
+    Parameters
+    ----------
+    edep
+        energy deposited at each step.
+    drift_time
+        drift time of each energy deposit.
+    currmod_pars
+        dictionary storing the parameters of the current model (see
+        :func:`reboost.hpge.psd.get_current_template`)
+    """
+    # current pulse template domain in ns (step is 1 ns)
+    t_domain = {"low": -1000, "high": 4000, "step": 1}
+
+    # set the maximum of the template to unity, so the A/E will be
+    # already "calibrated"
+    currmod_pars["mean_aoe"] = 1
+
+    # instantiate the template
+    a_tmpl = reboost.hpge.psd.get_current_template(
+        **t_domain,
+        **currmod_pars,
+    )
+    # and calculate the maximum current
+    return reboost.hpge.psd.maximum_current(
+        edep,
+        drift_time,
+        template=a_tmpl,
+        times=np.arange(t_domain["low"], t_domain["high"]),
     )
 
 
