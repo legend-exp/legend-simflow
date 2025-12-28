@@ -23,6 +23,9 @@ the workflow in great detail. Here's a basic description of its fields:
   - `n_primaries`: number of primary events to be simulated in the lower tiers
     `ver` and `raw`.
 - `paths`: customize paths to input or output files.
+  - `l200data`: path to a LEGEND-200 data production folder (e.g.
+    `<...>/public/prodenv/prod-blind/ref-v1.0.0`) used to extract production
+    parameters (e.g. energy resolution)
 
 :::{tip}
 
