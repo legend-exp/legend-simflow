@@ -126,12 +126,14 @@ def start_key(config: SimflowConfig, runid: str) -> str:
     return config.metadata.datasets.runinfo[period][run][datatype].start_key
 
 
-def gen_list_of_hpges_valid_for_dtmap(config: SimflowConfig, runid: str) -> list[str]:
-    """Make a sorted list of HPGe detector for which we want to generate a drift time map.
+def gen_list_of_hpges_valid_for_modeling(
+    config: SimflowConfig, runid: str
+) -> list[str]:
+    """Make a sorted list of HPGe detectors for which we want to compute a model.
 
     It generates the list of deployed detectors in `runid` via the LEGEND
     channelmap, then checks if in the crystal metadata there's all the
-    information required to generate a drift time map.
+    information required to generate a drift time map etc.
     """
     chmap = config.metadata.hardware.configuration.channelmaps.on(
         start_key(config, runid)
@@ -175,7 +177,7 @@ def gen_list_of_all_runids(config):
 
 def gen_list_of_dtmaps(config: SimflowConfig, runid: str) -> list[str]:
     """Generate the list of HPGe drift time map files for a `runid`."""
-    hpges = gen_list_of_hpges_valid_for_dtmap(config, runid)
+    hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
     return [
         patterns.output_dtmap_filename(config, hpge_detector=hpge, runid=runid)
         for hpge in hpges
@@ -194,7 +196,7 @@ def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> set[st
     """Generate the list of HPGe drift time map plot outputs."""
     files = set()
     for runid in get_runlist(config, simid):
-        for hpge in gen_list_of_hpges_valid_for_dtmap(config, runid):
+        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
             files.add(
                 patterns.plot_dtmap_filename(config, hpge_detector=hpge, runid=runid)
             )
@@ -213,7 +215,7 @@ def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[str]:
 
 def gen_list_of_currmods(config: SimflowConfig, runid: str) -> list[str]:
     """Generate the list of HPGe current model parameter files for a `runid`."""
-    hpges = gen_list_of_hpges_valid_for_dtmap(config, runid)
+    hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
     return [
         patterns.output_currmod_filename(config, hpge_detector=hpge, runid=runid)
         for hpge in hpges
