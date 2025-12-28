@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
@@ -197,7 +198,7 @@ def get_remage_hit_range(
     return i_start, n_entries
 
 
-def hpge_corrected_dt_heuristic(
+def hpge_corrected_drift_time(
     chunk: ak.Array,
     dt_map: reboost.hpge.utils.HPGeScalarRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
@@ -208,14 +209,14 @@ def hpge_corrected_dt_heuristic(
     ----
     This function will be moved to :mod:`reboost`.
     """
-    _phi = np.arctan2(
+    phi = np.arctan2(
         chunk.yloc * 1000 - det_loc.eval()[1],
         chunk.xloc * 1000 - det_loc.eval()[0],
     )
 
-    _drift_time = {}
+    drift_time = {}
     for angle, _map in dt_map.items():
-        _drift_time[angle] = reboost.hpge.psd.drift_time(
+        drift_time[angle] = reboost.hpge.psd.drift_time(
             chunk.xloc,
             chunk.yloc,
             chunk.zloc,
@@ -223,12 +224,48 @@ def hpge_corrected_dt_heuristic(
             coord_offset=det_loc,
         ).view_as("ak")
 
-    _drift_time_corr = (
-        _drift_time["045"]
-        + (_drift_time["000"] - _drift_time["045"]) * (1 - np.cos(4 * _phi)) / 2
+    return (
+        drift_time["045"]
+        + (drift_time["000"] - drift_time["045"]) * (1 - np.cos(4 * phi)) / 2
     )
 
-    return reboost.hpge.psd.drift_time_heuristic(_drift_time_corr, chunk.edep)
+
+def hpge_max_current_cal(
+    edep: ak.Array,
+    drift_time: ak.Array,
+    currmod_pars: Mapping,
+) -> ak.Array:
+    """Calculate the maximum of the current pulse.
+
+    Parameters
+    ----------
+    edep
+        energy deposited at each step.
+    drift_time
+        drift time of each energy deposit.
+    currmod_pars
+        dictionary storing the parameters of the current model (see
+        :func:`reboost.hpge.psd.get_current_template`)
+    """
+    # current pulse template domain in ns (step is 1 ns)
+    t_domain = {"low": -1000, "high": 4000, "step": 1}
+
+    # set the maximum of the template to unity, so the A/E will be
+    # already "calibrated"
+    currmod_pars["mean_aoe"] = 1
+
+    # instantiate the template
+    a_tmpl = reboost.hpge.psd.get_current_template(
+        **t_domain,
+        **currmod_pars,
+    )
+    # and calculate the maximum current
+    return reboost.hpge.psd.maximum_current(
+        edep,
+        drift_time,
+        template=a_tmpl,
+        times=np.arange(t_domain["low"], t_domain["high"]),
+    )
 
 
 def build_tcm(hit_file: str | Path) -> None:

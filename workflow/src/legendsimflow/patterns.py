@@ -221,12 +221,44 @@ def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-def benchmark_dtmap_filename(config: SimflowConfig, **kwargs):
+def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     pat = (
         config.paths.benchmarks
         / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.tsv"
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
+
+
+# hpge current model
+
+
+def input_currmod_evt_idx_file(config: SimflowConfig, **kwargs) -> Path:
+    pat = config.paths.genmeta / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
+    return expand(pat, **kwargs, allow_missing=True)[0]
+
+
+def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
+        **kwargs,
+    )
+
+
+def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/currmod/{runid}-models.yaml",
+        **kwargs,
+    )
+
+
+def log_currmod_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
+    pat = log_dirname(config, time) / "hpge/currmod/{runid}-{hpge_detector}-model.log"
+    return _expand(pat, **kwargs)
+
+
+def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = config.paths.plots / "hpge/currmod/{runid}-{hpge_detector}-fit-result.pdf"
+    return _expand(pat, **kwargs)
 
 
 # hit tier

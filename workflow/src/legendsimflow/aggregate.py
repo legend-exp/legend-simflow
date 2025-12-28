@@ -67,7 +67,10 @@ def gen_list_of_simid_outputs(
 def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
     """Generate the list of plots files for a `tier.simid`."""
     if tier == "hit":
-        return gen_list_of_dtmap_plots_outputs(config, simid)
+        return [
+            *gen_list_of_dtmap_plots_outputs(config, simid),
+            *gen_list_of_currmod_plots_outputs(config, simid),
+        ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
     return []
@@ -126,21 +129,32 @@ def start_key(config: SimflowConfig, runid: str) -> str:
     return config.metadata.datasets.runinfo[period][run][datatype].start_key
 
 
-def gen_list_of_hpges_valid_for_dtmap(config: SimflowConfig, runid: str) -> list[str]:
-    """Make a list of HPGe detector for which we want to generate a drift time map.
+def gen_list_of_hpges_valid_for_modeling(
+    config: SimflowConfig, runid: str
+) -> list[str]:
+    """Make a sorted list of HPGe detectors for which we want to compute a model.
 
     It generates the list of deployed detectors in `runid` via the LEGEND
     channelmap, then checks if in the crystal metadata there's all the
-    information required to generate a drift time map.
+    information required to generate a drift time map etc.
     """
-    chmap = config.metadata.hardware.configuration.channelmaps.on(
-        start_key(config, runid)
-    )
+    timestamp = start_key(config, runid)
+    metadata = config.metadata
+    chmap = metadata.hardware.configuration.channelmaps.on(timestamp)
+    statuses = metadata.datasets.statuses.on(timestamp)
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
+        # TEMPORARY HACK
+        if hpge.name in ("V00050A", "V13046A", "V00048B", "V14654A"):
+            continue
+
+        # we don't model detectors that are OFF or AC
+        if statuses[hpge.name].usability != "on":
+            continue
+
         m = crystal_meta(
-            config, config.metadata.hardware.detectors.germanium.diodes[hpge.name]
+            config, metadata.hardware.detectors.germanium.diodes[hpge.name]
         )
 
         if m is not None:
@@ -157,7 +171,7 @@ def gen_list_of_hpges_valid_for_dtmap(config: SimflowConfig, runid: str) -> list
         msg = f"the list of HPGes valid for drift time map generation in {runid} is empty!"
         log.warning(msg)
 
-    return hpges
+    return sorted(hpges)
 
 
 def gen_list_of_all_runids(config):
@@ -171,7 +185,7 @@ def gen_list_of_all_runids(config):
 
 def gen_list_of_dtmaps(config: SimflowConfig, runid: str) -> list[str]:
     """Generate the list of HPGe drift time map files for a `runid`."""
-    hpges = gen_list_of_hpges_valid_for_dtmap(config, runid)
+    hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
     return [
         patterns.output_dtmap_filename(config, hpge_detector=hpge, runid=runid)
         for hpge in hpges
@@ -190,7 +204,7 @@ def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> set[st
     """Generate the list of HPGe drift time map plot outputs."""
     files = set()
     for runid in get_runlist(config, simid):
-        for hpge in gen_list_of_hpges_valid_for_dtmap(config, runid):
+        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
             files.add(
                 patterns.plot_dtmap_filename(config, hpge_detector=hpge, runid=runid)
             )
@@ -203,6 +217,44 @@ def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[str]:
     files = set()
     for simid in gen_list_of_all_simids(config):
         files.update(gen_list_of_dtmap_plots_outputs(config, simid))
+
+    return files
+
+
+def gen_list_of_currmods(config: SimflowConfig, runid: str) -> list[str]:
+    """Generate the list of HPGe current model parameter files for a `runid`."""
+    hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+    return [
+        patterns.output_currmod_filename(config, hpge_detector=hpge, runid=runid)
+        for hpge in hpges
+    ]
+
+
+def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[str]:
+    r"""Generate the list of (merged) HPGe current model parameter files for all requested `runid`\ s."""
+    return [
+        patterns.output_currmod_merged_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
+
+
+def gen_list_of_currmod_plots_outputs(config: SimflowConfig, simid: str) -> set[str]:
+    """Generate the list of HPGe drift time map plot outputs."""
+    files = set()
+    for runid in get_runlist(config, simid):
+        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
+            files.add(
+                patterns.plot_currmod_filename(config, hpge_detector=hpge, runid=runid)
+            )
+
+    return files
+
+
+def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig) -> set[str]:
+    """Generate the list of HPGe drift time map plot outputs."""
+    files = set()
+    for simid in gen_list_of_all_simids(config):
+        files.update(gen_list_of_currmod_plots_outputs(config, simid))
 
     return files
 

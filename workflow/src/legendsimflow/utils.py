@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 from datetime import datetime
 from pathlib import Path
@@ -22,8 +23,12 @@ from pathlib import Path
 import legenddataflowscripts as ldfs
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
+from lgdo import lh5
+from numpy.typing import ArrayLike
+from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import SimflowConfig
+from . import metadata as mutils
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
@@ -38,6 +43,20 @@ def _merge_defaults(user: dict, default: dict) -> dict:
 
 
 def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
+    """Pre-process and sanitize the Simflow configuration.
+
+    - set default configuration fields;
+    - substitute ``$_`` and environment variables;
+    - convert to :class:`~dbetto.attrsdict.AttrsDict`;
+    - cast filesystem paths to :class:`pathlib.Path`;
+    - clone and configure `legend-metadata`;
+    - attach a :class:`legendmeta.LegendMetadata` instance to the Simflow
+      configuration;
+    - export important environment variables.
+
+    Returns a dictionary with useful objects to be used in the Simflow
+    Snakefiles (i.e. the "context").
+    """
     if not raw_config:
         msg = "you must set a config file with --configfile"
         raise RuntimeError(msg)
@@ -82,6 +101,7 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
 
 
 def setup_logdir_link(config: SimflowConfig, proctime):
+    """Set up the timestamp-tagged directory for the workflow log files."""
     logdir = Path(config.paths.log)
     logdir.mkdir(parents=True, exist_ok=True)
 
@@ -90,3 +110,40 @@ def setup_logdir_link(config: SimflowConfig, proctime):
     if link.exists() or link.is_symlink():
         link.unlink()
     link.symlink_to(proctime, target_is_directory=True)
+
+
+# FIXME: this should be removed once the PRL25 data is reprocessed
+def _get_lh5_table(
+    metadata: LegendMetadata,
+    fname: str | Path,
+    hpge: str,
+    tier: str,
+    runid: str,
+) -> str:
+    """The correct LH5 table path.
+
+    Determines the correct path to a `hpge` detector table in tier `tier`.
+    """
+    # check if the latest format is available
+    path = f"{tier}/{hpge}"
+    if lh5.ls(fname, path) == [path]:
+        return path
+
+    # otherwise fall back to the old format
+    timestamp = mutils.runinfo(metadata, runid).start_key
+    rawid = metadata.channelmap(timestamp)[hpge].daq.rawid
+    return f"ch{rawid}/{tier}"
+
+
+def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
+    """Get the :func:`scipy.curve_fit` parameter results as a dictionary"""
+    params = list(inspect.signature(current_pulse_model).parameters)
+    param_names = params[1:]
+
+    popt_dict = dict(zip(param_names, popt, strict=True))
+    popt_dict["mean_aoe"] = popt_dict["amax"] / 1593
+
+    for key, value in popt_dict.items():
+        popt_dict[key] = float(f"{value:.3g}")
+
+    return popt_dict
