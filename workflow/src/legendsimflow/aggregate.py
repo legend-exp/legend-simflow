@@ -67,7 +67,10 @@ def gen_list_of_simid_outputs(
 def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
     """Generate the list of plots files for a `tier.simid`."""
     if tier == "hit":
-        return gen_list_of_dtmap_plots_outputs(config, simid)
+        return [
+            *gen_list_of_dtmap_plots_outputs(config, simid),
+            *gen_list_of_currmod_plots_outputs(config, simid),
+        ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
     return []
@@ -233,6 +236,27 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[str]:
         patterns.output_currmod_merged_filename(config, runid=runid)
         for runid in get_runlist(config, simid)
     ]
+
+
+def gen_list_of_currmod_plots_outputs(config: SimflowConfig, simid: str) -> set[str]:
+    """Generate the list of HPGe drift time map plot outputs."""
+    files = set()
+    for runid in get_runlist(config, simid):
+        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
+            files.add(
+                patterns.plot_currmod_filename(config, hpge_detector=hpge, runid=runid)
+            )
+
+    return files
+
+
+def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig) -> set[str]:
+    """Generate the list of HPGe drift time map plot outputs."""
+    files = set()
+    for simid in gen_list_of_all_simids(config):
+        files.update(gen_list_of_currmod_plots_outputs(config, simid))
+
+    return files
 
 
 def process_simlist(
