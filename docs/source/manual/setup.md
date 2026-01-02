@@ -1,9 +1,23 @@
 # Installation and configuration
 
+Clone [legend-simflow](https://github.com/legend-exp/legend-simflow) and give it
+a custom name:
+
+```console
+> git clone git@github.com:legend-exp/legend-simflow <path/to/prod/cycle>
+```
+
+We recommend tagging the production cycle with a version number to be used as
+folder name (e.g. `path/to/productions/v1.0.0`).
+
+Before a simulation production can be run, the user must configure the run with
+a dedicated file and install the required software dependencies.
+
 ## The configuration file
 
-The `simflow-config.yaml` file in the production directory allows to customize
-the workflow in great detail. Here's a basic description of its fields:
+The `simflow-config.yaml` file resides in the production directory (the root of
+the GitHub repository) and allows to customize the workflow in great detail.
+Here's a basic description of its fields:
 
 - `experiment`: labels the experiment to be simulated. The same name is used in
   the metadata to label the corresponding configuration files.
@@ -33,6 +47,15 @@ All these configuration parameters can be overridden at runtime through
 Snakemake's `--config` option.
 
 :::
+
+For a quick start, just copy over the default configuration file from the
+templates:
+
+```console
+cp templates/default.yaml simflow-config.yaml
+```
+
+and customize it.
 
 ## Software dependencies
 
