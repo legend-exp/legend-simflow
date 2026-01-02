@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -80,8 +79,10 @@ def hash_dict(d: dict | AttrsDict) -> str:
     if isinstance(d, AttrsDict):
         d = d.to_dict()
 
-    s = json.dumps(d, sort_keys=True)
-    return hashlib.sha256(s.encode()).hexdigest()
+    return json.dumps(d, sort_keys=True)
+
+    # NOTE: alternatively, return sha256 (shorter string but bad for diffs)
+    # return hashlib.sha256(s.encode()).hexdigest()
 
 
 def smk_hash_simconfig(
