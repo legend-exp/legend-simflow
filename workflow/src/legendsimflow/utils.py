@@ -91,11 +91,17 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     # I have verified only that this variable is visible in scripts (not shell directives)
     os.environ["MPLCONFIGDIR"] = f"{workflow.basedir}/src/legendsimflow"
 
+    proctime = (
+        "benchmark"
+        if config.benchmark.enabled
+        else datetime.now().strftime("%Y%m%dT%H%M%SZ")
+    )
+
     return AttrsDict(
         {
             "config": config,
             "basedir": workflow.basedir,
-            "proctime": datetime.now().strftime("%Y%m%dT%H%M%SZ"),
+            "proctime": proctime,
         }
     )
 

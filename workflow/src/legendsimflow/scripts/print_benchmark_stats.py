@@ -1,3 +1,5 @@
+# ruff: noqa: I002, T201
+
 # Copyright (C) 2023 Luigi Pertoldi <gipert@pm.me>
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -13,40 +15,99 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# ruff: noqa: F821, T201
-from __future__ import annotations
+import re
+from datetime import timedelta
+from statistics import mean
 
-import csv
-from pathlib import Path
-
-import legenddataflowscripts as ldfs
+from legendsimflow import nersc
 
 
 def printline(*line):
-    print("{:<52}{:>16}{:>11}{:>23}".format(*line))
+    print("{:<52}{:>16}{:>27}{:>11}{:>23}".format(*line))
 
 
-printline("simid", "CPU time [ms/ev]", "evts / 1h", "jobs (1h) / 10^8 evts")
-printline("-----", "----------------", "---------", "---------------------")
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
-bdir = Path(ldfs.as_ro(snakemake.config, snakemake.config.paths.benchmarks))
+speed_pattern = re.compile(
+    r"^.*Stats: average event processing time was\s+"
+    r"([0-9]+(?:\.[0-9]+)?)\s+seconds/event\s+=\s+"
+    r"([0-9]+(?:\.[0-9]+)?)\s+events/second\s*$",
+    re.MULTILINE,
+)
 
-for simd in sorted(bdir.glob("*/*")):
-    if simd.parent.name not in ("ver", "stp"):
+nev_pattern = re.compile(
+    r"^.*Run nr\. \d+ completed\. (\d+) events simulated\.", re.MULTILINE
+)
+
+time_pattern = re.compile(
+    r"^.*Stats: run time was (\d+) days, (\d+) hours, (\d+) minutes and (\d+) seconds$",
+    re.MULTILINE,
+)
+
+# have a look at the latest run
+logdir = (nersc.dvs_ro(args.config, args.config.paths.log) / "benchmark").resolve()
+
+if not logdir.is_dir():
+    msg = "no benchmark run available!"
+    raise RuntimeError(msg)
+
+printline(
+    "simid",
+    "runtime [sec]",
+    "speed (hot loop) [ev/sec]",
+    "evts / 1h",
+    "jobs (1h) / 10^8 evts",
+)
+printline(
+    "-----",
+    "-------------",
+    "-------------------------",
+    "---------",
+    "---------------------",
+)
+
+for simd in sorted(logdir.glob("*/*")):
+    # this code works only for remage output
+    if simd.parent.name != "stp":
         continue
 
-    data = {"cpu_time": 0}
-    for jobd in simd.glob("*.tsv"):
-        with jobd.open(newline="") as f:
-            this_data = next(iter(csv.DictReader(f, delimiter="\t")))
-            data["cpu_time"] += float(this_data["cpu_time"])
+    speed = 0
+    runtime = 0
+    for jobd in simd.glob("*.log"):
+        with jobd.open("r", encoding="utf-8") as f:
+            # read the full file in memory (assuming it can't be huge)
+            data = f.read()
 
-    speed = data["cpu_time"] / snakemake.config.benchmark.n_primaries[simd.parent.name]
-    evts_1h = int(60 * 60 / speed) if speed > 0 else "..."
+            # extract events/sec for each thread
+            time = [
+                float(m.group(2)) for m in speed_pattern.finditer(data) if m is not None
+            ]
+
+            # simulations might have crashed or still running
+            if time == []:
+                runtime = "..."
+                speed = "..."
+
+            # get the number of simulated events for each thread (it's always the same)
+            nev = int(nev_pattern.search(data).group(1))
+
+            # get the runtime of each thread
+            runtimes = [
+                timedelta(
+                    days=int(d), hours=int(h), minutes=int(mi), seconds=int(s)
+                ).total_seconds()
+                for d, h, mi, s in time_pattern.findall(data)
+            ]
+
+            runtime = mean(runtimes)
+            speed += mean(time)
+
+    evts_1h = int(speed * 60 * 60) if speed > 0 else "..."
     njobs = int(1e8 / evts_1h) if not isinstance(evts_1h, str) else 0
     printline(
         simd.parent.name + "." + simd.name,
-        "({:}s) {:.2f}".format(int(data["cpu_time"]), 1000 * speed),
+        ("!!! " if runtime < 10 else "") + f"{runtime:.1f}",
+        f"{speed:.2f}",
         evts_1h,
         njobs,
     )
