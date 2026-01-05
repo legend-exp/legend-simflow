@@ -74,18 +74,21 @@ in the configuration file) for each simulation. Once the production is over, the
 results can be summarized via the `print_benchmark_stats` rule:
 
 ```console
-> snakemake -q all print_benchmark_stats
-simid                                       CPU time [ms/ev]  evts / 1h  jobs (1h) / 10^8 evts
------                                       ----------------  ---------  ---------------------
-stp.birds-nest-K40                                (13s) 2.79    1288475                     77
-stp.birds-nest-Ra224-to-Pb208                   (191s) 38.33      93916                   1064
-stp.fiber-support-copper-Co60                   (223s) 44.69      80558                   1241
-...                                                       ...        ...                    ...
+> snakemake print_benchmark_stats
+simid                                runtime [sec]  speed (hot loop) [ev/sec]  evts / 1h  jobs (1h) / 10^8 evts
+-----                                -------------  -------------------------  ---------  ---------------------
+stp.sis1_z8430_slot2_Bi212_to_Pb208          139.0                     717.70    2583720                     38
+stp.sis1_z8580_slot2_Pb214_to_Po214          167.0                     596.99    2149164                     46
+stp.sis1_z8630_slot2_Bi212_to_Pb208          135.0                     740.46    2665656                     37
+...                                            ...                        ...        ...                    ...
 ```
+
+Which computes statistics by inspecting the `stp`-tier (_remage_) logs.
 
 :::{note}
 
-The CPU time is a good measure of the actual simulation time, since other tasks
-(e.g. application loading) are typically not CPU intensive.
+The benchmarking statistics refer exclusively to the hot Geant4 simulation loop.
+Overheads such as application initialization or remage built-in post processing
+are not taken into account.
 
 :::

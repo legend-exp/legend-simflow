@@ -3,6 +3,7 @@
 workflow/src/legendsimflow/_version.py
 .snakemake
 /inputs
+/simflow-config.yaml
 generated
 tests/dummyprod/inputs/hardware
 tests/dummyprod/inputs/datasets

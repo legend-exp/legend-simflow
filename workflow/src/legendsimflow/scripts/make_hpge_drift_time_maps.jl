@@ -265,7 +265,7 @@ function main()
     try
         dep = estimate_depletion_voltage(sim)
     catch e
-        @error "Detector is not depleted!"
+        error("Detector is not depleted!")
     end
     @info "Simulated depletion is $dep"
 
@@ -273,7 +273,7 @@ function main()
     @info "Depletion measured during characterization is $dep_meas"
 
     if abs(dep_meas - dep) > 100 * u"V"
-        @error "difference between measured and simulated depletion is larger than 100 V!"
+        error("difference between measured and simulated depletion is larger than 100 V!")
     end
 
     @info "Calculating weighting potential..."

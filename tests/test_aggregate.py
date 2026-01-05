@@ -62,7 +62,7 @@ def test_dtmap_stuff(config):
 
     assert agg.start_key(config, "l200-p02-r005-phy") == "20220602T000000Z"
 
-    assert agg.gen_list_of_hpges_valid_for_dtmap(config, "l200-p02-r005-phy") == [
+    assert agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r005-phy") == [
         "V99000A"
     ]
 

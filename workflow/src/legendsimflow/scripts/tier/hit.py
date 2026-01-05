@@ -33,7 +33,7 @@ from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc, partitioning
+from legendsimflow import nersc, partitioning, patterns
 from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -45,9 +45,9 @@ gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
+hpge_currmods_files = args.input.hpge_currmods
 simstat_part_file = args.input.simstat_part_file
 buffer_len = args.params.buffer_len
-
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -63,6 +63,13 @@ partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 for runid, evt_idx_range in partitions.items():
     msg = f"processing partition corresponding to {runid}, event range {evt_idx_range}"
     log.info(msg)
+
+    # load in parameters of the HPGe current signal model
+    currmod_pars_file = patterns.output_currmod_merged_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
 
     # loop over the sensitive volumes registered in the geometry
     for det_name, geom_meta in sensvols.items():
@@ -93,64 +100,83 @@ for runid, evt_idx_range in partitions.items():
             buffer_len=buffer_len,
         )
 
-        # process the HPGe output
-        if geom_meta.detector_type == "germanium":
-            msg = f"processing the {det_name} output table..."
-            log.info(msg)
+        # only process the HPGe output
+        if geom_meta.detector_type != "germanium":
+            continue
 
-            log.debug("creating an pygeomhpges.HPGe object")
-            pyobj = pygeomhpges.make_hpge(
-                geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
+        msg = f"processing the {det_name} output table..."
+        log.info(msg)
+
+        log.debug("creating an pygeomhpges.HPGe object")
+        pyobj = pygeomhpges.make_hpge(
+            geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
+        )
+
+        fccd = mutils.get_sanitized_fccd(metadata, det_name)
+        det_loc = geom.physicalVolumeDict[det_name].position
+        # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
+        dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
+
+        # load parameters of the current model
+        currmod_pars = currmod_pars_all.get(det_name, None)
+
+        # iterate over input data
+        for lgdo_chunk in iterator:
+            chunk = lgdo_chunk.view_as("ak")
+
+            _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
+                chunk.xloc * 1000,  # mm
+                chunk.yloc * 1000,  # mm
+                chunk.zloc * 1000,  # mm
+                pyobj,
+                det_loc.eval(),
+                distances_precompute=chunk.dist_to_surf * 1000,
+                precompute_cutoff=(fccd + 1),
+                surface_type="nplus",
             )
 
-            fccd = mutils.get_sanitized_fccd(metadata, det_name)
-            det_loc = geom.physicalVolumeDict[det_name].position
-            dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
+            _activeness = reboost.math.functions.piecewise_linear_activeness(
+                _distance_to_nplus,
+                fccd=fccd,
+                dlf=0.2,
+            )
 
-            # iterate over input data
-            for lgdo_chunk in iterator:
-                chunk = lgdo_chunk.view_as("ak")
+            edep_active = chunk.edep * _activeness
+            energy = ak.sum(edep_active, axis=-1)
 
-                _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
-                    chunk.xloc * 1000,  # mm
-                    chunk.yloc * 1000,  # mm
-                    chunk.zloc * 1000,  # mm
-                    pyobj,
-                    det_loc.eval(),
-                    distances_precompute=chunk.dist_to_surf * 1000,
-                    precompute_cutoff=(fccd + 1),
-                    surface_type="nplus",
+            # PSD: if the drift time map is none, it means that we don't
+            # have the detector model to simulate PSD in a more advanced
+            # way
+
+            # default to NaN
+            dt_heuristic = np.full(len(chunk), np.nan)
+            aoe = np.full(len(chunk), np.nan)
+
+            if dt_map is not None:
+                _drift_time = reboost_utils.hpge_corrected_drift_time(
+                    chunk, dt_map, det_loc
                 )
-
-                _activeness = reboost.math.functions.piecewise_linear_activeness(
-                    _distance_to_nplus,
-                    fccd=fccd,
-                    dlf=0.2,
+                dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
+                    _drift_time, chunk.edep
                 )
-
-                energy = ak.sum(chunk.edep * _activeness, axis=-1)
-
-                if dt_map is not None:
-                    rdt_heuristic = reboost_utils.hpge_corrected_dt_heuristic(
-                        chunk, dt_map, det_loc
-                    )
-                else:
-                    dt_heuristic = np.full(len(chunk), np.nan)
-
-                out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-                out_table.add_field(
-                    "energy", lgdo.Array(energy, attrs={"units": "keV"})
+                _a_max = reboost_utils.hpge_max_current_cal(
+                    edep_active, _drift_time, currmod_pars
                 )
-                out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
+                aoe = _a_max / energy
 
-                partitioning.add_field_runid(out_table, runid)
+            out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+            out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
+            out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
+            out_table.add_field("aoe", lgdo.Array(aoe))
 
-                reboost_utils.write_chunk(
-                    out_table,
-                    f"/hit/{det_name}",
-                    hit_file,
-                    geom_meta.uid,
-                )
+            partitioning.add_field_runid(out_table, runid)
+
+            reboost_utils.write_chunk(
+                out_table,
+                f"/hit/{det_name}",
+                hit_file,
+                geom_meta.uid,
+            )
 
 log.debug("building the TCM")
 reboost_utils.build_tcm(hit_file)
