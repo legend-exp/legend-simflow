@@ -26,6 +26,8 @@ from legendsimflow.plot import decorate
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 config = args.config
+l200data = args.config.l200data
+
 runid = args.wildcards.runid
 hpge = args.wildcards.hpge_detector
 hit_tier_name = args.params.hit_tier_name
@@ -38,7 +40,8 @@ log_file = args.log[0]
 logger = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
 raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
-    config,
+    l200data,
+    metadata,
     runid,
     hpge,
     hit_tier_name,
