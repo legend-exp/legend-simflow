@@ -18,19 +18,22 @@
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import legendmeta
 import matplotlib.pyplot as plt
 
 from legendsimflow import hpge_pars, nersc, utils
 from legendsimflow import metadata as mutils
 from legendsimflow.plot import decorate
 
-args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
+args = snakemake  # nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 config = args.config
 
 if "l200data" not in args.config.paths:
     msg = "Cannot extract current pars without setting the path to the l200data in the simconfig file."
     raise KeyError(msg)
+
+l200data = args.config.paths.l200data
 
 runid = args.wildcards.runid
 hpge = args.wildcards.hpge_detector
@@ -41,14 +44,12 @@ log_file = args.log[0]
 
 # setup logging
 logger = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
-
-l200data = args.config.paths.l200data
 hit_tier_name = utils.get_hit_tier_name(l200data)
 
 msg = f"... determined hit tier name is {hit_tier_name}"
 logger.info(msg)
-
 logger.info("... looking up the fit inputs")
+
 raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     l200data,
     metadata,
