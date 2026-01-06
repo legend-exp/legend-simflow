@@ -5,9 +5,7 @@ import re
 from pathlib import Path
 
 import awkward as ak
-import dbetto
 import numpy as np
-from dbetto import AttrsDict
 from dspeed.vis import WaveformBrowser
 from legendmeta import LegendMetadata
 from lgdo import lh5
@@ -208,31 +206,6 @@ def plot_currmod_fit_result(
     return fig, ax
 
 
-def lookup_dataflow_config(l200data: Path) -> AttrsDict:
-    """Find the paths to the data inputs.
-
-    Parameters
-    ----------
-    l200data
-        The path to the L200 data production cycle.
-    Returns
-    -------
-    the dataflow configuration file as a dictionary.
-    """
-
-    # look for the dataflow config file
-    df_cfgs = [p for p in l200data.glob("*config.*") if not p.name.startswith(".")]
-
-    if len(df_cfgs) > 1:
-        msg = f"found multiple configuration files in {l200data}, this cannot be!"
-        raise RuntimeError(msg)
-
-    msg = f"found dataflow configuration file: {df_cfgs[0]}"
-    log.debug(msg)
-
-    return dbetto.utils.load_dict(df_cfgs[0])
-
-
 def lookup_currmod_fit_inputs(
     l200data: str,
     metadata: LegendMetadata,
@@ -259,7 +232,7 @@ def lookup_currmod_fit_inputs(
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
-    dataflow_config = lookup_dataflow_config(l200data)
+    dataflow_config = utils.lookup_dataflow_config(l200data)
 
     # get the reference cal run
     cal_runid = mutils.reference_cal_run(metadata, runid)
