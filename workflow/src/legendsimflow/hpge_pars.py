@@ -68,11 +68,6 @@ def lookup_currmod_fit_data(
         energies.append(energy[idx])
         dts.append(dt_eff[idx])
 
-        n = sum(len(d) for d in dts)
-
-        if n > 500:
-            break
-
     # now chose the best index (closest to median)
     if len(dts) == 0:
         msg = "no data found in the considered hit files"
