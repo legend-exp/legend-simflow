@@ -13,13 +13,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+import time
 
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
 
+start_time = time.time()
 
 print("INFO: initializing simflow context")
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
@@ -32,7 +34,7 @@ SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_m
     config
 )
 
-print("INFO: done! handed it over to Snakemake")
+print(f"INFO: took {time.time()- start_time:.1f} seconds. Handed it over to Snakemake")
 
 
 def dvs_ro(x):
