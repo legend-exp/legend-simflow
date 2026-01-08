@@ -71,3 +71,17 @@ def test_dtmap_stuff(config):
     }
 
     assert len(agg.gen_list_of_all_dtmap_plots_outputs(config)) == 8
+
+    hpges = agg.gen_list_of_all_hpges_valid_for_modeling(config)
+    assert isinstance(hpges, dict)
+    assert sorted(hpges.keys()) == [
+        "l200-p02-r000-phy",
+        "l200-p02-r001-phy",
+        "l200-p02-r002-phy",
+        "l200-p02-r003-phy",
+        "l200-p02-r004-phy",
+        "l200-p02-r005-phy",
+        "l200-p02-r006-phy",
+        "l200-p02-r007-phy",
+    ]
+    assert hpges["l200-p02-r000-phy"] == ["V99000A"]

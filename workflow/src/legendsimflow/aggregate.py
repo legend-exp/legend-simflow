@@ -174,6 +174,34 @@ def gen_list_of_hpges_valid_for_modeling(
     return sorted(hpges)
 
 
+def gen_list_of_all_hpges_valid_for_modeling(
+    config: SimflowConfig,
+) -> dict[str, list[str]]:
+    """Generate the complete list of HPGe detectors valid for modeling.
+
+    Find out which HPGe detectors are valid for each runid.
+    Returns the following dictionary:
+
+    .. code-block::
+
+        {
+          'l200-p03-r000-phy': ['V00048A', ...],
+          'l200-p03-r001-phy': ['V00050B', ...],
+          ...
+        }
+
+    i.e. a mapping ``runid -> hpge_list``.
+    """
+    all_runids = set()
+    for simid in gen_list_of_all_simids(config):
+        all_runids.update(get_runlist(config, simid))
+
+    return {
+        runid: gen_list_of_hpges_valid_for_modeling(config, runid)
+        for runid in sorted(all_runids)
+    }
+
+
 def gen_list_of_all_runids(config):
     """The full list of runids required in this workflow."""
     return {
