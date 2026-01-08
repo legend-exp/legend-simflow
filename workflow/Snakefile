@@ -13,16 +13,28 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+import time
 
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
 
+start_time = time.time()
 
+print("INFO: initializing simflow context")
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
+
+# it takes a while to generate the list of good HPGes, let's do it at the start
+# and cache it for later
+print("INFO: generating the list of HPGe detectors valid for modeling")
+SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_modeling(
+    config
+)
+
+print(f"INFO: took {time.time()- start_time:.1f} seconds. Handed it over to Snakemake")
 
 
 def dvs_ro(x):
@@ -67,14 +79,18 @@ def gen_target_all():
         elif "hit" in make_tiers:
             return (
                 rules.gen_all_tier_hit.input,
-                aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
+                aggregate.gen_list_of_all_plots_outputs(
+                    config, tier="hit", cache=SIMFLOW_CONTEXT.modelable_hpges
+                ),
             )
         elif "opt" in make_tiers:
             return rules.gen_all_tier_opt.input
         elif "stp" in make_tiers:
             return (
                 rules.gen_all_tier_stp.input,
-                aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
+                aggregate.gen_list_of_all_plots_outputs(
+                    config, tier="stp", cache=SIMFLOW_CONTEXT.modelable_hpges
+                ),
             )
     else:
         return aggregate.process_simlist(config)
