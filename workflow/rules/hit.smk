@@ -11,7 +11,9 @@ rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
-        aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
+        aggregate.gen_list_of_all_plots_outputs(
+            config, tier="hit", cache=SIMFLOW_CONTEXT.modelable_hpges
+        ),
 
 
 rule make_simstat_partition_file:
@@ -169,7 +171,9 @@ rule merge_hpge_drift_time_maps:
     message:
         "Merging HPGe drift time map files for {wildcards.runid}"
     input:
-        lambda wc: aggregate.gen_list_of_dtmaps(config, wc.runid),
+        lambda wc: aggregate.gen_list_of_dtmaps(
+            config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+        ),
     params:
         input_regex=lambda wc: patterns.output_dtmap_filename(
             config, runid=wc.runid, hpge_detector="*"
@@ -268,7 +272,9 @@ rule merge_current_pulse_model_pars:
     message:
         "Merging current model parameters in {wildcards.runid}"
     input:
-        lambda wc: aggregate.gen_list_of_currmods(config, wc.runid),
+        lambda wc: aggregate.gen_list_of_currmods(
+            config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+        ),
     output:
         patterns.output_currmod_merged_filename(config),
     run:
@@ -276,7 +282,9 @@ rule merge_current_pulse_model_pars:
         from legendsimflow.aggregate import gen_list_of_hpges_valid_for_dtmap
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = gen_list_of_hpges_valid_for_dtmap(config, wildcards.runid)
+        hpges = gen_list_of_hpges_valid_for_dtmap(
+            config, wildcards.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+        )
 
         out_dict = {}
         for i, f in enumerate(input):
