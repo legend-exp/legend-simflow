@@ -16,10 +16,12 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 
+import dbetto
 import legenddataflowscripts as ldfs
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
@@ -29,6 +31,8 @@ from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import SimflowConfig
 from . import metadata as mutils
+
+log = logging.getLogger(__name__)
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
@@ -83,8 +87,10 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
     # NOTE: don't use lazy=True, we need a fully functional TextDB
     metadata = LegendMetadata(config.paths.metadata)
+
     if "legend_metadata_version" in config:
         metadata.checkout(config.legend_metadata_version)
+
     config["metadata"] = metadata
 
     # make sure all simflow plots are made with a consistent style
@@ -137,8 +143,78 @@ def _get_lh5_table(
 
     # otherwise fall back to the old format
     timestamp = mutils.runinfo(metadata, runid).start_key
-    rawid = metadata.channelmap(timestamp)[hpge].daq.rawid
+    log.info(timestamp)
+
+    chmap = metadata.channelmap(timestamp)
+    log.info(chmap.keys())
+    rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"
+
+
+def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
+    """Find the paths to the data inputs.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    Returns
+    -------
+    the dataflow configuration file as a dictionary.
+    """
+    if not isinstance(l200data, Path):
+        l200data = Path(l200data)
+
+    # look for the dataflow config file
+    df_cfgs = [p for p in l200data.glob("*config.*") if not p.name.startswith(".")]
+
+    if len(df_cfgs) > 1:
+        msg = f"found multiple configuration files in {l200data}, this cannot be!"
+        raise RuntimeError(msg)
+
+    if len(df_cfgs) == 0:
+        msg = f"did not find any valid config file in {l200data}, this cannot be!"
+        raise RuntimeError(msg)
+
+    msg = f"found dataflow configuration file: {df_cfgs[0]}"
+    log.debug(msg)
+
+    return dbetto.utils.load_dict(df_cfgs[0])
+
+
+def get_hit_tier_name(l200data: str) -> str:
+    """Extract the name of the hit tier for this production cycle.
+
+    If the `pht` tier is present this is used else the `hit` tier is used.
+
+    Parameters
+    ----------
+    l200data
+        Path to the production cycle of l200 data.
+    """
+
+    dataflow_config = lookup_dataflow_config(l200data)
+
+    df_cfg = (
+        dataflow_config["setups"]["l200"]["paths"]
+        if ("setups" in dataflow_config)
+        else dataflow_config["paths"]
+    )
+
+    # first check if pht exists
+    has_pht = ("tier_pht" in df_cfg) and Path(
+        df_cfg["tier_pht"].replace("$_", str(l200data))
+    ).exists()
+    has_hit = ("tier_hit" in df_cfg) and Path(
+        df_cfg["tier_hit"].replace("$_", str(l200data))
+    ).exists()
+
+    if has_pht:
+        return "pht"
+    if has_hit:
+        return "hit"
+    msg = f"The l200data {l200data} does not contain a valid pht or hit tier"
+    raise RuntimeError(msg)
 
 
 def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
