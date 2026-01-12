@@ -256,7 +256,7 @@ def make_remage_macro(
             vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
             generator_lines = [
                 "/RMG/Generator/Confine FromFile",
-                f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
+                f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
             ]
             # in this case, vertex confinement is not required
             mac_subs["CONFINEMENT"] = None
@@ -285,7 +285,7 @@ def make_remage_macro(
                 vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
                 confinement = [
                     "/RMG/Generator/Confine FromFile",
-                    f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
+                    f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
                 ]
 
             elif sim_cfg.confinement.startswith("~defines:"):

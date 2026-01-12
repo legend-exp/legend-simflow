@@ -60,7 +60,7 @@ dependencies = [
     "numpy",
     "pyg4ometry",
     "pygama >=2.2.3",
-    "pylegendmeta >=1.3.5",
+    "pylegendmeta >=1.3.4",
     "reboost >=0.8.3",
     "revertex >=0.1.2",
     "snakemake >=8.16",
@@ -178,7 +178,7 @@ legend-pydataobj = "*"
 legend-pygeom-l200 = ">=0.8,<0.9"
 legend-pygeom-tools = ">=0.1,<0.2"
 numpy = "*"
-pylegendmeta = ">=1.3.5,<1.4"
+pylegendmeta = ">=1.3.4,<1.4"
 
 # execution
 snakemake = ">=8.16,<9"
@@ -191,7 +191,7 @@ pygama = ">=2.2.3,<2.3"
 reboost = ">=0.8.3,<0.9"
 
 # tier stp
-remage = ">=0.16,<0.17"
+remage = ">=0.19.3,<0.20"
 
 # drift-time maps and other SSD.jl jobs
 julia = ">=1.12,<1.13"

@@ -18,7 +18,6 @@
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-import legendmeta
 import matplotlib.pyplot as plt
 
 from legendsimflow import hpge_pars, nersc, utils
@@ -79,8 +78,9 @@ decorate(fig)
 plt.savefig(plot_file)
 
 logger.info("... adding the mean aoe")
-mean_aoe = hpge_pars.estimate_mean_aoe(popt)
+
 popt_dict = utils._curve_fit_popt_to_dict(popt)
+mean_aoe = hpge_pars.estimate_mean_aoe(popt)
 
 # logger.info("... estimating effect of noise")
 # a_resolution = hpge_pars.

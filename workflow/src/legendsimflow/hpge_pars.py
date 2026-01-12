@@ -211,7 +211,7 @@ def estimate_mean_aoe(popt: list, energy: float = 1593):
 
     # get the maximum of the template
     x = np.linspace(-1000, 3000, 4001)
-    temp = current_pulse_model(x, **popt)
+    temp = current_pulse_model(x, *popt)
 
     return np.max(temp) / energy
 

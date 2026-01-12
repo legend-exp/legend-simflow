@@ -65,6 +65,13 @@ def test_get_waveform(legend_testdata):
     assert len(times) == len(wf)
 
 
+def test_get_aoe():
+    popt = [100, 10, 60, 0.6, 100, 0.2, 60]
+
+    aoe = hpge_pars.estimate_mean_aoe(popt)
+    assert isinstance(aoe, float)
+
+
 def test_plot():
     fig, ax = hpge_pars.plot_currmod_fit_result(
         [1, 2, 3], [0, 10, 20], np.linspace(0, 3, 1000), np.linspace(0, 3, 1000)
