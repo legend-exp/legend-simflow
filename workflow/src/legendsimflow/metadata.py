@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from collections.abc import Collection
@@ -24,9 +23,10 @@ from pathlib import Path
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendmeta.police import validate_dict_schema
+from lgdo import lh5
 from snakemake.io import Wildcards
 
-from . import SimflowConfig
+from . import SimflowConfig, utils
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
@@ -74,17 +74,6 @@ def get_simconfig(
         raise SimflowConfigError(e, block) from e
 
 
-def hash_dict(d: dict | AttrsDict) -> str:
-    """Compute the hash of a Python dict."""
-    if isinstance(d, AttrsDict):
-        d = d.to_dict()
-
-    return json.dumps(d, sort_keys=True)
-
-    # NOTE: alternatively, return sha256 (shorter string but bad for diffs)
-    # return hashlib.sha256(s.encode()).hexdigest()
-
-
 def smk_hash_simconfig(
     config: SimflowConfig,
     wildcards: Wildcards,
@@ -123,7 +112,7 @@ def smk_hash_simconfig(
             if f in scfg:
                 scfg.pop(f)
 
-    return hash_dict(scfg)
+    return utils.hash_dict(scfg)
 
 
 def extract_integer(file_path: Path) -> int:
@@ -350,3 +339,30 @@ def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
             raise SimflowConfigError(msg, path) from e
 
     return expand_runlist(config.metadata, runlist)
+
+
+# FIXME: this should be removed once the PRL25 data is reprocessed
+def _get_lh5_table(
+    metadata: LegendMetadata,
+    fname: str | Path,
+    hpge: str,
+    tier: str,
+    runid: str,
+) -> str:
+    """The correct LH5 table path.
+
+    Determines the correct path to a `hpge` detector table in tier `tier`.
+    """
+    # check if the latest format is available
+    path = f"{tier}/{hpge}"
+    if lh5.ls(fname, path) == [path]:
+        return path
+
+    # otherwise fall back to the old format
+    timestamp = runinfo(metadata, runid).start_key
+    log.info(timestamp)
+
+    chmap = metadata.channelmap(timestamp)
+    log.info(chmap.keys())
+    rawid = chmap[hpge].daq.rawid
+    return f"ch{rawid}/{tier}"

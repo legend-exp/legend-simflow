@@ -8,3 +8,9 @@ def test_get_parameter_dict():
 
     popt_dict = utils._curve_fit_popt_to_dict(popt)
     assert len(popt_dict) == 8
+
+
+def test_hash_string_int():
+    int_hash = utils.string_to_int("blah blah legend simflow")
+    assert isinstance(int_hash, int)
+    assert int_hash >= 0
