@@ -66,7 +66,7 @@ def test_make_macro(config):
     text, fmac = commands.make_remage_macro(config, "exotic_physics_process", "stp")
     confine = [
         "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/ConfinementFromFile/FileName "
+        "/RMG/Generator/Confinement/FromFile/FileName "
         + str(
             patterns.vtx_filename_for_stp(
                 config, "exotic_physics_process", jobid="{JOBID}"

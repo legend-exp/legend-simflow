@@ -24,7 +24,7 @@ from legendsimflow import hpge_pars, nersc, utils
 from legendsimflow import metadata as mutils
 from legendsimflow.plot import decorate
 
-args = snakemake  # nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 config = args.config
 
