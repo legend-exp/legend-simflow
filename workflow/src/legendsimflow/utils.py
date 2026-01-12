@@ -30,7 +30,7 @@ from legendmeta import LegendMetadata
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
-from . import SimflowConfig
+from . import SimflowConfig, nersc
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +86,8 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
 
     # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
     # NOTE: don't use lazy=True, we need a fully functional TextDB
-    metadata = LegendMetadata(config.paths.metadata)
+    # NOTE: read only path on NERSC, we are not going to modify the db
+    metadata = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
 
     if "legend_metadata_version" in config:
         metadata.checkout(config.legend_metadata_version)
