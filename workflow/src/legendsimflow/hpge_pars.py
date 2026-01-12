@@ -5,9 +5,9 @@ import re
 from pathlib import Path
 
 import awkward as ak
-import dbetto
 import numpy as np
 from dspeed.vis import WaveformBrowser
+from legendmeta import LegendMetadata
 from lgdo import lh5
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
@@ -16,8 +16,8 @@ from numpy.typing import NDArray
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 from scipy.optimize import curve_fit
 
-from . import SimflowConfig, utils
 from . import metadata as mutils
+from . import utils
 
 log = logging.getLogger(__name__)
 
@@ -207,7 +207,8 @@ def plot_currmod_fit_result(
 
 
 def lookup_currmod_fit_inputs(
-    config: SimflowConfig,
+    l200data: str,
+    metadata: LegendMetadata,
     runid: str,
     hpge: str,
     hit_tier_name: str = "hit",
@@ -216,40 +217,35 @@ def lookup_currmod_fit_inputs(
 
     Parameters
     ----------
-    config
-        simflow configuration object.
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
     runid
-        LEGEND-200 run identifier.
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hpge
         name of the HPGe detector
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
     """
-    l200data = config.paths.l200data
+
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    dataflow_config = utils.lookup_dataflow_config(l200data)
 
     # get the reference cal run
-    cal_runid = mutils.reference_cal_run(config.metadata, runid)
+    cal_runid = mutils.reference_cal_run(metadata, runid)
     _, period, run, _ = re.split(r"\W+", cal_runid)
 
     msg = f"inferred reference calibration run: {cal_runid}"
     log.debug(msg)
 
-    # look for the dataflow config file
-    df_cfgs = [p for p in l200data.glob("*config.*") if not p.name.startswith(".")]
-
-    if len(df_cfgs) > 1:
-        msg = f"found multiple configuration files in {l200data}, this cannot be!"
-        raise RuntimeError(msg)
-
-    msg = f"found dataflow configuration file: {df_cfgs[0]}"
-    log.debug(msg)
-    central_config = dbetto.utils.load_dict(df_cfgs[0])
-
     # get the paths to hit and raw tier files
     df_cfg = (
-        central_config["setups"]["l200"]["paths"]
-        if ("setups" in central_config)
-        else central_config["paths"]
+        dataflow_config["setups"]["l200"]["paths"]
+        if ("setups" in dataflow_config)
+        else dataflow_config["paths"]
     )
 
     hit_path = Path(df_cfg[f"tier_{hit_tier_name}"].replace("$_", str(l200data)))
@@ -261,21 +257,6 @@ def lookup_currmod_fit_inputs(
     if len(hit_files) == 0:
         msg = f"no hit tier files found in {hit_path}/cal/{period}/{run}"
         raise ValueError(msg)
-
-    lh5_group = utils._get_lh5_table(config.metadata, hit_files[0], hpge, "hit", runid)
-
-    msg = "looking for best event to fit"
-    log.debug(msg)
-    wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
-
-    raw_path = Path(df_cfg["tier_raw"].replace("$_", str(l200data)))
-    hit_file = hit_files[file_idx]
-    raw_file = raw_path / str(hit_file.relative_to(hit_path)).replace(
-        hit_tier_name, "raw"
-    )
-
-    msg = f"determined raw file: {raw_file} (event index {wf_idx})"
-    log.debug(msg)
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
     dsp_cfg_files = list(
@@ -290,5 +271,20 @@ def lookup_currmod_fit_inputs(
     if len(dsp_cfg_files) != 1:
         msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
         raise RuntimeError(msg)
+
+    lh5_group = utils._get_lh5_table(metadata, hit_files[0], hpge, "hit", runid)
+
+    msg = "looking for best event to fit"
+    log.debug(msg)
+
+    wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
+
+    raw_path = Path(df_cfg["tier_raw"].replace("$_", str(l200data)))
+    hit_file = hit_files[file_idx]
+    raw_file = raw_path / str(hit_file.relative_to(hit_path)).replace(
+        hit_tier_name, "raw"
+    )
+    msg = f"determined raw file: {raw_file} (event index {wf_idx})"
+    log.debug(msg)
 
     return raw_file.resolve(), wf_idx, dsp_cfg_files[0]

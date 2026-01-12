@@ -26,9 +26,13 @@ from legendsimflow.plot import decorate
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 config = args.config
+
+if "l200data" not in args.config.paths:
+    msg = "Cannot extract current pars without setting the path to the l200data in the simconfig file."
+    raise KeyError(msg)
+
 runid = args.wildcards.runid
 hpge = args.wildcards.hpge_detector
-hit_tier_name = args.params.hit_tier_name
 metadata = args.config.metadata
 pars_file = args.output.pars_file
 plot_file = args.output.plot_file
@@ -37,8 +41,16 @@ log_file = args.log[0]
 # setup logging
 logger = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
+l200data = args.config.paths.l200data
+hit_tier_name = utils.get_hit_tier_name(l200data)
+
+msg = f"... determined hit tier name is {hit_tier_name}"
+logger.info(msg)
+
+logger.info("... looking up the fit inputs")
 raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
-    config,
+    l200data,
+    metadata,
     runid,
     hpge,
     hit_tier_name,
@@ -52,16 +64,17 @@ lh5_group = utils._get_lh5_table(
     runid,
 )
 
-logger.info("fetching the current pulse")
+logger.info("... fetching the current pulse")
 t, A = hpge_pars.get_current_pulse(raw_file, lh5_group, wf_idx, str(dsp_cfg_file))
 
-logger.info("fitting the current pulse to extract the model")
+logger.info("... fitting the current pulse to extract the model")
 popt, x, y = hpge_pars.fit_currmod(t, A)
 
 # now plot
-logger.info("plotting the fit result")
+logger.info("... plotting the fit result")
 fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
 decorate(fig)
 plt.savefig(plot_file)
 
+logger.info("... saving outputs")
 dbetto.utils.write_dict(utils._curve_fit_popt_to_dict(popt), pars_file)

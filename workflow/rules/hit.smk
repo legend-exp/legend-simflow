@@ -252,9 +252,6 @@ rule extract_current_pulse_model:
     # dynamically generated, and that would slow down the DAG generation
     # input:
     #     unpack(smk_extract_current_pulse_model_inputs),
-    params:
-        # evt_idx=parse_input(input.raw_wf_idx_file, parser=mutils.extract_integer),
-        hit_tier_name="hit",
     output:
         pars_file=temp(patterns.output_currmod_filename(config)),
         plot_file=patterns.plot_currmod_filename(config),
@@ -279,10 +276,10 @@ rule merge_current_pulse_model_pars:
         patterns.output_currmod_merged_filename(config),
     run:
         import dbetto
-        from legendsimflow.aggregate import gen_list_of_hpges_valid_for_dtmap
+        from legendsimflow.aggregate import gen_list_of_hpges_valid_for_modeling
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = gen_list_of_hpges_valid_for_dtmap(
+        hpges = gen_list_of_hpges_valid_for_modeling(
             config, wildcards.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
         )
 
