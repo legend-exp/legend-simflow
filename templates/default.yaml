@@ -3,6 +3,8 @@
 
 experiment: l200cfg09
 
+# simflow_rng_seed: 0
+
 # runlist:
 # - l200-p03-r000-phy
 # - l200-p03-r001-phy

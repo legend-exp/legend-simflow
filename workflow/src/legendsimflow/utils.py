@@ -15,7 +15,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
 import logging
 import os
 from datetime import datetime
@@ -25,12 +27,10 @@ import dbetto
 import legenddataflowscripts as ldfs
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
-from lgdo import lh5
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import SimflowConfig
-from . import metadata as mutils
 
 log = logging.getLogger(__name__)
 
@@ -124,33 +124,6 @@ def setup_logdir_link(config: SimflowConfig, proctime):
     link.symlink_to(proctime, target_is_directory=True)
 
 
-# FIXME: this should be removed once the PRL25 data is reprocessed
-def _get_lh5_table(
-    metadata: LegendMetadata,
-    fname: str | Path,
-    hpge: str,
-    tier: str,
-    runid: str,
-) -> str:
-    """The correct LH5 table path.
-
-    Determines the correct path to a `hpge` detector table in tier `tier`.
-    """
-    # check if the latest format is available
-    path = f"{tier}/{hpge}"
-    if lh5.ls(fname, path) == [path]:
-        return path
-
-    # otherwise fall back to the old format
-    timestamp = mutils.runinfo(metadata, runid).start_key
-    log.info(timestamp)
-
-    chmap = metadata.channelmap(timestamp)
-    log.info(chmap.keys())
-    rawid = chmap[hpge].daq.rawid
-    return f"ch{rawid}/{tier}"
-
-
 def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
     """Find the paths to the data inputs.
 
@@ -215,6 +188,22 @@ def get_hit_tier_name(l200data: str) -> str:
         return "hit"
     msg = f"The l200data {l200data} does not contain a valid pht or hit tier"
     raise RuntimeError(msg)
+
+
+def hash_dict(d: dict | AttrsDict) -> str:
+    """Compute the hash of a Python dict."""
+    if isinstance(d, AttrsDict):
+        d = d.to_dict()
+
+    return json.dumps(d, sort_keys=True)
+
+    # NOTE: alternatively, return sha256 (shorter string but bad for diffs)
+    # return hashlib.sha256(s.encode()).hexdigest()
+
+
+def string_to_int(s: str) -> int:
+    h = hashlib.sha256(s.encode("utf-8")).digest()
+    return int.from_bytes(h[:4], byteorder="big", signed=False)
 
 
 def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:

@@ -19,9 +19,8 @@ from copy import copy
 from pathlib import Path
 
 import legenddataflowscripts as lds
-import numpy as np
 
-from . import SimflowConfig, nersc, patterns
+from . import SimflowConfig, nersc, patterns, utils
 from .exceptions import SimflowConfigError
 from .metadata import get_simconfig
 
@@ -54,6 +53,9 @@ def remage_run(
     - Two substitutions are always provided:
       ``N_EVENTS`` (from ``primaries_per_job`` or benchmark override) and
       ``SEED`` (a random 32-bit integer).
+    - ``SEED`` is meant to be used as remage seed. It is determined by
+      converting `output` to a 32-bit integer hash. If provided, the user
+      ``config.simflow_rng_seed`` integer is added as offset.
     - The ``JOBID`` substitution is also provided if the `jobid` argument is
       not ``None``.
     - If ``config.runcmd.remage`` is set, it is used to determine the remage
@@ -116,13 +118,16 @@ def remage_run(
         msg = f"key {e} not found!"
         raise SimflowConfigError(msg, block) from e
 
+    # idea behind seed logic: we want the simflow to be reproducible across
+    # runs. we convert the output file name to a unique integer and use that as
+    # remage seed. we still want the user to still select some different global
+    # seed, so we offset it with an integer optionally specified in the simflow
+    # config
+
     # substitution rules
     cli_subs = {
         "N_EVENTS": int(n_prim_pj / int(procs)),
-        # TODO: check correct range
-        "SEED": np.random.default_rng().integers(
-            0, np.iinfo(np.int32).max + 1, dtype=np.uint32
-        ),
+        "SEED": config.get("simflow_rng_seed", 0) + utils.string_to_int(str(output)),
     }
     if jobid is not None:
         cli_subs["JOBID"] = jobid
