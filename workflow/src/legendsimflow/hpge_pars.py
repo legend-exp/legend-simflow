@@ -206,6 +206,16 @@ def plot_currmod_fit_result(
     return fig, ax
 
 
+def estimate_mean_aoe(popt: list, energy: float = 1593):
+    """Estimate the maximum aoe from the parameters of the `current_pulse_model` `popt`."""
+
+    # get the maximum of the template
+    x = np.linspace(-1000, 3000, 4001)
+    temp = current_pulse_model(x, **popt)
+
+    return np.max(temp) / energy
+
+
 def lookup_currmod_fit_inputs(
     l200data: str,
     metadata: LegendMetadata,

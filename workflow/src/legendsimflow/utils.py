@@ -213,7 +213,6 @@ def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
     param_names = params[1:]
 
     popt_dict = dict(zip(param_names, popt, strict=True))
-    popt_dict["mean_aoe"] = popt_dict["amax"] / 1593
 
     for key, value in popt_dict.items():
         popt_dict[key] = float(f"{value:.3g}")
