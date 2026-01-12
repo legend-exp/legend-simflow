@@ -272,7 +272,7 @@ def lookup_currmod_fit_inputs(
         msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
         raise RuntimeError(msg)
 
-    lh5_group = utils._get_lh5_table(metadata, hit_files[0], hpge, "hit", runid)
+    lh5_group = mutils._get_lh5_table(metadata, hit_files[0], hpge, "hit", runid)
 
     msg = "looking for best event to fit"
     log.debug(msg)

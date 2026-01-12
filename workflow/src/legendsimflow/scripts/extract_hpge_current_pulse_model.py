@@ -21,6 +21,7 @@ import legenddataflowscripts.utils
 import matplotlib.pyplot as plt
 
 from legendsimflow import hpge_pars, nersc, utils
+from legendsimflow import metadata as mutils
 from legendsimflow.plot import decorate
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -56,7 +57,7 @@ raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     hit_tier_name,
 )
 
-lh5_group = utils._get_lh5_table(
+lh5_group = mutils._get_lh5_table(
     metadata,
     raw_file,
     hpge,
