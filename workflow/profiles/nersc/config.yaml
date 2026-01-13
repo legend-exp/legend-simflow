@@ -1,5 +1,4 @@
 configfile: simflow-config.yaml
-keep-going: true
 rerun-incomplete: true
 cores: all
 
