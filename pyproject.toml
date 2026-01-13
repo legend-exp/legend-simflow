@@ -21,7 +21,6 @@ where = ["workflow/src"]
 
 [tool.setuptools_scm]
 write_to = "workflow/src/legendsimflow/_version.py"
-
 [project]
 name = "legend_simflow"
 description = "Python package for processing LEGEND simulations"
