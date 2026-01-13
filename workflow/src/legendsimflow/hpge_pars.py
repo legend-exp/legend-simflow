@@ -270,10 +270,10 @@ def plot_gauss_fit(
         ),
         label="Fit",
     )
-    
-    if (nominal_val is not None):
+
+    if nominal_val is not None:
         ax.axvline(nominal_val, color="red", linestyle="--", label="Nominal value")
-    
+
     ax.set_xlabel("A$_{max}$ [arb]")
     ax.set_ylabel("Prob [arb.]")
     ax.legend()

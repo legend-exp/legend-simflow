@@ -110,7 +110,7 @@ a_max = hpge_pars.get_waveform_maxima(temp, noise_wfs, norm=mean_aoe * 2000)
 
 # now do the plot
 fit_result = hpge_pars.fit_noise_gauss(a_max, bins=1000)
-fig, ax = hpge_pars.plot_gauss_fit(a_max, nominal_value=mean_aoe * 2000)
+fig, ax = hpge_pars.plot_gauss_fit(a_max, nominal_val=mean_aoe * 2000)
 
 decorate(fig)
 plt.savefig(plot_file)
