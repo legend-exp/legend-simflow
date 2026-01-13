@@ -417,9 +417,8 @@ def _get_lh5_table(
 
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
-    log.info(timestamp)
 
     chmap = metadata.channelmap(timestamp)
-    log.info(chmap.keys())
+
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"

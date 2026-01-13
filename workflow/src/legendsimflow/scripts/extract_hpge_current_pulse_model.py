@@ -19,6 +19,8 @@ import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import matplotlib.pyplot as plt
+import numpy as np
+from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from legendsimflow import hpge_pars, nersc, utils
 from legendsimflow import metadata as mutils
@@ -39,6 +41,7 @@ hpge = args.wildcards.hpge_detector
 metadata = args.config.metadata
 pars_file = args.output.pars_file
 plot_file = args.output.plot_file
+
 log_file = args.log[0]
 
 # setup logging
@@ -83,10 +86,42 @@ logger.info("... adding the mean aoe")
 popt_dict = utils._curve_fit_popt_to_dict(popt)
 mean_aoe = hpge_pars.estimate_mean_aoe(popt)
 
-# logger.info("... estimating effect of noise")
-# a_resolution = hpge_pars.
+logger.info("... estimating effect of noise")
+
+files = hpge_pars.lookup_file_paths(l200data, runid, hit_tier_name=hit_tier_name)
+
+temp = current_pulse_model(np.linspace(-500, 1000, 1501), *popt)
+
+noise_wfs = hpge_pars.get_noise_waveforms(
+    files.raw,
+    files.hit,
+    lh5_group,
+    str(dsp_cfg_file),
+    "curr_av",
+    length=len(temp),
+    maximum_number=100000,
+)
+
+logger.info("... plot noise waveforms")
+fig, ax = hpge_pars.plot_noise_waveforms(noise_wfs, temp, norm=mean_aoe * 2000)
+decorate(fig)
+plt.savefig(plot_file)
+
+a_max = hpge_pars.get_waveform_maxima(temp, noise_wfs, norm=mean_aoe * 2000)
+
+# now do the plot
+fit_result = hpge_pars.fit_noise_gauss(a_max, bins=1000)
+fig, ax = hpge_pars.plot_gauss_fit(a_max, fit_result, nominal_val=mean_aoe * 2000)
+
+decorate(fig)
+plt.savefig(plot_file)
 
 logger.info("... saving outputs")
 dbetto.utils.write_dict(
-    {"current_pulse_pars": popt_dict, "mean_aoe": mean_aoe}, pars_file
+    {
+        "current_pulse_pars": popt_dict,
+        "mean_aoe": mean_aoe,
+        "current_reso": fit_result.values["sigma"],
+    },
+    pars_file,
 )
