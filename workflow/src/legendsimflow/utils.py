@@ -84,6 +84,9 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
 
     config["paths"] = _make_path(config.paths)
 
+    if "l200data" in config.paths:
+        config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)
+
     # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
     # NOTE: don't use lazy=True, we need a fully functional TextDB
     # NOTE: read only path on NERSC, we are not going to modify the db
