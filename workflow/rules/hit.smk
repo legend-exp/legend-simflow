@@ -276,12 +276,9 @@ rule merge_current_pulse_model_pars:
         patterns.output_currmod_merged_filename(config),
     run:
         import dbetto
-        from legendsimflow.aggregate import gen_list_of_hpges_valid_for_modeling
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = gen_list_of_hpges_valid_for_modeling(
-            config, wildcards.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
-        )
+        hpges = SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid]
 
         out_dict = {}
         for i, f in enumerate(input):
