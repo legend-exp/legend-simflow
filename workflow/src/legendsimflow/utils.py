@@ -205,9 +205,21 @@ def hash_dict(d: dict | AttrsDict) -> str:
     # return hashlib.sha256(s.encode()).hexdigest()
 
 
-def string_to_int(s: str) -> int:
-    h = hashlib.sha256(s.encode("utf-8")).digest()
-    return int.from_bytes(h[:4], byteorder="big", signed=False)
+def string_to_remage_seed(s: str, seed: int = 0) -> int:
+    """Convert a string to a positive 32-bit integer.
+
+    This is good to use as remage seed.
+
+    Parameters
+    ----------
+    s
+        the string to encode.
+    seed
+        optional seed.
+    """
+    seed_bytes = seed.to_bytes(8, byteorder="big", signed=False)  # 0..2^64-1
+    h = hashlib.sha256(seed_bytes + s.encode("utf-8")).digest()
+    return int.from_bytes(h[:4], "big", signed=False) & 0x7FFFFFFF
 
 
 def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:

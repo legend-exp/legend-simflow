@@ -127,7 +127,9 @@ def remage_run(
     # substitution rules
     cli_subs = {
         "N_EVENTS": int(n_prim_pj / int(procs)),
-        "SEED": config.get("simflow_rng_seed", 0) + utils.string_to_int(str(output)),
+        "SEED": utils.string_to_remage_seed(
+            str(output), seed=config.get("simflow_rng_seed", 0)
+        ),
     }
     if jobid is not None:
         cli_subs["JOBID"] = jobid
