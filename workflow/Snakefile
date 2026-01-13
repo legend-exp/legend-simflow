@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
 from datetime import datetime
 from pathlib import Path
 import time
@@ -57,7 +58,9 @@ onstart:
     # make sure some packages are initialized before we begin to avoid race conditions
     # https://numba.readthedocs.io/en/stable/developer/caching.html#cache-sharing
     if not workflow.touch and "precompile_pkg" in config:
-        print("INFO: pre-compiling Numba cache")
+        print(
+            f"INFO: pre-compiling Numba cache (NUMBA_CACHE_DIR={os.environ.get('NUMBA_CACHE_DIR')})"
+        )
         shell(f"python -c 'import {", ".join(config.precompile_pkg)}'")
 
 
