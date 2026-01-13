@@ -11,6 +11,6 @@ def test_get_parameter_dict():
 
 
 def test_hash_string_int():
-    int_hash = utils.string_to_int("blah blah legend simflow")
+    int_hash = utils.string_to_remage_seed("blah blah legend simflow")
     assert isinstance(int_hash, int)
     assert int_hash >= 0
