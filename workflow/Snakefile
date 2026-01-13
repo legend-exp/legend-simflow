@@ -61,7 +61,8 @@ onstart:
         print(
             f"INFO: pre-compiling Numba cache (NUMBA_CACHE_DIR={os.environ.get('NUMBA_CACHE_DIR')})"
         )
-        shell(f"python -c 'import {", ".join(config.precompile_pkg)}'")
+        for module in config.precompile_pkg:
+            shell(f"python -c 'from {module} import *'")
 
 
 include: "rules/aux.smk"

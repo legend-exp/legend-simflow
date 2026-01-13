@@ -54,7 +54,8 @@ paths:
   plots: $_/generated/plots
 
 precompile_pkg:
-  - lgdo
+  - dspeed.processors
+  - lgdo.compression
   - matplotlib
   - pygama
   - pygeomhpges
