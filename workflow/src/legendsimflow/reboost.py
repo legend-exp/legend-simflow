@@ -250,13 +250,10 @@ def hpge_max_current_cal(
     # current pulse template domain in ns (step is 1 ns)
     t_domain = {"low": -1000, "high": 4000, "step": 1}
 
-    # set the maximum of the template to unity, so the A/E will be
-    # already "calibrated"
-    currmod_pars["mean_aoe"] = 1
-
     # instantiate the template
     a_tmpl = reboost.hpge.psd.get_current_template(
         **t_domain,
+        mean_aoe=1,  # set the maximum of the template to unity, so the A/E will be calibrated
         **currmod_pars,
     )
     # and calculate the maximum current

@@ -56,7 +56,7 @@ def test_make_macro(config):
     text, fmac = commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")
     confine = [
         "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/FromFile/FileName "
+        "/RMG/Generator/Confinement/FromFile/FileName "
         + str(
             patterns.vtx_filename_for_stp(config, "lar_hpge_shell_K42", jobid="{JOBID}")
         ),
@@ -66,7 +66,7 @@ def test_make_macro(config):
     text, fmac = commands.make_remage_macro(config, "exotic_physics_process", "stp")
     confine = [
         "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/FromFile/FileName "
+        "/RMG/Generator/Confinement/FromFile/FileName "
         + str(
             patterns.vtx_filename_for_stp(
                 config, "exotic_physics_process", jobid="{JOBID}"
@@ -79,7 +79,7 @@ def test_make_macro(config):
     text, fmac = commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
     confine = [
         "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/FromFile/FileName "
+        "/RMG/Generator/Confinement/FromFile/FileName "
         + str(
             patterns.vtx_filename_for_stp(
                 config, "exotic_physics_hpge", jobid="{JOBID}"

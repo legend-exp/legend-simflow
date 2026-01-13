@@ -118,7 +118,10 @@ for runid, evt_idx_range in partitions.items():
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
 
         # load parameters of the current model
-        currmod_pars = currmod_pars_all.get(det_name, None)
+        pars = currmod_pars_all.get(det_name, None)
+        currmod_pars = (
+            pars.get("current_pulse_shape", None) if pars is not None else None
+        )
 
         # iterate over input data
         for lgdo_chunk in iterator:

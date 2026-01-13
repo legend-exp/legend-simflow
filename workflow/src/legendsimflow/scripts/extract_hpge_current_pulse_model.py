@@ -32,6 +32,8 @@ if "l200data" not in args.config.paths:
     msg = "Cannot extract current pars without setting the path to the l200data in the simconfig file."
     raise KeyError(msg)
 
+l200data = args.config.paths.l200data
+
 runid = args.wildcards.runid
 hpge = args.wildcards.hpge_detector
 metadata = args.config.metadata
@@ -41,14 +43,12 @@ log_file = args.log[0]
 
 # setup logging
 logger = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
-
-l200data = args.config.paths.l200data
 hit_tier_name = utils.get_hit_tier_name(l200data)
 
 msg = f"... determined hit tier name is {hit_tier_name}"
 logger.info(msg)
-
 logger.info("... looking up the fit inputs")
+
 raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     l200data,
     metadata,
@@ -77,5 +77,15 @@ fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
 decorate(fig)
 plt.savefig(plot_file)
 
+logger.info("... adding the mean aoe")
+
+popt_dict = utils._curve_fit_popt_to_dict(popt)
+mean_aoe = hpge_pars.estimate_mean_aoe(popt)
+
+# logger.info("... estimating effect of noise")
+# a_resolution = hpge_pars.
+
 logger.info("... saving outputs")
-dbetto.utils.write_dict(utils._curve_fit_popt_to_dict(popt), pars_file)
+dbetto.utils.write_dict(
+    {"current_pulse_pars": popt_dict, "mean_aoe": mean_aoe}, pars_file
+)
