@@ -33,6 +33,7 @@ rule print_benchmark_stats:
 # we use a dedicated dummy rule to initialize the Julia environment, in this
 # way it's still possible to use Julia from a rule-specific conda env
 rule _init_julia_env:
+    localrule: True
     message:
         "Initializing Julia environment"
     output:

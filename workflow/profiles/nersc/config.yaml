@@ -2,11 +2,6 @@ configfile: simflow-config.yaml
 rerun-incomplete: true
 cores: all
 
-set-resources:
-  build_hpge_drift_time_map:
-    runtime: 20 # in minutes
-    mem_mb: 2000
-
 set-threads:
   # HACK: the rule actually uses 1 thread, but 256 maps in parallel get really
   # slow on NERSC somehow (I guess the virtualization is not very efficient in
