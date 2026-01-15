@@ -1,50 +1,107 @@
+# WARNING: this profile is not fully tested and the DAG takes ages to build!
+
 configfile: simflow-config.yaml
 keep-going: true
 rerun-incomplete: true
-config:
-  - system=nersc
 
 # NERSC uses the SLURM job scheduler
-# - https://snakemake.readthedocs.io/en/stable/executing/cluster.html#executing-on-slurm-clusters
-slurm: true
+# - https://snakemake.github.io/snakemake-plugin-catalog/plugins/executor/slurm.html
+# - https://docs.nersc.gov/jobs
+executor: slurm
+slurm-qos: regular
+scheduler: greedy
 
-# maximum number of cores used locally, on the interactive node
-local-cores: 100
+# number of cores to use on the remote batch nodes
+cores: 256
+# maximum number of cores used locally (e.g. on the workflow queue)
+local-cores: 10
 # maximum number of jobs that can exist in the SLURM queue at a time
 jobs: 100
-
-# set resource limits to single job. at NERSC, the total wall time must be less
-# than 12h and a node offers max 512GB memory
-resources:
-  - runtime=720
-  - mem_mb=512000
 
 # reasonable defaults that do not stress the scheduler
 max-jobs-per-second: 20
 max-status-checks-per-second: 20
 
-# (LEGEND) NERSC-specific settings
-# - https://snakemake.readthedocs.io/en/stable/executing/cluster.html#advanced-resource-specifications
-# - https://docs.nersc.gov/jobs
-default-resources:
-  - slurm_account="m2676"
-  - constraint="cpu"
-  - runtime=120
-  - mem_mb=1000
-  - slurm_extra="--qos regular --licenses scratch,cfs" # --mail-type end,fail --mail-user luigi.pertoldi@tum.d
+# set resource limits to a single Slurm job. at NERSC, the total wall time must
+# be less than 12h and a node offers max 512GB memory. this includes grouped
+# jobs
+resources:
+  runtime: 720 # minutes
+  mem_mb: 524288
 
-# number of threads used by each rule
-set-threads:
-  - build_tier_stp=1
+# apply caps per SLURM submission, not as a global workflow budget
+set-resource-scopes:
+  runtime: local
+  mem_mb: local
+
+# set per rule defaults, but it's strongly recommended to set per-rule
+# resources on top of this. most rules are quite fast so the default is 1
+# minute
+default-resources:
+  nodes: 1
+  runtime: 1 # minutes
+  mem_mb: 2000
+  slurm_account: m2676
+  constraint: cpu
+  slurm_extra: --licenses scratch,cfs --mail-type end,fail --mail-user luigi.pertoldi@tum.de
 
 # we define groups in order to let Snakemake group rule instances in the same
 # SLURM job. relevant docs:
 # - https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#snakefiles-grouping
 # - https://snakemake.readthedocs.io/en/stable/executing/grouping.html#job-grouping
 groups:
-  - build_tier_stp=sims
+  - build_tier_vtx=simulations
+  - gen_geom_config=simulations
+  - build_geom_gdml=simulations
+  - build_tier_stp=simulations
+  - plot_tier_stp_vertices=simulations
+
+  - build_tier_opt=post-processing-sipm
+
+  - make_simstat_partition_file=post-processing-hpge
+  - build_tier_hit=post-processing-hpge
+  - build_hpge_drift_time_map=post-processing-hpge
+  - plot_hpge_drift_time_maps=post-processing-hpge
+  - merge_hpge_drift_time_maps=post-processing-hpge
+  - extract_current_pulse_model=post-processing-hpge
+  - merge_current_pulse_model_pars=post-processing-hpge
 
 # disconnected parts of the workflow can run in parallel (at most 256 of them)
 # in a group
 group-components:
-  - sims=256
+  - simulations=256
+  - post-processing-sipm=256
+  - post-processing-hpge=256
+
+# per-rule resources
+
+# NOTE: if unspecified, default number of threads is 1
+set-threads:
+  # HACK: the rule actually uses 1 thread, but 256 maps in parallel get really
+  # slow on NERSC somehow (I guess the virtualization is not very efficient in
+  # this case). So let's give a full core to each process.
+  build_hpge_drift_time_map: 2
+
+# NOTE: added +15% runtime (educated guess) to account for hyperthreading performance
+# NOTE: check these estimates again actual benchmarks
+set-resources:
+  build_tier_vtx:
+    runtime: 60 # minutes
+
+  build_tier_stp:
+    runtime: 240 # overestimate. tune nr of primaries per job!
+
+  _init_julia_env:
+    runtime: 5
+
+  make_simstat_partition_file:
+    runtime: 5
+  build_tier_hit:
+    runtime: 10
+  build_hpge_drift_time_map:
+    runtime: 20
+  extract_current_pulse_model:
+    runtime: 5
+
+  build_tier_opt:
+    runtime: 10
