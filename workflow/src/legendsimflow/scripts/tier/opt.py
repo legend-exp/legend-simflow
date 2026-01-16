@@ -27,9 +27,10 @@ import reboost.spms
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import nersc
 from legendsimflow import reboost as reboost_utils
 
-args = snakemake  # noqa: F821
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 stp_file = args.input.stp_file
 hit_file = args.output[0]
