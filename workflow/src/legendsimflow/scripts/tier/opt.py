@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import legenddataflowscripts as ldfs
+import legenddataflowscripts.utils
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.psd
