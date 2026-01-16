@@ -20,6 +20,8 @@ make_tiers:
   - stp
   - opt
   - hit
+  - evt
+  - cvt
 
 # legend_metadata_version: main
 

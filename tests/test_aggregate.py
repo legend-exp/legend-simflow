@@ -33,6 +33,7 @@ def test_simid_harvesting(config):
     simids = agg.gen_list_of_all_simids(config)
     assert isinstance(simids, type({}.keys()))
     assert all(isinstance(s, str) for s in simids)
+    assert len(simids) == 9
 
 
 def test_simid_outputs(config):
@@ -45,14 +46,21 @@ def test_simid_outputs(config):
 
 
 def test_process_simlist(config):
+    for tier in ("vtx", "stp", "opt", "hit", "evt"):
+        targets = agg.process_simlist(
+            config,
+            simlist=[f"{tier}.birds_nest_K40", f"{tier}.pen_plates_Ra224_to_Pb208"],
+        )
+        assert targets != []
+
     targets = agg.process_simlist(
         config,
-        simlist=["stp.birds_nest_K40", "stp.pen_plates_Ra224_to_Pb208"],
+        simlist=["cvt.birds_nest_K40"],
     )
-    assert targets != []
+    assert len(targets) == 1
 
 
-def test_dtmap_stuff(config):
+def test_hpge_harvesting(config):
     cry = agg.crystal_meta(
         config, config.metadata.hardware.detectors.germanium.diodes.V99000A
     )
@@ -65,12 +73,6 @@ def test_dtmap_stuff(config):
     assert agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r005-phy") == [
         "V99000A"
     ]
-
-    assert agg.gen_list_of_all_runids(config) == {
-        f"l200-p02-r00{i}-phy" for i in range(8)
-    }
-
-    assert len(agg.gen_list_of_all_dtmap_plots_outputs(config)) == 8
 
     hpges = agg.gen_list_of_all_hpges_valid_for_modeling(config)
     assert isinstance(hpges, dict)
@@ -85,3 +87,40 @@ def test_dtmap_stuff(config):
         "l200-p02-r007-phy",
     ]
     assert hpges["l200-p02-r000-phy"] == ["V99000A"]
+
+
+def test_runlist_harvesting(config):
+    assert agg.gen_list_of_all_runids(config) == {
+        f"l200-p02-r00{i}-phy" for i in range(8)
+    }
+
+
+def test_dtmap_stuff(config):
+    runid = "l200-p02-r000-phy"
+    simid = "stp.pen_plates_Ra224_to_Pb208"
+
+    assert len(agg.gen_list_of_dtmaps(config, runid)) == 1
+    assert len(agg.gen_list_of_merged_dtmaps(config, simid)) == 1
+    assert len(agg.gen_list_of_dtmap_plots_outputs(config, simid)) == 1
+
+    plots = agg.gen_list_of_all_dtmap_plots_outputs(config)
+    assert isinstance(plots, set)
+    assert len(plots) == 8
+
+
+def test_currmod_stuff(config):
+    runid = "l200-p02-r000-phy"
+    simid = "stp.pen_plates_Ra224_to_Pb208"
+
+    assert len(agg.gen_list_of_currmods(config, runid)) == 1
+    assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
+    assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
+
+    plots = agg.gen_list_of_all_currmod_plots_outputs(config)
+    assert isinstance(plots, set)
+    assert len(plots) == 8
+
+
+def test_tier_evt_stuff(config):
+    files = agg.gen_list_of_all_tier_cvt_outputs(config)
+    assert len(files) == 9
