@@ -39,6 +39,7 @@ log_file = args.log[0]
 metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
 buffer_len = args.params.buffer_len
+scintillator_volume_name = args.params.scintillator_volume_name
 
 
 # setup logging
@@ -71,7 +72,10 @@ for det_name, geom_meta in sensvols.items():
     )
 
     # process the scintillator output
-    if geom_meta.detector_type == "scintillator" and det_name == "lar":
+    if (
+        geom_meta.detector_type == "scintillator"
+        and det_name == scintillator_volume_name
+    ):
         log.info("processing the 'lar' scintillator table...")
 
         # QUESTION/FIXME: what is the right loop order? load a map and process

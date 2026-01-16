@@ -24,6 +24,7 @@ rule build_tier_opt:
     params:
         buffer_len="500*MB",
         optmap_per_sipm=False,
+        scintillator_volume_name="liquid_argon",
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:
