@@ -27,6 +27,6 @@ def test_all(config):
     assert p.vtx_filename_for_stp(config, "hpge_bulk_high_thr_Rn222_to_Po214") == []
     assert p.vtx_filename_for_stp(config, "phbr_surface_Ra228_to_Ac228") == []
 
-    assert isinstance(p.tier_evt_base_segment(config), str)
-    assert isinstance(p.output_tier_evt_filename(config), Path)
-    assert isinstance(p.log_tier_evt_filename(config, "now"), Path)
+    assert isinstance(p.tier_cvt_base_segment(config), str)
+    assert isinstance(p.output_tier_cvt_filename(config), Path)
+    assert isinstance(p.log_tier_cvt_filename(config, "now"), Path)

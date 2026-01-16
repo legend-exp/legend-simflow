@@ -53,6 +53,12 @@ def test_process_simlist(config):
         )
         assert targets != []
 
+    targets = agg.process_simlist(
+        config,
+        simlist=["cvt.birds_nest_K40"],
+    )
+    assert len(targets) == 1
+
 
 def test_hpge_harvesting(config):
     cry = agg.crystal_meta(
@@ -116,5 +122,5 @@ def test_currmod_stuff(config):
 
 
 def test_tier_evt_stuff(config):
-    files = agg.gen_list_of_all_concat_tier_evt_outputs(config)
+    files = agg.gen_list_of_all_tier_cvt_outputs(config)
     assert len(files) == 9

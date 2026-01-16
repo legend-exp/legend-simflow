@@ -322,15 +322,13 @@ def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig, **kwargs) -> se
     return files
 
 
-# tier evt
+# tier cvt
 
 
-def gen_list_of_all_concat_tier_evt_outputs(
-    config: SimflowConfig, **kwargs
-) -> list[Path]:
-    """Generate the list of all concatenated ``evt`` tier files in the workflow."""
+def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
+    """Generate the list of all ``cvt`` tier files in the Simflow."""
     return [
-        patterns.output_tier_evt_filename(config, simid=simid, **kwargs)
+        patterns.output_tier_cvt_filename(config, simid=simid, **kwargs)
         for simid in gen_list_of_all_simids(config)
     ]
 
@@ -379,7 +377,9 @@ def process_simlist(
         mlist += gen_list_of_plots_outputs(config, tier, simid)
         if tier in ("vtx", "stp", "opt", "hit", "evt"):
             mlist += gen_list_of_simid_outputs(config, tier, simid)
-        elif tier in ("pdf",):
+        elif tier == "cvt":
+            mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
+        else:
             raise NotImplementedError()
 
     return mlist

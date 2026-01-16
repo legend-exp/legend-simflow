@@ -269,26 +269,26 @@ def log_simstat_part_filename(config: SimflowConfig, time: str, **kwargs) -> Pat
     return _expand(pat, **kwargs)
 
 
-# evt tier
+# cvt tier
 
 
-def tier_evt_base_segment(config: SimflowConfig, **kwargs) -> str:
+def tier_cvt_base_segment(config: SimflowConfig, **kwargs) -> str:
     return _expand("{simid}/" + config.experiment + "-{simid}-tier_evt", **kwargs)
 
 
-def output_tier_evt_filename(config: SimflowConfig, **kwargs) -> Path:
+def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.tier_evt / (tier_evt_base_segment(config) + ".lh5"), **kwargs
+        config.paths.tier_evt / (tier_cvt_base_segment(config) + ".lh5"), **kwargs
     )
 
 
-def log_tier_evt_filename(config: SimflowConfig, time, **kwargs) -> Path:
-    pat = log_dirname(config, time) / "evt" / (tier_evt_base_segment(config) + ".log")
+def log_tier_cvt_filename(config: SimflowConfig, time, **kwargs) -> Path:
+    pat = log_dirname(config, time) / "evt" / (tier_cvt_base_segment(config) + ".log")
     return _expand(pat, **kwargs)
 
 
-def benchmark_tier_evt_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.benchmarks / "evt" / (tier_evt_base_segment(config) + ".tsv")
+def benchmark_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = config.paths.benchmarks / "evt" / (tier_cvt_base_segment(config) + ".tsv")
     return _expand(pat, **kwargs)
 
 
