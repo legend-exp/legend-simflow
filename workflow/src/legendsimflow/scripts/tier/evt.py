@@ -1,4 +1,6 @@
-# Copyright (C) 2023 Luigi Pertoldi <gipert@pm.me>
+# ruff: noqa: I002
+
+# Copyright (C) 2025 Luigi Pertoldi <gipert@pm.me>,
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -12,23 +14,23 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from __future__ import annotations
 
-import json
-from collections import OrderedDict
 from pathlib import Path
 
+import legenddataflowscripts as ldfs
+import legenddataflowscripts.utils
 
-def smk_get_evt_window(wildcards, input):
-    # open file with run livetime partitioning
-    with Path(input.run_part_file[0]).open() as f:
-        runpart = json.load(f, object_pairs_hook=OrderedDict)
+args = snakemake  # noqa: F821
 
-    runs = list(runpart.keys())
-    weights = list(runpart.values())
+opt_file = args.input.opt_file
+hit_file = args.input.hit_file
+evt_file = args.output[0]
+log_file = args.log[0]
+metadata = args.config.metadata
+buffer_len = args.params.buffer_len
 
-    # compute start event and number of events for this run
-    start_event = sum(weights[: runs.index(wildcards.runid)])
-    n_events = runpart[wildcards.runid]
 
-    return (int(start_event), int(n_events))
+# setup logging
+log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+
+Path(evt_file).touch()
