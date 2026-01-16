@@ -33,6 +33,7 @@ def test_simid_harvesting(config):
     simids = agg.gen_list_of_all_simids(config)
     assert isinstance(simids, type({}.keys()))
     assert all(isinstance(s, str) for s in simids)
+    assert len(simids) == 9
 
 
 def test_simid_outputs(config):
@@ -45,11 +46,12 @@ def test_simid_outputs(config):
 
 
 def test_process_simlist(config):
-    targets = agg.process_simlist(
-        config,
-        simlist=["stp.birds_nest_K40", "stp.pen_plates_Ra224_to_Pb208"],
-    )
-    assert targets != []
+    for tier in ("vtx", "stp", "opt", "hit", "evt"):
+        targets = agg.process_simlist(
+            config,
+            simlist=[f"{tier}.birds_nest_K40", f"{tier}.pen_plates_Ra224_to_Pb208"],
+        )
+        assert targets != []
 
 
 def test_hpge_harvesting(config):
@@ -94,7 +96,10 @@ def test_dtmap_stuff(config):
     assert len(agg.gen_list_of_dtmaps(config, runid)) == 1
     assert len(agg.gen_list_of_merged_dtmaps(config, simid)) == 1
     assert len(agg.gen_list_of_dtmap_plots_outputs(config, simid)) == 1
-    assert len(agg.gen_list_of_all_dtmap_plots_outputs(config)) == 8
+
+    plots = agg.gen_list_of_all_dtmap_plots_outputs(config)
+    assert isinstance(plots, set)
+    assert len(plots) == 8
 
 
 def test_currmod_stuff(config):
@@ -104,4 +109,12 @@ def test_currmod_stuff(config):
     assert len(agg.gen_list_of_currmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
-    assert len(agg.gen_list_of_all_currmod_plots_outputs(config)) == 8
+
+    plots = agg.gen_list_of_all_currmod_plots_outputs(config)
+    assert isinstance(plots, set)
+    assert len(plots) == 8
+
+
+def test_tier_evt_stuff(config):
+    files = agg.gen_list_of_all_concat_tier_evt_outputs(config)
+    assert len(files) == 9
