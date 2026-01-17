@@ -22,7 +22,7 @@ from lgdo import Table, VectorOfVectors, lh5
 from reboost.core import read_data_at_channel_as_ak
 from reboost.utils import get_remage_detector_uids
 
-args = snakemake  # noqa: F821
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 opt_file = args.input.opt_file
 hit_file = args.input.hit_file

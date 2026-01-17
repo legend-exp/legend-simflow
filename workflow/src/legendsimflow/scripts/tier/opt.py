@@ -121,6 +121,7 @@ for det_name, geom_meta in sensvols.items():
                         hit_file,
                         sipm_uid,
                     )
+                    del optmap
             else:
                 log.debug("applying sum optical map")
 
