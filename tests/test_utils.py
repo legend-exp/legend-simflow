@@ -19,6 +19,10 @@ def test_hash_string_int():
     assert int_hash >= 0
 
 
+def test_split_runid():
+    assert utils.split_runid("l1million-p420-r999-ant") == (420, 999)
+
+
 def test_add_field_string():
     tab = Table(size=10)
 

@@ -238,6 +238,15 @@ def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
     return popt_dict
 
 
+def split_runid(runid):
+    _, period, run, _ = runid.split("-")
+
+    period = int(period[1:])
+    run = int(run[1:])
+
+    return period, run
+
+
 def add_field_string(name: str, chunk: lgdo.Table, data: str) -> None:
     """Add a string to the output table.
 

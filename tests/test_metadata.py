@@ -68,3 +68,12 @@ def test_run_stuff(config):
         metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
         == "l200-p16-r007-cal"
     )
+
+
+def test_encode_usability():
+    assert metadata.encode_usability("on") == 0
+    assert metadata.encode_usability("ac") == 1
+    assert metadata.encode_usability("off") == 2
+
+    for use in ["on", "off", "ac"]:
+        assert metadata.decode_usability(metadata.encode_usability(use)) == use
