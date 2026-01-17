@@ -108,7 +108,9 @@ def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> N
             )
 
 
-def get_senstables(geom, det_type: str | None = None) -> list[str]:
+def get_senstables(
+    geom: pyg4ometry.geant4.Registry, det_type: str | None = None
+) -> list[str]:
     sensvols = pygeomtools.detectors.get_all_senstables(geom)
     if det_type is not None:
         return [k for k, v in sensvols.items() if v.detector_type == det_type]
@@ -166,8 +168,8 @@ def get_remage_hit_range(
     uid
         remage unique identifier for detector `det_name`.
     evt_idx_range
-        `[first, last)` index of events of interest present in the remage
-        output file.
+        `[first, last)` (i.e. `first` included, `last` excluded) index of
+        events of interest present in the remage output file.
     """
     # load TCM, to be used to chunk the event statistics according to the run partitioning
     tcm = lh5.read_as("tcm", stp_file, library="ak")
@@ -272,6 +274,10 @@ def build_tcm(
 ) -> None:
     """Re-create the TCM table from remage.
 
+    Use remage fields `evtid` and `t0` (the latter is assumed to be in
+    nanoseconds) to build coincidences. The settings are identical to the
+    remage built-in TCM settings.
+
     Note
     ----
     This function will be moved to :mod:`reboost`.
@@ -287,7 +293,7 @@ def build_tcm(
         [(f, r"hit/__by_uid__/*") for f in hit_files],  # input_tables
         ["evtid", "t0"],  # coin_cols
         hash_func=r"(?<=hit/__by_uid__/det)\d+",
-        coin_windows=[0, 10_000],
+        coin_windows=[0, 10_000],  # in ns
         out_file=out_file,
         wo_mode="write_safe",
     )

@@ -14,16 +14,23 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-
+import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-from lgdo import Table, VectorOfVectors, lh5
+import numpy as np
+from lgdo import Array, Table, VectorOfVectors, lh5
 from reboost.core import read_data_at_channel_as_ak
 from reboost.utils import get_remage_detector_uids
 
 from legendsimflow import nersc
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.metadata import encode_usability
+
+FORWARD_FIELD_LIST = ["aoe", "drift_time_heuristic", "t0"]
+ENERGY_THR_KEV = 25
+OFF = encode_usability("off")
+ON = encode_usability("on")
+BUFFER_LEN = "500*MB"
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -33,8 +40,6 @@ hit_file = args.input.hit_file
 evt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
-buffer_len = args.params.buffer_len
-
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -45,39 +50,67 @@ reboost_utils.build_tcm([hit_file, opt_file], evt_file)
 # test that the evt tcm has the same amount of rows as the stp tcm
 assert lh5.read_n_rows("tcm", stp_file) == lh5.read_n_rows("tcm", evt_file)
 
-log.info("extracting remage uid map")
-
 # get the mapping of detector name to uid
-mapping = {
+detname2uid = {
     name: uid
     for uid, name in get_remage_detector_uids(hit_file, lh5_table="hit").items()
 }
 
-# fields to forward
-field_list = ["aoe", "drift_time_heuristic", "energy", "evtid", "runid", "t0"]
 
-log.info("begin iterating over unified TCM")
+def _read_hits(tcm_ak, field):
+    return read_data_at_channel_as_ak(
+        tcm_ak.table_key, tcm_ak.row_in_table, hit_file, field, "hit", detname2uid
+    )
+
 
 # iterate
-it = lh5.LH5Iterator(hit_file, "tcm", buffer_len=buffer_len)
+it = lh5.LH5Iterator(hit_file, "tcm", buffer_len=BUFFER_LEN)
 
+log.info("begin iterating over TCM")
 for tcm_chunk in it:
-    # convert tcm to ak
-    tcm_tmp = tcm_chunk.view_as("ak")
+    tcm_ak = tcm_chunk.view_as("ak")
+    out_table = Table(size=len(tcm_ak))
 
-    # create output
-    out = Table(size=len(tcm_tmp))
+    # global fields that are constant over the full events
+    for constant_field in ["run", "period", "evtid"]:
+        data = _read_hits(tcm_ak, constant_field)
 
-    # add the channel and row
-    out.add_field("table_key", VectorOfVectors(tcm_tmp.table_key))
-    out.add_field("row_in_table", VectorOfVectors(tcm_tmp.row_in_table))
+        # sanity check
+        assert ak.all(data == data[:, 0])
 
-    # add other fields
-    for field in field_list:
-        field_data = read_data_at_channel_as_ak(
-            tcm_tmp.table_key, tcm_tmp.row_in_table, hit_file, field, "hit", mapping
-        )
-        out.add_field(field, VectorOfVectors(field_data))
+        # replace the awkward missing values with NaN for LH5 compatibility
+        data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
+        out_table.add_field(constant_field, Array(np.array(data)))
 
-    # now write
-    lh5.write(out, "evt", evt_file, wo_mode="append")
+    # HPGe table
+    # ----------
+    out_table.add_field("geds", Table(size=len(tcm_ak)))
+
+    # first read usability and energy
+    usability = _read_hits(tcm_ak, "usability")
+    energy = _read_hits(tcm_ak, "energy")
+
+    # we want to only store hits from events in ON and AC detectors and above
+    # our energy threshold
+    is_good_hit = (usability != OFF) & (energy > ENERGY_THR_KEV)
+
+    out_table.add_field("geds/usability", VectorOfVectors(usability[is_good_hit]))
+    out_table.add_field("geds/energy", VectorOfVectors(energy[is_good_hit]))
+
+    # fields to identify detectors and lookup stuff in the lower tiers
+    out_table.add_field("geds/rawid", VectorOfVectors(tcm_ak.table_key[is_good_hit]))
+    out_table.add_field(
+        "geds/hit_idx", VectorOfVectors(tcm_ak.row_in_table[is_good_hit])
+    )
+
+    # simply forward some fields
+    for field in FORWARD_FIELD_LIST:
+        field_data = _read_hits(tcm_ak, field)
+        out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[is_good_hit]))
+
+    # compute multiplicity
+    multiplicity = ak.sum(is_good_hit, axis=-1)
+    out_table.add_field("geds/multiplicity", Array(multiplicity))
+
+    # now write down
+    lh5.write(out_table, "evt", evt_file, wo_mode="append")
