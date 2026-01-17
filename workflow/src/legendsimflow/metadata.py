@@ -146,6 +146,53 @@ def usability(
     return default
 
 
+def encode_usability(usability: str) -> int:
+    """Encode the usability in an int.
+
+    - "on":  0
+    - "ac":  1
+    - "off": 2
+
+    Better to store and faster to manipulate.
+    """
+
+    if usability == "on":
+        return 0
+    if usability == "ac":
+        return 1
+    if usability == "off":
+        return 2
+    msg = "currently only usability of `on` `ac` or `off` are supported"
+    raise ValueError(msg)
+
+
+def decode_usability(usability_code: int) -> str:
+    """Decode the usability (see {func}`encode_usability`)."""
+
+    if usability_code == 0:
+        return "on"
+    if usability_code == 1:
+        return "ac"
+    if usability_code == 2:
+        return "off"
+    msg = f"currently only usability of `on` `ac` or `off` are supported not {usability_code}"
+    raise ValueError(msg)
+
+
+def parse_runid(runid: str) -> (str, int, int, str):
+    """Extract `runid` fields.
+
+    Returns the experiment, period, run and datatype as a tuple. Period and run
+    are integers.
+    """
+    if not is_runid(runid):
+        msg = f"{runid} is not a valid runid"
+        raise ValueError(msg)
+
+    experiment, period, run, datatype = re.split(r"\W+", runid)
+    return experiment, int(period[1:]), int(run[1:]), datatype
+
+
 def runinfo(metadata: LegendMetadata, runid: str) -> str:
     """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 

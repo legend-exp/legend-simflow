@@ -34,7 +34,7 @@ from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc, patterns, utils
+from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -86,9 +86,6 @@ for runid, evt_idx_range in partitions.items():
 
         stp_table_name = f"stp/{det_name}"
 
-        # get the usability
-        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
-
         # only process the HPGe output
         if geom_meta.detector_type != "germanium":
             # no bookkeeping of this table
@@ -102,6 +99,8 @@ for runid, evt_idx_range in partitions.items():
             )
             log.warning(msg)
             continue
+
+        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
         i_start, n_entries = reboost_utils.get_remage_hit_range(
             stp_file, det_name, geom_meta.uid, evt_idx_range
@@ -117,6 +116,11 @@ for runid, evt_idx_range in partitions.items():
             i_start=i_start,
             n_entries=n_entries,
             buffer_len=buffer_len,
+        )
+
+        # get the usability
+        usability = mutils.encode_usability(
+            mutils.usability(metadata, det_name, runid=runid)
         )
 
         msg = f"processing the {det_name} output table..."
@@ -184,13 +188,18 @@ for runid, evt_idx_range in partitions.items():
                 aoe = _a_max / energy
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
             out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
             out_table.add_field("aoe", lgdo.Array(aoe))
 
-            # add strings
-            utils.add_field_string("runid", out_table, runid)
-            utils.add_field_string("usability", out_table, usability)
+            _, period, run, _ = mutils.parse_runid(runid)
+            field_vals = [period, run, usability]
+            for i, field in enumerate(["period", "run", "usability"]):
+                out_table.add_field(
+                    field,
+                    lgdo.Array(np.full(shape=len(chunk), fill_value=field_vals[i])),
+                )
 
             reboost_utils.write_chunk(
                 out_table,
