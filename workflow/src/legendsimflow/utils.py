@@ -24,7 +24,10 @@ from datetime import datetime
 from pathlib import Path
 
 import dbetto
+import h5py
 import legenddataflowscripts as ldfs
+import lgdo
+import numpy as np
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from numpy.typing import ArrayLike
@@ -233,3 +236,15 @@ def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
         popt_dict[key] = float(f"{value:.3g}")
 
     return popt_dict
+
+
+def add_field_string(name: str, chunk: lgdo.Table, data: str) -> None:
+    """Add a string to the output table.
+
+    This is done in an HDF5-friendly way by storing the runid as a fixed-length
+    string.
+    """
+    # NOTE: is this ok? will it compress well?
+    dtype = h5py.string_dtype(encoding="utf-8", length=len(data))
+    data_array = np.full(len(chunk), fill_value=data, dtype=dtype)
+    chunk.add_field(name, lgdo.Array(data_array))

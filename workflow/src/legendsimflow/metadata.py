@@ -120,6 +120,13 @@ def extract_integer(file_path: Path) -> int:
         return int(f.read().strip())
 
 
+def get_usability(metadata: LegendMetadata, det_name: str, runid: str) -> str:
+    """Get the `analysis.usability` field for this detector."""
+
+    rinfo = runinfo(metadata, runid)
+    return metadata.channelmap(rinfo.start_key)[det_name].analysis.usability
+
+
 def runinfo(metadata: LegendMetadata, runid: str) -> str:
     """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 

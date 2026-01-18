@@ -21,8 +21,10 @@ rule build_tier_opt:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         optmap_lar=config.paths.optical_maps.lar,
+    resources:
+        mem_mb=10000,
     params:
-        buffer_len="500*MB",
+        buffer_len="100*MB",
         optmap_per_sipm=False,
         scintillator_volume_name="liquid_argon",
     output:

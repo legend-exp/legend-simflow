@@ -1,7 +1,8 @@
 configfile: simflow-config.yaml
 rerun-incomplete: true
 cores: all
-
+resources: mem_mb=512000
+default-resources: mem_mb=2000
 set-threads:
   # HACK: the rule actually uses 1 thread, but 256 maps in parallel get really
   # slow on NERSC somehow (I guess the virtualization is not very efficient in
