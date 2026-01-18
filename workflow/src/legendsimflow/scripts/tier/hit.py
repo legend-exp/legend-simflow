@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
 import awkward as ak
 import dbetto.utils
 import legenddataflowscripts as ldfs
@@ -76,6 +77,9 @@ for runid, evt_idx_range in partitions.items():
         msg = f"looking for data from sensitive volume {det_name} (uid={geom_meta.uid})..."
         log.debug(msg)
 
+        # get the usability
+        usability = mutils.get_usability(metadata, det_name, runid=runid)
+
         if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
             msg = (
                 f"detector {det_name} not found in {stp_file}. "
@@ -114,6 +118,7 @@ for runid, evt_idx_range in partitions.items():
 
         fccd = mutils.get_sanitized_fccd(metadata, det_name)
         det_loc = geom.physicalVolumeDict[det_name].position
+
         # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
 
@@ -141,7 +146,7 @@ for runid, evt_idx_range in partitions.items():
             _activeness = reboost.math.functions.piecewise_linear_activeness(
                 _distance_to_nplus,
                 fccd=fccd,
-                dlf=0.2,
+                dlf=0.5,
             )
 
             edep_active = chunk.edep * _activeness
@@ -172,7 +177,9 @@ for runid, evt_idx_range in partitions.items():
             out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
             out_table.add_field("aoe", lgdo.Array(aoe))
 
-            partitioning.add_field_runid(out_table, runid)
+            # add strings
+            partitioning.add_field_string("runid", out_table, runid)
+            partitioning.add_field_string("usability", out_table, usability)
 
             reboost_utils.write_chunk(
                 out_table,

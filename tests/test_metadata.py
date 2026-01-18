@@ -3,7 +3,8 @@ from __future__ import annotations
 from dbetto import AttrsDict
 
 from legendsimflow import metadata
-
+from legendmeta import LegendMetadata
+from datetime import datetime
 
 def test_all(config):
     assert isinstance(
@@ -68,3 +69,4 @@ def test_run_stuff(config):
         metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
         == "l200-p16-r007-cal"
     )
+
