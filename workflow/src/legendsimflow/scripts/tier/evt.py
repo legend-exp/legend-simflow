@@ -22,6 +22,8 @@ from lgdo import Table, VectorOfVectors, lh5
 from reboost.core import read_data_at_channel_as_ak
 from reboost.utils import get_remage_detector_uids
 
+from legendsimflow import nersc
+
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 opt_file = args.input.opt_file
