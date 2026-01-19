@@ -78,7 +78,7 @@ for runid, evt_idx_range in partitions.items():
         log.debug(msg)
 
         # get the usability
-        usability = mutils.get_usability(metadata, det_name, runid=runid)
+        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
         if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
             msg = (

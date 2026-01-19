@@ -120,11 +120,30 @@ def extract_integer(file_path: Path) -> int:
         return int(f.read().strip())
 
 
-def get_usability(metadata: LegendMetadata, det_name: str, runid: str) -> str:
-    """Get the `analysis.usability` field for this detector."""
+def usability(
+    metadata: LegendMetadata, det_name: str, runid: str, default: str | None = None
+) -> str:
+    """Get the usability for analysis of `det_name` in run `ruinid`.
+
+    Looks for the ``analysis.usability`` metadata field in the channel map. By
+    default, an error is thrown if no information is found. If `default` is set
+    to a non-None value, it will be returned.
+    """
 
     rinfo = runinfo(metadata, runid)
-    return metadata.channelmap(rinfo.start_key)[det_name].analysis.usability
+    chmap = metadata.channelmap(rinfo.start_key)
+    if det_name in chmap and "analysis" in chmap[det_name]:
+        return chmap[det_name].analysis.usability
+
+    if default is None:
+        msg = f"no usability metadata found for {det_name} in {runid} and no default provided"
+        raise RuntimeError(msg)
+
+    msg = (
+        f"no usability metadata found for {det_name} in {runid}, returning {default!s}"
+    )
+    log.warning(msg)
+    return default
 
 
 def runinfo(metadata: LegendMetadata, runid: str) -> str:
