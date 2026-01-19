@@ -28,6 +28,7 @@ paths:
   tier_opt: ./generated/tier/opt
   tier_hit: ./generated/tier/hit
   tier_evt: $_/generated/tier/evt
+  tier_cvt: $_/generated/tier/cvt
   tier_pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots

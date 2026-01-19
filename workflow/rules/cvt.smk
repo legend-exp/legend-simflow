@@ -27,5 +27,5 @@ rule build_tier_cvt:
         patterns.log_tier_cvt_filename(config, SIMFLOW_CONTEXT.proctime),
     benchmark:
         patterns.benchmark_tier_cvt_filename(config)
-    shell:
-        "lh5concat --verbose --overwrite --output {output} -- {input} &> {log}"
+    script:
+        "../src/legendsimflow/scripts/tier/cvt.py"
