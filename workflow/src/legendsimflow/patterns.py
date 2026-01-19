@@ -269,30 +269,27 @@ def log_simstat_part_filename(config: SimflowConfig, time: str, **kwargs) -> Pat
     return _expand(pat, **kwargs)
 
 
-# evt tier
+# cvt tier
 
 
-def evtfile_rel_basename(**kwargs):
-    return expand("{simid}/{simid}_{runid}-tier_evt", **kwargs, allow_missing=True)[0]
+def tier_cvt_base_segment(config: SimflowConfig, **kwargs) -> str:
+    return _expand("{simid}/" + config.experiment + "-{simid}-tier_cvt", **kwargs)
 
 
-def output_evt_filename(config: SimflowConfig, **kwargs):
-    expr = str(Path(config["paths"]["tier_evt"]) / (evtfile_rel_basename() + ".lh5"))
-    return expand(expr, **kwargs, allow_missing=True)[0]
-
-
-def log_evtfile_path(config: SimflowConfig, time, **kwargs):
-    pat = str(
-        Path(config["paths"]["log"]) / time, "evt" / (evtfile_rel_basename() + ".log")
+def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.tier_cvt / (tier_cvt_base_segment(config) + ".lh5"), **kwargs
     )
-    return expand(pat, **kwargs, allow_missing=True)[0]
 
 
-def benchmark_evtfile_path(config: SimflowConfig, **kwargs):
-    pat = str(
-        Path(config["paths"]["benchmarks"]) / "evt" / (evtfile_rel_basename() + ".tsv")
-    )
-    return expand(pat, **kwargs, allow_missing=True)[0]
+def log_tier_cvt_filename(config: SimflowConfig, time, **kwargs) -> Path:
+    pat = log_dirname(config, time) / "cvt" / (tier_cvt_base_segment(config) + ".log")
+    return _expand(pat, **kwargs)
+
+
+def benchmark_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = config.paths.benchmarks / "cvt" / (tier_cvt_base_segment(config) + ".tsv")
+    return _expand(pat, **kwargs)
 
 
 # pdf tier

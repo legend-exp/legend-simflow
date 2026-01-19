@@ -20,6 +20,8 @@ make_tiers:
   - stp
   - opt
   - hit
+  - evt
+  - cvt
 
 # legend_metadata_version: main
 
@@ -49,6 +51,7 @@ paths:
   tier_opt: $_/generated/tier/opt
   tier_hit: $_/generated/tier/hit
   tier_evt: $_/generated/tier/evt
+  tier_cvt: $_/generated/tier/cvt
   tier_pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots

@@ -62,7 +62,7 @@ onstart:
 include: "rules/aux.smk"
 
 
-make_tiers = config.get("make_tiers", ["vtx", "stp", "opt", "hit"])
+make_tiers = config.get("make_tiers", ["vtx", "stp", "opt", "hit", "evt", "cvt"])
 for tier in make_tiers:
 
     include: f"rules/{tier}.smk"

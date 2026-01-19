@@ -66,7 +66,10 @@ rule make_simstat_partition_file:
 # rules.build_tiers_stp.output) because we want to support making only the hit
 # tier via the config.make_tiers option
 rule build_tier_hit:
-    """Produces a hit tier file starting from a single `stp` tier file."""
+    """Produce a `hit` tier file starting from a single `stp` tier file.
+
+    Uses wildcards `simid` and `jobid`.
+    """
     message:
         "Producing output file for job hit.{wildcards.simid}.{wildcards.jobid}"
     input:
