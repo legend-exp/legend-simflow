@@ -4,7 +4,16 @@ Suggested changes:
 """
 
 
-from imports import *
+import os
+import argparse
+import numpy as np
+import awkward as ak
+import copy
+from scipy.signal import convolve, fftconvolve
+import pygama
+from lgdo import lh5, Struct, Array, Scalar
+from dspeed.processors import moving_window_multi
+
 
 ALIGNMENT_IDX = 2000  # Index to align current waveforms to Amax
 ######################### Want to put 1000 as default???
