@@ -279,7 +279,7 @@ def generate_realistic_map(ideal_wf_map_obj, rf_kernel, Amax_alignment_idx=ALIGN
     keys_to_convolve = [k for k in realistic_wf_map.keys() if "waveform" in k]
 
     for key in keys_to_convolve:
-        logger.info(f"Processing {key}...")
+        logger.info("Processing %s...", key)
         
         # Extract and prepare data
         ideal_wfs = realistic_wf_map[key]
@@ -393,12 +393,12 @@ def write_realistic_struct_to_lh5(realistic_dict, original_struct, output_filena
     output_path = Path(output_filename)  # Convert string to a Path object
     
     if output_path.exists():
-        logger.info(f"Overwriting existing file: {output_filename}")
+        logger.info("Overwriting existing file: %s", output_filename)
         output_path.unlink()  # This replaces os.remove()
         
     lh5.write(obj=out_struct, name=group_name, lh5_file=output_filename, wo_mode='w')
     
-    logger.info(f"Successfully wrote group '{group_name}' to {output_filename}")
+    logger.info("Successfully wrote group '%s' to %s", group_name, output_filename)
     return out_struct
 
 
@@ -431,7 +431,7 @@ def main():
         output_filename=args.output_file,
         group_name=args.detector
     )
-    logger.info(f"Realistic library created successfully: {args.output_file}")
+    logger.info("Realistic library created successfully: %s", args.output_file)
 
 if __name__ == "__main__":
     main()
