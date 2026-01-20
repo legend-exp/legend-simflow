@@ -9,15 +9,18 @@ import argparse
 import numpy as np
 import awkward as ak
 import copy
+import logging
+from pathlib import Path
 from scipy.signal import convolve, fftconvolve
 import pygama
 from lgdo import lh5, Struct, Array, Scalar
 from dspeed.processors import moving_window_multi
 
 
-ALIGNMENT_IDX = 2000  # Index to align current waveforms to Amax
-######################### Want to put 1000 as default???
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
 
+ALIGNMENT_IDX = 2000  # Index to align current waveforms to Amax ######################### Want to put 1000 as default???
 NSAMPLES_OUTPUT_CURRENT_WFS = 4001  # Final length of the realistic current waveforms in the map
 
 
@@ -65,9 +68,7 @@ def create_response_kernel(dt, mu_bandwidth, sigma_bandwidth, tau_rc, gaussian_o
     rf_preamp /= np.sum(rf_preamp)
 
     # Convolve preamp and digitizer responses - 'full' mode results in a length of (len(rf_preamp) + len(rf_digi) - 1)
-    rf = convolve(rf_preamp, rf_digi, mode='full')
-    
-    return rf
+    return convolve(rf_preamp, rf_digi, mode='full')
 
 
 def convolve_waveforms(wf_array, rf_kernel):
@@ -167,8 +168,7 @@ def to_current(wf_array, dt):
         2D array containing the derivatives - each has same shape as input!!
     """
     ########################## Normalization to sampling rate ?!? 
-    derivatives = np.diff(wf_array, axis=1, prepend=0) / dt
-    return derivatives
+    return np.diff(wf_array, axis=1, prepend=0) / dt
 
 
 def apply_mwa(wf_array):
@@ -224,10 +224,7 @@ def shift_array(wf_input, center_idx=ALIGNMENT_IDX, output_len=NSAMPLES_OUTPUT_C
     """
     
     # Convert to Numpy for matrix operations
-    if isinstance(wf_input, ak.Array):
-        wfs = ak.to_numpy(wf_input)
-    else:
-        wfs = wf_input
+    wfs = ak.to_numpy(wf_input) if isinstance(wf_input, ak.Array) else wf_input
 
 
     # Output Array - Indeces not covered by the shifted signal are automatically padded with 0.0
@@ -282,7 +279,7 @@ def generate_realistic_map(ideal_wf_map_obj, rf_kernel, Amax_alignment_idx=ALIGN
     keys_to_convolve = [k for k in realistic_wf_map.keys() if "waveform" in k]
 
     for key in keys_to_convolve:
-        print(f"Processing {key}...")
+        logger.info(f"Processing {key}...")
         
         # Extract and prepare data
         ideal_wfs = realistic_wf_map[key]
@@ -321,7 +318,7 @@ def generate_realistic_map(ideal_wf_map_obj, rf_kernel, Amax_alignment_idx=ALIGN
 
         # Reshape and save
         new_length = wfs_aligned.shape[-1]
-        new_shape = original_shape[:-1] + (new_length,)
+        new_shape = (*original_shape[:-1], new_length)
         realistic_wf_map[key] = np.ascontiguousarray(wfs_aligned.reshape(new_shape), dtype=np.float64)
         
     return realistic_wf_map
@@ -393,13 +390,15 @@ def write_realistic_struct_to_lh5(realistic_dict, original_struct, output_filena
     out_struct = Struct(obj_dict=struct_data, attrs=new_attrs)
 
     # Write to disk
-    if os.path.exists(output_filename):
-        print(f"Overwriting existing file: {output_filename}")
-        os.remove(output_filename)
+    output_path = Path(output_filename)  # Convert string to a Path object
+    
+    if output_path.exists():
+        logger.info(f"Overwriting existing file: {output_filename}")
+        output_path.unlink()  # This replaces os.remove()
         
     lh5.write(obj=out_struct, name=group_name, lh5_file=output_filename, wo_mode='w')
     
-    print(f"Successfully wrote group '{group_name}' to {output_filename}")
+    logger.info(f"Successfully wrote group '{group_name}' to {output_filename}")
     return out_struct
 
 
@@ -432,7 +431,7 @@ def main():
         output_filename=args.output_file,
         group_name=args.detector
     )
-    print(f"Realistic library created successfully: {args.output_file}")
+    logger.info(f"Realistic library created successfully: {args.output_file}")
 
 if __name__ == "__main__":
     main()
