@@ -19,7 +19,7 @@ CRYSTAL_AXIS_ANGLES = [0, 45] # in deg <001> <110>
 SIM_ENERGY = 2039u"keV"
 MAX_NSTEPS = 3000
 WAVEFORM_LENGTH = 3000
-TIME_STEP = 1u"ns" # sampling rate sim waveform -- T(1)u"ns" ? 
+TIME_STEP = 1u"ns" # sampling rate sim waveform -- T(1)u"ns" ?
 
 
 ## Waveform map construction
@@ -83,9 +83,9 @@ function compute_waveform_map_for_angle(
     end
 
     n = length(in_idx)
-    wf_signals_threaded = Vector{Vector{Float32}}(undef, n) 
-    
-    
+    wf_signals_threaded = Vector{Vector{Float32}}(undef, n)
+
+
     function get_positions(idx, handle_nplus_local = false, verbose = true)
         pos_candidate = spawn_positions[idx]
         if (!handle_nplus_local || (!in(pos_candidate, sim.detector.contacts)))
@@ -107,7 +107,7 @@ function compute_waveform_map_for_angle(
     end
 
     @info "Simulating grid (r, z) at angle $(angle_deg)°..."
-    
+
     @threads for i in 1:n
         if (i % 1000 == 0)
             x = round(100 * i / n)
@@ -115,7 +115,7 @@ function compute_waveform_map_for_angle(
         end
 
         p = get_positions(in_idx[i], handle_nplus)
-        e = SSD.Event([p], [SIM_ENERGY]) 
+        e = SSD.Event([p], [SIM_ENERGY])
         simulate!(e, sim, Δt = TIME_STEP, max_nsteps = MAX_NSTEPS, verbose = false)
 
         if (only_holes)
@@ -126,10 +126,10 @@ function compute_waveform_map_for_angle(
 
         wf_signals_threaded[i] = ustrip(wf.signal)
     end
-    
+
     ## Minimal waveform post-processing
     wf_padded = fill(NaN32, WAVEFORM_LENGTH, length(z_axis), length(x_axis)) # Initialize with NaN. Pixels outside the detector (not in in_idx) will remain NaN.
-    
+
     for (i, idx) in enumerate(idx_spawn_positions[in_idx])
         raw_signal = wf_signals_threaded[i]
 
@@ -140,31 +140,31 @@ function compute_waveform_map_for_angle(
         else
             signal = raw_signal
         end
-        
+
         # Determine actual length to copy from sim (clip if longer than fixed length)
         len = min(length(signal), WAVEFORM_LENGTH)
-        
+
         # Copy the samples containing the simulated signal
         wf_padded[1:len, idx[2], idx[1]] = signal[1:len]
-    
+
         # Pad remaining samples with the last value of the charge waveform
         if len < WAVEFORM_LENGTH && len > 0
             last_value = signal[len]
-            wf_padded[len+1:end, idx[2], idx[1]] .= last_value
+            wf_padded[(len + 1):end, idx[2], idx[1]] .= last_value
         end
     end
 
     ang_str = lpad(string(angle_deg), 3, '0')
-    
+
     # Prepare map for writing
-    output_fields = Dict{Symbol, Any}(
+    output_fields = Dict{Symbol,Any}(
         :r => collect(x_axis) * u"m",
         :z => collect(z_axis) * u"m",
         :dt => TIME_STEP,
         Symbol("waveform_$(ang_str)_deg") => wf_padded * u"1" # u"1" to indicate dimensionless units (q/q)
     )
-    
-    return (; output_fields...) 
+
+    return (; output_fields...)
 end
 
 
@@ -176,32 +176,32 @@ function main()
 
     @add_arg_table s begin
         "--detector"
-            help = "HPGe detector name"
-            required = true
+        help = "HPGe detector name"
+        required = true
         "--metadata"
-            help = "Path to legend-metadata"
-            required = true
+        help = "Path to legend-metadata"
+        required = true
         "--output-file"
-            help = "Path to output LH5 file"
-            required = true
+        help = "Path to output LH5 file"
+        required = true
         "--opv"
-            help = "detector operational voltage in V (defaults to metadata value)"
-            #required = true # Make sure thie script is using this!!
+        help = "detector operational voltage in V (defaults to metadata value)"
+        #required = true # Make sure the script is using this!!
         "--use-sqrt" # Outdated??
-            help = "Use square-root temperature model"
-            action = :store_true
+        help = "Use square-root temperature model"
+        action = :store_true
         "--use-sqrt-new" # Outdated??
-            help = "Use square-root temperature model with 2016 inputs"
-            action = :store_true
+        help = "Use square-root temperature model with 2016 inputs"
+        action = :store_true
         "--only-holes"
-            help = "Use only the hole contribution"
-            action = :store_true
+        help = "Use only the hole contribution"
+        action = :store_true
         "--use-bulk-drift-time"
-            help = "Use the drift time for the nearest bulk point for surface events"
-            action = :store_true
+        help = "Use the drift time for the nearest bulk point for surface events"
+        action = :store_true
         "--use-corrections" # Important!! Must be set to true!!
-            help = "Use the impurity corrections"
-            action = :store_true
+        help = "Use the impurity corrections"
+        action = :store_true
     end
 
     parsed_args = parse_args(s)
@@ -232,7 +232,7 @@ function main()
     only_holes = parsed_args["only-holes"]
     use_corrections = parsed_args["use-corrections"]
 
-    # Load metadata 
+    # Load metadata
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
     meta.characterization.l200_site.recommended_voltage_in_V = opv_val
 
@@ -250,24 +250,28 @@ function main()
     end
 
     # Run ssd simulation
-    sim = Simulation{T}(LegendData, meta, xtal, 
-                        HPGeEnvironment("LAr", 87u"K"),
-                        operational_voltage = opv_val * u"V" #, 
-                        #n_thickness = 0.7u"mm" #????????????????????????????????????????????????????
-                        )
+    sim = Simulation{T}(LegendData, meta, xtal,
+        HPGeEnvironment("LAr", 87u"K"),
+        operational_voltage = opv_val * u"V" #,
+        #n_thickness = 0.7u"mm" #????????????????????????????????????????????????????
+    )
 
-    
+
     sim.detector = SolidStateDetector(
         sim.detector,
         contact_id = 2,
         contact_potential = opv_val
     )
-    
+
 
     # Physics Models ## Remove??
     if (use_sqrt)
         charge_drift_model = ADLChargeDriftModel(
-            joinpath(SolidStateDetectors.get_path_to_example_config_files(), "ADLChargeDriftModel", "drift_velocity_config_squareroot.yaml")
+            joinpath(
+                SolidStateDetectors.get_path_to_example_config_files(),
+                "ADLChargeDriftModel",
+                "drift_velocity_config_squareroot.yaml"
+            )
         )
         sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
     end
@@ -288,20 +292,25 @@ function main()
     end
     @info "Simulated depletion is $dep"
 
-    
+
     dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
     @info "Depletion measured during characterization is $dep_meas"
 
     if abs(dep_meas - dep) > 100 * u"V"
         error("difference between measured and simulated depletion is larger than 100 V!")
     end
-    
-    
+
+
     @info "Calculating weighting potential..."
-    calculate_weighting_potential!(sim, sim.detector.contacts[1].id, refinement_limits = [0.2, 0.1, 0.05, 0.01], verbose = false)
+    calculate_weighting_potential!(
+        sim,
+        sim.detector.contacts[1].id,
+        refinement_limits = [0.2, 0.1, 0.05, 0.01],
+        verbose = false
+    )
 
     # Compute and save drift-time maps for different angles
-    output = Dict{Symbol, Any}()
+    output = Dict{Symbol,Any}()
     for a in CRYSTAL_AXIS_ANGLES
         eff_angle = use_sqrt ? (a - 45) : a
         out = compute_waveform_map_for_angle(sim, meta, T, eff_angle, only_holes, handle_nplus)
@@ -309,7 +318,7 @@ function main()
         if isempty(output)
             output[:r] = out.r
             output[:z] = out.z
-            output[:dt] = out.dt 
+            output[:dt] = out.dt
         end
 
         key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
