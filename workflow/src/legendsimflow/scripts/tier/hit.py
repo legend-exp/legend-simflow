@@ -57,6 +57,13 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sensvols = pygeomtools.detectors.get_all_sensvols(geom)
 
+# determine list of stp tables in the stp file
+ondisk_stp_tables = {}
+for tbl in lh5.ls(stp_file, "stp/*"):
+    # ignore table names that start with underscore
+    if not tbl.removeprefix("stp/").startswith("_"):
+        ondisk_stp_tables[tbl] = False
+
 partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
 
@@ -77,10 +84,18 @@ for runid, evt_idx_range in partitions.items():
         msg = f"looking for data from sensitive volume {det_name} (uid={geom_meta.uid})..."
         log.debug(msg)
 
+        stp_table_name = f"stp/{det_name}"
+
         # get the usability
         usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
-        if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
+        # only process the HPGe output
+        if geom_meta.detector_type != "germanium":
+            # no bookkeeping of this table
+            ondisk_stp_tables.pop(stp_table_name, None)
+            continue
+
+        if stp_table_name not in ondisk_stp_tables:
             msg = (
                 f"detector {det_name} not found in {stp_file}. "
                 "possibly because it was not read-out or there were no hits recorded"
@@ -98,15 +113,11 @@ for runid, evt_idx_range in partitions.items():
         # the buil_tcm() step at the end
         iterator = LH5Iterator(
             stp_file,
-            f"stp/{det_name}",
+            stp_table_name,
             i_start=i_start,
             n_entries=n_entries,
             buffer_len=buffer_len,
         )
-
-        # only process the HPGe output
-        if geom_meta.detector_type != "germanium":
-            continue
 
         msg = f"processing the {det_name} output table..."
         log.info(msg)
@@ -187,6 +198,16 @@ for runid, evt_idx_range in partitions.items():
                 hit_file,
                 geom_meta.uid,
             )
+
+        # this table has been processed
+        ondisk_stp_tables[stp_table_name] = True
+
+# sanity check that all the stp tables were processed. this is important for
+# TCM consistency across all tiers later on
+not_done = [k for k, v in ondisk_stp_tables.items() if not v]
+if not_done:
+    msg = f"stp tables {not_done} were not processed!"
+    raise RuntimeError(msg)
 
 log.debug("building the TCM")
 reboost_utils.build_tcm(hit_file, hit_file)
