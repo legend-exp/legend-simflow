@@ -95,7 +95,7 @@ def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> N
 
         msg = f"creating soft link hit/__by_uid__/det{objuid} -> {objname}"
         log.debug(msg)
-        with h5py.File(outfile, "r+") as f:
+        with h5py.File(outfile, "r+", locking=False) as f:
             # create uid -> det_name symlink
             f[f"hit/__by_uid__/det{objuid}"] = h5py.SoftLink(objname)
             # updated the struct datatype attribute by adding the new symlink
