@@ -106,8 +106,8 @@ def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> N
             )
 
 
-def get_sensvols(geom, det_type: str | None = None) -> list[str]:
-    sensvols = pygeomtools.detectors.get_all_sensvols(geom)
+def get_senstables(geom, det_type: str | None = None) -> list[str]:
+    sensvols = pygeomtools.detectors.get_all_senstables(geom)
     if det_type is not None:
         return [k for k, v in sensvols.items() if v.detector_type == det_type]
     return list(sensvols.keys())

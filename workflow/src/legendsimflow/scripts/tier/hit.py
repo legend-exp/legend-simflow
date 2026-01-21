@@ -53,9 +53,9 @@ buffer_len = args.params.buffer_len
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
-# load the geometry and retrieve registered sensitive volumes
+# load the geometry and retrieve registered sensitive volume tables
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
-sensvols = pygeomtools.detectors.get_all_sensvols(geom)
+sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 # determine list of stp tables in the stp file
 ondisk_stp_tables = {}
@@ -79,9 +79,9 @@ for runid, evt_idx_range in partitions.items():
     )
     currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
 
-    # loop over the sensitive volumes registered in the geometry
-    for det_name, geom_meta in sensvols.items():
-        msg = f"looking for data from sensitive volume {det_name} (uid={geom_meta.uid})..."
+    # loop over the sensitive volume tables registered in the geometry
+    for det_name, geom_meta in sens_tables.items():
+        msg = f"looking for data from sensitive volume table {det_name} (uid={geom_meta.uid})..."
         log.debug(msg)
 
         stp_table_name = f"stp/{det_name}"
