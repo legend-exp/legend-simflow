@@ -18,6 +18,7 @@ rule build_tier_evt:
     message:
         "Producing output file for job evt.{wildcards.simid}.{wildcards.jobid}"
     input:
+        stp_file=patterns.output_simjob_filename(config, tier="stp"),
         opt_file=patterns.output_simjob_filename(config, tier="opt"),
         hit_file=patterns.output_simjob_filename(config, tier="hit"),
     params:

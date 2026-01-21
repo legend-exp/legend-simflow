@@ -27,6 +27,7 @@ from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
+stp_file = args.input.stp_file
 opt_file = args.input.opt_file
 hit_file = args.input.hit_file
 evt_file = args.output[0]
@@ -40,6 +41,9 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
 log.info("building hit+opt unified TCM")
 reboost_utils.build_tcm([hit_file, opt_file], evt_file)
+
+# test that the evt tcm has the same amount of rows as the stp tcm
+assert lh5.read_n_rows("tcm", stp_file) == lh5.read_n_rows("tcm", evt_file)
 
 log.info("extracting remage uid map")
 
