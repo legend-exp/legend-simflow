@@ -23,6 +23,7 @@ from reboost.core import read_data_at_channel_as_ak
 from reboost.utils import get_remage_detector_uids
 
 from legendsimflow import nersc
+from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -37,7 +38,10 @@ buffer_len = args.params.buffer_len
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
-log.info("... extracting remage uid map")
+log.info("building hit+opt unified TCM")
+reboost_utils.build_tcm([hit_file, opt_file], evt_file)
+
+log.info("extracting remage uid map")
 
 # get the mapping of detector name to uid
 mapping = {
@@ -48,7 +52,7 @@ mapping = {
 # fields to forward
 field_list = ["aoe", "drift_time_heuristic", "energy", "evtid", "runid", "t0"]
 
-log.info("... begin iterating")
+log.info("begin iterating over unified TCM")
 
 # iterate
 it = lh5.LH5Iterator(hit_file, "tcm", buffer_len=buffer_len)
@@ -72,7 +76,4 @@ for tcm_chunk in it:
         out.add_field(field, VectorOfVectors(field_data))
 
     # now write
-    wo_mode = "of" if it.current_i_entry == 0 else "append_column"
-    lh5.write(out, "evt", evt_file, wo_mode=wo_mode)
-
-log.info("... done building events")
+    lh5.write(out, "evt", evt_file, wo_mode="append")

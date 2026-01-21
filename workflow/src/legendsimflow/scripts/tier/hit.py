@@ -189,4 +189,4 @@ for runid, evt_idx_range in partitions.items():
             )
 
 log.debug("building the TCM")
-reboost_utils.build_tcm(hit_file)
+reboost_utils.build_tcm(hit_file, hit_file)
