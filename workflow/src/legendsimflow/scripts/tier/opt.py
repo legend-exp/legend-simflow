@@ -148,4 +148,4 @@ for det_name, geom_meta in sensvols.items():
 
 
 log.debug("building the TCM")
-reboost_utils.build_tcm(hit_file)
+reboost_utils.build_tcm(hit_file, hit_file)
