@@ -151,9 +151,9 @@ def get_remage_hit_range(
     """Extract the range of remage output rows for an event range.
 
     Queries the remage TCM (stored below ``/tcm`` in `stp_file`) with the input
-    `evt_idx_range` to extract the first and last index of rows (hits) in the
-    `det_name` detector table that correspond to the input event range. Returns
-    the first and last index as a tuple.
+    `evt_idx_range = [i, j)` to extract the first and last index of rows (hits)
+    in the `det_name` detector table that correspond to the input event range.
+    Returns the start index and number of rows to read after it as a tuple.
 
     Parameters
     ----------
@@ -164,8 +164,8 @@ def get_remage_hit_range(
     uid
         remage unique identifier for detector `det_name`.
     evt_idx_range
-        first and last index of events of interest present in the remage output
-        file.
+        `[first, last)` index of events of interest present in the remage
+        output file.
     """
     # load TCM, to be used to chunk the event statistics according to the run partitioning
     tcm = lh5.read_as("tcm", stp_file, library="ak")
@@ -184,7 +184,7 @@ def get_remage_hit_range(
         log.debug(msg)
 
         i_start = entry_list[0]
-        n_entries = entry_list[-1] - entry_list[0]
+        n_entries = entry_list[-1] - entry_list[0] + 1
 
     else:
         msg = (
