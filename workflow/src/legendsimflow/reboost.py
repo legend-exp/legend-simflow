@@ -93,14 +93,16 @@ def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> N
             log.debug("creating hit/__by_uid__ folder")
             lh5.write(lgdo.Struct(), "hit/__by_uid__", outfile)
 
-        msg = f"creating soft link hit/__by_uid__/det{objuid} -> {objname}"
+        link_name = f"det{objuid:03}"
+
+        msg = f"creating soft link hit/__by_uid__/{link_name} -> {objname}"
         log.debug(msg)
         with h5py.File(outfile, "r+", locking=False) as f:
             # create uid -> det_name symlink
-            f[f"hit/__by_uid__/det{objuid}"] = h5py.SoftLink(objname)
+            f[f"hit/__by_uid__/{link_name}"] = h5py.SoftLink(objname)
             # updated the struct datatype attribute by adding the new symlink
             dt = f["hit/__by_uid__"].attrs.pop("datatype")
-            fields = [*lgdo.lh5.datatype.get_struct_fields(dt), f"det{objuid}"]
+            fields = [*lgdo.lh5.datatype.get_struct_fields(dt), link_name]
             f["hit/__by_uid__"].attrs["datatype"] = (
                 "struct{" + ",".join(sorted(fields)) + "}"
             )
