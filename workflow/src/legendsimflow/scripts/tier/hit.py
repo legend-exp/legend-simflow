@@ -48,7 +48,7 @@ metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
 simstat_part_file = args.input.simstat_part_file
-buffer_len = args.params.buffer_len
+buffer_len = "500*MB"
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
