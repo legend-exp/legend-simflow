@@ -297,7 +297,7 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
 
     has_fccd_meta = validate_dict_schema(
         det_meta.characterization,
-        {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
+        {"combined_0vbb_analysis": {"fccd_in_mm": {"value": 0.0}}},
         greedy=False,
         verbose=False,
     )
@@ -307,7 +307,7 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
         log.warning(msg)
         fccd = 1
     else:
-        fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
+        fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm.value
 
     return fccd
 

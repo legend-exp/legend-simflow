@@ -79,3 +79,7 @@ def test_encode_usability():
 
     for use in ["on", "off", "ac"]:
         assert metadata.decode_usability(metadata.encode_usability(use)) == use
+
+
+def test_fccd(config):
+    assert metadata.get_sanitized_fccd(config.metadata, "B99000A") == 0.75

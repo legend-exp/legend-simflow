@@ -14,7 +14,25 @@ rule gen_all_tier_opt:
 # rules.build_tiers_stp.output) because we want to support making only the opt
 # tier via the config.make_tiers option
 rule build_tier_opt:
-    """Produces a opt tier file starting from a single `stp` tier file."""
+    """Produces a `opt` tier file starting from a single `stp` tier file.
+
+    This rule implements the post-processing of the `stp` tier liquid argon
+    energy depositions in chunks, in the following steps:
+
+    - scintillation photons are generated corresponding to simulated energy
+      depositions;
+    - detected photoelectrons are sampled according to the input optical map;
+    - a new time-coincidence map (TCM) across the processed SiPMs is created
+      and stored in the output file.
+
+    This rule can sample photoelectrons in each SiPM individually or for all
+    SiPMs at the same time, see relevant `param` flag.
+
+    The `stp` data format is preserved: SiPM tables are stored separately in
+    the output file below `/hit/{sipm_name}`.
+
+    Uses wildcards `simid` and `jobid`.
+    """
     message:
         "Producing output file for job opt.{wildcards.simid}.{wildcards.jobid}"
     input:

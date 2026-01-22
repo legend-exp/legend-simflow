@@ -24,13 +24,13 @@ from reboost.utils import get_remage_detector_uids
 
 from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
 
-FORWARD_FIELD_LIST = ["aoe", "drift_time_heuristic", "t0"]
 ENERGY_THR_KEV = 25
+BUFFER_LEN = "500*MB"
 OFF = encode_usability("off")
 ON = encode_usability("on")
-BUFFER_LEN = "500*MB"
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -38,8 +38,10 @@ wildcards = args.wildcards
 stp_file = patterns.output_simjob_filename(
     args.config, tier="stp", simid=wildcards.simid, jobid=wildcards.jobid
 )
-opt_file = args.input.opt_file
-hit_file = args.input.hit_file
+hit_file = {
+    "opt": args.input.opt_file,
+    "hit": args.input.hit_file,
+}
 evt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
@@ -48,51 +50,84 @@ metadata = args.config.metadata
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
 log.info("building hit+opt unified TCM")
-reboost_utils.build_tcm([hit_file, opt_file], evt_file)
+reboost_utils.build_tcm(hit_file.values(), evt_file)
 
 # test that the evt tcm has the same amount of rows as the stp tcm
 assert lh5.read_n_rows("tcm", stp_file) == lh5.read_n_rows("tcm", evt_file)
 
 # get the mapping of detector name to uid
-detname2uid = {
-    name: uid
-    for uid, name in get_remage_detector_uids(hit_file, lh5_table="hit").items()
-}
+# NOTE: we check on disk because we are not sure which tables were processed in
+# the hit tiers
+det2uid = {}
+for tier in ("opt", "hit"):
+    det2uid[tier] = {
+        name: uid
+        for uid, name in get_remage_detector_uids(
+            hit_file[tier], lh5_table="hit"
+        ).items()
+    }
+    msg = f"found mapping name -> uid ({tier} tier): {det2uid[tier]}"
+    log.debug(msg)
 
 
 # little helper to simplify the code below
-def _read_hits(tcm_ak, field):
+def _read_hits(tcm_ak, tier, field):
+    msg = f"loading {field=} data from {tier=} (file {hit_file[tier]})"
+    log.debug(msg)
+
     return read_data_at_channel_as_ak(
-        tcm_ak.table_key, tcm_ak.row_in_table, hit_file, field, "hit", detname2uid
+        tcm_ak[tier].table_key,
+        tcm_ak[tier].row_in_table,
+        hit_file[tier],
+        field,
+        "hit",
+        det2uid[tier],
     )
 
 
-# iterate
-it = lh5.LH5Iterator(hit_file, "tcm", buffer_len=BUFFER_LEN)
+# iterate over the unified tcm
+# NOTE: open mode is append because we will write to the same file
+it = lh5.LH5Iterator(evt_file, "tcm", buffer_len=BUFFER_LEN, h5py_open_mode="a")
 
 log.info("begin iterating over TCM")
-for tcm_chunk in it:
-    tcm_ak = tcm_chunk.view_as("ak")
-    out_table = Table(size=len(tcm_ak))
+for chunk in it:
+    unified_tcm = chunk.view_as("ak")
+    out_table = Table(size=len(unified_tcm))
+
+    # split the unified TCM in two, one for each tier. in this way we will be
+    # able to read data from each tier
+    tcm = {}
+    for tier in ("opt", "hit"):
+        mask = ak_isin(unified_tcm.table_key, det2uid[tier].values())
+        tcm[tier] = unified_tcm[mask]
+
+    # trigger table
+    # -------------
+    out_table.add_field("trigger", Table(size=len(unified_tcm)))
 
     # global fields that are constant over the full events
+    # let's take them from the hit tier
     for constant_field in ["run", "period", "evtid"]:
-        data = _read_hits(tcm_ak, constant_field)
+        data = _read_hits(tcm, "hit", constant_field)
 
         # sanity check
-        assert ak.all(data == data[:, 0])
+        assert len(data) == len(tcm[tier])
 
         # replace the awkward missing values with NaN for LH5 compatibility
         data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
-        out_table.add_field(constant_field, Array(np.array(data)))
+        out_table.add_field(f"trigger/{constant_field}", Array(data))
+
+    timestamp = _read_hits(tcm, "hit", "t0")
+    timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
+    out_table.add_field("trigger/timestamp", Array(timestamp))
 
     # HPGe table
     # ----------
-    out_table.add_field("geds", Table(size=len(tcm_ak)))
+    out_table.add_field("geds", Table(size=len(unified_tcm)))
 
     # first read usability and energy
-    usability = _read_hits(tcm_ak, "usability")
-    energy = _read_hits(tcm_ak, "energy")
+    usability = _read_hits(tcm, "hit", "usability")
+    energy = _read_hits(tcm, "hit", "energy")
 
     # we want to only store hits from events in ON and AC detectors and above
     # our energy threshold
@@ -104,17 +139,26 @@ for tcm_chunk in it:
     out_table.add_field("geds/energy", VectorOfVectors(energy[hitsel]))
 
     # fields to identify detectors and lookup stuff in the lower tiers
-    out_table.add_field("geds/rawid", VectorOfVectors(tcm_ak.table_key[hitsel]))
-    out_table.add_field("geds/hit_idx", VectorOfVectors(tcm_ak.row_in_table[hitsel]))
+    out_table.add_field("geds/rawid", VectorOfVectors(tcm["hit"].table_key[hitsel]))
+    out_table.add_field(
+        "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
+    )
 
     # simply forward some fields
-    for field in FORWARD_FIELD_LIST:
-        field_data = _read_hits(tcm_ak, field)
+    for field in ["aoe", "drift_time_heuristic"]:
+        field_data = _read_hits(tcm, "hit", field)
         out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[hitsel]))
 
     # compute multiplicity
     multiplicity = ak.sum(hitsel, axis=-1)
     out_table.add_field("geds/multiplicity", Array(multiplicity))
+
+    # SiPM table
+    # ----------
+    out_table.add_field("spms", Table(size=len(unified_tcm)))
+
+    pe_time = _read_hits(tcm, "opt", "time")
+    out_table.add_field("spms/t0", VectorOfVectors(pe_time))
 
     # now write down
     lh5.write(out_table, "evt", evt_file, wo_mode="append")

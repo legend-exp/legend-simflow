@@ -13,6 +13,11 @@ rule build_tier_evt:
     Event files re-organize the `hit` and `opt` tier data into a single,
     event-oriented table where each row correspond to an event.
 
+    - a unified TCM is built from the `opt` and `hit` data. It is different
+      from the `stp` tier TCM since it includes also the SiPM channels;
+    - fields from lower tiers are restructured into events;
+    - new event-level fields are computed and stored in the output file.
+
     Uses wildcards `simid` and `jobid`.
     """
     message:
