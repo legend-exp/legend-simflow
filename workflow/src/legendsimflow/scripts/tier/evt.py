@@ -22,7 +22,7 @@ from lgdo import Array, Table, VectorOfVectors, lh5
 from reboost.core import read_data_at_channel_as_ak
 from reboost.utils import get_remage_detector_uids
 
-from legendsimflow import nersc
+from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.metadata import encode_usability
 
@@ -34,7 +34,10 @@ BUFFER_LEN = "500*MB"
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
-stp_file = args.input.stp_file
+wildcards = args.wildcards
+stp_file = patterns.output_simjob_filename(
+    args.config, tier="stp", simid=wildcards.simid, jobid=wildcards.jobid
+)
 opt_file = args.input.opt_file
 hit_file = args.input.hit_file
 evt_file = args.output[0]
