@@ -28,9 +28,9 @@ from legendsimflow.metadata import encode_usability
 
 FORWARD_FIELD_LIST = ["aoe", "drift_time_heuristic", "t0"]
 ENERGY_THR_KEV = 25
+BUFFER_LEN = "500*MB"
 OFF = encode_usability("off")
 ON = encode_usability("on")
-BUFFER_LEN = "500*MB"
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -38,8 +38,10 @@ wildcards = args.wildcards
 stp_file = patterns.output_simjob_filename(
     args.config, tier="stp", simid=wildcards.simid, jobid=wildcards.jobid
 )
-opt_file = args.input.opt_file
-hit_file = args.input.hit_file
+hit_file = {
+    "opt": args.input.opt_file,
+    "hit": args.input.hit_file,
+}
 evt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
@@ -48,27 +50,40 @@ metadata = args.config.metadata
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
 log.info("building hit+opt unified TCM")
-reboost_utils.build_tcm([hit_file, opt_file], evt_file)
+reboost_utils.build_tcm(hit_file.values(), evt_file)
 
 # test that the evt tcm has the same amount of rows as the stp tcm
 assert lh5.read_n_rows("tcm", stp_file) == lh5.read_n_rows("tcm", evt_file)
 
 # get the mapping of detector name to uid
-detname2uid = {
-    name: uid
-    for uid, name in get_remage_detector_uids(hit_file, lh5_table="hit").items()
-}
+# NOTE: we check on disk because we are not sure which tables were processed in
+# the hit tiers
+det2uid = {}
+for tier in ("opt", "hit"):
+    det2uid[tier] = {
+        name: uid
+        for uid, name in get_remage_detector_uids(
+            hit_file[tier], lh5_table="hit"
+        ).items()
+    }
+    msg = f"found mapping name -> uid ({tier} tier): {det2uid[tier]}"
+    log.debug(msg)
 
 
 # little helper to simplify the code below
-def _read_hits(tcm_ak, field):
+def _read_hits(tcm_ak, tier, field):
     return read_data_at_channel_as_ak(
-        tcm_ak.table_key, tcm_ak.row_in_table, hit_file, field, "hit", detname2uid
+        tcm_ak.table_key,
+        tcm_ak.row_in_table,
+        hit_file[tier],
+        field,
+        "hit",
+        det2uid[tier],
     )
 
 
-# iterate
-it = lh5.LH5Iterator(hit_file, "tcm", buffer_len=BUFFER_LEN)
+# iterate over the unified tcm
+it = lh5.LH5Iterator(hit_file["hit"], "tcm", buffer_len=BUFFER_LEN)
 
 log.info("begin iterating over TCM")
 for tcm_chunk in it:
@@ -76,8 +91,9 @@ for tcm_chunk in it:
     out_table = Table(size=len(tcm_ak))
 
     # global fields that are constant over the full events
+    # let's take them from the hit tier
     for constant_field in ["run", "period", "evtid"]:
-        data = _read_hits(tcm_ak, constant_field)
+        data = _read_hits(tcm_ak, "hit", constant_field)
 
         # sanity check
         assert ak.all(data == data[:, 0])
@@ -91,8 +107,8 @@ for tcm_chunk in it:
     out_table.add_field("geds", Table(size=len(tcm_ak)))
 
     # first read usability and energy
-    usability = _read_hits(tcm_ak, "usability")
-    energy = _read_hits(tcm_ak, "energy")
+    usability = _read_hits(tcm_ak, "hit", "usability")
+    energy = _read_hits(tcm_ak, "hit", "energy")
 
     # we want to only store hits from events in ON and AC detectors and above
     # our energy threshold
@@ -109,7 +125,7 @@ for tcm_chunk in it:
 
     # simply forward some fields
     for field in FORWARD_FIELD_LIST:
-        field_data = _read_hits(tcm_ak, field)
+        field_data = _read_hits(tcm_ak, "hit", field)
         out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[hitsel]))
 
     # compute multiplicity
