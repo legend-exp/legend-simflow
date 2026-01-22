@@ -24,6 +24,7 @@ from reboost.utils import get_remage_detector_uids
 
 from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
 
 FORWARD_FIELD_LIST = ["aoe", "drift_time_heuristic", "t0"]
@@ -72,9 +73,12 @@ for tier in ("opt", "hit"):
 
 # little helper to simplify the code below
 def _read_hits(tcm_ak, tier, field):
+    msg = f"loading {field=} data from {tier=} (file {hit_file[tier]})"
+    log.debug(msg)
+
     return read_data_at_channel_as_ak(
-        tcm_ak.table_key,
-        tcm_ak.row_in_table,
+        tcm_ak[tier].table_key,
+        tcm_ak[tier].row_in_table,
         hit_file[tier],
         field,
         "hit",
@@ -83,32 +87,40 @@ def _read_hits(tcm_ak, tier, field):
 
 
 # iterate over the unified tcm
-it = lh5.LH5Iterator(hit_file["hit"], "tcm", buffer_len=BUFFER_LEN)
+# NOTE: open mode is append because we will write to the same file
+it = lh5.LH5Iterator(evt_file, "tcm", buffer_len=BUFFER_LEN, h5py_open_mode="a")
 
 log.info("begin iterating over TCM")
-for tcm_chunk in it:
-    tcm_ak = tcm_chunk.view_as("ak")
-    out_table = Table(size=len(tcm_ak))
+for chunk in it:
+    unified_tcm = chunk.view_as("ak")
+    out_table = Table(size=len(unified_tcm))
+
+    # HPGe table
+    # ----------
+    out_table.add_field("geds", Table(size=len(unified_tcm)))
+
+    # split the unified TCM in two, one for each tier. in this way we will be
+    # able to read data from each tier
+    tcm = {}
+    for tier in ("opt", "hit"):
+        mask = ak_isin(unified_tcm.table_key, det2uid[tier].values())
+        tcm[tier] = unified_tcm[mask]
 
     # global fields that are constant over the full events
     # let's take them from the hit tier
     for constant_field in ["run", "period", "evtid"]:
-        data = _read_hits(tcm_ak, "hit", constant_field)
+        data = _read_hits(tcm, "hit", constant_field)
 
         # sanity check
-        assert ak.all(data == data[:, 0])
+        assert len(data) == len(tcm[tier])
 
         # replace the awkward missing values with NaN for LH5 compatibility
         data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
         out_table.add_field(constant_field, Array(np.array(data)))
 
-    # HPGe table
-    # ----------
-    out_table.add_field("geds", Table(size=len(tcm_ak)))
-
     # first read usability and energy
-    usability = _read_hits(tcm_ak, "hit", "usability")
-    energy = _read_hits(tcm_ak, "hit", "energy")
+    usability = _read_hits(tcm, "hit", "usability")
+    energy = _read_hits(tcm, "hit", "energy")
 
     # we want to only store hits from events in ON and AC detectors and above
     # our energy threshold
@@ -120,12 +132,14 @@ for tcm_chunk in it:
     out_table.add_field("geds/energy", VectorOfVectors(energy[hitsel]))
 
     # fields to identify detectors and lookup stuff in the lower tiers
-    out_table.add_field("geds/rawid", VectorOfVectors(tcm_ak.table_key[hitsel]))
-    out_table.add_field("geds/hit_idx", VectorOfVectors(tcm_ak.row_in_table[hitsel]))
+    out_table.add_field("geds/rawid", VectorOfVectors(tcm["hit"].table_key[hitsel]))
+    out_table.add_field(
+        "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
+    )
 
     # simply forward some fields
     for field in FORWARD_FIELD_LIST:
-        field_data = _read_hits(tcm_ak, "hit", field)
+        field_data = _read_hits(tcm, "hit", field)
         out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[hitsel]))
 
     # compute multiplicity
