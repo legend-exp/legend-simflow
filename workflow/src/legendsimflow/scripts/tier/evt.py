@@ -60,6 +60,7 @@ detname2uid = {
 }
 
 
+# little helper to simplify the code below
 def _read_hits(tcm_ak, field):
     return read_data_at_channel_as_ak(
         tcm_ak.table_key, tcm_ak.row_in_table, hit_file, field, "hit", detname2uid
@@ -95,24 +96,24 @@ for tcm_chunk in it:
 
     # we want to only store hits from events in ON and AC detectors and above
     # our energy threshold
-    is_good_hit = (usability != OFF) & (energy > ENERGY_THR_KEV)
+    hitsel = (usability != OFF) & (energy > ENERGY_THR_KEV)
 
-    out_table.add_field("geds/usability", VectorOfVectors(usability[is_good_hit]))
-    out_table.add_field("geds/energy", VectorOfVectors(energy[is_good_hit]))
+    out_table.add_field(
+        "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
+    )
+    out_table.add_field("geds/energy", VectorOfVectors(energy[hitsel]))
 
     # fields to identify detectors and lookup stuff in the lower tiers
-    out_table.add_field("geds/rawid", VectorOfVectors(tcm_ak.table_key[is_good_hit]))
-    out_table.add_field(
-        "geds/hit_idx", VectorOfVectors(tcm_ak.row_in_table[is_good_hit])
-    )
+    out_table.add_field("geds/rawid", VectorOfVectors(tcm_ak.table_key[hitsel]))
+    out_table.add_field("geds/hit_idx", VectorOfVectors(tcm_ak.row_in_table[hitsel]))
 
     # simply forward some fields
     for field in FORWARD_FIELD_LIST:
         field_data = _read_hits(tcm_ak, field)
-        out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[is_good_hit]))
+        out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[hitsel]))
 
     # compute multiplicity
-    multiplicity = ak.sum(is_good_hit, axis=-1)
+    multiplicity = ak.sum(hitsel, axis=-1)
     out_table.add_field("geds/multiplicity", Array(multiplicity))
 
     # now write down
