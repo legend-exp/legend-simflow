@@ -39,7 +39,7 @@ gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
-buffer_len = args.params.buffer_len
+buffer_len = "100*MB"
 scintillator_volume_name = args.params.scintillator_volume_name
 
 

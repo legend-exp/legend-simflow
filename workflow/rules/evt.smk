@@ -20,8 +20,6 @@ rule build_tier_evt:
     input:
         opt_file=patterns.output_simjob_filename(config, tier="opt"),
         hit_file=patterns.output_simjob_filename(config, tier="hit"),
-    params:
-        buffer_len="500*MB",
     output:
         patterns.output_simjob_filename(config, tier="evt"),
     log:

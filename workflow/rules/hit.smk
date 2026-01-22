@@ -82,8 +82,6 @@ rule build_tier_hit:
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=rules.make_simstat_partition_file.output[0],
-    params:
-        buffer_len="500*MB",
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
