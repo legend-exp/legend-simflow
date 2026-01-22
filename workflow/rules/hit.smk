@@ -68,6 +68,24 @@ rule make_simstat_partition_file:
 rule build_tier_hit:
     """Produce a `hit` tier file starting from a single `stp` tier file.
 
+    This rule implements the post-processing of the `stp` tier HPGe data in
+    chunks, in the following steps:
+
+    - each chunk is partitioned according the the livetime span of each run
+      (see the `make_simstat_partition_file` rule). For each partition:
+    - the detector usability is retrieved from `legend-metadata` and stored in
+      the output;
+    - the active volume model is applied based on information from `legend-metadata`;
+    - A/E is simulated based on current signal templates extracted from
+      LEGEND-200 data;
+    - energy is smeared according to the measured energy resolution (extracted
+      from the data production parameters database);
+    - a new time-coincidence map (TCM) across the processed detectors is
+      created and stored in the output file.
+
+    The `stp` data format is preserved: detector tables are stored separately
+    in the output file below `/hit/{detector_name}`.
+
     Uses wildcards `simid` and `jobid`.
     """
     message:
@@ -235,8 +253,8 @@ def smk_extract_current_pulse_model_inputs(wildcards):
 rule extract_current_pulse_model:
     """Extract the HPGe current signal model.
 
-    Perform a fit of the current waveform and stores the best-fit model
-    parameters in a YAML file.
+    Perform a fit of current signals recorded in LEGEND-200 and stores the
+    best-fit model parameters in a YAML file.
 
     :::{warning}
     This rule does not have the relevant LEGEND-200 data files as input, since
