@@ -72,6 +72,8 @@ def gen_target_all():
     if config.get("simlist", "*") in ("all", "*"):
         if "pdf" in make_tiers:
             return rules.gen_pdf_release.input
+        elif "cvt" in make_tiers:
+            return rules.gen_all_tier_cvt.input
         elif "evt" in make_tiers:
             return rules.gen_all_tier_evt.input
         elif "hit" in make_tiers:
