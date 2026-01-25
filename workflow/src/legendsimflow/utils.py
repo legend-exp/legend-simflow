@@ -91,14 +91,14 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
         config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)
 
     # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
-    # NOTE: don't use lazy=True, we need a fully functional TextDB
-    # NOTE: read only path on NERSC, we are not going to modify the db
-    metadata = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
+    metadata = LegendMetadata(config.paths.metadata, lazy=True)
 
     if "legend_metadata_version" in config:
         metadata.checkout(config.legend_metadata_version)
 
-    config["metadata"] = metadata
+    # NOTE: read only path on NERSC, we are not going to modify the db
+    # NOTE: don't use lazy=True, we need a fully functional TextDB
+    config["metadata"] = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
 
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)
