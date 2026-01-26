@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import signal
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
@@ -33,6 +34,11 @@ def snakemake_nersc_cli():
     )
     parser.add_argument(
         "-N", "--nodes", type=int, required=True, help="number of nodes"
+    )
+    parser.add_argument(
+        "--without-srun",
+        action="store_true",
+        help="do not prefix the snakemake call with 'srun ...'",
     )
     args, extra = parser.parse_known_args()
 
@@ -78,23 +84,48 @@ def snakemake_nersc_cli():
     procs = []
     for simlist_chunk in _partition(simlist, args.nodes):
         smk_cmd = [
-            "srun",
-            "--nodes",
-            "1",
-            "--ntasks",
-            "1",
-            "--cpus-per-task",
-            "256",
             "snakemake",
-            "--worflow-profile",
+            "--workflow-profile",
             "workflow/profiles/nersc",
             "--config",
             "simlist=" + ",".join(simlist_chunk),
             *extra,
         ]
+        if not args.without_srun:
+            smk_cmd = [
+                "srun",
+                "--disable-status",  # otherwise SIGINT has no effect
+                "--nodes",
+                "1",
+                "--ntasks",
+                "1",
+                "--cpus-per-task",
+                "256",
+                *smk_cmd,
+            ]
 
         print("INFO: spawning process:", " ".join(smk_cmd))  # noqa: T201
         procs.append(subprocess.Popen(smk_cmd))
+
+    # propagate signals to the snakemake instances.
+    def new_signal_handler(sig: int, _):
+        for p in procs:
+            p.send_signal(sig)
+
+    signals = [
+        signal.SIGHUP,
+        signal.SIGINT,
+        signal.SIGQUIT,
+        signal.SIGTERM,
+        signal.SIGTSTP,  # SIGSTOP cannot be caught, and will do nothing...
+        signal.SIGCONT,
+        signal.SIGUSR1,
+        signal.SIGUSR2,
+        signal.SIGWINCH,
+    ]
+
+    for sig in signals:
+        signal.signal(sig, new_signal_handler)
 
     for p in procs:
         rc = p.wait()
