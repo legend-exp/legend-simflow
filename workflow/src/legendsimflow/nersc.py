@@ -86,9 +86,10 @@ def snakemake_nersc_cli():
             "--cpus-per-task",
             "256",
             "snakemake",
+            "--worflow-profile",
+            "workflow/profiles/nersc",
             "--config",
             "simlist=" + ",".join(simlist_chunk),
-            "--nolock",
             *extra,
         ]
 
