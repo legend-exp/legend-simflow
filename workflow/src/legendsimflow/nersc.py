@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 import re
 import signal
 import subprocess
@@ -80,6 +81,11 @@ def snakemake_nersc_cli():
         simlist = [
             f"{tier}.{simid}" for simid in aggregate.gen_list_of_all_simids(config)
         ]
+
+    # trick: there won't be anything to do for some simids (targets already
+    # done), this could result in a very inefficient partitioning. as a
+    # mitigation, we randomly shuffle the simlist first
+    random.shuffle(simlist)
 
     procs = []
     for simlist_chunk in _partition(simlist, args.nodes):
