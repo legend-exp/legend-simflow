@@ -148,6 +148,7 @@ def remage_run(
         *remage_exe,
         "--ignore-warnings",
         "--merge-output-files",
+        "--overwrite",
         "--log-level=detail",
         "--procs",
         str(procs),

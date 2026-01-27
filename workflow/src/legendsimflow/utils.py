@@ -49,7 +49,7 @@ def _merge_defaults(user: dict, default: dict) -> dict:
     return result
 
 
-def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
+def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     """Pre-process and sanitize the Simflow configuration.
 
     - set default configuration fields;
@@ -60,6 +60,15 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     - attach a :class:`legendmeta.LegendMetadata` instance to the Simflow
       configuration;
     - export important environment variables.
+
+    Parameters
+    ----------
+    raw_config
+        path to the Simflow configuration file.
+    workflow
+        Snakemake workflow instance. If None, occurrences of ``$_`` in the
+        configuration will be replaced with the path to the current working
+        directory.
 
     Returns a dictionary with useful objects to be used in the Simflow
     Snakefiles (i.e. the "context").
@@ -73,7 +82,16 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
         {"benchmark": {"enabled": False}, "nersc": {"dvs_ro": False, "scratch": False}},
     )
 
-    ldfs.workflow.utils.subst_vars_in_snakemake_config(workflow, raw_config)
+    if workflow is None:
+        ldfs.subst_vars(
+            raw_config,
+            var_values={"_": Path().resolve()},
+            use_env=True,
+            ignore_missing=False,
+        )
+    else:
+        ldfs.workflow.utils.subst_vars_in_snakemake_config(workflow, raw_config)
+
     config = AttrsDict(raw_config)
 
     # convert all strings in the "paths" block to pathlib.Path

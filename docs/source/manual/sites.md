@@ -53,7 +53,14 @@ hand.
 
 :::
 
-Now you can proceed with setting up and running the production workflow.
+Now you can proceed with setting up and running the production workflow, with
+e.g.:
+
+```console
+> pixi run snakemake --workflow-profile workflow/profiles/nersc
+```
+
+Using the provided `nersc` profile is recommended (have a look at it).
 
 ### I/O optimization
 
@@ -82,9 +89,70 @@ nersc:
 
 Both features can be disabled by setting the corresponding fields to false.
 
-:::{warning
+:::{warning}
 
 These features are implemented manually for each Snakemake rule, so it could be
 that some rules are unaffected by them.
+
+:::
+
+### Multi-node execution
+
+As of Snakemake v8.30, support for parallel execution across multiple compute
+nodes or interaction with job schedulers (such as Slurm) is not well supported.
+
+:::{note}
+
+An experimental profile to interact with the NERSC batch job system is available
+in `nersc-batch`. Unfortunately, specifying rule resources (which is required
+for job submission) seems to slow down the DAG generation step by a lot.
+
+:::
+
+:::{note}
+
+In principle, one could use the `snakemake-executor-plugin-slurm-jobstep` to
+prefix each rule command with a `srun` call, which would make it possible to
+parallelize the workflow over several nodes. In practice, NERSC discourages from
+starting many `srun` instances for performance reasons. As a result, the only
+reliable way to run Snakemake is with one instance on a single compute node.
+
+The `snakemake-nersc` executable, exposed by `legend-simflow` offers a way to
+parallelize the workflow in some situations over several nodes. The usage is:
+
+```console
+> [pixi run] snakemake-nersc -N NUMBER_OF_NODES [SNAKEMAKE ARGS]
+```
+
+The program determines the list of simulations (see the `simlist` in
+{ref}`production`) that the user wants to process, partitions it in
+`NUMBER_OF_NODES` chunks, and spawns a dedicated Snakemake instance for each,
+prefixed by the appropriate `srun` call. This is equivalent to something like:
+
+```sh
+srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc --config simlist=LIST1 [SNAKEMAKE ARGS] &
+srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc --config simlist=LIST2 [SNAKEMAKE ARGS] &
+...
+
+wait
+```
+
+This approach makes it unfortunately harder to manually interrupt the Simflow,
+e.g. hitting `Ctrl+C` will just make Slurm print some jobset status information.
+You should instead send signals (`TERM` to stop scheduling more jobs and just
+wait for running jobs and `INT` to kill all running jobs) directly to the
+snakemake instance.
+
+:::{todo}
+
+Add commands to send signals.
+
+:::
+
+:::{note}
+
+Since the actual jobs that need to be run will not be known a priori, the
+_a-priori_ partitioning might be inefficient. To mitigate this, the `simlist` is
+randomly shuffled before partitioning.
 
 :::

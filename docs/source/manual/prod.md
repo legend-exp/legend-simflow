@@ -1,3 +1,5 @@
+(production)=
+
 # Production
 
 Run a production by using one of the provided site-specific profiles
@@ -16,7 +18,7 @@ be omitted. Snakemake will use the `default` profile.
 
 The `--config` command line option is very useful to override configuration
 values. It can be used, for example, to restrict the production to a subset of
-simulations:
+simulations (a "simlist"):
 
 ```console
 > snakemake --config simlist="mylist.txt" [...]
