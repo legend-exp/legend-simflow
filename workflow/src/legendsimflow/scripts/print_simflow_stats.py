@@ -1,3 +1,5 @@
+# ruff: noqa: I002, T201
+
 # Copyright (C) 2023 Luigi Pertoldi <gipert@pm.me>
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -13,17 +15,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# ruff: noqa: F821, T201
-from __future__ import annotations
-
 import csv
 from datetime import timedelta
-from pathlib import Path
-
-import legenddataflowscripts as ldfs
-from legendmeta import LegendMetadata
 
 from legendsimflow import metadata as mutils
+from legendsimflow import nersc
+
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 
 def printline(*line):
@@ -34,11 +32,8 @@ printline("     ", "wall time [s]", "    ", "wall time [s]", "         ")
 printline("simid", " (cumulative)", "jobs", "    (per job)", "primaries")
 printline("-----", "-------------", "----", "-------------", "---------")
 
-bdir = Path(ldfs.as_ro(snakemake.config, snakemake.config.paths.benchmarks))
-metadata = LegendMetadata(snakemake.config.paths.metadata)
-
 tot_wall_time = 0
-for simd in sorted(bdir.glob("*/*")):
+for simd in sorted(args.config.paths.benchmarks.glob("*/*")):
     njobs = 0
     data = {"wall_time": 0}
     for jobd in simd.glob("*.tsv"):
@@ -51,13 +46,15 @@ for simd in sorted(bdir.glob("*/*")):
     if njobs == 0:
         continue
 
-    tier = simd.parent.name if simd.parent.name in ("ver", "stp") else "stp"
+    tier = simd.parent.name
+    if tier not in args.config.make_tiers:
+        continue
 
-    config = mutils.get_simconfig(snakemake.config, tier, simd.name)
+    config = mutils.get_simconfig(args.config, "stp", simd.name)
     nprim = config.number_of_jobs * config.primaries_per_job
 
     printline(
-        simd.parent.name + "." + simd.name,
+        tier + "." + simd.name,
         str(timedelta(seconds=int(data["wall_time"]))),
         njobs,
         str(timedelta(seconds=int(data["wall_time"] / njobs))),

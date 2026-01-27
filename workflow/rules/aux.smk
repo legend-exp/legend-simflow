@@ -16,15 +16,36 @@
 
 rule print_stats:
     """Prints a table with summary runtime information for each `simid`.
-    No wildcards are used."""
+
+    Can be run with `snakemake print_stats`. The listed tiers are taken from
+    the Simflow config field `make_tiers`.
+
+    :::{note}
+    The statistics refer to the total job wall time, as measured by Snakemake.
+    :::
+
+    No wildcards are used.
+    """
     localrule: True
     script:
-        "../src/legendsimflow/scripts/print_simprod_stats.py"
+        "../src/legendsimflow/scripts/print_simflow_stats.py"
 
 
 rule print_benchmark_stats:
     """Prints a table with summary runtime information of a benchmarking run.
-    No wildcards are used."""
+
+    Can be run with `snakemake print_benchmark_stats`. This functionality is
+    useful to tune the number of _remage_ primaries and jobs in the Simflow
+    configuration.
+
+    :::{note}
+    The runtime and the simulation speed are extracted from the event
+    simulation loop statistics reported by _remage_. These values do not
+    account for other _remage_ steps like initialization or post-processing.
+    :::
+
+    No wildcards are used.
+    """
     localrule: True
     script:
         "../src/legendsimflow/scripts/print_benchmark_stats.py"
