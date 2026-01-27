@@ -119,7 +119,7 @@ def get_senstables(
 
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
-) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
+) -> dict[str, reboost.hpge.utils.HPGeRZField]:
     """Load HPGe drift time maps from disk.
 
     Automatically finds and loads drift time maps for crystal axes <100> <110>.
@@ -137,7 +137,7 @@ def load_hpge_dtmaps(
         log.debug("loading drift time maps")
         dt_map = {}
         for angle in ("000", "045"):
-            dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
+            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
                 hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
             )
     else:
@@ -210,7 +210,7 @@ def get_remage_hit_range(
 
 def hpge_corrected_drift_time(
     chunk: ak.Array,
-    dt_map: reboost.hpge.utils.HPGeScalarRZField,
+    dt_map: reboost.hpge.utils.HPGeRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
 ) -> ak.Array:
     """HPGe drift time heuristic corrected for crystal axis effects.
