@@ -54,13 +54,13 @@ hand.
 :::
 
 Now you can proceed with setting up and running the production workflow, with
-e.g.:
+e.g. on a compute node:
 
 ```console
-> pixi run snakemake --workflow-profile workflow/profiles/nersc
+> pixi run snakemake --workflow-profile workflow/profiles/nersc-compute
 ```
 
-Using the provided `nersc` profile is recommended (have a look at it).
+Using the provided `nersc-*` profiles is recommended (have a look at them!).
 
 ### I/O optimization
 
@@ -104,8 +104,9 @@ nodes or interaction with job schedulers (such as Slurm) is not well supported.
 :::{note}
 
 An experimental profile to interact with the NERSC batch job system is available
-in `nersc-batch`. Unfortunately, specifying rule resources (which is required
-for job submission) seems to slow down the DAG generation step by a lot.
+in `nersc-compute-slurm`. Unfortunately, specifying rule resources (which is
+required for job submission) seems to slow down the DAG generation step by a
+lot.
 
 :::
 
@@ -130,8 +131,8 @@ The program determines the list of simulations (see the `simlist` in
 prefixed by the appropriate `srun` call. This is equivalent to something like:
 
 ```sh
-srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc --config simlist=LIST1 [SNAKEMAKE ARGS] &
-srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc --config simlist=LIST2 [SNAKEMAKE ARGS] &
+srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc-compute --config simlist=LIST1 [SNAKEMAKE ARGS] &
+srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc-compute --config simlist=LIST2 [SNAKEMAKE ARGS] &
 ...
 
 wait

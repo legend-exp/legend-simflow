@@ -1,0 +1,16 @@
+# this profile is meant to be used on NERSC compute nodes
+
+configfile: simflow-config.yaml
+keep-going: true
+rerun-incomplete: true
+cores: all
+
+# https://docs.nersc.gov/systems/perlmutter/architecture/
+resources:
+  mem_mb: 512000
+
+set-resources:
+  # this SSD process seems to use a lot of memory, can't run so many processes
+  # in parallel!
+  build_hpge_drift_time_map:
+    mem_mb: 8000
