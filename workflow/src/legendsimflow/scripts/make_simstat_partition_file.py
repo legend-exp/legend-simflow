@@ -36,8 +36,6 @@ log_file = args.log[0]
 metadata = args.config.metadata
 runlist = sorted(args.params.runlist)
 
-# comment = rerun
-
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
