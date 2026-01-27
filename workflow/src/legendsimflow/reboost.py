@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -32,6 +33,64 @@ from . import patterns
 from .utils import SimflowConfig
 
 log = logging.getLogger(__name__)
+
+
+def get_remage_detector_uids(h5file: str | Path, *, lh5_table: str = "stp") -> dict:
+    """Get mapping of detector names to UIDs from a remage output file.
+
+    The remage LH5 output files contain a link structure that lets the user
+    access detector tables by UID. For example:
+
+    .. code-block:: text
+
+        ├── stp · struct{det1,det2,optdet1,optdet2,scint1,scint2}
+        └── __by_uid__ · struct{det001,det002,det011,det012,det101,det102}
+            ├── det001 -> /stp/scint1
+            ├── det002 -> /stp/scint2
+            ├── det011 -> /stp/det1
+            ├── det012 -> /stp/det2
+            ├── det101 -> /stp/optdet1
+            └── det102 -> /stp/optdet2
+
+    This function analyzes this structure and returns:
+
+    .. code-block:: text
+
+        {1: 'scint1',
+         2: 'scint2',
+         11: 'det1',
+         12: 'det2',
+         101: 'optdet1',
+         102: 'optdet2'g
+
+    Parameters
+    ----------
+    h5file
+        path to remage output file.
+    """
+    if isinstance(h5file, Path):
+        h5file = h5file.as_posix()
+
+    out = {}
+    with h5py.File(h5file, "r", locking=False) as f:
+        g = f[f"/{lh5_table}/__by_uid__"]
+        # loop over links
+        for key in g:
+            # is this a link?
+            link = g.get(key, getlink=True)
+            if isinstance(link, h5py.SoftLink):
+                m = re.fullmatch(r"det(\d+)", key)
+                if m is None:
+                    msg = rf"'{key}' is not formatted as expected, i.e. 'det(\d+)', skipping"
+                    log.warning(msg)
+                    continue
+
+                # get the name of the link target without trailing groups (to
+                # i.e. remove /stp)
+                name = link.path.split("/")[-1]
+
+                out[int(m.group(1))] = name
+    return out
 
 
 def make_output_chunk(chunk: LGDO) -> lgdo.Table:
@@ -119,7 +178,7 @@ def get_senstables(
 
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
-) -> dict[str, reboost.hpge.utils.HPGeRZField]:
+) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
     """Load HPGe drift time maps from disk.
 
     Automatically finds and loads drift time maps for crystal axes <100> <110>.
@@ -137,7 +196,7 @@ def load_hpge_dtmaps(
         log.debug("loading drift time maps")
         dt_map = {}
         for angle in ("000", "045"):
-            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
+            dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
                 hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
             )
     else:
@@ -210,7 +269,7 @@ def get_remage_hit_range(
 
 def hpge_corrected_drift_time(
     chunk: ak.Array,
-    dt_map: reboost.hpge.utils.HPGeRZField,
+    dt_map: reboost.hpge.utils.HPGeScalarRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
 ) -> ak.Array:
     """HPGe drift time heuristic corrected for crystal axis effects.
