@@ -89,7 +89,7 @@ all = [
 ]
 
 [project.scripts]
-snakemake-nersc = "legendsimflow.nersc:snakemake_nersc_cli"
+snakemake-nersc = "legendsimflow.cli:snakemake_nersc_cli"
 
 [tool.uv.workspace]
 exclude = ["generated", "inputs", "software", "workflow"]
