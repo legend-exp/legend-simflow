@@ -25,8 +25,10 @@ def _partition(xs, n):
 
 
 def snakemake_nersc_cli():
+    """Implementation of the ``snakemake-cli`` CLI."""
     parser = argparse.ArgumentParser(
-        description="Execute the Simflow on multiple nodes in parallel."
+        description="""Execute the Simflow on multiple nodes in parallel.
+        Extra arguments will be forwarded to Snakemake."""
     )
     parser.add_argument(
         "-N", "--nodes", type=int, required=True, help="number of nodes"
