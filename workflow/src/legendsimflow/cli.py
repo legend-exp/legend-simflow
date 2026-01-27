@@ -97,7 +97,6 @@ def snakemake_nersc_cli():
         if not args.without_srun:
             smk_cmd = [
                 "srun",
-                "--disable-status",  # otherwise SIGINT has no effect
                 "--nodes",
                 "1",
                 "--ntasks",
