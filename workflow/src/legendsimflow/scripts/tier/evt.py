@@ -22,7 +22,7 @@ from lgdo import Array, Table, VectorOfVectors, lh5
 from reboost.core import read_data_at_channel_as_ak
 from reboost.utils import get_remage_detector_uids
 
-from legendsimflow import nersc, patterns
+from legendsimflow import patterns
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
@@ -32,7 +32,7 @@ BUFFER_LEN = "500*MB"
 OFF = encode_usability("off")
 ON = encode_usability("on")
 
-args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
+args = snakemake  # nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 wildcards = args.wildcards
 stp_file = patterns.output_simjob_filename(
@@ -55,6 +55,7 @@ reboost_utils.build_tcm(hit_file.values(), evt_file)
 
 # test that the evt tcm has the same amount of rows as the stp tcm
 
+<<<<<<< HEAD
 if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
     msg = (
         "stp and evt tcm should have same number of rows not stp",
@@ -62,6 +63,11 @@ if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
         f"opt: {lh5.read_n_rows('tcm', hit_file['opt'])}",
     )
 
+=======
+msg = f"stp and evt tcm should have same number of rows not stp {lh5.read_n_rows('tcm', stp_file)} and evt {lh5.read_n_rows('tcm', evt_file)} hit: {lh5.read_n_rows('tcm', hit_file['hit'])} opt: {lh5.read_n_rows('tcm', hit_file['opt'])}"
+
+if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
+>>>>>>> b252353 (bug fix in partitions)
     raise ValueError(msg)
 
 # get the mapping of detector name to uid
