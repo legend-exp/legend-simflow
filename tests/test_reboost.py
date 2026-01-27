@@ -17,13 +17,21 @@ def test_remage_hit_range(legend_testdata):
     ):
         n_rows = lh5.read_n_rows(f"stp/{det}", f_stp)
 
-        assert rutils.get_remage_hit_range(tcm, det, uid, [0, -1]) == (0, n_rows)
-
         tcm = lh5.read_as("tcm", f_stp, "ak")
 
-        assert rutils.get_remage_hit_range(tcm, det, uid, [0, len(tcm)]) == (0, n_rows)
+        assert rutils.get_remage_hit_range(tcm, det, uid, [0, len(tcm) - 1]) == (
+            0,
+            n_rows,
+        )
 
-    det = "det1"
-    uid = 11
-    assert rutils.get_remage_hit_range(tcm, "det1", 11, [22, 98]) == (0, 3)
-    assert rutils.get_remage_hit_range(tcm, "det1", 11, [22, 97]) == (0, 2)
+        # divide into groups
+        groups = [[0, 10], [11, 40], [41, 101], [102, len(tcm) - 1]]
+        n = 0
+
+        for group in groups:
+            nen = rutils.get_remage_hit_range(tcm, det, uid, group)[1]
+
+            if nen is not None:
+                n += nen
+
+        assert n == n_rows

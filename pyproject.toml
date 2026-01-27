@@ -61,7 +61,7 @@ dependencies = [
     "pyg4ometry",
     "pygama >=2.3.1",
     "pylegendmeta >=1.3.5",
-    "reboost >=0.8.5,<0.9",
+    "reboost >=0.9.1,<0.10",
     "revertex >=0.1.2",
     "snakemake >=8.16",
     "snakemake-storage-plugin-fs",
@@ -193,7 +193,7 @@ snakemake-executor-plugin-slurm = "*"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.1,<2.4"
-reboost = ">=0.8.5,<0.9"
+reboost = ">=0.9.1,<0.10"
 
 # tier stp
 remage = ">=0.19.5,<0.20"

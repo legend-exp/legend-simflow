@@ -114,6 +114,7 @@ for runid, evt_idx_range in partitions.items():
         # NOTE: if the entry list is empty, there will be no processing but an
         # empty output table will be nonetheless created. this is important for
         # the buil_tcm() step at the end
+
         iterator = LH5Iterator(
             stp_file,
             stp_table_name,

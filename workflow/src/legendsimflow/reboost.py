@@ -169,14 +169,16 @@ def get_remage_hit_range(
         remage unique identifier for detector `det_name`.
     evt_idx_range
         `[first, last]` (i.e. `first` included, `last` included) index of
-        events of interest present in the remage output file.
+        events of interest present in the remage output file. Only positive
+        indices are supported.
     """
 
-    # ask the TCM which rows we should read from the hit table
-    if evt_idx_range[1] == -1:
-        evt_idx_range[1] = len(tcm)
+    if (evt_idx_range[0] < 0) or (evt_idx_range[0] < 0):
+        msg = "Only positive indices are supported"
+        raise ValueError(msg)
 
-    tcm_part = tcm[evt_idx_range[0] : evt_idx_range[1]]
+    # add one for inclusive slicing
+    tcm_part = tcm[evt_idx_range[0] : evt_idx_range[1] + 1]
 
     entry_list = ak.flatten(tcm_part[tcm_part.table_key == uid].row_in_table).to_list()
 
