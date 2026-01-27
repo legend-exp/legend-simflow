@@ -119,7 +119,7 @@ def get_senstables(
 
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
-) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
+) -> dict[str, reboost.hpge.utils.HPGeRZField]:
     """Load HPGe drift time maps from disk.
 
     Automatically finds and loads drift time maps for crystal axes <100> <110>.
@@ -137,7 +137,7 @@ def load_hpge_dtmaps(
         log.debug("loading drift time maps")
         dt_map = {}
         for angle in ("000", "045"):
-            dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
+            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
                 hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
             )
     else:
@@ -150,7 +150,7 @@ def load_hpge_dtmaps(
 
 
 def get_remage_hit_range(
-    tcm: ak.Array, det_name: str, uid: int, evt_idx_range: list[int]
+    tcm:ak.Array, det_name: str, uid: int, evt_idx_range: list[int]
 ) -> tuple[int]:
     """Extract the range of remage output rows for an event range.
 
@@ -173,8 +173,8 @@ def get_remage_hit_range(
         indices are supported.
     """
 
-    if (evt_idx_range[0] < 0) or (evt_idx_range[0] < 0):
-        msg = "Only positive indices are supported"
+    if (evt_idx_range[0]<0) or (evt_idx_range[0]<0):
+        msg = f"Only positive indices are supported"
         raise ValueError(msg)
 
     # add one for inclusive slicing
@@ -183,7 +183,7 @@ def get_remage_hit_range(
     entry_list = ak.flatten(tcm_part[tcm_part.table_key == uid].row_in_table).to_list()
 
     assert entry_list == sorted(entry_list)
-
+    
     if len(entry_list) > 0:
         assert list(range(entry_list[0], entry_list[-1] + 1)) == entry_list
 
@@ -210,7 +210,7 @@ def get_remage_hit_range(
 
 def hpge_corrected_drift_time(
     chunk: ak.Array,
-    dt_map: reboost.hpge.utils.HPGeScalarRZField,
+    dt_map: reboost.hpge.utils.HPGeRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
 ) -> ak.Array:
     """HPGe drift time heuristic corrected for crystal axis effects.
