@@ -1,0 +1,10 @@
+# this profile is meant to be used on NERSC login nodes
+
+configfile: simflow-config.yaml
+rerun-incomplete: true
+
+# there are caps on resources on login nodes:
+# https://docs.nersc.gov/policies/resource-usage/#usage-limits
+cores: 10
+resources:
+  mem_mb: 56000

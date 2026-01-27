@@ -95,7 +95,7 @@ def snakemake_nersc_cli():
         smk_cmd = [
             "snakemake",
             "--workflow-profile",
-            "workflow/profiles/nersc",
+            "workflow/profiles/nersc-compute",
             "--config",
             "simlist=" + ",".join(simlist_chunk),
             *extra,
