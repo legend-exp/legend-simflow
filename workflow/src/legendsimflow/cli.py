@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import shlex
 import signal
 import subprocess
 from pathlib import Path
@@ -25,10 +26,15 @@ def _partition(xs, n):
 
 
 def snakemake_nersc_cli():
-    """Implementation of the ``snakemake-cli`` CLI."""
+    """Implementation of the ``snakemake-nersc`` CLI."""
     parser = argparse.ArgumentParser(
         description="""Execute the Simflow on multiple nodes in parallel.
         Extra arguments will be forwarded to Snakemake."""
+    )
+    parser.add_argument(
+        "--no-submit",
+        action="store_true",
+        help="do not run anything, just show what would be run.",
     )
     parser.add_argument(
         "-N", "--nodes", type=int, required=True, help="number of nodes"
@@ -106,8 +112,11 @@ def snakemake_nersc_cli():
                 *smk_cmd,
             ]
 
-        print("INFO: spawning process:", " ".join(smk_cmd))  # noqa: T201
-        procs.append(subprocess.Popen(smk_cmd))
+        if not args.no_submit:
+            print("INFO: spawning process:", " ".join(smk_cmd))  # noqa: T201
+            procs.append(subprocess.Popen(smk_cmd))
+        else:
+            print("INFO: would spawn:", " ".join(smk_cmd))  # noqa: T201
 
     # propagate signals to the snakemake instances.
     def new_signal_handler(sig: int, _):
@@ -136,3 +145,78 @@ def snakemake_nersc_cli():
             raise RuntimeError(msg)
 
     print("INFO: all snakemake processes successfully returned")  # noqa: T201
+
+
+def snakemake_nersc_batch_cli():
+    """Implementation of the ``snakemake-nersc-batch`` CLI."""
+    parser = argparse.ArgumentParser(
+        description="""Execute the Simflow as a batch Slurm job.
+        See sbatch docs for help about the CLI arguments.
+        Extra arguments will be forwarded to Snakemake."""
+    )
+    parser.add_argument(
+        "--no-submit",
+        action="store_true",
+        help="do not run sbatch, just show what would be run.",
+    )
+
+    (parser.add_argument("-t", "--time", required=True),)
+    parser.add_argument("-N", "--nodes", default="1")
+    parser.add_argument("-c", "--cpus-per-task", default="256")
+    parser.add_argument("-J", "--job-name")
+    parser.add_argument("--mail-user")
+
+    args, smk_args = parser.parse_known_args()
+
+    cfg_path = Path("./simflow-config.yaml")
+    if not cfg_path.is_file():
+        msg = "this program must be executed in the directory where simflow-config.yaml resides"
+        raise RuntimeError(msg)
+
+    cmd = [
+        "sbatch",
+        "--qos",
+        "regular",
+        "--constraint",
+        "cpu",
+        "--ntasks",
+        args.nodes,
+        "--ntasks-per-node",
+        "1",
+        "--account",
+        "m2676",
+        "--licenses",
+        "cfs,scratch",
+        "--output",
+        ".slurm/jobid-%j.log",
+        "--error",
+        ".slurm/jobid-%j.log",
+        "--time",
+        args.time,
+        "--nodes",
+        args.nodes,
+        "--cpus-per-task",
+        args.cpus_per_task,
+    ]
+    if args.job_name is not None:
+        cmd.extend(["--job-name", args.job_name])
+    if args.mail_user is not None:
+        cmd.extend(["--mail-type", "TIME_LIMIT,FAIL", "--mail-user", args.mail_user])
+
+    cmd.extend(
+        [
+            "--wrap",
+            "pixi run snakemake-nersc --nodes $SLURM_NNODES --keep-going "
+            + " ".join(smk_args),
+        ]
+    )
+
+    if args.no_submit:
+        print("INFO: would run:", shlex.join(cmd))  # noqa: T201
+
+    else:
+        print("INFO: running:", shlex.join(cmd))  # noqa: T201
+        rc = subprocess.Popen(cmd).wait()
+        if rc != 0:
+            msg = "submission failed"
+            raise RuntimeError(msg)
