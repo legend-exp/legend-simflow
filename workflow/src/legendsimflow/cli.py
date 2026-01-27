@@ -112,9 +112,11 @@ def snakemake_nersc_cli():
                 *smk_cmd,
             ]
 
-        print("INFO: spawning process:", " ".join(smk_cmd))  # noqa: T201
         if not args.no_submit:
+            print("INFO: spawning process:", " ".join(smk_cmd))  # noqa: T201
             procs.append(subprocess.Popen(smk_cmd))
+        else:
+            print("INFO: would spawn:", " ".join(smk_cmd))  # noqa: T201
 
     # propagate signals to the snakemake instances.
     def new_signal_handler(sig: int, _):
@@ -166,6 +168,11 @@ def snakemake_nersc_batch_cli():
 
     args, smk_args = parser.parse_known_args()
 
+    cfg_path = Path("./simflow-config.yaml")
+    if not cfg_path.is_file():
+        msg = "this program must be executed in the directory where simflow-config.yaml resides"
+        raise RuntimeError(msg)
+
     cmd = [
         "sbatch",
         "--qos",
@@ -173,7 +180,7 @@ def snakemake_nersc_batch_cli():
         "--constraint",
         "cpu",
         "--ntasks",
-        "1",
+        args.nodes,
         "--ntasks-per-node",
         "1",
         "--account",
@@ -205,9 +212,10 @@ def snakemake_nersc_batch_cli():
     )
 
     if args.no_submit:
-        print("would run:", shlex.join(cmd))  # noqa: T201
+        print("INFO: would run:", shlex.join(cmd))  # noqa: T201
 
     else:
+        print("INFO: running:", shlex.join(cmd))  # noqa: T201
         rc = subprocess.Popen(cmd).wait()
         if rc != 0:
             msg = "submission failed"
