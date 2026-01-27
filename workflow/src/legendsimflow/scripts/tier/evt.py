@@ -20,7 +20,6 @@ import legenddataflowscripts.utils
 import numpy as np
 from lgdo import Array, Table, VectorOfVectors, lh5
 from reboost.core import read_data_at_channel_as_ak
-from reboost.utils import get_remage_detector_uids
 
 from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
@@ -71,7 +70,7 @@ det2uid = {}
 for tier in ("opt", "hit"):
     det2uid[tier] = {
         name: uid
-        for uid, name in get_remage_detector_uids(
+        for uid, name in reboost_utils.get_remage_detector_uids(
             hit_file[tier], lh5_table="hit"
         ).items()
     }
