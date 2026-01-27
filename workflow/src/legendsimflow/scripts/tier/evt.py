@@ -52,8 +52,17 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 log.info("building hit+opt unified TCM")
 reboost_utils.build_tcm(hit_file.values(), evt_file)
 
+
 # test that the evt tcm has the same amount of rows as the stp tcm
-assert lh5.read_n_rows("tcm", stp_file) == lh5.read_n_rows("tcm", evt_file)
+
+if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
+    msg = (
+        "stp and evt tcm should have same number of rows not stp",
+        f"{lh5.read_n_rows('tcm', stp_file)} and evt {lh5.read_n_rows('tcm', evt_file)} hit: {lh5.read_n_rows('tcm', hit_file['hit'])}",
+        f"opt: {lh5.read_n_rows('tcm', hit_file['opt'])}",
+    )
+
+    raise ValueError(msg)
 
 # get the mapping of detector name to uid
 # NOTE: we check on disk because we are not sure which tables were processed in

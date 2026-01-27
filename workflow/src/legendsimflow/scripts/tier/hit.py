@@ -98,18 +98,23 @@ for runid, evt_idx_range in partitions.items():
                 "possibly because it was not read-out or there were no hits recorded"
             )
             log.warning(msg)
+
             continue
 
         usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
+        # load TCM, to be used to chunk the event statistics according to the run partitioning
+        tcm = lh5.read_as("tcm", stp_file, library="ak")
+
         i_start, n_entries = reboost_utils.get_remage_hit_range(
-            stp_file, det_name, geom_meta.uid, evt_idx_range
+            tcm, det_name, geom_meta.uid, evt_idx_range
         )
 
         # initialize the stp file iterator
         # NOTE: if the entry list is empty, there will be no processing but an
         # empty output table will be nonetheless created. this is important for
         # the buil_tcm() step at the end
+
         iterator = LH5Iterator(
             stp_file,
             stp_table_name,
@@ -143,9 +148,12 @@ for runid, evt_idx_range in partitions.items():
             pars.get("current_pulse_shape", None) if pars is not None else None
         )
 
+        n_tot = 0
         # iterate over input data
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak")
+
+            n_tot += len(chunk)
 
             _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
                 chunk.xloc * 1000,  # mm
@@ -208,6 +216,7 @@ for runid, evt_idx_range in partitions.items():
                 geom_meta.uid,
             )
 
+        assert n_tot == n_entries
         # this table has been processed
         ondisk_stp_tables[stp_table_name] = True
 
