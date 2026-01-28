@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import awkward as ak
 import numpy as np
+from dbetto import AttrsDict, TextDB
 from dspeed.vis import WaveformBrowser
 from legendmeta import LegendMetadata
 from lgdo import lh5
@@ -216,7 +218,7 @@ def estimate_mean_aoe(popt: list, energy: float = 1593) -> float:
 
 
 def lookup_currmod_fit_inputs(
-    l200data: str,
+    l200data: str | Path,
     metadata: LegendMetadata,
     runid: str,
     hpge: str,
@@ -237,7 +239,6 @@ def lookup_currmod_fit_inputs(
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
     """
-
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
@@ -251,13 +252,9 @@ def lookup_currmod_fit_inputs(
     log.debug(msg)
 
     # get the paths to hit and raw tier files
-    df_cfg = (
-        dataflow_config["setups"]["l200"]["paths"]
-        if ("setups" in dataflow_config)
-        else dataflow_config["paths"]
-    )
+    df_cfg = dataflow_config.paths
 
-    hit_path = Path(df_cfg[f"tier_{hit_tier_name}"].replace("$_", str(l200data)))
+    hit_path = Path(df_cfg[f"tier_{hit_tier_name}"])
     msg = f"looking for hit tier files in {hit_path / 'cal' / period / run}/*"
     log.debug(msg)
 
@@ -288,7 +285,7 @@ def lookup_currmod_fit_inputs(
 
     wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
 
-    raw_path = Path(df_cfg["tier_raw"].replace("$_", str(l200data)))
+    raw_path = Path(df_cfg.tier_raw)
     hit_file = hit_files[file_idx]
     raw_file = raw_path / str(hit_file.relative_to(hit_path)).replace(
         hit_tier_name, "raw"
@@ -297,3 +294,70 @@ def lookup_currmod_fit_inputs(
     log.debug(msg)
 
     return raw_file.resolve(), wf_idx, dsp_cfg_files[0]
+
+
+def lookup_energy_res_metadata(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+) -> AttrsDict:
+    """Lookup the measured HPGe energy resolution metadata from LEGEND-200 data.
+
+    Returns
+    -------
+    Mapping of HPGe name to metadata dictionary.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
+    runid
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
+    """
+    if hit_tier_name not in ("hit", "pht"):
+        raise NotImplementedError
+
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    dataflow_config = utils.lookup_dataflow_config(l200data)
+
+    # get the paths to generated parameters
+    pars_db = TextDB(dataflow_config.paths[f"par_{hit_tier_name}"])
+
+    # get the pars file at the correct timestamp
+    tstamp = mutils.runinfo(metadata, runid).start_key
+    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
+    pars_file = pars_db.on(tstamp)
+
+    out_dict = {}
+    for key, detmeta in pars_file.items():
+        # handle data prod formats
+        hpge = (
+            chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
+        )
+
+        if hit_tier_name == "pht":
+            meta = detmeta.results.partition_ecal.cuspEmax_ctc_cal.eres_linear
+        elif hit_tier_name == "hit":
+            meta = detmeta.results.ecal.cuspEmax_ctc_cal.eres_linear
+
+        out_dict[hpge] = meta
+
+    return AttrsDict(out_dict)
+
+
+def build_energy_res_func(function: str) -> Callable:
+    """Energy resolution function builder."""
+    if function == "FWHMLinear":
+        return lambda energy, a, b: (a + b * energy) ** 0.5
+    if function == "FWHMQuadratic":
+        return lambda energy, a, b, c: (a + b * energy + c * energy * energy) ** 0.5
+
+    raise NotImplementedError

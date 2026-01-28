@@ -150,15 +150,17 @@ def setup_logdir_link(config: SimflowConfig, proctime):
 
 
 def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
-    """Find the paths to the data inputs.
+    """Finds and loads the dataflow configuration file.
 
     Parameters
     ----------
     l200data
         The path to the L200 data production cycle.
+
     Returns
     -------
-    the dataflow configuration file as a dictionary.
+    the dataflow configuration file as a dictionary with substitutions
+    performed.
     """
     if not isinstance(l200data, Path):
         l200data = Path(l200data)
@@ -177,7 +179,18 @@ def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
     msg = f"found dataflow configuration file: {df_cfgs[0]}"
     log.debug(msg)
 
-    return dbetto.utils.load_dict(df_cfgs[0])
+    df_cfg = AttrsDict(dbetto.utils.load_dict(df_cfgs[0]))
+    df_cfg = df_cfg.setups.l200 if ("setups" in df_cfg) else df_cfg
+
+    # substitute vars
+    ldfs.subst_vars(
+        df_cfg,
+        var_values={"_": l200data.resolve()},
+        use_env=False,
+        ignore_missing=True,
+    )
+
+    return df_cfg
 
 
 def get_hit_tier_name(l200data: str) -> str:
@@ -191,21 +204,11 @@ def get_hit_tier_name(l200data: str) -> str:
         Path to the production cycle of l200 data.
     """
 
-    dataflow_config = lookup_dataflow_config(l200data)
-
-    df_cfg = (
-        dataflow_config["setups"]["l200"]["paths"]
-        if ("setups" in dataflow_config)
-        else dataflow_config["paths"]
-    )
+    df_cfg = lookup_dataflow_config(l200data).paths
 
     # first check if pht exists
-    has_pht = ("tier_pht" in df_cfg) and Path(
-        df_cfg["tier_pht"].replace("$_", str(l200data))
-    ).exists()
-    has_hit = ("tier_hit" in df_cfg) and Path(
-        df_cfg["tier_hit"].replace("$_", str(l200data))
-    ).exists()
+    has_pht = ("tier_pht" in df_cfg) and Path(df_cfg.tier_pht).exists()
+    has_hit = ("tier_hit" in df_cfg) and Path(df_cfg.tier_hit).exists()
 
     if has_pht:
         return "pht"
