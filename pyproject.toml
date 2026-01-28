@@ -63,7 +63,7 @@ dependencies = [
     "pylegendmeta >=1.3.5",
     "reboost >=0.9.1,<0.10",
     "revertex >=0.1.2",
-    "snakemake >=8.16",
+    "snakemake >=9",
     "snakemake-storage-plugin-fs",
     "snakemake-executor-plugin-slurm",
 ]
@@ -186,7 +186,7 @@ numpy = "*"
 pylegendmeta = ">=1.3.5,<1.4"
 
 # execution
-snakemake = ">=8.16,<9"
+snakemake = ">=9,<10"
 snakemake-storage-plugin-fs = "*"
 snakemake-executor-plugin-slurm = "*"
 
