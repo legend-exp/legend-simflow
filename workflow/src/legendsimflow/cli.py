@@ -211,8 +211,7 @@ def snakemake_nersc_batch_cli():
     cmd.extend(
         [
             "--wrap",
-            f"{snakemake} --keep-going "
-            + " ".join(smk_args),
+            f"{snakemake} --keep-going " + " ".join(smk_args),
         ]
     )
 
