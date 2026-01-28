@@ -203,10 +203,15 @@ def snakemake_nersc_batch_cli():
     if args.mail_user is not None:
         cmd.extend(["--mail-type", "TIME_LIMIT,FAIL", "--mail-user", args.mail_user])
 
+    if int(args.nodes) > 1:
+        snakemake = "pixi run snakemake-nersc --nodes $SLURM_NNODES"
+    else:
+        snakemake = "pixi run snakemake"
+
     cmd.extend(
         [
             "--wrap",
-            "pixi run snakemake-nersc --nodes $SLURM_NNODES --keep-going "
+            f"{snakemake} --keep-going "
             + " ".join(smk_args),
         ]
     )
