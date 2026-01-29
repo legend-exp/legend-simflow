@@ -194,6 +194,12 @@ def plot_tier_stp_vertices_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def plot_tier_hit_observables_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="hit") / "tier-hit-observables.pdf", **kwargs
+    )
+
+
 # drift time maps
 
 

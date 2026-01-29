@@ -110,6 +110,25 @@ rule build_tier_hit:
         "../src/legendsimflow/scripts/tier/hit.py"
 
 
+rule plot_tier_hit_observables:
+    """Produces plots of observables from the tier `hit`.
+
+    Only the first file of the simulation (i.e. job ID 0) is used. The rule
+    is given a high priority to make sure that the plot is produced early.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Producing control plots for job hit.{wildcards.simid}"
+    input:
+        patterns.output_simjob_filename(config, tier="hit", jobid="0000"),
+    output:
+        patterns.plot_tier_hit_observables_filename(config),
+    priority: 100  # prioritize producing the needed input files over the others
+    script:
+        "../src/legendsimflow/scripts/plots/tier_hit_observables.py"
+
+
 def smk_hpge_drift_time_map_inputs(wildcards):
     """Prepare inputs for the HPGe drift time map rule."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
