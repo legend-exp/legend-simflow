@@ -428,12 +428,12 @@ def build_energy_res_func_dict(
             b=meta.parameters.b,
         )
 
-        def _eres_sigma(E, base=base):
+        def _eres(E, base=base):
             return base(E)
 
-        msg = f"measured FWHM for {hpge} at 2 MeV is ~{2.35 * _eres_sigma(2000)} keV"
+        msg = f"measured FWHM for {hpge} at 2 MeV is ~{_eres(2000)} keV"
         log.debug(msg)
 
-        energy_res_sigma_func[hpge] = _eres_sigma
+        energy_res_sigma_func[hpge] = _eres
 
     return energy_res_sigma_func

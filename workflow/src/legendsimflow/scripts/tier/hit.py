@@ -54,7 +54,7 @@ hit_tier_name = utils.get_hit_tier_name(l200data)
 BUFFER_LEN = "500*MB"
 
 
-def DEFAULT_ENERGY_RES_SIGMA_FUNC(energy):
+def DEFAULT_ENERGY_RES_FUNC(energy):
     return 2.5 * np.sqrt(energy / 2039)  # FWHM
 
 
@@ -134,6 +134,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             continue
 
+        # get the usability
         usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
         msg = "looking for indices of hit table rows to read..."
@@ -155,14 +156,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             buffer_len=BUFFER_LEN,
         )
 
-        # get the usability
-        usability_enc = mutils.encode_usability(
-            mutils.usability(metadata, det_name, runid=runid)
-        )
-
-        msg = (
-            f"processing the {det_name} output table [{det_idx}/{len(sens_tables)}]..."
-        )
+        msg = f"processing the {det_name} output table [{det_idx + 1}/{len(sens_tables)}]..."
         log.info(msg)
 
         log.debug("creating an pygeomhpges.HPGe object")
@@ -219,7 +213,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 )
                 raise RuntimeError(msg)
             else:
-                energy_res = DEFAULT_ENERGY_RES_SIGMA_FUNC(energy_true)
+                energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
             energy = reboost.math.stats.gaussian_sample(
                 energy_true,
@@ -253,7 +247,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             out_table.add_field("aoe", lgdo.Array(aoe))
 
             _, period, run, _ = mutils.parse_runid(runid)
-            field_vals = [period, run, usability_enc]
+            field_vals = [period, run, mutils.encode_usability(usability)]
             for i, field in enumerate(["period", "run", "usability"]):
                 out_table.add_field(
                     field,
