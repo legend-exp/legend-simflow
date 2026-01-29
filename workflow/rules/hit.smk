@@ -121,7 +121,9 @@ rule plot_tier_hit_observables:
     message:
         "Producing control plots for job hit.{wildcards.simid}"
     input:
-        patterns.output_simjob_filename(config, tier="hit", jobid="0000"),
+        patterns.output_simjob_filename(
+            config, tier="hit", jobid=[f"{j:>04d}" for j in range(6)]
+        ),
     output:
         patterns.plot_tier_hit_observables_filename(config),
     priority: 100  # prioritize producing the needed input files over the others
