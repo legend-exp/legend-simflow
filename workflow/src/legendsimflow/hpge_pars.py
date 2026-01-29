@@ -8,7 +8,6 @@ from pathlib import Path
 import awkward as ak
 import numpy as np
 from dbetto import AttrsDict, TextDB
-from dspeed.vis import WaveformBrowser
 from legendmeta import LegendMetadata
 from lgdo import lh5
 from matplotlib import pyplot as plt
@@ -174,6 +173,8 @@ def get_current_pulse(
     align
         DSP value around which the pulses are aligned.
     """
+    # HACK: importing this messes up pint registries
+    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
 
     browser = WaveformBrowser(
         str(raw_file),
@@ -302,6 +303,7 @@ def lookup_energy_res_metadata(
     runid: str,
     *,
     hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
 ) -> AttrsDict:
     """Lookup the measured HPGe energy resolution metadata from LEGEND-200 data.
 
@@ -319,6 +321,9 @@ def lookup_energy_res_metadata(
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
+    pars_db
+        optional existing *non-lazy* instance of
+        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
     """
     if hit_tier_name not in ("hit", "pht"):
         raise NotImplementedError
@@ -326,10 +331,13 @@ def lookup_energy_res_metadata(
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
-    dataflow_config = utils.lookup_dataflow_config(l200data)
-
     # get the paths to generated parameters
-    pars_db = TextDB(dataflow_config.paths[f"par_{hit_tier_name}"])
+    if pars_db is None:
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+        pars_db.scan()  # need to use .on() later
+
+    msg = f"loading {hit_tier_name} pars of production {l200data}"
+    log.debug(msg)
 
     # get the pars file at the correct timestamp
     tstamp = mutils.runinfo(metadata, runid).start_key

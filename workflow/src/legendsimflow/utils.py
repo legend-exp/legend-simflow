@@ -28,7 +28,7 @@ import h5py
 import legenddataflowscripts as ldfs
 import lgdo
 import numpy as np
-from dbetto import AttrsDict
+from dbetto import AttrsDict, TextDB
 from legendmeta import LegendMetadata
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
@@ -191,6 +191,27 @@ def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
     )
 
     return df_cfg
+
+
+def init_generated_pars_db(
+    l200data: str | Path, tier: str | None = None, lazy: bool = True
+) -> TextDB:
+    """Initializes the pars database from a LEGEND-200 data production.
+
+    Parameters
+    ----------
+    l200data
+        path to LEGEND-200 data production cycle.
+    tier
+        pars subfolder referring to a `tier`. If None, return the full `par`
+        database.
+    lazy
+        see :class:`~dbetto.textdb.TextDB`.
+    """
+    dataflow_config = lookup_dataflow_config(l200data)
+    return TextDB(
+        dataflow_config.paths["par" if tier is None else f"par_{tier}"], lazy=lazy
+    )
 
 
 def get_hit_tier_name(l200data: str) -> str:

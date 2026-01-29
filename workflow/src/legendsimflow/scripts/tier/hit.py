@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from functools import partial
 
 import awkward as ak
 import dbetto.utils
@@ -29,12 +30,13 @@ import reboost.hpge.psd
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
+import reboost.math.stats
 import reboost.spms
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -48,7 +50,15 @@ metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
 simstat_part_file = args.input.simstat_part_file
-buffer_len = "500*MB"
+l200data = args.config.paths.l200data
+hit_tier_name = utils.get_hit_tier_name(l200data)
+
+BUFFER_LEN = "300*MB"
+
+
+def DEFAULT_ENERGY_RES_SIGMA_FUNC(energy):
+    return (2.5 / 2.35482) * np.sqrt(energy / 2039)
+
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -66,13 +76,46 @@ for tbl in lh5.ls(stp_file, "stp/*"):
 
 partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
+# pre-load the l200 data pars to save time later
+pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+pars_db.scan()
 
 # loop over the partitions for this file
 for runid, evt_idx_range in partitions.items():
     msg = f"processing partition corresponding to {runid}, event range {evt_idx_range}"
     log.info(msg)
 
-    # load in parameters of the HPGe current signal model
+    msg = "loading energy resolution parameters"
+    log.debug(msg)
+    energy_res_pars = hpge_pars.lookup_energy_res_metadata(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
+
+    _func_full = hpge_pars.build_energy_res_func("FWHMLinear")
+
+    energy_res_sigma_func = {}
+    for hpge, meta in energy_res_pars.items():
+        # use functools.partial correctly freeze the parameters into the function
+        base = partial(
+            _func_full,
+            a=meta.parameters.a,
+            b=meta.parameters.b,
+        )
+
+        def _eres_sigma(E, base=base):
+            return base(E) / 2.35482
+
+        msg = f"measured FWHM for {hpge} at 2 MeV is ~{2.35 * _eres_sigma(2000)} keV"
+        log.debug(msg)
+
+        energy_res_sigma_func[hpge] = _eres_sigma
+
+    msg = "loading current pulse model parameters"
+    log.debug(msg)
     currmod_pars_file = patterns.output_currmod_merged_filename(
         snakemake.config,  # noqa: F821
         runid=runid,
@@ -120,11 +163,11 @@ for runid, evt_idx_range in partitions.items():
             stp_table_name,
             i_start=i_start,
             n_entries=n_entries,
-            buffer_len=buffer_len,
+            buffer_len=BUFFER_LEN,
         )
 
         # get the usability
-        usability = mutils.encode_usability(
+        usability_enc = mutils.encode_usability(
             mutils.usability(metadata, det_name, runid=runid)
         )
 
@@ -170,10 +213,27 @@ for runid, evt_idx_range in partitions.items():
                 _distance_to_nplus,
                 fccd=fccd,
                 dlf=0.5,
-            )
+            ).view_as("ak")
 
             edep_active = chunk.edep * _activeness
-            energy = ak.sum(edep_active, axis=-1)
+            energy_true = ak.sum(edep_active, axis=-1)
+
+            # smear energy with detector resolution
+            if det_name in energy_res_sigma_func:
+                energy_res = energy_res_sigma_func[det_name](energy_true)
+            elif usability != "off":
+                msg = (
+                    f"{det_name} is marked as '{usability}' but no "
+                    "resolution curves are available. this is unacceptable!"
+                )
+                raise RuntimeError(msg)
+            else:
+                energy_res = DEFAULT_ENERGY_RES_SIGMA_FUNC(energy_true)
+
+            energy = reboost.math.stats.gaussian_sample(
+                energy_true,
+                energy_res,
+            )
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
@@ -190,7 +250,7 @@ for runid, evt_idx_range in partitions.items():
                 dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
                     _drift_time, chunk.edep
                 )
-                _a_max = reboost_utils.hpge_max_current_cal(
+                _a_max = reboost_utils.hpge_max_current(
                     edep_active, _drift_time, currmod_pars
                 )
                 aoe = _a_max / energy
@@ -202,7 +262,7 @@ for runid, evt_idx_range in partitions.items():
             out_table.add_field("aoe", lgdo.Array(aoe))
 
             _, period, run, _ = mutils.parse_runid(runid)
-            field_vals = [period, run, usability]
+            field_vals = [period, run, usability_enc]
             for i, field in enumerate(["period", "run", "usability"]):
                 out_table.add_field(
                     field,
