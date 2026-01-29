@@ -341,6 +341,68 @@ def hpge_max_current(
     ).view_as("ak")
 
 
+def get_forced_trigger_library(evt_file_path: str | Path) -> ak.Array:
+    """Extract a library of forced trigger events to be used
+    in correcting the SiPM pe spectra.
+
+    This reformats the data to only have forced trigger, not pulser events
+    and then stores only the summed pe (used for corrections).
+
+    Parameters
+    ----------
+    evt_file_path
+        Path to the event tier data.
+
+    Returns
+    -------
+    Array with two fields "summed_pe", the number of
+    pe in each SiPM and "rawids" the SiPM channel numbers.
+    """
+
+    summed_pe = None
+    rawids = None
+
+    files = Path(evt_file_path).glob("*")
+
+    for file in files:
+        is_forced = lh5.read("evt/trigger/is_forced", file).view_as("ak")
+        is_pulser = lh5.read("evt/coincident/puls", file).view_as(  # codespell:ignore
+            "ak"
+        )
+
+        idx = ak.where(is_forced & (~is_pulser))[0].to_list()
+
+        spms = lh5.read(
+            "evt/",
+            file,
+            idx=idx,
+            field_mask=["spms/energy", "spms/rawid", "spms/is_trig_coin_pulse"],
+        ).view_as("ak")
+        rawids_tmp = spms.spms.rawid[0]
+        pe_tmp = spms.spms.energy[spms.spms.is_trig_coin_pulse]
+
+        if rawids is not None and not ak.all(rawids == rawids_tmp):
+            msg = "rawid should be the same in all cases"
+            raise ValueError(msg)
+
+        summed_pe_tmp = ak.sum(pe_tmp, axis=-1)
+
+        summed_pe = (
+            summed_pe_tmp
+            if summed_pe is None
+            else ak.concatenate((summed_pe, summed_pe_tmp))
+        )
+
+        rawids = rawids_tmp
+
+    return ak.Array(
+        {
+            "summed_pe": summed_pe[summed_pe > 0],
+            "rawids": np.vstack([rawids] * len(summed_pe))[summed_pe > 0],
+        }
+    )
+
+
 def build_tcm(
     hit_files: str | Path | Iterable[str | Path], out_file: str | Path
 ) -> None:
