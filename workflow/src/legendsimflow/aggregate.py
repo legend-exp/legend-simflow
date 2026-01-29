@@ -68,6 +68,7 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
     """Generate the list of plots files for a `tier.simid`."""
     if tier == "hit":
         return [
+            patterns.plot_tier_hit_observables_filename(config, simid=simid),
             *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
             *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
         ]
