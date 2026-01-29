@@ -153,7 +153,7 @@ def convolve_waveforms_fast(wf_array, rf_kernel, batch_size=50000):
     return ak.concatenate(convolved_results)
 
 
-def to_current(wf_array, dt):
+def to_current(wf_array, dt, dt_DATA=16):
     """
     Computes the derivative of each charge waveform
 
@@ -169,8 +169,8 @@ def to_current(wf_array, dt):
     derivatives : numpy.ndarray
         2D array containing the derivatives - each has same shape as input!!
     """
-    ########################## Normalization to sampling rate ?!?
-    return np.diff(wf_array, axis=1, prepend=0) / dt
+    
+    return (np.diff(wf_array, axis=1, prepend=0) / dt)* dt_DATA # [current] = 1/data_sample 
 
 
 def apply_mwa(wf_array):
@@ -427,7 +427,10 @@ def write_realistic_struct_to_lh5(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--detector", required=True, help="Detector name (LH5 group)")
+    parser.add_argument(
+        "--detector", 
+        required=True, 
+        help="Detector name (LH5 group)")
     parser.add_argument(
         "--sigma-conv",
         type=float,

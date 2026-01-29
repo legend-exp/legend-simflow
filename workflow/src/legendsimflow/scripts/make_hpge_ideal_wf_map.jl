@@ -14,7 +14,7 @@ using Printf
 using RadiationDetectorDSP
 
 ## Constants
-GRID_SIZE = 0.005 # in m
+GRID_SIZE = 0.0005 # in m
 CRYSTAL_AXIS_ANGLES = [0, 45] # in deg <001> <110>
 SIM_ENERGY = 2039u"keV"
 MAX_NSTEPS = 3000
