@@ -51,7 +51,7 @@ simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
 hit_tier_name = utils.get_hit_tier_name(l200data)
 
-BUFFER_LEN = "300*MB"
+BUFFER_LEN = "500*MB"
 
 
 def DEFAULT_ENERGY_RES_SIGMA_FUNC(energy):
@@ -76,11 +76,22 @@ partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
 # pre-load the l200 data pars to save time later
 pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
+msg = "loading l200 pars database"
+log.debug(msg)
 pars_db.scan()
 
+# load TCM, to be used to chunk the event statistics according to the run partitioning
+msg = "loading TCM"
+log.debug(msg)
+tcm = lh5.read_as("tcm", stp_file, library="ak")
+
 # loop over the partitions for this file
-for runid, evt_idx_range in partitions.items():
-    msg = f"processing partition corresponding to {runid}, event range {evt_idx_range}"
+for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
+    msg = (
+        f"processing partition corresponding to {runid} "
+        f"[{runid_idx + 1}/{len(partitions)}], event range {evt_idx_range}"
+    )
     log.info(msg)
 
     msg = "loading energy resolution parameters"
@@ -102,7 +113,7 @@ for runid, evt_idx_range in partitions.items():
     currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
 
     # loop over the sensitive volume tables registered in the geometry
-    for det_name, geom_meta in sens_tables.items():
+    for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
         msg = f"looking for data from sensitive volume table {det_name} (uid={geom_meta.uid})..."
         log.debug(msg)
 
@@ -125,9 +136,8 @@ for runid, evt_idx_range in partitions.items():
 
         usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
-        # load TCM, to be used to chunk the event statistics according to the run partitioning
-        tcm = lh5.read_as("tcm", stp_file, library="ak")
-
+        msg = "looking for indices of hit table rows to read..."
+        log.debug(msg)
         i_start, n_entries = reboost_utils.get_remage_hit_range(
             tcm, det_name, geom_meta.uid, evt_idx_range
         )
@@ -150,7 +160,9 @@ for runid, evt_idx_range in partitions.items():
             mutils.usability(metadata, det_name, runid=runid)
         )
 
-        msg = f"processing the {det_name} output table..."
+        msg = (
+            f"processing the {det_name} output table [{det_idx}/{len(sens_tables)}]..."
+        )
         log.info(msg)
 
         log.debug("creating an pygeomhpges.HPGe object")
