@@ -299,7 +299,7 @@ def hpge_corrected_drift_time(
     )
 
 
-def hpge_max_current_cal(
+def hpge_max_current(
     edep: ak.Array,
     drift_time: ak.Array,
     currmod_pars: Mapping,

@@ -17,7 +17,7 @@ config_filename = testprod / "simflow-config.yaml"
 @pytest.fixture(scope="session")
 def legend_testdata():
     ldata = LegendTestData()
-    ldata.checkout("c564b05")
+    ldata.checkout("dca4e16")
     return ldata
 
 
@@ -81,3 +81,8 @@ class mock_workflow_class:
 @pytest.fixture(scope="module")
 def mock_workflow():
     return mock_workflow_class()
+
+
+@pytest.fixture(scope="session")
+def test_l200data():
+    return Path(__file__).parent / "dummyprod/l200data"

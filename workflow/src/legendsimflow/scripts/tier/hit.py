@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
 import awkward as ak
 import dbetto.utils
 import legenddataflowscripts as ldfs
@@ -29,12 +28,13 @@ import reboost.hpge.psd
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
+import reboost.math.stats
 import reboost.spms
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -48,7 +48,15 @@ metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
 simstat_part_file = args.input.simstat_part_file
-buffer_len = "500*MB"
+l200data = args.config.paths.l200data
+hit_tier_name = utils.get_hit_tier_name(l200data)
+
+BUFFER_LEN = "500*MB"
+
+
+def DEFAULT_ENERGY_RES_FUNC(energy):
+    return 2.5 * np.sqrt(energy / 2039)  # FWHM
+
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -66,13 +74,38 @@ for tbl in lh5.ls(stp_file, "stp/*"):
 
 partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
+# pre-load the l200 data pars to save time later
+pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
+msg = "loading l200 pars database"
+log.debug(msg)
+pars_db.scan()
+
+# load TCM, to be used to chunk the event statistics according to the run partitioning
+msg = "loading TCM"
+log.debug(msg)
+tcm = lh5.read_as("tcm", stp_file, library="ak")
 
 # loop over the partitions for this file
-for runid, evt_idx_range in partitions.items():
-    msg = f"processing partition corresponding to {runid}, event range {evt_idx_range}"
+for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
+    msg = (
+        f"processing partition corresponding to {runid} "
+        f"[{runid_idx + 1}/{len(partitions)}], event range {evt_idx_range}"
+    )
     log.info(msg)
 
-    # load in parameters of the HPGe current signal model
+    msg = "loading energy resolution parameters"
+    log.debug(msg)
+    energy_res_func = hpge_pars.build_energy_res_func_dict(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )  # FWHM
+
+    msg = "loading current pulse model parameters"
+    log.debug(msg)
     currmod_pars_file = patterns.output_currmod_merged_filename(
         snakemake.config,  # noqa: F821
         runid=runid,
@@ -80,7 +113,7 @@ for runid, evt_idx_range in partitions.items():
     currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
 
     # loop over the sensitive volume tables registered in the geometry
-    for det_name, geom_meta in sens_tables.items():
+    for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
         msg = f"looking for data from sensitive volume table {det_name} (uid={geom_meta.uid})..."
         log.debug(msg)
 
@@ -101,11 +134,11 @@ for runid, evt_idx_range in partitions.items():
 
             continue
 
+        # get the usability
         usability = mutils.usability(metadata, det_name, runid=runid, default="on")
 
-        # load TCM, to be used to chunk the event statistics according to the run partitioning
-        tcm = lh5.read_as("tcm", stp_file, library="ak")
-
+        msg = "looking for indices of hit table rows to read..."
+        log.debug(msg)
         i_start, n_entries = reboost_utils.get_remage_hit_range(
             tcm, det_name, geom_meta.uid, evt_idx_range
         )
@@ -120,15 +153,10 @@ for runid, evt_idx_range in partitions.items():
             stp_table_name,
             i_start=i_start,
             n_entries=n_entries,
-            buffer_len=buffer_len,
+            buffer_len=BUFFER_LEN,
         )
 
-        # get the usability
-        usability = mutils.encode_usability(
-            mutils.usability(metadata, det_name, runid=runid)
-        )
-
-        msg = f"processing the {det_name} output table..."
+        msg = f"processing the {det_name} output table [{det_idx + 1}/{len(sens_tables)}]..."
         log.info(msg)
 
         log.debug("creating an pygeomhpges.HPGe object")
@@ -170,10 +198,27 @@ for runid, evt_idx_range in partitions.items():
                 _distance_to_nplus,
                 fccd=fccd,
                 dlf=0.5,
-            )
+            ).view_as("ak")
 
             edep_active = chunk.edep * _activeness
-            energy = ak.sum(edep_active, axis=-1)
+            energy_true = ak.sum(edep_active, axis=-1)
+
+            # smear energy with detector resolution
+            if det_name in energy_res_func:
+                energy_res = energy_res_func[det_name](energy_true)
+            elif usability != "off":
+                msg = (
+                    f"{det_name} is marked as '{usability}' but no "
+                    "resolution curves are available. this is unacceptable!"
+                )
+                raise RuntimeError(msg)
+            else:
+                energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
+
+            energy = reboost.math.stats.gaussian_sample(
+                energy_true,
+                energy_res / 2.35482,
+            )
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
@@ -190,7 +235,7 @@ for runid, evt_idx_range in partitions.items():
                 dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
                     _drift_time, chunk.edep
                 )
-                _a_max = reboost_utils.hpge_max_current_cal(
+                _a_max = reboost_utils.hpge_max_current(
                     edep_active, _drift_time, currmod_pars
                 )
                 aoe = _a_max / energy
@@ -202,7 +247,7 @@ for runid, evt_idx_range in partitions.items():
             out_table.add_field("aoe", lgdo.Array(aoe))
 
             _, period, run, _ = mutils.parse_runid(runid)
-            field_vals = [period, run, usability]
+            field_vals = [period, run, mutils.encode_usability(usability)]
             for i, field in enumerate(["period", "run", "usability"]):
                 out_table.add_field(
                     field,

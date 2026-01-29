@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+import pytest
+from dbetto import AttrsDict
 from lgdo import lh5
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -79,3 +82,49 @@ def test_plot():
 
     assert isinstance(fig, Figure)
     assert isinstance(ax, Axes)
+
+
+def test_lookup_eres(config, test_l200data):
+    meta = hpge_pars.lookup_energy_res_metadata(
+        test_l200data / "v2.1.5",
+        config.metadata,
+        "l200-p03-r000-phy",
+        hit_tier_name="pht",
+    )
+
+    assert isinstance(meta, AttrsDict)
+    for k, v in meta.items():
+        assert isinstance(k, str)
+        assert "expression" in v
+        assert "parameters" in v
+
+    meta = hpge_pars.lookup_energy_res_metadata(
+        test_l200data / "v3.0.0",
+        config.metadata,
+        "l200-p16-r008-ssc",
+        hit_tier_name="hit",
+    )
+
+    assert isinstance(meta, AttrsDict)
+    for k, v in meta.items():
+        assert isinstance(k, str)
+        assert "expression" in v
+        assert "parameters" in v
+
+
+def test_eres_func():
+    f = hpge_pars.build_energy_res_func("FWHMLinear")
+    assert isinstance(f, Callable)
+
+
+def test_build_eres_funcs(config, test_l200data):
+    meta = hpge_pars.build_energy_res_func_dict(
+        test_l200data / "v2.1.5",
+        config.metadata,
+        "l200-p03-r000-phy",
+        hit_tier_name="pht",
+    )
+
+    assert isinstance(meta, dict)
+    assert list(meta.keys()) == ["V99000A"]
+    assert meta["V99000A"](2000) == pytest.approx(2.17, abs=0.01)

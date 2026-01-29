@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from dbetto import AttrsDict
 from lgdo import Array, Table
 
 from legendsimflow import utils
@@ -26,3 +27,11 @@ def test_add_field_string():
 
     assert isinstance(tab.string, Array)
     assert np.all(tab.string.view_as("np").astype("str") == "luigi was here")
+
+
+def test_get_dataflow_config(test_l200data):
+    config = utils.lookup_dataflow_config(test_l200data / "v2.1.5")
+
+    assert isinstance(config, AttrsDict)
+    assert "paths" in config
+    assert "$_" not in config.paths.tier
