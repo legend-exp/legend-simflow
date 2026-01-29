@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import logging
 import re
 from collections.abc import Callable
@@ -305,7 +306,15 @@ def lookup_energy_res_metadata(
     hit_tier_name: str = "hit",
     pars_db: TextDB | None = None,
 ) -> AttrsDict:
-    """Lookup the measured HPGe energy resolution metadata from LEGEND-200 data.
+    r"""Lookup the measured HPGe energy resolution metadata from LEGEND-200 data.
+
+    The metadata refers to the following model:
+
+    .. math::
+
+        \text{FWHM}(E) = \sqrt{a + bE}
+
+    where :math:`E` is in keV.
 
     Returns
     -------
@@ -369,3 +378,62 @@ def build_energy_res_func(function: str) -> Callable:
         return lambda energy, a, b, c: (a + b * energy + c * energy * energy) ** 0.5
 
     raise NotImplementedError
+
+
+def build_energy_res_func_dict(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
+) -> dict[str, Callable]:
+    r"""Build energy resolution functions for each HPGe detector in a LEGEND-200 run.
+
+    Returns
+    -------
+    Mapping of HPGe name to energy resolution function (FWHM), where energy is
+    expected in units of keV.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
+    runid
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
+    pars_db
+        optional existing *non-lazy* instance of
+        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+    """
+    energy_res_pars = lookup_energy_res_metadata(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
+
+    _func_full = build_energy_res_func("FWHMLinear")
+
+    energy_res_sigma_func = {}
+    for hpge, meta in energy_res_pars.items():
+        # use functools.partial correctly freeze the parameters into the function
+        base = functools.partial(
+            _func_full,
+            a=meta.parameters.a,
+            b=meta.parameters.b,
+        )
+
+        def _eres_sigma(E, base=base):
+            return base(E)
+
+        msg = f"measured FWHM for {hpge} at 2 MeV is ~{2.35 * _eres_sigma(2000)} keV"
+        log.debug(msg)
+
+        energy_res_sigma_func[hpge] = _eres_sigma
+
+    return energy_res_sigma_func

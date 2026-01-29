@@ -15,8 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from functools import partial
-
 import awkward as ak
 import dbetto.utils
 import legenddataflowscripts as ldfs
@@ -57,7 +55,7 @@ BUFFER_LEN = "300*MB"
 
 
 def DEFAULT_ENERGY_RES_SIGMA_FUNC(energy):
-    return (2.5 / 2.35482) * np.sqrt(energy / 2039)
+    return 2.5 * np.sqrt(energy / 2039)  # FWHM
 
 
 # setup logging
@@ -87,32 +85,13 @@ for runid, evt_idx_range in partitions.items():
 
     msg = "loading energy resolution parameters"
     log.debug(msg)
-    energy_res_pars = hpge_pars.lookup_energy_res_metadata(
+    energy_res_func = hpge_pars.build_energy_res_func_dict(
         l200data,
         metadata,
         runid,
         hit_tier_name=hit_tier_name,
         pars_db=pars_db,
-    )
-
-    _func_full = hpge_pars.build_energy_res_func("FWHMLinear")
-
-    energy_res_sigma_func = {}
-    for hpge, meta in energy_res_pars.items():
-        # use functools.partial correctly freeze the parameters into the function
-        base = partial(
-            _func_full,
-            a=meta.parameters.a,
-            b=meta.parameters.b,
-        )
-
-        def _eres_sigma(E, base=base):
-            return base(E) / 2.35482
-
-        msg = f"measured FWHM for {hpge} at 2 MeV is ~{2.35 * _eres_sigma(2000)} keV"
-        log.debug(msg)
-
-        energy_res_sigma_func[hpge] = _eres_sigma
+    )  # FWHM
 
     msg = "loading current pulse model parameters"
     log.debug(msg)
@@ -219,8 +198,8 @@ for runid, evt_idx_range in partitions.items():
             energy_true = ak.sum(edep_active, axis=-1)
 
             # smear energy with detector resolution
-            if det_name in energy_res_sigma_func:
-                energy_res = energy_res_sigma_func[det_name](energy_true)
+            if det_name in energy_res_func:
+                energy_res = energy_res_func[det_name](energy_true)
             elif usability != "off":
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
@@ -232,7 +211,7 @@ for runid, evt_idx_range in partitions.items():
 
             energy = reboost.math.stats.gaussian_sample(
                 energy_true,
-                energy_res,
+                energy_res / 2.35482,
             )
 
             # PSD: if the drift time map is none, it means that we don't

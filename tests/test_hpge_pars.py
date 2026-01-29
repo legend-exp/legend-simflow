@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+import pytest
 from dbetto import AttrsDict
 from lgdo import lh5
 from matplotlib.axes import Axes
@@ -114,3 +115,16 @@ def test_lookup_eres(config, test_l200data):
 def test_eres_func():
     f = hpge_pars.build_energy_res_func("FWHMLinear")
     assert isinstance(f, Callable)
+
+
+def test_build_eres_funcs(config, test_l200data):
+    meta = hpge_pars.build_energy_res_func_dict(
+        test_l200data / "v2.1.5",
+        config.metadata,
+        "l200-p03-r000-phy",
+        hit_tier_name="pht",
+    )
+
+    assert isinstance(meta, dict)
+    assert list(meta.keys()) == ["V99000A"]
+    assert meta["V99000A"](2000) == pytest.approx(2.17, abs=0.01)
