@@ -74,7 +74,7 @@ def snakemake_nersc_cli():
 
     config["metadata"] = metadata
 
-    simlist = config.get("simlist", None)
+    simlist = list(config.get("simlist", None))  # make a copy for shuffling later
     make_tiers = config.make_tiers
     if simlist is None:
         # auto determine tier from config
@@ -113,7 +113,7 @@ def snakemake_nersc_cli():
             ]
 
         if not args.no_submit:
-            print("INFO: spawning process:", " ".join(smk_cmd))  # noqa: T201
+            print("INFO: spawning process:", shlex.join(smk_cmd))  # noqa: T201
             procs.append(subprocess.Popen(smk_cmd))
         else:
             print("INFO: would spawn:", " ".join(smk_cmd))  # noqa: T201
@@ -160,7 +160,7 @@ def snakemake_nersc_batch_cli():
         help="do not run sbatch, just show what would be run.",
     )
 
-    (parser.add_argument("-t", "--time", required=True),)
+    parser.add_argument("-t", "--time", required=True)
     parser.add_argument("-N", "--nodes", default="1")
     parser.add_argument("-c", "--cpus-per-task", default="256")
     parser.add_argument("-J", "--job-name")
@@ -206,7 +206,9 @@ def snakemake_nersc_batch_cli():
     if int(args.nodes) > 1:
         snakemake = "pixi run snakemake-nersc --nodes $SLURM_NNODES"
     else:
-        snakemake = "pixi run snakemake"
+        snakemake = (
+            "pixi run snakemake --workflow-profile workflow/profiles/nersc-compute"
+        )
 
     cmd.extend(
         [
