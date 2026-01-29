@@ -113,18 +113,16 @@ rule build_tier_hit:
 rule plot_tier_hit_observables:
     """Produces plots of observables from the tier `hit`.
 
-    Only the first file of the simulation (i.e. job ID 0) is used. The rule
-    is given a high priority to make sure that the plot is produced early.
-
     Uses wildcard `simid`.
     """
     message:
         "Producing control plots for job hit.{wildcards.simid}"
     input:
-        patterns.output_simjob_filename(config, tier="hit", jobid="0000"),
+        lambda wc: aggregate.gen_list_of_simid_outputs(
+            config, tier="hit", simid=wc.simid
+        ),
     output:
         patterns.plot_tier_hit_observables_filename(config),
-    priority: 100  # prioritize producing the needed input files over the others
     script:
         "../src/legendsimflow/scripts/plots/tier_hit_observables.py"
 
