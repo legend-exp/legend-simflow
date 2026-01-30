@@ -56,7 +56,10 @@ found, raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     hpge,
     hit_tier_name,
 )
+
 if found:
+    logger.info("... extract lh5 table")
+
     lh5_group = mutils._get_lh5_table(
         metadata,
         raw_file,
@@ -84,8 +87,6 @@ if found:
     popt_dict = utils._curve_fit_popt_to_dict(popt)
     mean_aoe = hpge_pars.estimate_mean_aoe(popt)
 
-    # logger.info("... estimating effect of noise")
-    # a_resolution = hpge_pars.
 
     logger.info("... saving outputs")
     dbetto.utils.write_dict(
@@ -108,5 +109,5 @@ else:
         ]
     )
     dbetto.utils.write_dict(
-        {"current_pulse_pars": popt_dict, "mean_aoe": mean_aoe}, pars_file
+        {"current_pulse_pars": popt_dict, "mean_aoe": None}, pars_file
     )

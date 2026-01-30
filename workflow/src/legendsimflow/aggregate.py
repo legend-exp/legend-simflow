@@ -154,7 +154,7 @@ def gen_list_of_hpges_valid_for_modeling(
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
         # TEMPORARY HACK
-        if hpge.name in ("V00050A"):
+        if hpge.name in ("V00050A" , "B00091B", "V00074A"):
             continue
 
         # we don't model detectors that are OFF or AC
