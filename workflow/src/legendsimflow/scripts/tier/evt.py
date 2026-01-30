@@ -153,7 +153,7 @@ for chunk in it:
     )
 
     # simply forward some fields
-    for field in ["aoe", "drift_time_heuristic"]:
+    for field in ["aoe"]:
         field_data = _read_hits(tcm, "hit", field)
         out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[hitsel]))
 
