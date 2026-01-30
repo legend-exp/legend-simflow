@@ -225,7 +225,7 @@ def lookup_currmod_fit_inputs(
     runid: str,
     hpge: str,
     hit_tier_name: str = "hit",
-) -> tuple[Path, int, Path]:
+) -> tuple[bool, Path, int, Path]:
     """Find the raw file, event index and DSP configuration file.
 
     Parameters
@@ -264,7 +264,8 @@ def lookup_currmod_fit_inputs(
 
     if len(hit_files) == 0:
         msg = f"no hit tier files found in {hit_path}/cal/{period}/{run}"
-        raise ValueError(msg)
+        log.warning(msg)
+        return False, None, None, None
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
     dsp_cfg_files = list(
@@ -295,7 +296,7 @@ def lookup_currmod_fit_inputs(
     msg = f"determined raw file: {raw_file} (event index {wf_idx})"
     log.debug(msg)
 
-    return raw_file.resolve(), wf_idx, dsp_cfg_files[0]
+    return True, raw_file.resolve(), wf_idx, dsp_cfg_files[0]
 
 
 def lookup_energy_res_metadata(

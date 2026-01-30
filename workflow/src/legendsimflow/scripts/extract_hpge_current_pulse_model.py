@@ -49,44 +49,64 @@ msg = f"... determined hit tier name is {hit_tier_name}"
 logger.info(msg)
 logger.info("... looking up the fit inputs")
 
-raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
+found, raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     l200data,
     metadata,
     runid,
     hpge,
     hit_tier_name,
 )
+if found:
+    lh5_group = mutils._get_lh5_table(
+        metadata,
+        raw_file,
+        hpge,
+        "raw",
+        runid,
+    )
 
-lh5_group = mutils._get_lh5_table(
-    metadata,
-    raw_file,
-    hpge,
-    "raw",
-    runid,
-)
+    logger.info("... fetching the current pulse")
+    t, A = hpge_pars.get_current_pulse(raw_file, lh5_group, wf_idx, str(dsp_cfg_file))
 
-logger.info("... fetching the current pulse")
-t, A = hpge_pars.get_current_pulse(raw_file, lh5_group, wf_idx, str(dsp_cfg_file))
+    logger.info("... fitting the current pulse to extract the model")
+    popt, x, y = hpge_pars.fit_currmod(t, A)
 
-logger.info("... fitting the current pulse to extract the model")
-popt, x, y = hpge_pars.fit_currmod(t, A)
+    # now plot
+    logger.info("... plotting the fit result")
+    fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
 
-# now plot
-logger.info("... plotting the fit result")
-fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
-fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
-decorate(fig)
-plt.savefig(plot_file)
+    fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
+    decorate(fig)
+    plt.savefig(plot_file)
 
-logger.info("... adding the mean aoe")
+    logger.info("... adding the mean aoe")
 
-popt_dict = utils._curve_fit_popt_to_dict(popt)
-mean_aoe = hpge_pars.estimate_mean_aoe(popt)
+    popt_dict = utils._curve_fit_popt_to_dict(popt)
+    mean_aoe = hpge_pars.estimate_mean_aoe(popt)
 
-# logger.info("... estimating effect of noise")
-# a_resolution = hpge_pars.
+    # logger.info("... estimating effect of noise")
+    # a_resolution = hpge_pars.
 
-logger.info("... saving outputs")
-dbetto.utils.write_dict(
-    {"current_pulse_pars": popt_dict, "mean_aoe": mean_aoe}, pars_file
-)
+    logger.info("... saving outputs")
+    dbetto.utils.write_dict(
+        {"current_pulse_pars": popt_dict, "mean_aoe": mean_aoe}, pars_file
+    )
+
+else:
+    msg = "No data found!"
+    logger.warning(msg)
+
+    popt_dict = dict.fromkeys(
+        [
+            "amax",
+            "mu",
+            "sigma",
+            "tail_fraction",
+            "tau",
+            "high_tail_fraction",
+            "high_tau",
+        ]
+    )
+    dbetto.utils.write_dict(
+        {"current_pulse_pars": popt_dict, "mean_aoe": mean_aoe}, pars_file
+    )
