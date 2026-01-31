@@ -178,7 +178,7 @@ def get_senstables(
 
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
-) -> dict[str, reboost.hpge.utils.HPGeRZField]:
+) -> dict[str, reboost.hpge.utils.HPGeScalarRZField]:
     """Load HPGe drift time maps from disk.
 
     Automatically finds and loads drift time maps for crystal axes <100> <110>.
@@ -196,7 +196,7 @@ def load_hpge_dtmaps(
         log.debug("loading drift time maps")
         dt_map = {}
         for angle in ("000", "045"):
-            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
+            dt_map[angle] = reboost.hpge.utils.get_hpge_scalar_rz_field(
                 hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
             )
     else:
@@ -269,7 +269,7 @@ def get_remage_hit_range(
 
 def hpge_corrected_drift_time(
     chunk: ak.Array,
-    dt_map: reboost.hpge.utils.HPGeRZField,
+    dt_map: reboost.hpge.utils.HPGeScalarRZField,
     det_loc: pyg4ometry.gdml.Defines.Position,
 ) -> ak.Array:
     """HPGe drift time heuristic corrected for crystal axis effects.
@@ -331,6 +331,68 @@ def hpge_max_current(
         drift_time,
         template=a_tmpl,
         times=np.arange(t_domain["low"], t_domain["high"]),
+    )
+
+
+def get_forced_trigger_library(evt_file_path: str | Path) -> ak.Array:
+    """Extract a library of forced trigger events to be used
+    in correcting the SiPM pe spectra.
+
+    This reformats the data to only have forced trigger, not pulser events
+    and then stores only the summed pe (used for corrections).
+
+    Parameters
+    ----------
+    evt_file_path
+        Path to the event tier data.
+
+    Returns
+    -------
+    Array with two fields "summed_pe", the number of
+    pe in each SiPM and "rawids" the SiPM channel numbers.
+    """
+
+    summed_pe = None
+    rawids = None
+
+    files = Path(evt_file_path).glob("*")
+
+    for file in files:
+        is_forced = lh5.read("evt/trigger/is_forced", file).view_as("ak")
+        is_pulser = lh5.read("evt/coincident/puls", file).view_as(  # codespell:ignore
+            "ak"
+        )
+
+        idx = ak.where(is_forced & (~is_pulser))[0].to_list()
+
+        spms = lh5.read(
+            "evt/",
+            file,
+            idx=idx,
+            field_mask=["spms/energy", "spms/rawid", "spms/is_trig_coin_pulse"],
+        ).view_as("ak")
+        rawids_tmp = spms.spms.rawid[0]
+        pe_tmp = spms.spms.energy[spms.spms.is_trig_coin_pulse]
+
+        if rawids is not None and not ak.all(rawids == rawids_tmp):
+            msg = "rawid should be the same in all cases"
+            raise ValueError(msg)
+
+        summed_pe_tmp = ak.sum(pe_tmp, axis=-1)
+
+        summed_pe = (
+            summed_pe_tmp
+            if summed_pe is None
+            else ak.concatenate((summed_pe, summed_pe_tmp))
+        )
+
+        rawids = rawids_tmp
+
+    return ak.Array(
+        {
+            "summed_pe": summed_pe[summed_pe > 0],
+            "rawids": np.vstack([rawids] * len(summed_pe))[summed_pe > 0],
+        }
     )
 
 
