@@ -52,11 +52,14 @@ dependencies = [
     "awkward",
     "dbetto >=1.3.2",
     "h5py",
+    "hist",
     "legend-dataflow-scripts >=0.2.2",
     "legend-pydataobj >=1.17.1",
     "legend-pygeom-l200 >=0.8",
     "legend-pygeom-tools >=0.2",
     "legend-pygeom-hpges >=0.9",
+    "matplotlib",
+    "mplhep",
     "numpy",
     "pyg4ometry",
     "pygama >=2.3.1",
@@ -182,6 +185,7 @@ dbetto = ">=1.3.2,<1.4"
 legend-pydataobj = ">=1.17.1"
 legend-pygeom-l200 = ">=0.8,<0.9"
 legend-pygeom-tools = ">=0.2,<0.3"
+matplotlib = "*"
 numpy = "*"
 pylegendmeta = ">=1.3.5,<1.4"
 
@@ -191,6 +195,8 @@ snakemake-storage-plugin-fs = "*"
 snakemake-executor-plugin-slurm = "*"
 
 # tier hit
+hist = "*"
+mplhep = "*"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.1,<2.4"
