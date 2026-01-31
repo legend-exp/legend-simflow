@@ -178,10 +178,11 @@ def get_senstables(
 
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
-) -> dict[str, reboost.hpge.utils.HPGeRZField]:
+) -> dict[str, reboost.hpge.utils.HPGeRZField] | None:
     """Load HPGe drift time maps from disk.
 
     Automatically finds and loads drift time maps for crystal axes <100> <110>.
+    If no map is found, None is returned.
 
     Note
     ----
@@ -197,7 +198,10 @@ def load_hpge_dtmaps(
         dt_map = {}
         for angle in ("000", "045"):
             dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
-                hpge_dtmap_file, det_name, f"drift_time_{angle}_deg"
+                hpge_dtmap_file,
+                det_name,
+                f"drift_time_{angle}_deg",
+                bounds_error=False,
             )
     else:
         msg = (
@@ -206,6 +210,8 @@ def load_hpge_dtmaps(
         )
         log.warning(msg)
         dt_map = None
+
+    return dt_map
 
 
 def get_remage_hit_range(
@@ -269,7 +275,7 @@ def get_remage_hit_range(
 
 def hpge_corrected_drift_time(
     chunk: ak.Array,
-    dt_map: reboost.hpge.utils.HPGeRZField,
+    dt_map: dict[str, reboost.hpge.utils.HPGeRZField],
     det_loc: pyg4ometry.gdml.Defines.Position,
 ) -> ak.Array:
     """HPGe drift time heuristic corrected for crystal axis effects.
@@ -320,7 +326,7 @@ def hpge_max_current(
     t_domain = {"low": -1000, "high": 4000, "step": 1}
 
     # instantiate the template
-    a_tmpl = reboost.hpge.psd.get_current_template(
+    a_tmpl, times = reboost.hpge.psd.get_current_template(
         **t_domain,
         mean_aoe=1,  # set the maximum of the template to unity, so the A/E will be calibrated
         **currmod_pars,
@@ -330,8 +336,8 @@ def hpge_max_current(
         edep,
         drift_time,
         template=a_tmpl,
-        times=np.arange(t_domain["low"], t_domain["high"]),
-    )
+        times=times,
+    ).view_as("ak")
 
 
 def build_tcm(
