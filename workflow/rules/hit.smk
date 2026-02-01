@@ -97,6 +97,7 @@ rule build_tier_hit:
         # not all of them will be used. room for improvement
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
+        hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=rules.make_simstat_partition_file.output[0],
@@ -321,3 +322,41 @@ rule merge_current_pulse_model_pars:
             out_dict[hpges[i]] = dbetto.utils.load_dict(f)
 
         dbetto.utils.write_dict(out_dict, output[0])
+
+
+rule extract_energy_resolution_model:
+    """Extract from the LEGEND-200 data and store on disk the HPGe energy resolution model.
+
+    Stores a YAML file with a mapping between HPGe detectors and respective
+    information to reconstruct the energy resolution function, as determined
+    during energy calibration. This is done in a separate rule because the
+    data production parameter database is large and we don't want to use a lot
+    of memory in the `build_tier_hit` rule.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Extracting HPGe energy resolution model for {wildcards.runid}"
+    # NOTE: we don't list the file dependencies here because they are
+    # dynamically generated, and that would slow down the DAG generation
+    output:
+        patterns.output_eresmod_filename(config),
+    run:
+        import dbetto
+        from legendsimflow import hpge_pars, utils
+
+        hit_tier_name = utils.get_hit_tier_name(config.paths.l200data)
+
+        pars_dict = hpge_pars.lookup_energy_res_metadata(
+            config.paths.l200data,
+            config.metadata,
+            wildcards.runid,
+            hit_tier_name=hit_tier_name,
+        )
+
+        out_dict = dbetto.AttrsDict({})
+        fields = ["expression", "parameters", "uncertainties"]
+        for hpge, meta in pars_dict.items():
+            out_dict[hpge] = {f: meta[f] for f in fields}
+
+        dbetto.utils.write_dict(out_dict.to_dict(), output[0])

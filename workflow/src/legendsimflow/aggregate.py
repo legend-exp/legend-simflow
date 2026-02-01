@@ -323,6 +323,14 @@ def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig, **kwargs) -> se
     return files
 
 
+def gen_list_of_eresmods(config: SimflowConfig, simid: str) -> list[Path]:
+    r"""Generate the list of HPGe energy resolution model parameter files for all requested `runid`\ s."""
+    return [
+        patterns.output_eresmod_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
+
+
 # tier cvt
 
 
