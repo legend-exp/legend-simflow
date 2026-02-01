@@ -173,7 +173,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         # load parameters of the current model
         pars = currmod_pars_all.get(det_name, None)
         currmod_pars = (
-            pars.get("current_pulse_shape", None) if pars is not None else None
+            pars.get("current_pulse_pars", None) if pars is not None else None
         )
 
         n_tot = 0
@@ -218,6 +218,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy = reboost.math.stats.gaussian_sample(
                 energy_true,
                 energy_res / 2.35482,
+            ).view_as("ak")
+
+            # energy can't be negative as a result of smearing and later we
+            # divide for it
+            energy = ak.where(
+                (energy <= 0) & (energy_true >= 0), np.finfo(float).tiny, energy
             )
 
             # PSD: if the drift time map is none, it means that we don't
@@ -225,25 +231,31 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # way
 
             # default to NaN
-            dt_heuristic = np.full(len(chunk), np.nan)
+            drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
 
             if dt_map is not None:
-                _drift_time = reboost_utils.hpge_corrected_drift_time(
+                msg = "computing PSD observables"
+                log.info(msg)
+
+                drift_time = reboost_utils.hpge_corrected_drift_time(
                     chunk, dt_map, det_loc
                 )
-                dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
-                    _drift_time, chunk.edep
-                )
+                utils.check_nans_leq(drift_time, "drift_time", 0.1)
+
                 _a_max = reboost_utils.hpge_max_current(
-                    edep_active, _drift_time, currmod_pars
+                    edep_active, drift_time, currmod_pars
                 )
+                utils.check_nans_leq(_a_max, "max_current", 0.1)
+
                 aoe = _a_max / energy
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
-            out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
+            out_table.add_field(
+                "drift_time", lgdo.VectorOfVectors(drift_time, attrs={"units": "ns"})
+            )
             out_table.add_field("aoe", lgdo.Array(aoe))
 
             _, period, run, _ = mutils.parse_runid(runid)

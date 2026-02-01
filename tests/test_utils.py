@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from dbetto import AttrsDict
 from lgdo import Array, Table
 
@@ -35,3 +36,12 @@ def test_get_dataflow_config(test_l200data):
     assert isinstance(config, AttrsDict)
     assert "paths" in config
     assert "$_" not in config.paths.tier
+
+
+def test_check_nans_leq():
+    utils.check_nans_leq([1, 2, 3, 4], "boh", 0.1)
+    utils.check_nans_leq([[1], [2, 3], 4], "boh", 0.1)
+    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.5)
+
+    with pytest.raises(RuntimeError):
+        utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1)

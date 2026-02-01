@@ -23,6 +23,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import awkward as ak
 import dbetto
 import h5py
 import legenddataflowscripts as ldfs
@@ -290,3 +291,23 @@ def add_field_string(name: str, chunk: lgdo.Table, data: str) -> None:
     dtype = h5py.string_dtype(encoding="utf-8", length=len(data))
     data_array = np.full(len(chunk), fill_value=data, dtype=dtype)
     chunk.add_field(name, lgdo.Array(data_array))
+
+
+def check_nans_leq(array: ArrayLike, name: str, less_than_frac: float = 0.1) -> None:
+    """Raise an exception if the fraction of NaN values in `array` is above threshold.
+
+    Parameters
+    ----------
+    array
+        the array to analyze.
+    name
+        array name for exception message.
+    less_than_frac
+        raise exception if fraction of NaNs is above this threshold.
+    """
+    flat = ak.ravel(array)
+    n_el = len(flat)
+    n_nans = ak.sum(ak.is_none(ak.nan_to_none(flat)))
+    if (n_nans / n_el) > less_than_frac:
+        msg = f"more than {100 * less_than_frac}% of NaNs detected in array {name}!"
+        raise RuntimeError(msg)
