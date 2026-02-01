@@ -268,7 +268,7 @@ def get_remage_hit_range(
         log.warning(msg)
 
         i_start = 0
-        n_entries = None
+        n_entries = 0
 
     return i_start, n_entries
 
