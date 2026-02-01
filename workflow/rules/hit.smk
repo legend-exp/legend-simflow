@@ -110,6 +110,23 @@ rule build_tier_hit:
         "../src/legendsimflow/scripts/tier/hit.py"
 
 
+rule plot_tier_hit_observables:
+    """Produces plots of observables from the tier `hit`.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Producing control plots for job hit.{wildcards.simid}"
+    input:
+        lambda wc: aggregate.gen_list_of_simid_outputs(
+            config, tier="hit", simid=wc.simid
+        ),
+    output:
+        patterns.plot_tier_hit_observables_filename(config),
+    script:
+        "../src/legendsimflow/scripts/plots/tier_hit_observables.py"
+
+
 def smk_hpge_drift_time_map_inputs(wildcards):
     """Prepare inputs for the HPGe drift time map rule."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]

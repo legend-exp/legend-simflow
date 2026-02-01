@@ -199,8 +199,8 @@ def plot_currmod_fit_result(
     """Plot the best fit results."""
     fig, ax = plt.subplots()
 
-    ax.plot(t, A, linewidth=2, label="Waveform")
-    ax.plot(model_t, model_A, linewidth=1, label="Fit")
+    ax.plot(t, A, marker="o", markersize=3, label="Current signal")
+    ax.plot(model_t, model_A, label="Model", color="tab:red")
 
     ax.legend()
 

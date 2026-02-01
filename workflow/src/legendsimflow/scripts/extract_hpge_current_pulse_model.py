@@ -74,6 +74,7 @@ popt, x, y = hpge_pars.fit_currmod(t, A)
 # now plot
 logger.info("... plotting the fit result")
 fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
+fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
 decorate(fig)
 plt.savefig(plot_file)
 

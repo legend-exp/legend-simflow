@@ -1,0 +1,135 @@
+# ruff: noqa: I002
+
+# Copyright (C) 2026 Luigi Pertoldi <gipert@pm.me>,
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+from pathlib import Path
+
+import hist
+import matplotlib.pyplot as plt
+import numpy as np
+from lgdo import lh5
+from matplotlib.backends.backend_pdf import PdfPages
+
+from legendsimflow import metadata as mutils
+from legendsimflow import nersc
+from legendsimflow.plot import decorate
+
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
+
+hit_files = args.input
+output_pdf = args.output[0]
+simid = args.wildcards.simid
+
+
+def save_page(pdf, make_fig):
+    fig = make_fig()
+    decorate(fig)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def set_empty(ax):
+    ax.text(
+        0.5,
+        0.5,
+        "empty!",
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        color="0.6",
+        fontsize=20,
+    )
+
+
+def plot_hist(hist, ax, flow="show", **kwargs):
+    if hist.sum() != 0:
+        hist.plot(ax=ax, yerr=False, flow=flow, **kwargs)
+    else:
+        set_empty(ax)
+
+
+def fig(table):
+    fig = plt.figure(figsize=(12, 6))
+    outer = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1, 1])
+    gs_top = outer[0].subgridspec(1, 2, width_ratios=[4, 1])
+    gs_bot = outer[1].subgridspec(1, 3, width_ratios=[1, 1, 0.6])
+
+    data = lh5.read_as(f"hit/{table}", hit_files, library="ak")
+
+    # energy
+    ax = fig.add_subplot(gs_top[0, 0])
+    bw = 5
+    h_ene = hist.new.Reg(int(5000 / bw), 0, 5000, name="energy (keV)").Double()
+    h_ene.fill(data.energy)
+    plot_hist(h_ene, ax)
+    ax.set_ylabel(f"Counts / {bw} keV")
+    ax.set_yscale("log")
+
+    # energy inset
+    ax = fig.add_subplot(gs_top[0, 1])
+
+    # find tallest gamma peak above 1 MeV
+    _h = h_ene[1000j:]
+    if _h.sum() != 0:
+        argmax_e = _h.axes[0].centers[_h.view().argmax()]
+
+        h_ene_z = hist.new.Reg(
+            80, argmax_e - 20, argmax_e + 20, name="energy (keV)"
+        ).Double()
+        h_ene_z.fill(data.energy)
+        plot_hist(h_ene_z, ax, flow="none")
+    else:
+        # no events above 1 MeV; mark inset as empty
+        set_empty(ax)
+
+    ax.set_ylabel("Counts / 0.5 keV")
+    ax.set_yscale("log")
+
+    # A/E
+    ax = fig.add_subplot(gs_bot[0, 0])
+    h_aoe = hist.new.Reg(200, 0, 1.2, name="A/E").Double()
+    h_aoe.fill(data.aoe)
+    plot_hist(h_aoe, ax, color="tab:red")
+
+    # drift time
+    ax = fig.add_subplot(gs_bot[0, 1])
+    h_dt = hist.new.Reg(300, 0, 3000, name="drift time (ns)").Double()
+    h_dt.fill_flattened(data.drift_time)
+    plot_hist(h_dt, ax, color="tab:orange")
+
+    # usability
+    ax = fig.add_subplot(gs_bot[0, 2])
+    vals, counts = np.unique(data.usability, return_counts=True)
+    plt.pie(
+        counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
+    )
+    ax.set_aspect("equal")  # keep it circular
+
+    fig.suptitle(f"{simid}: {table} hits")
+    return fig
+
+
+# prepare a pdf file with a plot per page
+tables: list[str] = [
+    Path(t).name
+    for t in sorted(lh5.ls(hit_files[0], "hit/"))
+    if not Path(t).name.startswith("__")
+]
+fig_builders = [lambda t=t: fig(t) for t in tables]
+
+with PdfPages(output_pdf) as pdf:
+    for make_fig in fig_builders:
+        save_page(pdf, make_fig)

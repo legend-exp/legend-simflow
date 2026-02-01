@@ -31,6 +31,12 @@ from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
 
+USABILITY_CODE = {
+    "on": 0,
+    "ac": 1,
+    "off": 2,
+}
+
 
 def get_simconfig(
     config: SimflowConfig,
@@ -147,36 +153,14 @@ def usability(
 
 
 def encode_usability(usability: str) -> int:
-    """Encode the usability in an int.
-
-    - "on":  0
-    - "ac":  1
-    - "off": 2
-
-    Better to store and faster to manipulate.
-    """
-
-    if usability == "on":
-        return 0
-    if usability == "ac":
-        return 1
-    if usability == "off":
-        return 2
-    msg = "currently only usability of `on` `ac` or `off` are supported"
-    raise ValueError(msg)
+    """Encode the HPGe usability in an int."""
+    return USABILITY_CODE[usability]
 
 
 def decode_usability(usability_code: int) -> str:
-    """Decode the usability (see {func}`encode_usability`)."""
-
-    if usability_code == 0:
-        return "on"
-    if usability_code == 1:
-        return "ac"
-    if usability_code == 2:
-        return "off"
-    msg = f"currently only usability of `on` `ac` or `off` are supported not {usability_code}"
-    raise ValueError(msg)
+    """Decode the HPGe usability (see {func}`encode_usability`)."""
+    _codes = {v: k for k, v in USABILITY_CODE.items()}
+    return _codes[usability_code]
 
 
 def parse_runid(runid: str) -> (str, int, int, str):
