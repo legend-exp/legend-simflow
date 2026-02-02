@@ -41,7 +41,23 @@ log = logging.getLogger(__name__)
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
-    # merge default into user without overwriting user values
+    """Recursively merge default values into user configuration.
+
+    Merges values from `default` into `user` without overwriting existing
+    user values. For nested dictionaries, performs recursive merge.
+
+    Parameters
+    ----------
+    user
+        User configuration dictionary.
+    default
+        Default configuration dictionary.
+
+    Returns
+    -------
+    dict
+        Merged configuration dictionary with user values taking precedence.
+    """
     result = dict(default)
     for k, v in user.items():
         if k in result and isinstance(result[k], dict) and isinstance(v, dict):
@@ -139,8 +155,16 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     )
 
 
-def setup_logdir_link(config: SimflowConfig, proctime):
-    """Set up the timestamp-tagged directory for the workflow log files."""
+def setup_logdir_link(config: SimflowConfig, proctime: str) -> None:
+    """Set up the timestamp-tagged directory for the workflow log files.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    proctime
+        Processing time identifier for the log directory.
+    """
     logdir = Path(config.paths.log)
     logdir.mkdir(parents=True, exist_ok=True)
 
