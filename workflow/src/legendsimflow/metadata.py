@@ -247,7 +247,7 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     return directory.on(runinfo(metadata, runid).start_key, system=datatype)
 
 
-def get_vtx_simconfig(config, simid):
+def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
     """Get the vertex generation configuration for a stp-tier `simid`.
 
     Returns the ``vtx``-tier generator requested by the ``stp``-tier simulation
