@@ -95,7 +95,7 @@ if found:
 
 else:
     msg = "No data found!"
-    logger.warning(msg)
+    logger.info(msg)
 
     popt_dict = dict.fromkeys(
         [
@@ -108,6 +108,12 @@ else:
             "high_tau",
         ]
     )
+    fig, ax = plt.subplots()
+    ax.set_title(f"No data found for {hpge}!")
+    decorate(fig)
+    
+    plt.savefig(plot_file)
+    
     dbetto.utils.write_dict(
-        {"current_pulse_pars": popt_dict, "mean_aoe": None}, pars_file
+        {"current_pulse_pars": popt_dict, "mean_aoe": 1}, pars_file
     )

@@ -177,6 +177,10 @@ def get_current_pulse(
     # HACK: importing this messes up pint registries
     from dspeed.vis import WaveformBrowser  # noqa: PLC0415
 
+    log.info("imported dspeed")
+    log.info(f"wf browser with {raw_file} {lh5_group} {dsp_config} {dsp_output} and {align}")
+    raw_file =str(raw_file).replace("/dvs_ro","/global")
+    dsp_config = str(dsp_config).replace("/dvs_ro","/global")
     browser = WaveformBrowser(
         str(raw_file),
         lh5_group,
@@ -184,12 +188,15 @@ def get_current_pulse(
         lines=[dsp_output],
         align=align,
     )
+    log.info("made wf browser")
 
     browser.find_entry(idx)
 
+    log.info("got entry")
     t = browser.lines[dsp_output][0].get_xdata()
     A = browser.lines[dsp_output][0].get_ydata()
 
+    log.info("and t,A")
     return t, A
 
 
@@ -264,7 +271,7 @@ def lookup_currmod_fit_inputs(
 
     if len(hit_files) == 0:
         msg = f"no hit tier files found in {hit_path}/cal/{period}/{run}"
-        log.warning(msg)
+        log.info(msg)
         return False, None, None, None
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
