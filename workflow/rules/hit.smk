@@ -185,21 +185,6 @@ rule build_hpge_drift_time_map:
         "    --output-file {output} &> {log}"
 
 
-rule plot_hpge_drift_time_maps:
-    """Produce a validation plot of an HPGe drift time map.
-
-    Uses wildcards `hpge_detector` and `runid`.
-    """
-    message:
-        "Plotting HPGe drift time map for {wildcards.hpge_detector} in {wildcards.runid}"
-    input:
-        rules.build_hpge_drift_time_map.output,
-    output:
-        patterns.plot_dtmap_filename(config),
-    script:
-        "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
-
-
 rule merge_hpge_drift_time_maps:
     """Merge HPGe drift time maps in a single file.
 
@@ -242,6 +227,21 @@ rule merge_hpge_drift_time_maps:
           done
         done
         """
+
+
+rule plot_hpge_drift_time_maps:
+    """Produce a validation plot of an HPGe drift time map.
+
+    Uses wildcards `runid`.
+    """
+    message:
+        "Plotting drift time maps for HPGes in {wildcards.runid}"
+    input:
+        rules.merge_hpge_drift_time_maps.output,
+    output:
+        patterns.plot_dtmap_merged_filename(config),
+    script:
+        "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 
 
 def smk_extract_current_pulse_model_inputs(wildcards):
