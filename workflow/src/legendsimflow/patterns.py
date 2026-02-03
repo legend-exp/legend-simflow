@@ -293,7 +293,7 @@ def log_simstat_part_filename(config: SimflowConfig, time: str, **kwargs) -> Pat
 
 
 def tier_cvt_base_segment(config: SimflowConfig, **kwargs) -> str:
-    return _expand("{simid}/" + config.experiment + "-{simid}-tier_cvt", **kwargs)
+    return _expand(config.experiment + "-{simid}-tier_cvt", **kwargs)
 
 
 def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
