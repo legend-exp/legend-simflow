@@ -43,7 +43,7 @@ optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
 
 # for some sims like Th228
-BUFFER_LEN = "10*MB"
+BUFFER_LEN = "50*MB"
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -98,21 +98,22 @@ for det_name, geom_meta in sens_tables.items():
                         chunk.edep, chunk.particle, "lar"
                     )
 
-                    photoelectrons = reboost.spms.pe.detected_photoelectrons(
-                        _scint_ph,
-                        chunk.particle,
-                        chunk.time,
+                    nr_pe = reboost.spms.pe.number_of_detected_photoelectrons(
                         chunk.xloc,
                         chunk.yloc,
                         chunk.zloc,
+                        _scint_ph,
                         optmap,
-                        "lar",
-                        sipm,
+                        "all",
                         map_scaling=0.1,
                     )
 
+                    pe_times = reboost.spms.pe.photoelectron_times(
+                        nr_pe, chunk.particle, chunk.time, "lar"
+                    )
+
                     out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-                    out_table.add_field("time", photoelectrons)
+                    out_table.add_field("time", pe_times)
                     reboost_utils.write_chunk(
                         out_table,
                         f"/hit/{sipm}",
@@ -135,22 +136,24 @@ for det_name, geom_meta in sens_tables.items():
                         chunk.edep, chunk.particle, "lar"
                     )
 
-                with perf_block("detected_photoelectrons()"):
-                    photoelectrons = reboost.spms.pe.detected_photoelectrons(
-                        _scint_ph,
-                        chunk.particle,
-                        chunk.time,
+                with perf_block("number_of_detected_photoelectrons()"):
+                    nr_pe = reboost.spms.pe.number_of_detected_photoelectrons(
                         chunk.xloc,
                         chunk.yloc,
                         chunk.zloc,
+                        _scint_ph,
                         optmap,
-                        "lar",
                         "all",
                         map_scaling=0.1,
                     )
 
+                with perf_block("photoelectron_times()"):
+                    pe_times = reboost.spms.pe.photoelectron_times(
+                        nr_pe, chunk.particle, chunk.time, "lar"
+                    )
+
                 out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-                out_table.add_field("time", photoelectrons)
+                out_table.add_field("time", pe_times)
                 reboost_utils.write_chunk(
                     out_table,
                     "/hit/spms",
