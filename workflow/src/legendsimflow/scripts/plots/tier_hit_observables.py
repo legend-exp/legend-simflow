@@ -17,6 +17,7 @@
 
 from pathlib import Path
 
+import awkward as ak
 import hist
 import matplotlib.pyplot as plt
 import numpy as np
@@ -63,11 +64,23 @@ def plot_hist(hist, ax, flow="show", **kwargs):
 
 def fig(table):
     fig = plt.figure(figsize=(12, 6))
+
+    # some hit files might not contain the table because there were no hits
+    arrays = []
+    for f in hit_files:
+        if f"hit/{table}" in lh5.ls(f, "hit/"):
+            arrays.append(lh5.read_as(f"hit/{table}", f, library="ak"))
+
+    if arrays == []:
+        ax = fig.add_subplot()
+        set_empty(ax)
+        return fig
+
+    data = ak.concatenate(arrays, axis=0)
+
     outer = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1, 1])
     gs_top = outer[0].subgridspec(1, 2, width_ratios=[4, 1])
     gs_bot = outer[1].subgridspec(1, 3, width_ratios=[1, 1, 0.6])
-
-    data = lh5.read_as(f"hit/{table}", hit_files, library="ak")
 
     # energy
     ax = fig.add_subplot(gs_top[0, 0])

@@ -69,7 +69,7 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
     if tier == "hit":
         return [
             patterns.plot_tier_hit_observables_filename(config, simid=simid),
-            *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
+            *gen_list_of_dtmap_plots_outputs(config, simid),
             *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
         ]
     if tier == "stp":
@@ -242,31 +242,20 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
     ]
 
 
-def gen_list_of_dtmap_plots_outputs(
-    config: SimflowConfig, simid: str, cache: dict[str, list[str]] | None = None
-) -> list[Path]:
+def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> list[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
-    files = []
-    for runid in get_runlist(config, simid):
-        hpges = (
-            gen_list_of_hpges_valid_for_modeling(config, runid)
-            if cache is None
-            else cache[runid]
-        )
-        for hpge in hpges:
-            files.append(
-                patterns.plot_dtmap_filename(config, hpge_detector=hpge, runid=runid)
-            )
-
-    return files
+    return [
+        patterns.plot_dtmap_merged_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
 
 
-def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig, **kwargs) -> set[Path]:
+def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
     # use a set to drop duplicates
     files = set()
     for simid in gen_list_of_all_simids(config):
-        files.update(gen_list_of_dtmap_plots_outputs(config, simid, **kwargs))
+        files.update(gen_list_of_dtmap_plots_outputs(config, simid))
 
     return files
 

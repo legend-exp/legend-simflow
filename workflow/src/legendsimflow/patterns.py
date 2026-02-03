@@ -222,8 +222,8 @@ def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.plots / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.pdf"
+def plot_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = config.paths.plots / "hpge/dtmaps/{runid}-drift-time-maps.pdf"
     return _expand(pat, **kwargs)
 
 
