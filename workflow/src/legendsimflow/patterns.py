@@ -267,6 +267,16 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+# hpge energy resolution
+
+
+def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/eresmod/{runid}-model.yaml",
+        **kwargs,
+    )
+
+
 # hit tier
 
 

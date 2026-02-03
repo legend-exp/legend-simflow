@@ -47,9 +47,9 @@ log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
+hpge_eresmods_files = args.input.hpge_eresmods
 simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
-hit_tier_name = utils.get_hit_tier_name(l200data)
 
 BUFFER_LEN = "500*MB"
 
@@ -74,13 +74,6 @@ for tbl in lh5.ls(stp_file, "stp/*"):
 
 partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
-# pre-load the l200 data pars to save time later
-pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-msg = "loading l200 pars database"
-log.debug(msg)
-pars_db.scan()
-
 # load TCM, to be used to chunk the event statistics according to the run partitioning
 msg = "loading TCM"
 log.debug(msg)
@@ -96,12 +89,16 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
     msg = "loading energy resolution parameters"
     log.debug(msg)
+    eresmod_pars_file = patterns.output_eresmod_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    eresmod_pars_all = dbetto.utils.load_dict(eresmod_pars_file)
     energy_res_func = hpge_pars.build_energy_res_func_dict(
         l200data,
         metadata,
         runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
+        energy_res_pars=eresmod_pars_all,
     )  # FWHM
 
     msg = "loading current pulse model parameters"
@@ -213,6 +210,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 )
                 raise RuntimeError(msg)
             else:
+                msg = (
+                    f"{det_name} is marked as '{usability}' but no "
+                    "resolution curves are available. using default "
+                    "resolution of 2.5 keV FWHM at 2 MeV!"
+                )
+                log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
             energy = reboost.math.stats.gaussian_sample(

@@ -343,7 +343,6 @@ def lookup_energy_res_metadata(
     # get the paths to generated parameters
     if pars_db is None:
         pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-        pars_db.scan()  # need to use .on() later
 
     msg = f"loading {hit_tier_name} pars of production {l200data}"
     log.debug(msg)
@@ -386,7 +385,7 @@ def build_energy_res_func_dict(
     runid: str,
     *,
     hit_tier_name: str = "hit",
-    pars_db: TextDB | None = None,
+    energy_res_pars: dict | AttrsDict | None = None,
 ) -> dict[str, Callable]:
     r"""Build energy resolution functions for each HPGe detector in a LEGEND-200 run.
 
@@ -409,13 +408,16 @@ def build_energy_res_func_dict(
         optional existing *non-lazy* instance of
         ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
     """
-    energy_res_pars = lookup_energy_res_metadata(
-        l200data,
-        metadata,
-        runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
-    )
+    if energy_res_pars is None:
+        energy_res_pars = lookup_energy_res_metadata(
+            l200data,
+            metadata,
+            runid,
+            hit_tier_name=hit_tier_name,
+        )
+
+    if not isinstance(energy_res_pars, AttrsDict):
+        energy_res_pars = AttrsDict(energy_res_pars)
 
     _func_full = build_energy_res_func("FWHMLinear")
 
