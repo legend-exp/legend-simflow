@@ -17,7 +17,6 @@
 
 from pathlib import Path
 
-import awkward as ak
 import hist
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,8 +24,7 @@ from lgdo import lh5
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc
-from legendsimflow.plot import decorate
+from legendsimflow import nersc, plot
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -35,48 +33,15 @@ output_pdf = args.output[0]
 simid = args.wildcards.simid
 
 
-def save_page(pdf, make_fig):
-    fig = make_fig()
-    decorate(fig)
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
-def set_empty(ax):
-    ax.text(
-        0.5,
-        0.5,
-        "empty!",
-        transform=ax.transAxes,
-        ha="center",
-        va="center",
-        color="0.6",
-        fontsize=20,
-    )
-
-
-def plot_hist(hist, ax, flow="show", **kwargs):
-    if hist.sum() != 0:
-        hist.plot(ax=ax, yerr=False, flow=flow, **kwargs)
-    else:
-        set_empty(ax)
-
-
 def fig(table):
     fig = plt.figure(figsize=(12, 6))
 
-    # some hit files might not contain the table because there were no hits
-    arrays = []
-    for f in hit_files:
-        if f"hit/{table}" in lh5.ls(f, "hit/"):
-            arrays.append(lh5.read_as(f"hit/{table}", f, library="ak"))
+    data = plot.read_concat_wempty(hit_files, table)
 
-    if arrays == []:
+    if len(data) == 0:
         ax = fig.add_subplot()
-        set_empty(ax)
+        plot.set_empty(ax)
         return fig
-
-    data = ak.concatenate(arrays, axis=0)
 
     outer = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1, 1])
     gs_top = outer[0].subgridspec(1, 2, width_ratios=[4, 1])
@@ -87,7 +52,7 @@ def fig(table):
     bw = 5
     h_ene = hist.new.Reg(int(5000 / bw), 0, 5000, name="energy (keV)").Double()
     h_ene.fill(data.energy)
-    plot_hist(h_ene, ax)
+    plot.plot_hist(h_ene, ax)
     ax.set_ylabel(f"Counts / {bw} keV")
     ax.set_yscale("log")
 
@@ -103,10 +68,10 @@ def fig(table):
             80, argmax_e - 20, argmax_e + 20, name="energy (keV)"
         ).Double()
         h_ene_z.fill(data.energy)
-        plot_hist(h_ene_z, ax, flow="none")
+        plot.plot_hist(h_ene_z, ax, flow="none")
     else:
         # no events above 1 MeV; mark inset as empty
-        set_empty(ax)
+        plot.set_empty(ax)
 
     ax.set_ylabel("Counts / 0.5 keV")
     ax.set_yscale("log")
@@ -115,13 +80,13 @@ def fig(table):
     ax = fig.add_subplot(gs_bot[0, 0])
     h_aoe = hist.new.Reg(200, 0, 1.2, name="A/E").Double()
     h_aoe.fill(data.aoe)
-    plot_hist(h_aoe, ax, color="tab:red")
+    plot.plot_hist(h_aoe, ax, color="tab:red")
 
     # drift time
     ax = fig.add_subplot(gs_bot[0, 1])
     h_dt = hist.new.Reg(300, 0, 3000, name="drift time (ns)").Double()
     h_dt.fill_flattened(data.drift_time)
-    plot_hist(h_dt, ax, color="tab:orange")
+    plot.plot_hist(h_dt, ax, color="tab:orange")
 
     # usability
     ax = fig.add_subplot(gs_bot[0, 2])
@@ -145,4 +110,4 @@ fig_builders = [lambda t=t: fig(t) for t in tables]
 
 with PdfPages(output_pdf) as pdf:
     for make_fig in fig_builders:
-        save_page(pdf, make_fig)
+        plot.save_page(pdf, make_fig)
