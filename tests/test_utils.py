@@ -148,20 +148,20 @@ paths:
 """
     config_file = tmp_path / "config.yaml"
     config_file.write_text(config_content)
-    
+
     # Create tier directories
     hit_dir = tmp_path / "generated" / "tier" / "hit"
     pht_dir = tmp_path / "generated" / "tier" / "pht"
     hit_dir.mkdir(parents=True, exist_ok=True)
     pht_dir.mkdir(parents=True, exist_ok=True)
-    
+
     return tmp_path
 
 
 def test_lookup_dataflow_config_with_fixture(tier_test_data):
     """Test lookup_dataflow_config with a proper fixture."""
     config = utils.lookup_dataflow_config(tier_test_data)
-    
+
     assert isinstance(config, AttrsDict)
     assert "paths" in config
     assert "tier_hit" in config.paths
@@ -187,11 +187,11 @@ paths:
 """
     config_file = tmp_path / "config.yaml"
     config_file.write_text(config_content)
-    
+
     # Create only hit directory
     hit_dir = tmp_path / "generated" / "tier" / "hit"
     hit_dir.mkdir(parents=True, exist_ok=True)
-    
+
     tier_name = utils.get_hit_tier_name(str(tmp_path))
     assert tier_name == "hit"
 
@@ -206,6 +206,6 @@ paths:
 """
     config_file = tmp_path / "config.yaml"
     config_file.write_text(config_content)
-    
+
     with pytest.raises(RuntimeError, match="does not contain a valid pht or hit tier"):
         utils.get_hit_tier_name(str(tmp_path))
