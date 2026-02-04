@@ -45,19 +45,29 @@ def test_simid_outputs(config):
     )
 
 
-def test_process_simlist(config):
-    for tier in ("vtx", "stp", "opt", "hit", "evt"):
-        targets = agg.process_simlist(
-            config,
-            simlist=[f"{tier}.birds_nest_K40", f"{tier}.pen_plates_Ra224_to_Pb208"],
-        )
-        assert targets != []
+def test_process_simlist_is_cumulative(config):
+    # evt must include vtx/stp/opt/hit outputs for the same simid
+    simid = "birds_nest_K40"
+    targets_evt = agg.process_simlist(config, simlist=[f"evt.{simid}"])
 
-    targets = agg.process_simlist(
-        config,
-        simlist=["cvt.birds_nest_K40"],
-    )
-    assert len(targets) == 1
+    targets_vtx = agg.process_simlist(config, simlist=[f"vtx.{simid}"])
+    targets_stp = agg.process_simlist(config, simlist=[f"stp.{simid}"])
+    targets_opt = agg.process_simlist(config, simlist=[f"opt.{simid}"])
+    targets_hit = agg.process_simlist(config, simlist=[f"hit.{simid}"])
+
+    assert targets_evt != []
+    assert set(targets_vtx).issubset(targets_evt)
+    assert set(targets_stp).issubset(targets_evt)
+    assert set(targets_opt).issubset(targets_evt)
+    assert set(targets_hit).issubset(targets_evt)
+
+    # cvt must include evt outputs (and therefore also lower tiers)
+    simid2 = "pen_plates_Ra224_to_Pb208"
+    targets_cvt = agg.process_simlist(config, simlist=[f"cvt.{simid2}"])
+    targets_evt2 = agg.process_simlist(config, simlist=[f"evt.{simid2}"])
+
+    assert targets_cvt != []
+    assert set(targets_evt2).issubset(targets_cvt)
 
 
 def test_hpge_harvesting(config):
