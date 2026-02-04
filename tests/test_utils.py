@@ -137,9 +137,75 @@ def test_hash_dict():
     assert "key" in hash4
 
 
-def test_get_hit_tier_name(test_l200data):
-    """Test get_hit_tier_name returns correct tier."""
-    # The test data config has tier_hit and tier_pht defined
-    # but the actual directories don't exist, so we expect a RuntimeError
+@pytest.fixture
+def tier_test_data(tmp_path):
+    """Create a temporary test data directory with tier configuration."""
+    # Create config YAML
+    config_content = """
+paths:
+  tier_hit: $_/generated/tier/hit
+  tier_pht: $_/generated/tier/pht
+"""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(config_content)
+    
+    # Create tier directories
+    hit_dir = tmp_path / "generated" / "tier" / "hit"
+    pht_dir = tmp_path / "generated" / "tier" / "pht"
+    hit_dir.mkdir(parents=True, exist_ok=True)
+    pht_dir.mkdir(parents=True, exist_ok=True)
+    
+    return tmp_path
+
+
+def test_lookup_dataflow_config_with_fixture(tier_test_data):
+    """Test lookup_dataflow_config with a proper fixture."""
+    config = utils.lookup_dataflow_config(tier_test_data)
+    
+    assert isinstance(config, AttrsDict)
+    assert "paths" in config
+    assert "tier_hit" in config.paths
+    assert "tier_pht" in config.paths
+    # Verify variable substitution happened
+    assert "$_" not in str(config.paths.tier_hit)
+    assert "generated/tier/hit" in str(config.paths.tier_hit)
+
+
+def test_get_hit_tier_name_with_pht(tier_test_data):
+    """Test get_hit_tier_name returns 'pht' when both tiers exist."""
+    # When both hit and pht exist, pht should be preferred
+    tier_name = utils.get_hit_tier_name(str(tier_test_data))
+    assert tier_name == "pht"
+
+
+def test_get_hit_tier_name_with_hit_only(tmp_path):
+    """Test get_hit_tier_name returns 'hit' when only hit tier exists."""
+    # Create config with only hit tier
+    config_content = """
+paths:
+  tier_hit: $_/generated/tier/hit
+"""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(config_content)
+    
+    # Create only hit directory
+    hit_dir = tmp_path / "generated" / "tier" / "hit"
+    hit_dir.mkdir(parents=True, exist_ok=True)
+    
+    tier_name = utils.get_hit_tier_name(str(tmp_path))
+    assert tier_name == "hit"
+
+
+def test_get_hit_tier_name_missing_dirs(tmp_path):
+    """Test get_hit_tier_name raises error when directories don't exist."""
+    # Create config but no actual directories
+    config_content = """
+paths:
+  tier_hit: $_/generated/tier/hit
+  tier_pht: $_/generated/tier/pht
+"""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(config_content)
+    
     with pytest.raises(RuntimeError, match="does not contain a valid pht or hit tier"):
-        utils.get_hit_tier_name(str(test_l200data / "v2.1.5"))
+        utils.get_hit_tier_name(str(tmp_path))
