@@ -193,11 +193,13 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 precompute_cutoff=(fccd + 1),
                 surface_type="nplus",
             )
-
+            #dlf matching mage
+            dlf = 1 - 0.5/fccd if fccd > 0.5 else 0
+                
             _activeness = reboost.math.functions.piecewise_linear_activeness(
                 _distance_to_nplus,
                 fccd=fccd,
-                dlf=0.5,
+                dlf=dlf,
             ).view_as("ak")
 
             edep_active = chunk.edep * _activeness
