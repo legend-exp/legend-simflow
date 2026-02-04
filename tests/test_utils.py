@@ -140,11 +140,16 @@ def test_hash_dict():
 @pytest.fixture
 def tier_test_data(tmp_path):
     """Create a temporary test data directory with tier configuration."""
-    # Create config YAML
+    # Create config YAML with setups.l200 structure
     config_content = """
-paths:
-  tier_hit: $_/generated/tier/hit
-  tier_pht: $_/generated/tier/pht
+setups:
+  l200:
+    paths:
+      tier_hit: $_/generated/tier/hit
+      tier_pht: $_/generated/tier/pht
+      par: $_/generated/par
+      par_hit: $_/generated/par/hit
+      par_pht: $_/generated/par/pht
 """
     config_file = tmp_path / "config.yaml"
     config_file.write_text(config_content)
@@ -154,6 +159,14 @@ paths:
     pht_dir = tmp_path / "generated" / "tier" / "pht"
     hit_dir.mkdir(parents=True, exist_ok=True)
     pht_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create par directories
+    par_dir = tmp_path / "generated" / "par"
+    par_hit_dir = tmp_path / "generated" / "par" / "hit"
+    par_pht_dir = tmp_path / "generated" / "par" / "pht"
+    par_dir.mkdir(parents=True, exist_ok=True)
+    par_hit_dir.mkdir(parents=True, exist_ok=True)
+    par_pht_dir.mkdir(parents=True, exist_ok=True)
 
     return tmp_path
 
@@ -209,3 +222,22 @@ paths:
 
     with pytest.raises(RuntimeError, match="does not contain a valid pht or hit tier"):
         utils.get_hit_tier_name(str(tmp_path))
+
+
+def test_init_generated_pars_db(tier_test_data):
+    """Test init_generated_pars_db initializes pars database correctly."""
+    # Test getting the full par database
+    par_db = utils.init_generated_pars_db(tier_test_data, tier=None, lazy=True)
+    assert par_db is not None
+    # Verify the path is correct (TextDB has __path__ attribute)
+    assert "generated/par" in repr(par_db)
+
+    # Test getting the hit tier pars database
+    par_hit_db = utils.init_generated_pars_db(tier_test_data, tier="hit", lazy=True)
+    assert par_hit_db is not None
+    assert "generated/par/hit" in repr(par_hit_db)
+
+    # Test getting the pht tier pars database
+    par_pht_db = utils.init_generated_pars_db(tier_test_data, tier="pht", lazy=True)
+    assert par_pht_db is not None
+    assert "generated/par/pht" in repr(par_pht_db)
