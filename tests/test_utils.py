@@ -175,6 +175,39 @@ def tier_test_data(tmp_path):
     return tmp_path
 
 
+@pytest.fixture
+def tier_test_data_direct(tmp_path):
+    """Create a temporary test data directory with direct paths format (no setups.l200)."""
+    # Create config YAML with direct paths structure (no setups wrapper)
+    config_file = tmp_path / "config.yaml"
+    config_content = {
+        "paths": {
+            "tier_hit": "$_/generated/tier/hit",
+            "tier_pht": "$_/generated/tier/pht",
+            "par": "$_/generated/par",
+            "par_hit": "$_/generated/par/hit",
+            "par_pht": "$_/generated/par/pht",
+        }
+    }
+    dbetto.utils.write_dict(config_content, str(config_file))
+
+    # Create tier directories
+    hit_dir = tmp_path / "generated" / "tier" / "hit"
+    pht_dir = tmp_path / "generated" / "tier" / "pht"
+    hit_dir.mkdir(parents=True, exist_ok=True)
+    pht_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create par directories
+    par_dir = tmp_path / "generated" / "par"
+    par_hit_dir = tmp_path / "generated" / "par" / "hit"
+    par_pht_dir = tmp_path / "generated" / "par" / "pht"
+    par_dir.mkdir(parents=True, exist_ok=True)
+    par_hit_dir.mkdir(parents=True, exist_ok=True)
+    par_pht_dir.mkdir(parents=True, exist_ok=True)
+
+    return tmp_path
+
+
 def test_lookup_dataflow_config_with_fixture(tier_test_data):
     """Test lookup_dataflow_config with a proper fixture."""
     config = utils.lookup_dataflow_config(tier_test_data)
@@ -243,5 +276,46 @@ def test_init_generated_pars_db(tier_test_data):
 
     # Test getting the pht tier pars database
     par_pht_db = utils.init_generated_pars_db(tier_test_data, tier="pht", lazy=True)
+    assert par_pht_db is not None
+    assert "generated/par/pht" in repr(par_pht_db)
+
+
+def test_lookup_dataflow_config_direct_format(tier_test_data_direct):
+    """Test lookup_dataflow_config with direct paths format (no setups.l200)."""
+    config = utils.lookup_dataflow_config(tier_test_data_direct)
+
+    assert isinstance(config, AttrsDict)
+    assert "paths" in config
+    assert "tier_hit" in config.paths
+    assert "tier_pht" in config.paths
+    # Verify variable substitution happened
+    assert "$_" not in str(config.paths.tier_hit)
+    assert "generated/tier/hit" in str(config.paths.tier_hit)
+
+
+def test_get_hit_tier_name_direct_format(tier_test_data_direct):
+    """Test get_hit_tier_name with direct paths format."""
+    tier_name = utils.get_hit_tier_name(str(tier_test_data_direct))
+    assert tier_name == "pht"
+
+
+def test_init_generated_pars_db_direct_format(tier_test_data_direct):
+    """Test init_generated_pars_db with direct paths format."""
+    # Test getting the full par database
+    par_db = utils.init_generated_pars_db(tier_test_data_direct, tier=None, lazy=True)
+    assert par_db is not None
+    assert "generated/par" in repr(par_db)
+
+    # Test getting the hit tier pars database
+    par_hit_db = utils.init_generated_pars_db(
+        tier_test_data_direct, tier="hit", lazy=True
+    )
+    assert par_hit_db is not None
+    assert "generated/par/hit" in repr(par_hit_db)
+
+    # Test getting the pht tier pars database
+    par_pht_db = utils.init_generated_pars_db(
+        tier_test_data_direct, tier="pht", lazy=True
+    )
     assert par_pht_db is not None
     assert "generated/par/pht" in repr(par_pht_db)
