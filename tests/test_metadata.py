@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from dbetto import AttrsDict
 
 from legendsimflow import metadata
@@ -83,3 +86,22 @@ def test_encode_usability():
 
 def test_fccd(config):
     assert metadata.get_sanitized_fccd(config.metadata, "B99000A") == 0.75
+
+
+def test_extract_integer():
+    """Test extract_integer reads integer from file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        test_file = tmpdir_path / "test_int.txt"
+
+        # Test simple integer
+        test_file.write_text("42")
+        assert metadata.extract_integer(test_file) == 42
+
+        # Test with whitespace
+        test_file.write_text("  123  \n")
+        assert metadata.extract_integer(test_file) == 123
+
+        # Test negative integer
+        test_file.write_text("-999")
+        assert metadata.extract_integer(test_file) == -999
