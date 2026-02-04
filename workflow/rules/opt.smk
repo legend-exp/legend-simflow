@@ -8,6 +8,7 @@ rule gen_all_tier_opt:
     """Aggregate and produce all the opt tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="opt"),
+        aggregate.gen_list_of_all_plots_outputs(config, tier="opt"),
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.
@@ -50,3 +51,20 @@ rule build_tier_opt:
         patterns.benchmark_filename(config, tier="opt")
     script:
         "../src/legendsimflow/scripts/tier/opt.py"
+
+
+rule plot_tier_opt_observables:
+    """Produces plots of observables from the tier `opt`.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Producing control plots for job opt.{wildcards.simid}"
+    input:
+        lambda wc: aggregate.gen_list_of_simid_outputs(
+            config, tier="opt", simid=wc.simid
+        ),
+    output:
+        patterns.plot_tier_opt_observables_filename(config),
+    script:
+        "../src/legendsimflow/scripts/plots/tier_opt_observables.py"
