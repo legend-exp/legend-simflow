@@ -19,17 +19,55 @@ CRYSTAL_AXIS_ANGLES = [0, 45] # in deg <001> <110>
 SIM_ENERGY = 2039u"keV"
 MAX_NSTEPS = 3000
 WAVEFORM_LENGTH = 3000
-TIME_STEP = 1u"ns" # sampling rate sim waveform -- T(1)u"ns" ?
+TIME_STEP = 1u"ns" # sampling rate sim waveform # REVIEW: should be T(1)u"ns"?
 
 
 ## Waveform map construction
+"""
+    compute_waveform_map_for_angle(
+        sim::SolidStateDetectors.Simulation,
+        meta,
+        T::Type{<:AbstractFloat},
+        angle_deg::Real,
+        only_holes::Bool,
+        handle_nplus::Bool
+    ) -> NamedTuple
+
+Compute a 2D waveform map (r, z grid) at a specified azimuthal angle.
+
+Simulates charge carrier drift for a grid of positions in cylindrical coordinates,
+generating waveforms that represent the detector response. The grid is constructed
+in the (r, z) plane and then rotated to the specified angle.
+
+# Arguments
+- `sim::SolidStateDetectors.Simulation`: The configured detector simulation object
+- `meta`: Metadata object containing detector geometry (radius_in_mm, height_in_mm)
+- `T::Type{<:AbstractFloat}`: Floating-point precision type (typically Float32)
+- `angle_deg::Real`: Azimuthal angle in degrees for the r-z plane rotation
+- `only_holes::Bool`: If true, extract only hole contribution; if false, use full waveform
+- `handle_nplus::Bool`: If true, handle positions at n+ contact by finding nearest valid point
+
+# Returns
+- `NamedTuple`: Contains the following fields:
+  - `r`: Radial coordinates (m) as a vector with units
+  - `z`: Axial coordinates (m) as a vector with units  
+  - `dt`: Time step (sampling rate) with units
+  - `waveform_XXX_deg`: 3D array [time_samples, n_z, n_r] of normalized waveforms (dimensionless)
+    where XXX is the zero-padded angle (e.g., waveform_045_deg for 45°)
+
+# Notes
+- Grid resolution is controlled by the global constant `GRID_SIZE`
+- Waveform length is controlled by `WAVEFORM_LENGTH`
+- Positions outside the detector remain as NaN in the output array
+- All waveforms are normalized so max(waveform) = 1.0
+"""
 function compute_waveform_map_for_angle(
-    sim,
+    sim::SolidStateDetectors.Simulation,
     meta,
-    T,
-    angle_deg,
-    only_holes,
-    handle_nplus
+    T::Type{<:AbstractFloat},
+    angle_deg::Real,
+    only_holes::Bool,
+    handle_nplus::Bool
 )
     @info "Computing waveform map at angle $angle_deg deg..."
 
@@ -86,7 +124,7 @@ function compute_waveform_map_for_angle(
     wf_signals_threaded = Vector{Vector{Float32}}(undef, n)
 
 
-    function get_positions(idx, handle_nplus_local = false, verbose = true)
+    function get_positions(idx, handle_nplus_local = false)
         pos_candidate = spawn_positions[idx]
         if (!handle_nplus_local || (!in(pos_candidate, sim.detector.contacts)))
             return pos_candidate
@@ -184,9 +222,12 @@ function main()
         "--output-file"
         help = "Path to output LH5 file"
         required = true
+        "--use-corrections"
+        help = "Apply impurity profile corrections from crystal characterization (default: enabled)"
+        action = :store_true
+        default = true
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
-        #required = true # Make sure the script is using this!!
         "--use-sqrt" # Outdated??
         help = "Use square-root temperature model"
         action = :store_true
@@ -199,9 +240,7 @@ function main()
         "--use-bulk-drift-time"
         help = "Use the drift time for the nearest bulk point for surface events"
         action = :store_true
-        "--use-corrections" # Important!! Must be set to true!!
-        help = "Use the impurity corrections"
-        action = :store_true
+
     end
 
     parsed_args = parse_args(s)
@@ -212,7 +251,11 @@ function main()
     meta_path = parsed_args["metadata"]
 
     output_file = parsed_args["output-file"]
-    isfile(output_file) && error("output file already exists")
+    #isfile(output_file) && error("output file already exists") # REVIEW: Allow overwriting?
+    # Let the file be overwritten if it exists (matches Python behavior)
+    if isfile(output_file)
+        @info "Output file exists and will be overwritten: $output_file"
+    end
 
     # Get the opv - could be a String or Nothing
     raw_opv = parsed_args["opv"]
@@ -231,6 +274,9 @@ function main()
     use_sqrt = parsed_args["use-sqrt"] # Remove?
     only_holes = parsed_args["only-holes"]
     use_corrections = parsed_args["use-corrections"]
+    if !use_corrections
+        @warn "Impurity corrections disabled! This may produce unrealistic results."
+    end
 
     # Load metadata
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")

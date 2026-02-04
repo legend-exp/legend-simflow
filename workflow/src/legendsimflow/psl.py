@@ -380,11 +380,9 @@ def write_realistic_struct_to_lh5(
     for key, val in realistic_dict.items():
         if isinstance(val, np.ndarray):
             # Copy original attributes if they exist
-            attrs = (
-                copy.deepcopy(original_struct[key].attrs)
-                if key in original_struct
-                else {}
-            )
+            attrs = {}
+            if key in original_struct and hasattr(original_struct[key], 'attrs'):
+                attrs = copy.deepcopy(original_struct[key].attrs)
 
             # Unit overrides - needed for reboost compatibility
             if "waveform" in key:
