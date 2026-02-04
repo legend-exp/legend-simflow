@@ -75,6 +75,10 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
             *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
             *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
         ]
+    if tier == "opt":
+        return [
+            patterns.plot_tier_opt_observables_filename(config, simid=simid),
+        ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
     return []

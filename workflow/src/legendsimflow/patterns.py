@@ -200,6 +200,12 @@ def plot_tier_hit_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def plot_tier_opt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="opt") / "tier-opt-observables.pdf", **kwargs
+    )
+
+
 # drift time maps
 
 
