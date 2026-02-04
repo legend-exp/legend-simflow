@@ -33,6 +33,7 @@ import reboost.spms
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+
 from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
 from legendsimflow import reboost as reboost_utils
@@ -52,7 +53,7 @@ l200data = args.config.paths.l200data
 hit_tier_name = utils.get_hit_tier_name(l200data)
 
 BUFFER_LEN = "500*MB"
-
+REQUIRE_E_RES = False
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
     return 2.5 * np.sqrt(energy / 2039)  # FWHM
@@ -96,14 +97,24 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
     msg = "loading energy resolution parameters"
     log.debug(msg)
-    energy_res_func = hpge_pars.build_energy_res_func_dict(
-        l200data,
-        metadata,
-        runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
-    )  # FWHM
 
+    try:
+        energy_res_func = hpge_pars.build_energy_res_func_dict(
+            l200data,
+            metadata,
+            runid,
+            hit_tier_name=hit_tier_name,
+            pars_db=pars_db,
+        )  # FWHM
+    except RuntimeError as e:
+
+        if (REQUIRE_E_RES):
+            raise e
+
+        else:
+            msg = f"No eres found for {runid}! but continuuing"
+            log.info(msg)
+            
     msg = "loading current pulse model parameters"
     log.debug(msg)
     currmod_pars_file = patterns.output_currmod_merged_filename(
@@ -131,7 +142,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 "possibly because it was not read-out or there were no hits recorded"
             )
             log.warning(msg)
-
             continue
 
         # get the usability
@@ -208,7 +218,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # smear energy with detector resolution
             if det_name in energy_res_func:
                 energy_res = energy_res_func[det_name](energy_true)
-            elif usability != "off":
+            elif usability != "off" and REQUIRE_E_RES:
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
                     "resolution curves are available. this is unacceptable!"
@@ -236,9 +246,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
 
-            if dt_map is not None:
+
+            if (dt_map is not None) and all(x is not None for x in currmod_pars.values()):
                 msg = "computing PSD observables"
                 log.info(msg)
+
+                log.info(currmod_pars)
 
                 drift_time = reboost_utils.hpge_corrected_drift_time(
                     chunk, dt_map, det_loc
