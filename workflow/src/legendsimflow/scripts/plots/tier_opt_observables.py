@@ -17,14 +17,12 @@
 
 from pathlib import Path
 
-import awkward as ak
 import hist
 import matplotlib.pyplot as plt
 from lgdo import lh5
 from matplotlib.backends.backend_pdf import PdfPages
 
-from legendsimflow import nersc
-from legendsimflow.plot import decorate
+from legendsimflow import nersc, plot
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -33,48 +31,15 @@ output_pdf = args.output[0]
 simid = args.wildcards.simid
 
 
-def save_page(pdf, make_fig):
-    fig = make_fig()
-    decorate(fig)
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
-def set_empty(ax):
-    ax.text(
-        0.5,
-        0.5,
-        "empty!",
-        transform=ax.transAxes,
-        ha="center",
-        va="center",
-        color="0.6",
-        fontsize=20,
-    )
-
-
-def plot_hist(hist, ax, flow="show", **kwargs):
-    if hist.sum() != 0:
-        hist.plot(ax=ax, yerr=False, flow=flow, **kwargs)
-    else:
-        set_empty(ax)
-
-
 def fig(table):
     fig = plt.figure(figsize=(12, 6))
 
-    # some hit files might not contain the table because there were no hits
-    arrays = []
-    for f in hit_files:
-        if f"hit/{table}" in lh5.ls(f, "hit/"):
-            arrays.append(lh5.read_as(f"hit/{table}", f, library="ak"))
+    data = plot.read_concat_wempty(hit_files, table)
 
-    if arrays == []:
+    if len(data) == 0:
         ax = fig.add_subplot()
-        set_empty(ax)
+        plot.set_empty(ax)
         return fig
-
-    data = ak.concatenate(arrays, axis=0)
 
     outer = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1, 1])
     gs_top = outer[0].subgridspec(1, 2, width_ratios=[1, 1])
@@ -84,7 +49,7 @@ def fig(table):
     ax = fig.add_subplot(gs_top[0, 0])
     h_time = hist.new.Reg(300, 0, 3000, name="photoelectron time - $t_0$ (ns)").Double()
     h_time.fill_flattened(data.time - data.t0)
-    plot_hist(h_time, ax)
+    plot.plot_hist(h_time, ax)
     ax.set_ylabel("counts / 10 ns")
     ax.set_yscale("log")
 
@@ -113,4 +78,4 @@ fig_builders = [lambda t=t: fig(t) for t in tables]
 
 with PdfPages(output_pdf) as pdf:
     for make_fig in fig_builders:
-        save_page(pdf, make_fig)
+        plot.save_page(pdf, make_fig)
