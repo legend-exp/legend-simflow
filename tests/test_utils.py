@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import dbetto
 import numpy as np
 import pytest
 from dbetto import AttrsDict
@@ -141,18 +142,21 @@ def test_hash_dict():
 def tier_test_data(tmp_path):
     """Create a temporary test data directory with tier configuration."""
     # Create config YAML with setups.l200 structure
-    config_content = """
-setups:
-  l200:
-    paths:
-      tier_hit: $_/generated/tier/hit
-      tier_pht: $_/generated/tier/pht
-      par: $_/generated/par
-      par_hit: $_/generated/par/hit
-      par_pht: $_/generated/par/pht
-"""
     config_file = tmp_path / "config.yaml"
-    config_file.write_text(config_content)
+    config_content = {
+        "setups": {
+            "l200": {
+                "paths": {
+                    "tier_hit": "$_/generated/tier/hit",
+                    "tier_pht": "$_/generated/tier/pht",
+                    "par": "$_/generated/par",
+                    "par_hit": "$_/generated/par/hit",
+                    "par_pht": "$_/generated/par/pht",
+                }
+            }
+        }
+    }
+    dbetto.utils.write_dict(config_content, str(config_file))
 
     # Create tier directories
     hit_dir = tmp_path / "generated" / "tier" / "hit"
