@@ -10,7 +10,6 @@ from dspeed.processors import moving_window_multi
 from lgdo import Array, Scalar, Struct, lh5
 from scipy.signal import convolve, fftconvolve
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +42,14 @@ def create_response_kernel(
         The normalized response kernel
     """
 
+    # Validate inputs
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if sigma_bandwidth <= 0:
+        raise ValueError(f"sigma_bandwidth must be positive, got {sigma_bandwidth}")
+    if not gaussian_only and tau_rc <= 0:
+        raise ValueError(f"tau_rc must be positive, got {tau_rc}")
+
     # Convert to samples
     mu_samples = mu_bandwidth / dt
     sigma_samples = sigma_bandwidth / dt
@@ -53,7 +60,15 @@ def create_response_kernel(
 
     # Compute Gaussian response (digitizer bandwidth)
     rf_digi = np.exp(-0.5 * ((x - mu_samples) / sigma_samples) ** 2)
-    rf_digi /= np.sum(rf_digi)
+    
+    # Validate before normalization
+    digi_sum = np.sum(rf_digi)
+    if digi_sum == 0:
+        raise ValueError(
+            "Digitizer response normalization failed: sum is zero. "
+            "This may indicate numerical underflow with the given sigma_bandwidth."
+        )
+    rf_digi /= digi_sum
 
     if gaussian_only:
         return rf_digi
@@ -61,7 +76,15 @@ def create_response_kernel(
     # Compute causal exponential decay (preamplifier response) - response is zero for x < 0
     rf_preamp = np.zeros_like(x, dtype=float)
     rf_preamp[x >= 0] = np.exp(-x[x >= 0] / tau_samples)
-    rf_preamp /= np.sum(rf_preamp)
+    
+    # Validate before normalization
+    preamp_sum = np.sum(rf_preamp)
+    if preamp_sum == 0:
+        raise ValueError(
+            "Preamp response normalization failed: sum is zero. "
+            "This may indicate numerical underflow with the given tau_rc."
+        )
+    rf_preamp /= preamp_sum
 
     # Convolve preamp and digitizer responses - 'full' mode results in a length of (len(rf_preamp) + len(rf_digi) - 1)
     return convolve(rf_preamp, rf_digi, mode="full")
@@ -148,20 +171,21 @@ def apply_mwa(wf_array: np.ndarray) -> np.ndarray:
     """
     wf_in = np.ascontiguousarray(wf_array, dtype=float)
 
-    # Preallocate output array - could saturate memory? Should modify?
+    # Preallocate output array 
+    # REVIEW: Does this preallocation cause memory issues with typical dataset sizes?
+    # If yes, consider batching approach like in convolve_waveforms()
     mwa_currents = np.zeros_like(wf_in, dtype=float)
 
     moving_window_multi(
         wf_in, 48, 3, 0, mwa_currents
-    )  ########## Are these the best parameters?
-
+    ) # REVIEW: Are these MWA parameters appropriate?
     return mwa_currents
 
 
 def shift_array(
     wf_input: ak.Array | np.ndarray,
-    ALIGNMENT_IDX: int,
-    NSAMPLES_OUTPUT_CURRENT_WFS: int,
+    alignment_idx: int,
+    nsamples_output_current_wfs: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Aligns an array of waveforms by shifting their maximum to a fixed index.
@@ -171,9 +195,9 @@ def shift_array(
     ----------
     wf_input : ak.Array or np.ndarray
         Input array of current waveforms
-    ALIGNMENT_IDX : int
+    alignment_idx : int
         The index in the output array where the peak will be placed
-    NSAMPLES_OUTPUT_CURRENT_WFS : int
+    nsamples_output_current_wfs : int
         The total length of the resulting aligned current waveforms
 
     Returns
@@ -190,7 +214,7 @@ def shift_array(
 
     # Output Array - Indices not covered by the shifted signal are automatically padded with 0.0
     n_wfs, n_samples = wfs.shape
-    shifted_wfs = np.zeros((n_wfs, NSAMPLES_OUTPUT_CURRENT_WFS), dtype=float)
+    shifted_wfs = np.zeros((n_wfs, nsamples_output_current_wfs), dtype=float)
 
     # Find Amax
     peak_indices = np.argmax(wfs, axis=1)
@@ -198,11 +222,11 @@ def shift_array(
     # Shift each waveform
     for i in range(n_wfs):
         peak = peak_indices[i]
-        shift = ALIGNMENT_IDX - peak
+        shift = alignment_idx - peak
 
         # Bounds to prevent IndexErrors
         start_src = max(0, -shift)
-        end_src = min(n_samples, NSAMPLES_OUTPUT_CURRENT_WFS - shift)
+        end_src = min(n_samples, nsamples_output_current_wfs - shift)
 
         if start_src < end_src:
             start_dst = start_src + shift
@@ -216,8 +240,8 @@ def shift_array(
 def generate_realistic_map(
     ideal_wf_map_obj: Struct,
     rf_kernel: np.ndarray,
-    ALIGNMENT_IDX: int,
-    NSAMPLES_OUTPUT_CURRENT_WFS: int,
+    alignment_idx: int,
+    nsamples_output_current_wfs: int,
 ) -> dict:
     """
     Applies the waveform post-processing chain to generate a realistic waveform
@@ -234,9 +258,9 @@ def generate_realistic_map(
         LGDO Struct containing the ideal waveform map with coordinates and waveforms
     rf_kernel : np.ndarray
         The system response kernel (from create_response_kernel)
-    ALIGNMENT_IDX : int
+    alignment_idx : int
         The index in the output array where waveform peaks will be aligned
-    NSAMPLES_OUTPUT_CURRENT_WFS : int
+    nsamples_output_current_wfs : int
         The total length of the resulting aligned current waveforms
 
     Returns
@@ -256,7 +280,7 @@ def generate_realistic_map(
         else ideal_wf_map_obj["dt"]
     )
     realistic_wf_map["t0"] = (
-        -1.0 * ALIGNMENT_IDX * dt
+        -1.0 * alignment_idx * dt
     )  # Set the global t0 relative to alignment index
 
     # Delay of the response kernel
@@ -308,12 +332,11 @@ def generate_realistic_map(
         )
 
         # Moving Window Average
-        wfs_mwa_ak = apply_mwa(wfs_current)
-        wfs_mwa = ak.to_numpy(wfs_mwa_ak)
+        wfs_mwa = apply_mwa(wfs_current)
 
         # Align current waveforms to Amax
         wfs_aligned, _ = shift_array(
-            wfs_mwa, ALIGNMENT_IDX, NSAMPLES_OUTPUT_CURRENT_WFS
+            wfs_mwa, alignment_idx, nsamples_output_current_wfs
         )
 
         # Reshape and save
