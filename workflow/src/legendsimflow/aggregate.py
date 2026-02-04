@@ -28,6 +28,8 @@ from .metadata import get_runlist, get_simconfig
 
 log = logging.getLogger(__name__)
 
+TIERS_ORDERED: list[str] = ["vtx", "stp", "opt", "hit", "evt", "cvt"]
+
 
 def get_simid_njobs(config: SimflowConfig, simid: str) -> int:
     """Number of jobs that will be generated for a `tier.simid`.
@@ -334,22 +336,11 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
 def process_simlist(
     config: SimflowConfig, simlist: Iterable[str] | None = None
 ) -> list[Path]:
-    """Produce a list of all output files that refer to a `simlist`
+    """Produce a list of all output files that refer to a `simlist`.
 
-    A "simlist" is a list of strings of the format ``<tier>.<simid>``, used to
-    instruct the Simflow about which tiers and simulations it should process.
-    The simlist should be specified as a field in `config`, located at
-    `config.simlist`.
-
-    This function returns the list of all files that the Simflow has to produce
-    for all identifiers.
-
-    Parameters
-    ----------
-    config
-        :class:`SimflowConfig` object.
-    simlist
-        supply the simlist, if not present in `config`.
+    Each simlist item is ``<tier>.<simid>``. The tier is interpreted as the
+    *latest* tier requested for that simid; outputs are produced cumulatively
+    for all tiers up to (and including) that tier in TIERS_ORDERED.
     """
     if simlist is None:
         simlist = config.simlist
@@ -359,25 +350,34 @@ def process_simlist(
     if not isinstance(simlist, list):
         simlist = simlist.split(",")
 
-    mlist = []
+    pos = {k: i for i, k in enumerate(TIERS_ORDERED)}
+
+    mlist: list[Path] = []
     for line in simlist:
-        # each line is in the format <tier>.<simid>
-        if len(line.split(".")) != 2:
+        parts = line.split(".")
+        if len(parts) != 2:
             msg = (
                 "simflow-config.simlist",
                 f"item '{line}' is not in the format <tier>.<simid>",
             )
             raise SimflowConfigError(*msg)
 
-        tier = line.split(".")[0].strip()
-        simid = line.split(".")[1].strip()
+        tier = parts[0].strip()
+        simid = parts[1].strip()
 
-        mlist += gen_list_of_plots_outputs(config, tier, simid)
-        if tier in ("vtx", "stp", "opt", "hit", "evt"):
-            mlist += gen_list_of_simid_outputs(config, tier, simid)
-        elif tier == "cvt":
-            mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
-        else:
-            raise NotImplementedError()
+        if tier not in pos:
+            msg = f"unknown tier {tier!r}"
+            raise NotImplementedError(msg)
+
+        # cumulative: build all tiers up to the requested one
+        for t in TIERS_ORDERED[: pos[tier] + 1]:
+            mlist += gen_list_of_plots_outputs(config, t, simid)
+
+            if t == "vtx":
+                pass
+            elif t in ("stp", "opt", "hit", "evt"):
+                mlist += gen_list_of_simid_outputs(config, t, simid)
+            elif t == "cvt":
+                mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
 
     return mlist

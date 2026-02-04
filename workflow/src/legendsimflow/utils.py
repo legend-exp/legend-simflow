@@ -20,6 +20,7 @@ import inspect
 import json
 import logging
 import os
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -311,3 +312,21 @@ def check_nans_leq(array: ArrayLike, name: str, less_than_frac: float = 0.1) -> 
     if (n_nans / n_el) > less_than_frac:
         msg = f"more than {100 * less_than_frac}% of NaNs detected in array {name}!"
         raise RuntimeError(msg)
+
+
+def sorted_by(subset: Sequence, order: Sequence) -> list:
+    """Sort a sequence according to a specified order, dropping duplicates."""
+    pos = {k: i for i, k in enumerate(order)}
+
+    # stable sort by order
+    out = sorted(subset, key=pos.__getitem__)
+
+    # deduplicate while preserving order
+    seen = set()
+    uniq = []
+    for x in out:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+
+    return uniq
