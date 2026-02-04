@@ -43,7 +43,7 @@ optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
 
 # for some sims like Th228
-BUFFER_LEN = "50*MB"
+BUFFER_LEN = "100*MB"
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
