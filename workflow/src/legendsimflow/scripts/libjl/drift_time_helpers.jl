@@ -52,6 +52,72 @@ function compute_drift_time(wf, rise_convergence_criteria, tint)
 end
 
 
+"""
+    extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int=1)
+
+Extend a drift time map by adding layers of pixels around the perimeter of the
+non-NaN region. Each new pixel value is set to the average of its nearest
+non-NaN neighboring pixels.
+
+This makes the map application more robust when a point might be right outside
+the original map domain due to gridding issues.
+
+# Arguments
+- `drift_map`: A 2D matrix where NaN indicates invalid/outside regions
+- `layers`: Number of pixel layers to add around the perimeter (default: 1)
+
+# Returns
+- The modified `drift_map` (also modified in-place)
+"""
+function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
+    nrows, ncols = size(drift_map)
+
+    # Neighbor offsets for 8-connectivity (including diagonals)
+    neighbor_offsets = [
+        (-1, -1), (-1, 0), (-1, 1),
+        (0, -1), (0, 1),
+        (1, -1), (1, 0), (1, 1)
+    ]
+
+    for _ in 1:layers
+        # Find all NaN pixels that have at least one non-NaN neighbor
+        boundary_pixels = Tuple{Int,Int}[]
+        boundary_values = Float64[]
+
+        for row in 1:nrows
+            for col in 1:ncols
+                if isnan(drift_map[row, col])
+                    # Check neighbors and collect non-NaN values
+                    neighbor_vals = Float64[]
+                    for (dr, dc) in neighbor_offsets
+                        nr, nc = row + dr, col + dc
+                        if 1 <= nr <= nrows && 1 <= nc <= ncols
+                            val = drift_map[nr, nc]
+                            if !isnan(val)
+                                push!(neighbor_vals, val)
+                            end
+                        end
+                    end
+
+                    # If this NaN pixel has non-NaN neighbors, it's a boundary pixel
+                    if !isempty(neighbor_vals)
+                        push!(boundary_pixels, (row, col))
+                        push!(boundary_values, sum(neighbor_vals) / length(neighbor_vals))
+                    end
+                end
+            end
+        end
+
+        # Apply the new values (done after scanning to avoid affecting current layer)
+        for (idx, (row, col)) in enumerate(boundary_pixels)
+            drift_map[row, col] = boundary_values[idx]
+        end
+    end
+
+    return drift_map
+end
+
+
 function compute_drift_map_for_angle(
     sim,
     meta,
@@ -169,6 +235,9 @@ function compute_drift_map_for_angle(
     for (i, idx) in enumerate(idx_spawn_positions[in_idx])
         drift_time[idx] = dt[i]
     end
+
+    # Extend the drift time map to add a layer of pixels around the perimeter
+    extend_drift_time_map!(drift_time)
 
     ang_str = lpad(string(angle_deg), 3, '0')
     output = (;
