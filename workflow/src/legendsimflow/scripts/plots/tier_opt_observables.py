@@ -60,7 +60,7 @@ def fig(table):
 
     # pe spectrum
     ax = fig.add_subplot(gs_bot[0, 0])
-    h_peamp = hist.new.Reg(500, 0, 10, name="light pulse amplitude").Double()
+    h_peamp = hist.new.Reg(500, 0, 10, name="light per pulse (photoelectrons)").Double()
     h_peamp.fill_flattened(data.energy)
     plot.plot_hist(h_peamp, ax)
     ax.set_ylabel("counts")
@@ -68,9 +68,7 @@ def fig(table):
 
     # number of photoelectrons
     ax = fig.add_subplot(gs_bot[0, 1])
-    h_npe = hist.new.Reg(
-        500, 0, 500, name="number of photoelectrons per event"
-    ).Double()
+    h_npe = hist.new.Reg(500, 0, 500, name="light per event (photoelectrons)").Double()
     h_npe.fill(ak.sum(data.energy, axis=-1))
     plot.plot_hist(h_npe, ax)
     ax.set_ylabel("counts / 1 pe")

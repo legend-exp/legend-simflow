@@ -51,6 +51,7 @@ scintillator_volume_name = args.params.scintillator_volume_name
 BUFFER_LEN = "100*MB"
 MAP_SCALING = 0.1
 DEFAULT_PHOTOELECTRON_RES = 0.2  # FWHM
+TIME_RESOLUTION_NS = 16
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -93,22 +94,31 @@ def process_sipm(
             )
 
         with perf_block("photoelectron_times()"):
-            pe_times = reboost.spms.pe.photoelectron_times(
+            pe_times_micro = reboost.spms.pe.photoelectron_times(
                 nr_pe, chunk.particle, chunk.time, "lar"
-            )
+            ).view_as("ak")
 
         with perf_block("photoelectron_resolution()"):
-            counts = ak.num(pe_times.view_as("ak"))
+            counts = ak.num(pe_times_micro)
             flat = rng.normal(
                 loc=1, scale=DEFAULT_PHOTOELECTRON_RES / 2.35482, size=ak.sum(counts)
             )
             flat = np.where(flat < 0, 0, flat)
-            pe_amp = ak.unflatten(flat, counts)
+            pe_amps_micro = ak.unflatten(flat, counts)
+
+        with perf_block("cluster_photoelectrons()"):
+            pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
+                pe_times_micro,
+                pe_amps_micro,
+                TIME_RESOLUTION_NS,
+            )
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-            out_table.add_field("time", pe_times)
-            out_table.add_field("energy", VectorOfVectors(pe_amp))
+            out_table.add_field(
+                "time", VectorOfVectors(pe_times, attrs={"units": "ns"})
+            )
+            out_table.add_field("energy", VectorOfVectors(pe_amps))
             # out_table.add_field("nr_scint_photons", VectorOfVectors(scint_ph))
             reboost_utils.write_chunk(
                 out_table,
