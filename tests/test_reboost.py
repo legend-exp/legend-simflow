@@ -255,9 +255,9 @@ def test_smear_photoelectrons_statistical_properties():
 
     # Mean should be close to 1
     mean = np.mean(flat_result)
-    assert abs(mean - 1.0) < 0.01  # Within 1% of expected
+    assert abs(mean - 1.0) < 0.01  # Within 0.01 of expected
 
     # Standard deviation should be close to fwhm / 2.35482
     expected_sigma = fwhm / 2.35482
     sigma = np.std(flat_result)
-    assert abs(sigma - expected_sigma) < 0.01  # Within reasonable tolerance
+    assert abs(sigma - expected_sigma) < 0.01  # Within 0.01 of expected
