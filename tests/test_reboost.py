@@ -185,3 +185,86 @@ def test_cluster_photoelectrons_mismatched_shapes():
 
     with pytest.raises(ValueError, match="mismatched list lengths"):
         rutils.cluster_photoelectrons(times, amps, thr=1.0)
+
+
+def test_smear_photoelectrons_basic():
+    """Test that smear_photoelectrons produces correct shape and positive values."""
+    import numpy as np
+
+    # Create a simple input array
+    array = ak.Array([[1, 1, 1], [1, 1]])
+    rng = np.random.default_rng(42)  # Use fixed seed for reproducibility
+
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=0.3, rng=rng)
+
+    # Check shape is preserved
+    assert ak.to_list(ak.num(result, axis=1)) == [3, 2]
+
+    # Check all values are non-negative (since we clip at 0)
+    assert ak.all(result >= 0)
+
+
+def test_smear_photoelectrons_empty():
+    """Test that smear_photoelectrons handles empty arrays correctly."""
+    import numpy as np
+
+    array = ak.Array([[], []])
+    rng = np.random.default_rng(42)
+
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=0.3, rng=rng)
+
+    # Check empty arrays remain empty
+    assert ak.to_list(result) == [[], []]
+
+
+def test_smear_photoelectrons_nested():
+    """Test that smear_photoelectrons preserves outermost structure."""
+    import numpy as np
+
+    # smear_photoelectrons flattens to the level of ak.num(array) (axis=-1)
+    # and then unflattens with those counts
+    array = ak.Array([[[1, 1], [1]], [[1, 1, 1]]])
+    rng = np.random.default_rng(42)
+
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=0.3, rng=rng)
+
+    # ak.num(array) gives counts at innermost level: [[2, 1], [3]]
+    # Result will have same shape
+    assert len(result) == len(array)  # Outer length preserved
+    # The innermost counts should match the input
+    assert ak.to_list(ak.num(result)) == ak.to_list(ak.num(array))
+
+
+def test_smear_photoelectrons_default_rng():
+    """Test that smear_photoelectrons works with default RNG."""
+    array = ak.Array([[1, 1, 1]])
+
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=0.3)
+
+    # Just check it runs and produces correct shape
+    assert ak.to_list(ak.num(result, axis=1)) == [3]
+    assert ak.all(result >= 0)
+
+
+def test_smear_photoelectrons_statistical_properties():
+    """Test that smear_photoelectrons produces expected statistical properties."""
+    import numpy as np
+
+    # Create large sample for statistical testing
+    n_samples = 100000
+    array = ak.Array([[1] * n_samples])
+    fwhm = 0.3
+    rng = np.random.default_rng(42)
+
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng)
+
+    flat_result = ak.flatten(result).to_numpy()
+
+    # Mean should be close to 1
+    mean = np.mean(flat_result)
+    assert abs(mean - 1.0) < 0.01  # Within 1% of expected
+
+    # Standard deviation should be close to fwhm / 2.35482
+    expected_sigma = fwhm / 2.35482
+    sigma = np.std(flat_result)
+    assert abs(sigma - expected_sigma) < 0.01  # Within reasonable tolerance
