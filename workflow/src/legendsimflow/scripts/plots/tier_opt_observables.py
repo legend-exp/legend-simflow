@@ -54,20 +54,31 @@ def fig(table):
     ax.set_ylabel("counts / 10 ns")
     ax.set_yscale("log")
 
-    # number of photoelectrons
+    # scintillation
     ax = fig.add_subplot(gs_top[0, 1])
-    h_npe = hist.new.Reg(500, 0, 500, name="number of photoelectrons").Double()
-    h_npe.fill(ak.count(data.time, axis=-1))
+    plot.set_empty(ax)
+
+    # pe spectrum
+    ax = fig.add_subplot(gs_bot[0, 0])
+    h_peamp = hist.new.Reg(500, 0, 10, name="light pulse amplitude").Double()
+    h_peamp.fill_flattened(data.energy)
+    plot.plot_hist(h_peamp, ax)
+    ax.set_ylabel("counts")
+    ax.set_yscale("log")
+
+    # number of photoelectrons
+    ax = fig.add_subplot(gs_bot[0, 1])
+    h_npe = hist.new.Reg(
+        500, 0, 500, name="number of photoelectrons per event"
+    ).Double()
+    h_npe.fill(ak.sum(data.energy, axis=-1))
     plot.plot_hist(h_npe, ax)
     ax.set_ylabel("counts / 1 pe")
     ax.set_yscale("log")
 
-    ax = fig.add_subplot(gs_bot[0, 0])
-    plot.set_empty(ax)
-
     # usability
-    ax = fig.add_subplot(gs_bot[0, 1])
-    plot.set_empty(ax)
+    # ax = fig.add_subplot(gs_bot[0, 1])
+    # plot.set_empty(ax)
     # vals, counts = np.unique(data.usability, return_counts=True)
     # plt.pie(
     #     counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
