@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import awkward as ak
+import numpy as np
 import pyg4ometry
 import pytest
 import reboost
@@ -189,8 +190,6 @@ def test_cluster_photoelectrons_mismatched_shapes():
 
 def test_smear_photoelectrons_basic():
     """Test that smear_photoelectrons produces correct shape and positive values."""
-    import numpy as np
-
     # Create a simple input array
     array = ak.Array([[1, 1, 1], [1, 1]])
     rng = np.random.default_rng(42)  # Use fixed seed for reproducibility
@@ -206,8 +205,6 @@ def test_smear_photoelectrons_basic():
 
 def test_smear_photoelectrons_empty():
     """Test that smear_photoelectrons handles empty arrays correctly."""
-    import numpy as np
-
     array = ak.Array([[], []])
     rng = np.random.default_rng(42)
 
@@ -219,8 +216,6 @@ def test_smear_photoelectrons_empty():
 
 def test_smear_photoelectrons_nested():
     """Test that smear_photoelectrons preserves outermost structure."""
-    import numpy as np
-
     # smear_photoelectrons flattens to the level of ak.num(array) (axis=-1)
     # and then unflattens with those counts
     array = ak.Array([[[1, 1], [1]], [[1, 1, 1]]])
@@ -248,8 +243,6 @@ def test_smear_photoelectrons_default_rng():
 
 def test_smear_photoelectrons_statistical_properties():
     """Test that smear_photoelectrons produces expected statistical properties."""
-    import numpy as np
-
     # Create large sample for statistical testing
     n_samples = 100000
     array = ak.Array([[1] * n_samples])

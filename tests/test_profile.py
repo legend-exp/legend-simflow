@@ -76,10 +76,12 @@ def test_profile_block_with_exception():
     profile_block, print_stats = profile.make_profiler()
 
     # Profile a block that raises an exception
-    with pytest.raises(ValueError):
-        with profile_block("error_block"):
-            msg = "Intentional error"
-            raise ValueError(msg)
+    with (  # noqa: PT012
+        pytest.raises(ValueError),
+        profile_block("error_block"),
+    ):
+        msg = "Intentional error"
+        raise ValueError(msg)
 
     # Stats should still be recorded
     print_stats()
@@ -100,7 +102,7 @@ def test_profile_block_memory_tracking():
 
 def test_print_stats_empty():
     """Test that print_stats works even when no blocks have been profiled."""
-    profile_block, print_stats = profile.make_profiler()
+    _, print_stats = profile.make_profiler()
 
     # Should not raise any errors
     print_stats()
