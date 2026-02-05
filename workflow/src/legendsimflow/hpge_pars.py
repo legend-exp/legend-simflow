@@ -168,6 +168,8 @@ def fit_noise_gauss(
         an array of the data to fit.
     bins
         The number of bins.
+    fit_result
+        The results of the `iminuit` fit.
     fit_range
         The range to use for the fit, if `None` this is determined from the data as +/- 5 standard deviations round the mean.
     sigma_range
@@ -531,9 +533,6 @@ def lookup_currmod_fit_inputs(
 
     msg = f"inferred reference calibration run: {cal_runid}"
     log.debug(msg)
-
-    # get the paths to hit and raw tier files
-    df_cfg = dataflow_config.paths
 
     hit_path = Path(df_cfg[f"tier_{hit_tier_name}"])
     msg = f"looking for hit tier files in {hit_path / 'cal' / period / run}/*"

@@ -7,9 +7,9 @@ import dbetto
 import numpy as np
 import pytest
 from dbetto import AttrsDict
-from lgdo import Array, Table
+from lgdo import Array, Table, lh5
 
-from legendsimflow import utils
+from legendsimflow import hpge_pars, utils
 
 
 def test_get_parameter_dict():
@@ -149,6 +149,7 @@ def tier_test_data(tmp_path):
                 "paths": {
                     "tier_hit": "$_/generated/tier/hit",
                     "tier_pht": "$_/generated/tier/pht",
+                    "tier_raw": "$_/generated/tier/raw",
                     "par": "$_/generated/par",
                     "par_hit": "$_/generated/par/hit",
                     "par_pht": "$_/generated/par/pht",
@@ -159,10 +160,20 @@ def tier_test_data(tmp_path):
     dbetto.utils.write_dict(config_content, str(config_file))
 
     # Create tier directories
-    hit_dir = tmp_path / "generated" / "tier" / "hit"
-    pht_dir = tmp_path / "generated" / "tier" / "pht"
+    hit_dir = tmp_path / "generated" / "tier" / "hit" / "phy" / "p00" / "r000"
+    raw_dir = tmp_path / "generated" / "tier" / "raw" / "phy" / "p00" / "r000"
+    pht_dir = tmp_path / "generated" / "tier" / "pht" / "phy" / "p00" / "r000"
+
     hit_dir.mkdir(parents=True, exist_ok=True)
     pht_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    # write a few files
+    lh5.write(Table(), "hit", hit_dir / "file1.lh5")
+    lh5.write(Table(), "hit", hit_dir / "file2.lh5")
+
+    lh5.write(Table(), "raw", raw_dir / "file1.lh5")
+    lh5.write(Table(), "raw", raw_dir / "file2.lh5")
 
     # Create par directories
     par_dir = tmp_path / "generated" / "par"
@@ -184,6 +195,7 @@ def tier_test_data_direct(tmp_path):
         "paths": {
             "tier_hit": "$_/generated/tier/hit",
             "tier_pht": "$_/generated/tier/pht",
+            "tier_raw": "$_/generated/tier/raw",
             "par": "$_/generated/par",
             "par_hit": "$_/generated/par/hit",
             "par_pht": "$_/generated/par/pht",
@@ -192,20 +204,57 @@ def tier_test_data_direct(tmp_path):
     dbetto.utils.write_dict(config_content, str(config_file))
 
     # Create tier directories
-    hit_dir = tmp_path / "generated" / "tier" / "hit"
-    pht_dir = tmp_path / "generated" / "tier" / "pht"
+    hit_dir = tmp_path / "generated" / "tier" / "hit" / "phy" / "p00" / "r000"
+    raw_dir = tmp_path / "generated" / "tier" / "raw" / "phy" / "p00" / "r000"
+    pht_dir = tmp_path / "generated" / "tier" / "pht" / "phy" / "p00" / "r000"
+
     hit_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
     pht_dir.mkdir(parents=True, exist_ok=True)
+
+    lh5.write(Table(), "hit", hit_dir / "file1.lh5")
+    lh5.write(Table(), "hit", hit_dir / "file2.lh5")
+
+    lh5.write(Table(), "raw", raw_dir / "file1.lh5")
+    lh5.write(Table(), "raw", raw_dir / "file2.lh5")
 
     # Create par directories
     par_dir = tmp_path / "generated" / "par"
     par_hit_dir = tmp_path / "generated" / "par" / "hit"
     par_pht_dir = tmp_path / "generated" / "par" / "pht"
+
     par_dir.mkdir(parents=True, exist_ok=True)
     par_hit_dir.mkdir(parents=True, exist_ok=True)
     par_pht_dir.mkdir(parents=True, exist_ok=True)
 
     return tmp_path
+
+
+def test_lookup_file_paths(tier_test_data, tier_test_data_direct):
+    for path in [tier_test_data, tier_test_data_direct]:
+        for dtype in ["raw", "hit"]:
+            assert set(
+                hpge_pars.lookup_file_paths(
+                    path, "l200-p00-r000-phy", hit_tier_name="hit"
+                )[dtype]
+            ) == {
+                path
+                / "generated"
+                / "tier"
+                / dtype
+                / "phy"
+                / "p00"
+                / "r000"
+                / "file1.lh5",
+                path
+                / "generated"
+                / "tier"
+                / dtype
+                / "phy"
+                / "p00"
+                / "r000"
+                / "file2.lh5",
+            }
 
 
 def test_lookup_dataflow_config_with_fixture(tier_test_data):
