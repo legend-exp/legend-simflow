@@ -45,7 +45,7 @@ rule build_tier_opt:
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         optmap_lar=config.paths.optical_maps.lar,
     params:
-        optmap_per_sipm=False,
+        optmap_per_sipm=True,
         scintillator_volume_name="liquid_argon",
     output:
         patterns.output_simjob_filename(config, tier="opt"),
