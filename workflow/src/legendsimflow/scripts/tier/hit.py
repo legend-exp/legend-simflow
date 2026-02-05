@@ -195,7 +195,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 _distance_to_nplus,
                 fccd=fccd,
                 dlf=0.5,
-            ).view_as("ak")
+            )
 
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
@@ -221,7 +221,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy = reboost.math.stats.gaussian_sample(
                 energy_true,
                 energy_res / 2.35482,
-            ).view_as("ak")
+            )
 
             # energy can't be negative as a result of smearing and later we
             # divide for it

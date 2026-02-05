@@ -298,7 +298,7 @@ def hpge_corrected_drift_time(
             chunk.zloc,
             _map,
             coord_offset=det_loc,
-        ).view_as("ak")
+        )
 
     return (
         drift_time["045"]
@@ -338,7 +338,7 @@ def hpge_max_current(
         drift_time,
         template=a_tmpl,
         times=times,
-    ).view_as("ak")
+    )
 
 
 def build_tcm(
