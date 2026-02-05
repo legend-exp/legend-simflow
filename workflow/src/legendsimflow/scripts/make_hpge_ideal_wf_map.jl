@@ -50,7 +50,7 @@ in the (r, z) plane and then rotated to the specified angle.
 # Returns
 - `NamedTuple`: Contains the following fields:
   - `r`: Radial coordinates (m) as a vector with units
-  - `z`: Axial coordinates (m) as a vector with units  
+  - `z`: Axial coordinates (m) as a vector with units
   - `dt`: Time step (sampling rate) with units
   - `waveform_XXX_deg`: 3D array [time_samples, n_z, n_r] of normalized waveforms (dimensionless)
     where XXX is the zero-padded angle (e.g., waveform_045_deg for 45°)
@@ -377,7 +377,7 @@ function main()
         @info "Creating output directory: $output_dir"
         mkpath(output_dir)
     end
-    
+
     lh5open(output_file, "cw") do f
         return f[det] = (; output...)
     end
