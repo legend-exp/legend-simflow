@@ -372,7 +372,7 @@ def build_tcm(
 
 
 @nb.njit(cache=True)
-def _cluster_by_span_flat(
+def _cluster_photoelectrons_flat(
     offsets: np.ndarray,
     t: np.ndarray,
     a: np.ndarray,
@@ -465,7 +465,7 @@ def _listoffset_chain(
     return offsets_chain, node
 
 
-def cluster_by_span(
+def cluster_photoelectrons(
     times: ak.Array, amps: ak.Array, thr: float
 ) -> tuple[ak.Array, ak.Array]:
     """Cluster photoelectrons within the instrument time resolution.
@@ -509,7 +509,7 @@ def cluster_by_span(
     --------
     >>> times = ak.Array([[0.0, 0.6, 1.1, 1.4, 2.3]])
     >>> amps = ak.Array([[1.0, 2.0, 3.0, 4.0, 5.0]])
-    >>> t_out, a_out = cluster_by_span(times, amps, thr=1.0)
+    >>> t_out, a_out = cluster_photoelectrons(times, amps, thr=1.0)
     >>> ak.to_list(t_out)
     [[0.0, 1.1, 2.3]]
     >>> ak.to_list(a_out)
@@ -544,7 +544,7 @@ def cluster_by_span(
     t = np.asarray(tnode.data)
     a = np.asarray(anode.data)
 
-    out_t, out_a, inner_counts = _cluster_by_span_flat(inner_offsets, t, a, thr)
+    out_t, out_a, inner_counts = _cluster_photoelectrons_flat(inner_offsets, t, a, thr)
 
     # rebuild: first make clustered axis=-1 lists
     cur_t = ak.unflatten(out_t, inner_counts)
