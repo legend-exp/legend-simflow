@@ -44,11 +44,14 @@ def create_response_kernel(
 
     # Validate inputs
     if dt <= 0:
-        raise ValueError(f"dt must be positive, got {dt}")
+        msg = f"dt must be positive, got {dt}"
+        raise ValueError(msg)
     if sigma_bandwidth <= 0:
-        raise ValueError(f"sigma_bandwidth must be positive, got {sigma_bandwidth}")
+        msg = f"sigma_bandwidth must be positive, got {sigma_bandwidth}"
+        raise ValueError(msg)
     if not gaussian_only and tau_rc <= 0:
-        raise ValueError(f"tau_rc must be positive, got {tau_rc}")
+        msg = f"tau_rc must be positive, got {tau_rc}"
+        raise ValueError(msg)
 
     # Convert to samples
     mu_samples = mu_bandwidth / dt
@@ -60,14 +63,15 @@ def create_response_kernel(
 
     # Compute Gaussian response (digitizer bandwidth)
     rf_digi = np.exp(-0.5 * ((x - mu_samples) / sigma_samples) ** 2)
-    
+
     # Validate before normalization
     digi_sum = np.sum(rf_digi)
     if digi_sum == 0:
-        raise ValueError(
+        msg = (
             "Digitizer response normalization failed: sum is zero. "
             "This may indicate numerical underflow with the given sigma_bandwidth."
         )
+        raise ValueError(msg)
     rf_digi /= digi_sum
 
     if gaussian_only:
@@ -76,14 +80,15 @@ def create_response_kernel(
     # Compute causal exponential decay (preamplifier response) - response is zero for x < 0
     rf_preamp = np.zeros_like(x, dtype=float)
     rf_preamp[x >= 0] = np.exp(-x[x >= 0] / tau_samples)
-    
+
     # Validate before normalization
     preamp_sum = np.sum(rf_preamp)
     if preamp_sum == 0:
-        raise ValueError(
+        msg = (
             "Preamp response normalization failed: sum is zero. "
             "This may indicate numerical underflow with the given tau_rc."
         )
+        raise ValueError(msg)
     rf_preamp /= preamp_sum
 
     # Convolve preamp and digitizer responses - 'full' mode results in a length of (len(rf_preamp) + len(rf_digi) - 1)
@@ -171,14 +176,14 @@ def apply_mwa(wf_array: np.ndarray) -> np.ndarray:
     """
     wf_in = np.ascontiguousarray(wf_array, dtype=float)
 
-    # Preallocate output array 
+    # Preallocate output array
     # REVIEW: Does this preallocation cause memory issues with typical dataset sizes?
     # If yes, consider batching approach like in convolve_waveforms()
     mwa_currents = np.zeros_like(wf_in, dtype=float)
 
     moving_window_multi(
         wf_in, 48, 3, 0, mwa_currents
-    ) # REVIEW: Are these MWA parameters appropriate?
+    )  # REVIEW: Are these MWA parameters appropriate?
     return mwa_currents
 
 
@@ -381,7 +386,7 @@ def write_realistic_struct_to_lh5(
         if isinstance(val, np.ndarray):
             # Copy original attributes if they exist
             attrs = {}
-            if key in original_struct and hasattr(original_struct[key], 'attrs'):
+            if key in original_struct and hasattr(original_struct[key], "attrs"):
                 attrs = copy.deepcopy(original_struct[key].attrs)
 
             # Unit overrides - needed for reboost compatibility

@@ -372,6 +372,12 @@ function main()
     end
 
     @info "Saving to disk..."
+    output_dir = dirname(output_file)
+    if !isdir(output_dir)
+        @info "Creating output directory: $output_dir"
+        mkpath(output_dir)
+    end
+    
     lh5open(output_file, "cw") do f
         return f[det] = (; output...)
     end
