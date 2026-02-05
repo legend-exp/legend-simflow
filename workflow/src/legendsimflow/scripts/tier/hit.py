@@ -181,12 +181,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             n_tot += len(chunk)
 
             _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
-                chunk.xloc * 1000,  # mm
-                chunk.yloc * 1000,  # mm
-                chunk.zloc * 1000,  # mm
+                chunk.xloc,
+                chunk.yloc,
+                chunk.zloc,
                 pyobj,
                 det_loc.eval(),
-                distances_precompute=chunk.dist_to_surf * 1000,
+                distances_precompute=chunk.dist_to_surf,
                 precompute_cutoff=(fccd + 1),
                 surface_type="nplus",
             )
