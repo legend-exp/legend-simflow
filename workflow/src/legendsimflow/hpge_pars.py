@@ -10,7 +10,6 @@ from typing import Any
 import awkward as ak
 import numpy as np
 from dbetto import AttrsDict, TextDB
-from dspeed.vis import WaveformBrowser
 from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
 from lgdo import lh5
@@ -216,7 +215,7 @@ def plot_noise_waveforms(
 
     temp = norm * temp / np.max(temp)
 
-    fig, axs = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+    fig, axs = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
 
     for wf in noise[0:20]:
         axs[0].plot(wf + temp)
@@ -255,7 +254,7 @@ def plot_gauss_fit(
     if fit_range is None:
         fit_range = (np.mean(data) - 5 * np.std(data), np.mean(data) + 5 * np.std(data))
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 4))
 
     ax.hist(data, bins=bins, range=fit_range, alpha=0.8, density=True)
 
@@ -265,8 +264,8 @@ def plot_gauss_fit(
         x,
         gaussian.pdf_norm(
             x,
-            x_lo=min(data),
-            x_hi=max(data),
+            x_lo=fit_result.values["x_lo"],
+            x_hi=fit_result.values["x_hi"],
             mu=fit_result.values["mu"],
             sigma=fit_result.values["sigma"],
         ),
@@ -373,6 +372,8 @@ def get_noise_waveforms(
     a 2D array of the waveforms.
 
     """
+    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
+
     waveforms = []
 
     for raw_file, hit_file in zip(raw_files, hit_files, strict=True):
@@ -392,7 +393,7 @@ def get_noise_waveforms(
             waveform = browser.lines[dsp_output][0].get_ydata()
             waveforms.append(waveform[:length].reshape(1, length))
 
-            if maximum_number is not None and len(waveforms) > maximum_number:
+            if maximum_number is not None and len(waveforms) >= maximum_number:
                 return np.concatenate(waveforms, axis=0)
 
     return np.concatenate(waveforms, axis=0)
@@ -402,7 +403,7 @@ def plot_currmod_fit_result(
     t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
 ) -> tuple[Figure, Axes]:
     """Plot the best fit results."""
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 4))
 
     ax.plot(t, A, marker="o", markersize=3, label="Current signal")
     ax.plot(model_t, model_A, label="Model", color="tab:red")

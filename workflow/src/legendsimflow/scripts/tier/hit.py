@@ -237,7 +237,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
 
-            if dt_map is not None:
+            if dt_map is not None and currmod_pars is not None:
                 msg = "computing PSD observables"
                 log.info(msg)
 
@@ -249,6 +249,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 _a_max = reboost_utils.hpge_max_current(
                     edep_active, drift_time, currmod_pars
                 )
+                # Apply current resolution smearing based on configured A/E noise parameters
+                a_sigma = pars["current_reso"] / pars["mean_aoe"]
+
+                _a_max = reboost.math.stats.gaussian_sample(_a_max, sigma=a_sigma)
                 utils.check_nans_leq(_a_max, "max_current", 0.1)
 
                 aoe = _a_max / energy
