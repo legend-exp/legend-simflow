@@ -23,6 +23,10 @@ rule build_tier_opt:
     - scintillation photons are generated corresponding to simulated energy
       depositions;
     - detected photoelectrons are sampled according to the input optical map;
+    - a finite resolution is applied to each photoelectron amplitude (see
+      script);
+    - photoelectrons are clustered in time to simulate the effect of finite
+      time resolution of the system;
     - a new time-coincidence map (TCM) across the processed SiPMs is created
       and stored in the output file.
 

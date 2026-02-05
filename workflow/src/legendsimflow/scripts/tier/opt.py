@@ -119,7 +119,6 @@ def process_sipm(
                 "time", VectorOfVectors(pe_times, attrs={"units": "ns"})
             )
             out_table.add_field("energy", VectorOfVectors(pe_amps))
-            # out_table.add_field("nr_scint_photons", VectorOfVectors(scint_ph))
             reboost_utils.write_chunk(
                 out_table,
                 "/hit/" + ("spms" if sipm == "all" else sipm),
