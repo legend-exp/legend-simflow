@@ -558,3 +558,21 @@ def cluster_photoelectrons(
         cur_a = ak.unflatten(cur_a, parent_counts)
 
     return cur_t, cur_a
+
+
+def smear_photoelectrons(
+    array: ak.Array, fwhm_in_pe: float, rng: np.random.Generator = None
+) -> ak.Array:
+    """Smear photoelectron pulse amplitudes.
+
+    Returns an array of gaussian distributed single-photoelectron amplitudes
+    with the same shape of the input `array`.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    counts = ak.num(array)
+    flat = rng.normal(loc=1, scale=fwhm_in_pe / 2.35482, size=ak.sum(counts))
+    flat = np.where(flat < 0, 0, flat)
+
+    return ak.unflatten(flat, counts)
