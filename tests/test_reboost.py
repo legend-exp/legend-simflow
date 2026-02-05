@@ -133,3 +133,37 @@ def test_psd_stuff(legend_testdata):
     amax = rutils.hpge_max_current(edep, dt, pars)
 
     assert ak.all((amax > 0) & (amax < 3000))
+
+
+def test_cluster_by_span_does_not_cross_subarrays():
+    """Test that clustering does not merge elements across subarray boundaries."""
+    times = ak.Array([[[0.0, 0.6], [0.7, 0.9]]])
+    amps = ak.Array([[[1.0, 2.0], [3.0, 4.0]]])
+
+    t_out, a_out = rutils.cluster_by_span(times, amps, thr=1.0)
+
+    assert ak.to_list(t_out) == [[[0.0], [0.7]]]
+    assert ak.to_list(a_out) == [[[3.0], [7.0]]]
+
+
+def test_cluster_by_span_enforces_max_span():
+    """Test that clusters respect the maximum time span threshold."""
+    times = ak.Array([[0.0, 0.6, 1.1, 1.4, 2.3]])
+    amps = ak.Array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+
+    t_out, a_out = rutils.cluster_by_span(times, amps, thr=1.0)
+
+    assert ak.to_list(t_out) == [[0.0, 1.1, 2.3]]
+    assert ak.to_list(a_out) == [[3.0, 7.0, 5.0]]
+
+
+def test_cluster_by_span_empty_and_boundary():
+    """Test clustering with empty arrays and exact boundary conditions."""
+    times = ak.Array([[], [0.0, 1.0, 1.0001]])
+    amps = ak.Array([[], [1.0, 2.0, 3.0]])
+
+    t_out, a_out = rutils.cluster_by_span(times, amps, thr=1.0)
+
+    # [0.0, 1.0] spans exactly 1.0 -> same cluster; 1.0001 starts new
+    assert ak.to_list(t_out) == [[], [0.0, 1.0001]]
+    assert ak.to_list(a_out) == [[], [3.0, 3.0]]
