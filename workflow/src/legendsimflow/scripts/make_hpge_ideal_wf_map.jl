@@ -298,8 +298,7 @@ function main()
     # Run ssd simulation
     sim = Simulation{T}(LegendData, meta, xtal,
         HPGeEnvironment("LAr", 87u"K"),
-        operational_voltage = opv_val * u"V" #,
-        #n_thickness = 0.7u"mm" #????????????????????????????????????????????????????
+        operational_voltage = opv_val * u"V"
     )
 
 
@@ -378,7 +377,7 @@ function main()
         mkpath(output_dir)
     end
 
-    lh5open(output_file, "cw") do f
+    lh5open(output_file, "w") do f
         return f[det] = (; output...)
     end
 end
