@@ -17,8 +17,10 @@
 
 from pathlib import Path
 
+import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import numpy as np
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.psd
@@ -26,7 +28,7 @@ import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
 import reboost.spms
-from lgdo import lh5
+from lgdo import VectorOfVectors, lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import nersc
@@ -48,6 +50,7 @@ scintillator_volume_name = args.params.scintillator_volume_name
 # of photons, i.e. high memory usage
 BUFFER_LEN = "100*MB"
 MAP_SCALING = 0.1
+DEFAULT_PHOTOELECTRON_RES = 0.2  # FWHM
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -56,6 +59,8 @@ perf_block, print_perf = make_profiler()
 # load the geometry and retrieve registered sensitive volume tables
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
+
+rng = np.random.default_rng()
 
 
 def process_sipm(
@@ -72,7 +77,7 @@ def process_sipm(
         chunk = lgdo_chunk.view_as("ak")
 
         with perf_block("emitted_scintillation_photons()"):
-            _scint_ph = reboost.spms.pe.emitted_scintillation_photons(
+            scint_ph = reboost.spms.pe.emitted_scintillation_photons(
                 chunk.edep, chunk.particle, "lar"
             )
 
@@ -81,7 +86,7 @@ def process_sipm(
                 chunk.xloc,
                 chunk.yloc,
                 chunk.zloc,
-                _scint_ph,
+                scint_ph,
                 optmap,
                 sipm,
                 map_scaling=MAP_SCALING,
@@ -92,14 +97,25 @@ def process_sipm(
                 nr_pe, chunk.particle, chunk.time, "lar"
             )
 
-        out_table = reboost_utils.make_output_chunk(lgdo_chunk)
-        out_table.add_field("time", pe_times)
-        reboost_utils.write_chunk(
-            out_table,
-            "/hit/" + ("spms" if sipm == "all" else sipm),
-            out_file,
-            sipm_uid,
-        )
+        with perf_block("photoelectron_resolution()"):
+            counts = ak.num(pe_times.view_as("ak"))
+            flat = rng.normal(
+                loc=1, scale=DEFAULT_PHOTOELECTRON_RES / 2.35482, size=ak.sum(counts)
+            )
+            flat = np.where(flat < 0, 0, flat)
+            pe_amp = ak.unflatten(flat, counts)
+
+        with perf_block("write_chunk()"):
+            out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+            out_table.add_field("time", pe_times)
+            out_table.add_field("energy", VectorOfVectors(pe_amp))
+            # out_table.add_field("nr_scint_photons", VectorOfVectors(scint_ph))
+            reboost_utils.write_chunk(
+                out_table,
+                "/hit/" + ("spms" if sipm == "all" else sipm),
+                out_file,
+                sipm_uid,
+            )
 
 
 # loop over the sensitive volume tables registered in the geometry
