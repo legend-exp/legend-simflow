@@ -22,6 +22,7 @@ from pathlib import Path
 import awkward as ak
 import h5py
 import lgdo
+import numba as nb
 import numpy as np
 import pyg4ometry
 import pygama.evt
@@ -368,3 +369,192 @@ def build_tcm(
         out_file=out_file,
         wo_mode="write_safe",
     )
+
+
+@nb.njit(cache=True)
+def _cluster_photoelectrons_flat(
+    offsets: np.ndarray,
+    t: np.ndarray,
+    a: np.ndarray,
+    thr: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Numba-accelerated clustering kernel for innermost list level.
+
+    Parameters
+    ----------
+    offsets
+        1D int64 array of list offsets (length = n_lists + 1).
+    t
+        1D array of sorted times for all elements.
+    a
+        1D array of amplitudes corresponding to times.
+    thr
+        Maximum time span within a cluster.
+
+    Returns
+    -------
+    out_t
+        Clustered times (first time in each cluster).
+    out_a
+        Clustered amplitudes (sum of amplitudes in each cluster).
+    counts
+        Number of clusters per original list.
+    """
+    n_lists = offsets.size - 1
+    n = t.size
+
+    out_t = np.empty(n, dtype=t.dtype)
+    out_a = np.empty(n, dtype=a.dtype)
+    counts = np.empty(n_lists, dtype=np.int64)
+
+    out_k = 0
+    for ilist in range(n_lists):
+        s = offsets[ilist]
+        e = offsets[ilist + 1]
+
+        ncl = 0
+        i = s
+        while i < e:
+            t0 = t[i]
+            asum = 0.0
+            j = i
+            while j < e and (t[j] - t0) <= thr:
+                asum += a[j]
+                j += 1
+
+            out_t[out_k] = t0
+            out_a[out_k] = asum
+            out_k += 1
+            ncl += 1
+            i = j
+
+        counts[ilist] = ncl
+
+    return out_t[:out_k], out_a[:out_k], counts
+
+
+def _listoffset_chain(
+    layout: ak.contents.Content,
+) -> tuple[list[np.ndarray], ak.contents.NumpyArray]:
+    """Extract the chain of offsets from nested ListOffsetArrays.
+
+    Parameters
+    ----------
+    layout
+        An awkward array layout.
+
+    Returns
+    -------
+    offsets_chain
+        List of np.int64 arrays, one per nested list depth,
+        from outermost to innermost.
+    content_numpy_layout
+        The final NumpyArray content node.
+    """
+    offsets_chain = []
+    node = layout
+    while isinstance(node, ak.contents.ListOffsetArray):
+        offsets_chain.append(np.asarray(node.offsets, dtype=np.int64))
+        node = node.content
+    if not isinstance(node, ak.contents.NumpyArray):
+        msg = (
+            "expected ListOffsetArray(s) ending in NumpyArray; got "
+            f"{type(node).__name__}"
+        )
+        raise TypeError(msg)
+    return offsets_chain, node
+
+
+def cluster_photoelectrons(
+    times: ak.Array, amps: ak.Array, thr: float
+) -> tuple[ak.Array, ak.Array]:
+    """Cluster photoelectrons within the instrument time resolution.
+
+    Clusters hits at axis=-1 (innermost lists) such that within each cluster
+    the time span (last_time - first_time) does not exceed `thr`. This is
+    useful for combining photoelectrons that arrive within the time resolution
+    of the detector, treating them as a single detected event.
+
+    The output time is the first time of each cluster; the amplitude is the
+    sum of all amplitudes in the cluster.
+
+    Parameters
+    ----------
+    times
+        Awkward array of hit times. Must be sorted in ascending order within
+        each innermost list. Sorting is the caller's responsibility; unsorted
+        input produces undefined behavior.
+    amps
+        Awkward array of amplitudes corresponding to times. Must have the same
+        structure (nesting depth and list lengths) as `times`.
+    thr
+        Maximum time span within a cluster (e.g., the detector time resolution).
+
+    Returns
+    -------
+    clustered_times
+        Awkward array with the same nesting structure, containing the first
+        time of each cluster.
+    clustered_amps
+        Awkward array with the same nesting structure, containing the summed
+        amplitude of each cluster.
+
+    Raises
+    ------
+    ValueError
+        If `times` and `amps` have different nesting depths or different
+        numbers of elements.
+
+    Examples
+    --------
+    >>> times = ak.Array([[0.0, 0.6, 1.1, 1.4, 2.3]])
+    >>> amps = ak.Array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+    >>> t_out, a_out = cluster_photoelectrons(times, amps, thr=1.0)
+    >>> ak.to_list(t_out)
+    [[0.0, 1.1, 2.3]]
+    >>> ak.to_list(a_out)
+    [[3.0, 7.0, 5.0]]
+    """
+    times_p = ak.to_packed(times)
+    amps_p = ak.to_packed(amps)
+
+    lt = ak.to_layout(times_p)
+    la = ak.to_layout(amps_p)
+
+    offsets_chain_t, tnode = _listoffset_chain(lt)
+    offsets_chain_a, anode = _listoffset_chain(la)
+
+    # minimal shape sanity: same nesting depth for list structure
+    if len(offsets_chain_t) != len(offsets_chain_a):
+        msg = "times and amps do not have the same list nesting depth"
+        raise ValueError(msg)
+
+    # verify that offsets match at each nesting level
+    for i, (off_t, off_a) in enumerate(
+        zip(offsets_chain_t, offsets_chain_a, strict=True)
+    ):
+        if not np.array_equal(off_t, off_a):
+            msg = f"times and amps have mismatched list lengths at nesting level {i}"
+            raise ValueError(msg)
+
+    # innermost offsets define the axis=-1 lists that must not mix
+    inner_offsets = offsets_chain_t[-1]
+
+    # 1D content buffers
+    t = np.asarray(tnode.data)
+    a = np.asarray(anode.data)
+
+    out_t, out_a, inner_counts = _cluster_photoelectrons_flat(inner_offsets, t, a, thr)
+
+    # rebuild: first make clustered axis=-1 lists
+    cur_t = ak.unflatten(out_t, inner_counts)
+    cur_a = ak.unflatten(out_a, inner_counts)
+
+    # then rebuild outer list levels (working outward)
+    # each parent list has counts = diff(parent_offsets)
+    for parent_offsets in reversed(offsets_chain_t[:-1]):
+        parent_counts = np.diff(parent_offsets).astype(np.int64)
+        cur_t = ak.unflatten(cur_t, parent_counts)
+        cur_a = ak.unflatten(cur_a, parent_counts)
+
+    return cur_t, cur_a
