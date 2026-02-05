@@ -24,6 +24,7 @@ from lgdo import lh5
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import nersc, plot
+from legendsimflow.plot import n_nans
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -33,7 +34,7 @@ simid = args.wildcards.simid
 
 
 def fig(table):
-    fig = plt.figure(figsize=(12, 6))
+    fig = plt.figure(figsize=(14, 8))
 
     data = plot.read_concat_wempty(hit_files, table)
 
@@ -49,39 +50,36 @@ def fig(table):
     # time
     ax = fig.add_subplot(gs_top[0, 0])
     h_time = hist.new.Reg(300, 0, 3000, name="photoelectron $t - t_0$ (ns)").Double()
-    h_time.fill_flattened(data.time - data.t0)
-    plot.plot_hist(h_time, ax)
+    dt = data.time - data.t0
+    h_time.fill_flattened(dt)
+    plot.plot_hist(h_time, ax, n_nans=n_nans(dt))
     ax.set_ylabel("counts / 10 ns")
     ax.set_yscale("log")
 
-    # scintillation
+    # usability
     ax = fig.add_subplot(gs_top[0, 1])
     plot.set_empty(ax)
-
-    # pe spectrum
-    ax = fig.add_subplot(gs_bot[0, 0])
-    h_peamp = hist.new.Reg(500, 0, 10, name="light per pulse (photoelectrons)").Double()
-    h_peamp.fill_flattened(data.energy)
-    plot.plot_hist(h_peamp, ax)
-    ax.set_ylabel("counts")
-    ax.set_yscale("log")
-
-    # number of photoelectrons
-    ax = fig.add_subplot(gs_bot[0, 1])
-    h_npe = hist.new.Reg(500, 0, 500, name="light per event (photoelectrons)").Double()
-    h_npe.fill(ak.sum(data.energy, axis=-1))
-    plot.plot_hist(h_npe, ax)
-    ax.set_ylabel("counts / 1 pe")
-    ax.set_yscale("log")
-
-    # usability
-    # ax = fig.add_subplot(gs_bot[0, 1])
-    # plot.set_empty(ax)
     # vals, counts = np.unique(data.usability, return_counts=True)
     # plt.pie(
     #     counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
     # )
     # ax.set_aspect("equal")  # keep it circular
+
+    ax = fig.add_subplot(gs_bot[0, 0])
+    h_peamp = hist.new.Reg(
+        300, 0, 20, name="light per cluster (photoelectrons)"
+    ).Double()
+    h_peamp.fill_flattened(data.energy)
+    plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy))
+    ax.set_ylabel("counts")
+    ax.set_yscale("log")
+
+    ax = fig.add_subplot(gs_bot[0, 1])
+    h_npe = hist.new.Reg(200, 0, 150, name="light per event (photoelectrons)").Double()
+    h_npe.fill(ak.sum(data.energy, axis=-1))
+    plot.plot_hist(h_npe, ax, flow="hint")
+    ax.set_ylabel("counts / 1 pe")
+    ax.set_yscale("log")
 
     fig.suptitle(f"{simid}: {table} hits")
     return fig

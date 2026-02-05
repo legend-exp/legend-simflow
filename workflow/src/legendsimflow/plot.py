@@ -19,7 +19,9 @@ from datetime import date
 from pathlib import Path
 
 import awkward as ak
+import hist
 import matplotlib.pyplot as plt
+import numpy as np
 from lgdo import lh5
 
 
@@ -55,13 +57,27 @@ def set_empty(ax):
     )
 
 
-def plot_hist(hist, ax, **kwargs):
+def plot_hist(h, ax, n_nans: int | None = None, **kwargs):
     kwargs = {"flow": "show", "yerr": False} | kwargs
 
-    if hist.sum() != 0:
-        hist.plot(ax=ax, **kwargs)
+    if h.sum() != 0:
+        h.plot(ax=ax, **kwargs)
     else:
         set_empty(ax)
+
+    if n_nans is not None and n_nans > 0:
+        h_nans = h.copy(deep=True)
+        h_nans.reset()
+        h_nans[hist.overflow] = n_nans
+
+        opts = {
+            "facecolor": "none",  # optional: transparent fill
+            "edgecolor": "tab:red",
+            "hatch": "///",
+            "flow": "show",
+            "yerr": False,
+        }
+        h_nans.plot(ax=ax, **(kwargs | opts))
 
 
 def read_concat_wempty(files: Iterable[str | Path], table: str) -> ak.Array | None:
@@ -72,3 +88,7 @@ def read_concat_wempty(files: Iterable[str | Path], table: str) -> ak.Array | No
             arrays.append(lh5.read_as(f"hit/{table}", f, library="ak"))
 
     return ak.concatenate(arrays, axis=0) if arrays != [] else None
+
+
+def n_nans(array):
+    return int(ak.sum(np.isnan(array)))
