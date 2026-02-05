@@ -56,7 +56,7 @@ def set_empty(ax):
 
 
 def plot_hist(hist, ax, **kwargs):
-    kwargs = kwargs | {"flow": "show", "yerr": False}
+    kwargs = {"flow": "show", "yerr": False} | kwargs
 
     if hist.sum() != 0:
         hist.plot(ax=ax, **kwargs)

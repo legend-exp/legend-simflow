@@ -38,7 +38,7 @@ def fig(table):
 
     data = plot.read_concat_wempty(hit_files, table)
 
-    if len(data) == 0:
+    if data is None or len(data) == 0:
         ax = fig.add_subplot()
         plot.set_empty(ax)
         return fig
