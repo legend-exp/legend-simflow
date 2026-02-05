@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import awkward as ak
 import pyg4ometry
+import pytest
 import reboost
 from lgdo import lh5
 
@@ -167,3 +168,20 @@ def test_cluster_by_span_empty_and_boundary():
     # [0.0, 1.0] spans exactly 1.0 -> same cluster; 1.0001 starts new
     assert ak.to_list(t_out) == [[], [0.0, 1.0001]]
     assert ak.to_list(a_out) == [[], [3.0, 3.0]]
+
+
+def test_cluster_by_span_mismatched_shapes():
+    """Test that mismatched array shapes raise ValueError."""
+    # Different nesting depths
+    times_1d = ak.Array([0.0, 1.0, 2.0])
+    amps_2d = ak.Array([[1.0, 2.0, 3.0]])
+
+    with pytest.raises(ValueError, match="nesting depth"):
+        rutils.cluster_by_span(times_1d, amps_2d, thr=1.0)
+
+    # Same nesting but different list lengths
+    times = ak.Array([[0.0, 1.0], [2.0]])
+    amps = ak.Array([[1.0], [2.0, 3.0]])
+
+    with pytest.raises(ValueError, match="mismatched list lengths"):
+        rutils.cluster_by_span(times, amps, thr=1.0)

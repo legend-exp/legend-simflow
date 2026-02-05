@@ -481,9 +481,12 @@ def cluster_by_span(
     Parameters
     ----------
     times
-        Awkward array of hit times. Must be sorted within each innermost list.
+        Awkward array of hit times. Must be sorted in ascending order within
+        each innermost list. Sorting is the caller's responsibility; unsorted
+        input produces undefined behavior.
     amps
-        Awkward array of amplitudes corresponding to times.
+        Awkward array of amplitudes corresponding to times. Must have the same
+        structure (nesting depth and list lengths) as `times`.
     thr
         Maximum time span within a cluster (e.g., the detector time resolution).
 
@@ -495,6 +498,12 @@ def cluster_by_span(
     clustered_amps
         Awkward array with the same nesting structure, containing the summed
         amplitude of each cluster.
+
+    Raises
+    ------
+    ValueError
+        If `times` and `amps` have different nesting depths or different
+        numbers of elements.
 
     Examples
     --------
@@ -519,6 +528,14 @@ def cluster_by_span(
     if len(offsets_chain_t) != len(offsets_chain_a):
         msg = "times and amps do not have the same list nesting depth"
         raise ValueError(msg)
+
+    # verify that offsets match at each nesting level
+    for i, (off_t, off_a) in enumerate(
+        zip(offsets_chain_t, offsets_chain_a, strict=True)
+    ):
+        if not np.array_equal(off_t, off_a):
+            msg = f"times and amps have mismatched list lengths at nesting level {i}"
+            raise ValueError(msg)
 
     # innermost offsets define the axis=-1 lists that must not mix
     inner_offsets = offsets_chain_t[-1]
