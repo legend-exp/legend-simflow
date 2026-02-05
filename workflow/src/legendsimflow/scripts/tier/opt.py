@@ -17,10 +17,8 @@
 
 from pathlib import Path
 
-import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-import numpy as np
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.psd
@@ -48,7 +46,7 @@ scintillator_volume_name = args.params.scintillator_volume_name
 
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
-BUFFER_LEN = "100*MB"
+BUFFER_LEN = "50*MB"
 MAP_SCALING = 0.1
 DEFAULT_PHOTOELECTRON_RES = 0.2  # FWHM
 TIME_RESOLUTION_NS = 16
@@ -60,8 +58,6 @@ perf_block, print_perf = make_profiler()
 # load the geometry and retrieve registered sensitive volume tables
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
-
-rng = np.random.default_rng()
 
 
 def process_sipm(
@@ -99,12 +95,9 @@ def process_sipm(
             ).view_as("ak")
 
         with perf_block("photoelectron_resolution()"):
-            counts = ak.num(pe_times_micro)
-            flat = rng.normal(
-                loc=1, scale=DEFAULT_PHOTOELECTRON_RES / 2.35482, size=ak.sum(counts)
+            pe_amps_micro = reboost_utils.smear_photoelectrons(
+                pe_times_micro, DEFAULT_PHOTOELECTRON_RES
             )
-            flat = np.where(flat < 0, 0, flat)
-            pe_amps_micro = ak.unflatten(flat, counts)
 
         with perf_block("cluster_photoelectrons()"):
             pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
