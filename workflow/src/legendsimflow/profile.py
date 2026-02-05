@@ -30,7 +30,7 @@ def _f(x: int | float) -> str:
     return f"{x:.5g}"
 
 
-def make_profiler() -> (Callable, Callable):
+def make_profiler() -> tuple[Callable, Callable]:
     proc = psutil.Process()
     stats = defaultdict(
         lambda: {
