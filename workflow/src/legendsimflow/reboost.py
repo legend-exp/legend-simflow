@@ -577,3 +577,137 @@ def gauss_smear(arr_true: ak.Array, arr_reso: ak.Array) -> ak.Array:
 
     # energy can't be negative as a result of smearing
     return ak.where((arr_smear <= 0) & (arr_true >= 0), np.finfo(float).tiny, arr_smear)
+
+def get_forced_trigger_library(
+    evt_file_path: str | Path,
+    win_len_ns: float = 6_000,
+    min_sep_ns: float = 6_000,
+    win_range_ns: tuple[float, float] = (1_000, 44_000),
+) -> ak.Array:
+    """Extract a library of forced trigger events to be used
+    in correcting the SiPM pe and times with random coincidences.
+
+    This reformats the data to make use of several windows within a waveform to build forced trigger events
+    and then stores the number of pe and times for each SiPM channel from that window (to be used for corrections).
+
+    Using this approach, we can maximize the number of forced-trigger-like events,
+    that are not actually generated from forced trigger data.
+
+    Parameters
+    ----------
+    evt_file_path
+        Path to the event tier data.
+    win_len
+        Window length of a "forced trigger", in nanoseconds.
+    min_sep
+        Minimal separation time between two windows in a trace, in nanoseconds.
+    win_range_ns
+        Available window range in a waveform in data.
+        Depends on which data is used (forced trigger data allows full waveform, while HPGe-/LAr-triggered data only allows first half).
+
+    Returns
+    -------
+    Array with fields "npe", the number of pe per SiPM and per hit,
+    "t0", the time relative to the start of a window in the trace, per SiPM and per hit (makes sure that t0 are between 0 and win_len time),
+    and "rawids" the SiPM channel numbers.
+    """
+
+    npe = None
+    t0 = None
+    rawids = None
+
+    # determine window starts and ends
+    starts = []
+    current_start = win_range_ns[0]
+    while current_start + win_len_ns <= win_range_ns[1]:
+        starts.append(current_start)
+        current_start += win_len_ns + min_sep_ns  # move to next window
+    ends = [s + win_len_ns for s in starts]
+
+    files = Path(evt_file_path).glob("*")
+
+    for file in files:
+        spms = lh5.read(
+            "evt/",
+            file,
+            field_mask=["spms/energy", "spms/t0", "spms/rawid"],
+        ).view_as("ak")
+
+        rawids_tmp = spms.spms.rawid[0]
+
+        if rawids is not None and not ak.all(rawids == rawids_tmp):
+            msg = "rawid should be the same in all cases"
+            raise ValueError(msg)
+
+        for wstart, wend in zip(starts, ends, strict=True):
+            tmsk = (spms.spms.t0 > wstart) & (spms.spms.t0 <= wend)
+            npe_tmp = spms.spms.energy[tmsk]
+
+            # times between 0 and 6 µs
+            t0_tmp = spms.spms.t0[tmsk] - wstart
+
+            npe = npe_tmp if npe is None else ak.concatenate((npe, npe_tmp))
+
+            t0 = t0_tmp if t0 is None else ak.concatenate((t0, t0_tmp))
+
+        rawids = rawids_tmp
+
+    return ak.Array(
+        {
+            "npe": npe,
+            "t0": t0,
+            "rawid": np.vstack([rawids] * len(npe)),
+        }
+    )
+
+
+def add_forced_triggers(
+    sipm_uid: int, rc_data: ak.Array, times: ak.Array, amps: ak.Array
+) -> tuple[ak.Array, ak.Array]:
+    """Apply a random coincidence correction to simulated number of pe and times.
+
+    Parameters
+    ----------
+    sipm_uid
+        The unique identifier (uid) for a SiPM channel.
+    rc_data
+        Random coincidence data library with fields "npe", "t0", "rawid".
+    times
+        Awkward array of hit times.
+    amps
+        Awkward array of amplitudes corresponding to times.
+    Returns
+    -------
+    corr_t
+        Awkward array containing simulated hit times, and the random coincidence hit times.
+    corr_a
+        Awkward array containing simulated hit amplitues, and the random coincidence hit amplitudes.
+    """
+
+    rc_data_ch = rc_data[rc_data.rawid == sipm_uid]
+
+    # Check that times and amps have same length
+    if len(times) != len(amps):
+        msg = f"times length ({len(times)}) != amps length ({len(amps)})"
+        raise ValueError(msg)
+
+    # Check that rc_data.t0 and rc_data.npe have same length
+    if len(rc_data_ch.t0) != len(rc_data_ch.npe):
+        msg = f"rc_data.t0 length ({len(rc_data_ch.t0)}) != rc_data.npe length ({len(rc_data_ch.npe)})"
+        raise ValueError(msg)
+
+    if len(rc_data_ch) < len(amps):
+        msg = f"Random coincidence data length ({len(rc_data_ch)}) is smaller than simulated data length ({len(amps)})"
+        raise ValueError(msg)
+
+    if len(rc_data_ch) > len(amps):
+        rng = np.random.default_rng()
+        indices = rng.choice(len(rc_data_ch), size=len(amps), replace=False)
+        rc_data_ch = rc_data_ch[
+            np.sort(indices)
+        ]  # sorting to keep temporal order of forced trigger data, could be removed if unwanted.
+
+    corr_t = ak.concatenate([times, rc_data_ch.t0], axis=1)
+    corr_a = ak.concatenate([amps, rc_data_ch.npe], axis=1)
+
+    return corr_t, corr_a
