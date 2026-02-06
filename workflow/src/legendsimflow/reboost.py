@@ -28,6 +28,7 @@ import pyg4ometry
 import pygama.evt
 import pygeomtools
 import reboost.hpge.utils
+import reboost.units
 from lgdo import LGDO, lh5
 
 from . import patterns
@@ -286,7 +287,6 @@ def hpge_corrected_drift_time(
     This function will be moved to :mod:`reboost`.
     """
     # Convert det_loc to pint Quantity in meters
-    import reboost.units
     det_loc_m = reboost.units.pg4_to_pint(det_loc).to("m").m
     
     phi = np.arctan2(
