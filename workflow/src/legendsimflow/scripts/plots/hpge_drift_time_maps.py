@@ -109,9 +109,9 @@ def fig(hpge):
     plot(axes[0], img_045, "<110>", cmap="viridis", vmin=vmin, vmax=vmax)
     axes[0].set_ylabel("z (mm)")
 
-    im1 = plot(axes[1], img_000, "<001>", cmap="viridis", vmin=vmin, vmax=vmax)
+    im1 = plot(axes[1], img_000, "<100>", cmap="viridis", vmin=vmin, vmax=vmax)
 
-    im2 = plot(axes[2], ratio, "<001> / <110>", cmap="coolwarm")
+    im2 = plot(axes[2], ratio, "<100> / <110>", cmap="coolwarm")
 
     fig.colorbar(im1, ax=axes[:2], label="drift time (ns)")
     fig.colorbar(im2, ax=axes[2], label="ratio")
