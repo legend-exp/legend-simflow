@@ -285,13 +285,13 @@ def hpge_corrected_drift_time(
     ----
     This function will be moved to :mod:`reboost`.
     """
-    # Convert det_loc from mm to meters to match chunk coordinates
-    det_loc_mm = det_loc.eval()
-    det_loc_meters = [x / 1000 for x in det_loc_mm]
+    # Convert det_loc to pint Quantity in meters
+    import reboost.units
+    det_loc_m = reboost.units.pg4_to_pint(det_loc).to("m").m
     
     phi = np.arctan2(
-        chunk.yloc - det_loc_meters[1],
-        chunk.xloc - det_loc_meters[0],
+        chunk.yloc - det_loc_m[1],
+        chunk.xloc - det_loc_m[0],
     )
 
     drift_time = {}

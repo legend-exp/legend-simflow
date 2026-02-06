@@ -193,7 +193,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             _activeness = reboost.math.functions.piecewise_linear_activeness(
                 _distance_to_nplus,
-                fccd=fccd,
+                fccd_in_mm=fccd,
                 dlf=0.5,
             )
 
