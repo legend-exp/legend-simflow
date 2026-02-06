@@ -158,7 +158,26 @@ def get_lar_minishroud_confine_commands(
         center = vol.position.eval()
         solid = vol.logicalVolume.solid
 
+        # Validate expected geometry structure before accessing attributes
+        if not hasattr(solid, "obj1") or solid.obj1 is None:
+            raise ValueError(
+                f"Expected solid for physical volume '{s}' to have an 'obj1' "
+                "attribute representing the outer minishroud cylinder, but it was "
+                f\"{'missing' if not hasattr(solid, 'obj1') else 'None'}\".
+            )
+
         outer_ms = solid.obj1
+
+        if not hasattr(outer_ms, "pRMax") or not hasattr(outer_ms, "pDz"):
+            missing = [
+                name for name in ("pRMax", "pDz") if not hasattr(outer_ms, name)
+            ]
+            raise ValueError(
+                "Outer minishroud solid for physical volume "
+                f"'{s}' is missing expected attribute(s): {', '.join(missing)}. "
+                "The confinement geometry assumes a cylindrical solid with "
+                "'pRMax' and 'pDz' attributes."
+            )
         r_max = outer_ms.pRMax
         dz = outer_ms.pDz
 
