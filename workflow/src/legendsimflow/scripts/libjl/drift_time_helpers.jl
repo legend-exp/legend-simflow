@@ -80,36 +80,46 @@ end
 
 
 """
-    extend_drift_time_map(drift_map, r_axis, z_axis; layers=1)
+    extend_drift_time_map(drift_map, row_axis, col_axis; layers=1)
 
 Extend a drift time map by adding pixel layers around the valid (non-NaN) region.
 New pixel values are set to the average of neighboring non-NaN pixels (8-connectivity).
-The grid is internally enlarged by `layers` on all sides to ensure the extended map is not clipped.
+The grid is internally enlarged by `layers` on applicable sides to ensure the extended map is not clipped.
+Note: The column axis (typically radius r) is not extended into negative values.
 
 # Arguments
-- `drift_map::AbstractMatrix`: 2D matrix where NaN indicates invalid regions
-- `r_axis::AbstractVector`: Original radial axis values
-- `z_axis::AbstractVector`: Original height axis values
+- `drift_map::AbstractMatrix`: 2D matrix where NaN indicates invalid regions (rows × cols)
+- `row_axis::AbstractVector`: Axis values corresponding to rows (e.g., z height)
+- `col_axis::AbstractVector`: Axis values corresponding to columns (e.g., r radius, must be non-negative)
 - `layers::Int`: Number of pixel layers to add (default: 1)
 
 # Returns
-- `NamedTuple`: Contains extended `:drift_map`, `:r_axis`, and `:z_axis`
+- `NamedTuple`: Contains extended `:drift_map`, `:row_axis`, and `:col_axis`
 """
 function extend_drift_time_map(
     drift_map::AbstractMatrix,
-    r_axis::AbstractVector,
-    z_axis::AbstractVector;
+    row_axis::AbstractVector,
+    col_axis::AbstractVector;
     layers::Int = 1
 )
     orig_nrows, orig_ncols = size(drift_map)
 
-    # Create enlarged grid with `layers` extra rows/cols on each side
-    new_nrows = orig_nrows + 2 * layers
-    new_ncols = orig_ncols + 2 * layers
+    # Determine extension on each side
+    # Row axis (z): extend on both sides
+    # Col axis (r): only extend on high side (don't go negative)
+    row_layers_low = layers
+    row_layers_high = layers
+    col_layers_low = 0  # Don't extend r into negative values
+    col_layers_high = layers
+
+    # Create enlarged grid
+    new_nrows = orig_nrows + row_layers_low + row_layers_high
+    new_ncols = orig_ncols + col_layers_low + col_layers_high
     work_map = fill(NaN, new_nrows, new_ncols)
 
-    # Copy original data into center of enlarged grid
-    work_map[(layers + 1):(layers + orig_nrows), (layers + 1):(layers + orig_ncols)] = drift_map
+    # Copy original data into the grid (offset by the low-side layers)
+    work_map[(row_layers_low + 1):(row_layers_low + orig_nrows), (col_layers_low + 1):(col_layers_low + orig_ncols)] =
+        drift_map
 
     # Extend the non-NaN region layer by layer
     for _ in 1:layers
@@ -142,30 +152,31 @@ function extend_drift_time_map(
     end
 
     # Extend axes to match the enlarged grid
-    r_vals = ustrip.(r_axis)
-    z_vals = ustrip.(z_axis)
-    r_unit = unit(eltype(r_axis))
-    z_unit = unit(eltype(z_axis))
+    row_vals = ustrip.(row_axis)
+    col_vals = ustrip.(col_axis)
+    row_unit = unit(eltype(row_axis))
+    col_unit = unit(eltype(col_axis))
 
-    r_step = length(r_vals) > 1 ? abs(r_vals[2] - r_vals[1]) : 0.0
-    z_step = length(z_vals) > 1 ? abs(z_vals[2] - z_vals[1]) : 0.0
+    row_step = length(row_vals) > 1 ? abs(row_vals[2] - row_vals[1]) : 0.0
+    col_step = length(col_vals) > 1 ? abs(col_vals[2] - col_vals[1]) : 0.0
 
-    # Add `layers` points on each side of each axis
-    extended_r_vals = vcat(
-        [r_vals[1] - r_step * i for i in layers:-1:1],
-        r_vals,
-        [r_vals[end] + r_step * i for i in 1:layers]
+    # Extend row axis on both sides
+    extended_row_vals = vcat(
+        [row_vals[1] - row_step * i for i in row_layers_low:-1:1],
+        row_vals,
+        [row_vals[end] + row_step * i for i in 1:row_layers_high]
     )
-    extended_z_vals = vcat(
-        [z_vals[1] - z_step * i for i in layers:-1:1],
-        z_vals,
-        [z_vals[end] + z_step * i for i in 1:layers]
+
+    # Extend col axis only on high side (no negative r values)
+    extended_col_vals = vcat(
+        col_vals,
+        [col_vals[end] + col_step * i for i in 1:col_layers_high]
     )
 
     return (;
         drift_map = work_map,
-        r_axis = extended_r_vals * r_unit,
-        z_axis = extended_z_vals * z_unit
+        row_axis = extended_row_vals * row_unit,
+        col_axis = extended_col_vals * col_unit
     )
 end
 
@@ -316,12 +327,13 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
 
     # extend_drift_time_map expects (rows × cols) with corresponding (row_axis, col_axis)
     # transposed_map is (z × r), so pass (z_axis, r_axis)
+    # Note: col_axis (r) won't be extended into negative values
     extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units)
 
     ang_str = lpad(string(angle_deg), 3, '0')
     return (;
-        :r => extended.z_axis,  # column axis of extended map
-        :z => extended.r_axis,  # row axis of extended map
+        :r => extended.col_axis,  # column axis of extended map (r)
+        :z => extended.row_axis,  # row axis of extended map (z)
         Symbol("drift_time_$(ang_str)_deg") => extended.drift_map * u"ns"
     )
 end
