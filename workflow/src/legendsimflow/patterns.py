@@ -205,7 +205,8 @@ def plot_tier_hit_observables_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def output_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.dtmaps / "{hpge_detector}-{hpge_voltage}V-hpge-drift-time-map.lh5",
+        config.paths.dtmaps
+        / "singles/{hpge_detector}-{hpge_voltage}V-hpge-drift-time-map.lh5",
         **kwargs,
     )
 
@@ -219,11 +220,6 @@ def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
         log_dirname(config, time)
         / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.log"
     )
-    return _expand(pat, **kwargs)
-
-
-def plot_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.plots / "hpge/dtmaps/{runid}-drift-time-maps.pdf"
     return _expand(pat, **kwargs)
 
 
