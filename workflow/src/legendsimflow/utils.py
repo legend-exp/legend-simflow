@@ -136,7 +136,8 @@ def get_lar_minishroud_confine_commands(
     pattern
         The pattern used to search for physical volumes of minishrouds.
     inside
-        Where to generate points only inside NMS to exclude them.
+        If True, generate points inside the minishroud (NMS) volumes; if False,
+        exclude the minishroud volumes from the generation region.
     lar_name
         The name of the physical volume of the LAr.
 
