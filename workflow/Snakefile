@@ -30,6 +30,12 @@ config = SIMFLOW_CONTEXT.config
 SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_modeling(
     config
 )
+# also cache the detector-voltage mapping for drift time maps
+SIMFLOW_CONTEXT["detector_voltages"] = (
+    aggregate.gen_list_of_hpge_detectors_with_voltages(
+        config, cache=SIMFLOW_CONTEXT["modelable_hpges"]
+    )
+)
 
 
 def dvs_ro(x):
@@ -42,6 +48,7 @@ wildcard_constraints:
     jobid=r"\d+",
     runid=r"[-\w]+",
     hpge_detector=r"[VPBC]\w{6}",
+    voltage=r"\d+",
 
 
 onstart:

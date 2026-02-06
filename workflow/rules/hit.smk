@@ -136,10 +136,6 @@ def smk_hpge_drift_time_map_inputs(wildcards):
         ids[meta.type] + format(meta.production.order, "02d") + meta.production.crystal
     )
 
-    # remove the datatype at the end of the runid string, it's not needed to
-    # locate the operational voltage file
-    runid_no_dt = "-".join(wildcards.runid.split("-")[:-1])
-
     _m = Path(config.paths.metadata)
 
     diode = (
@@ -157,17 +153,14 @@ def smk_hpge_drift_time_map_inputs(wildcards):
 rule build_hpge_drift_time_map:
     """Produce an HPGe drift time map.
 
-    Uses wildcards `hpge_detector` and `runid`.
+    Uses wildcards `hpge_detector` and `voltage`.
     """
     message:
-        "Generating drift time map for HPGe detector {wildcards.hpge_detector} in run {wildcards.runid}"
+        "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.voltage}V"
     input:
         unpack(smk_hpge_drift_time_map_inputs),
     params:
         metadata_path=config.paths.metadata,
-        operational_voltage=lambda wc: mutils.simpars(
-            config.metadata, "geds.opv", wc.runid
-        )[wc.hpge_detector].operational_voltage_in_V,
     output:
         temp(patterns.output_dtmap_filename(config)),
     log:
@@ -181,7 +174,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
-        "    --opv {params.operational_voltage}"
+        "    --opv {wildcards.voltage}"
         "    --output-file {output} &> {log}"
 
 
@@ -196,10 +189,6 @@ rule merge_hpge_drift_time_maps:
         lambda wc: aggregate.gen_list_of_dtmaps(
             config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
         ),
-    params:
-        input_regex=lambda wc: patterns.output_dtmap_filename(
-            config, runid=wc.runid, hpge_detector="*"
-        ),
     output:
         patterns.output_dtmap_merged_filename(config),
     shell:
@@ -207,8 +196,8 @@ rule merge_hpge_drift_time_maps:
         shopt -s nullglob
         out={output}
 
-        # expand glob into $1 $2 ...
-        set -- {params.input_regex}
+        # expand input files
+        set -- {input}
 
         # if no matches, create an empty hdf5 file
         if [ "$#" -eq 0 ]; then

@@ -24,7 +24,7 @@ from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .metadata import get_runlist, get_simconfig
+from .metadata import get_runlist, get_simconfig, simpars
 
 log = logging.getLogger(__name__)
 
@@ -221,17 +221,73 @@ def gen_list_of_all_runids(config) -> set[str]:
     }
 
 
+def get_detector_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
+    """Get the operational voltage for a detector in a given run.
+
+    Returns the voltage as an integer.
+    """
+    opv = simpars(config.metadata, "geds.opv", runid)[hpge].operational_voltage_in_V
+    return int(opv)
+
+
+def gen_list_of_hpge_detectors_with_voltages(
+    config: SimflowConfig, cache: dict[str, list[str]] | None = None
+) -> dict[str, set[int]]:
+    """Generate a mapping of HPGe detectors to the set of voltages needed.
+
+    For each detector that is valid for modeling across all runs, this function
+    collects all unique voltages that the detector has been operated at.
+
+    Returns a dictionary mapping detector names to sets of voltages (as integers).
+
+    Example return value:
+
+    .. code-block::
+
+        {
+          'V00048A': {3500, 4000},
+          'V00050B': {4200},
+          ...
+        }
+    """
+    all_runids = gen_list_of_all_runids(config)
+    hpges_by_run = (
+        cache if cache is not None else gen_list_of_all_hpges_valid_for_modeling(config)
+    )
+
+    detector_voltages: dict[str, set[int]] = {}
+    for runid in sorted(all_runids):
+        if runid not in hpges_by_run:
+            continue
+        for hpge in hpges_by_run[runid]:
+            voltage = get_detector_voltage(config, hpge, runid)
+            if hpge not in detector_voltages:
+                detector_voltages[hpge] = set()
+            detector_voltages[hpge].add(voltage)
+
+    return detector_voltages
+
+
 def gen_list_of_dtmaps(
     config: SimflowConfig, runid: str, cache: dict[str, list[str]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map files for a `runid`."""
+    """Generate the list of HPGe drift time map files for a `runid`.
+
+    Returns paths to temporary drift time map files that include the voltage
+    in the filename, for example:
+    ``.../hpge/dtmaps/V09724A-2500V-hpge-drift-time-map.lh5``.
+    """
     hpges = (
         gen_list_of_hpges_valid_for_modeling(config, runid)
         if cache is None
         else cache[runid]
     )
     return [
-        patterns.output_dtmap_filename(config, hpge_detector=hpge, runid=runid)
+        patterns.output_dtmap_filename(
+            config,
+            hpge_detector=hpge,
+            voltage=get_detector_voltage(config, hpge, runid),
+        )
         for hpge in hpges
     ]
 
