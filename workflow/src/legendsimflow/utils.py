@@ -203,7 +203,9 @@ def get_lar_minishroud_confine_commands(
         lines.append(
             f"/RMG/Generator/Confinement/Geometrical/Cylinder/OuterRadius {r_max} mm"
         )
-        lines.append(f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {dz} mm")
+        lines.append(
+            f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {2 * dz} mm"
+        )
 
     return lines
 
