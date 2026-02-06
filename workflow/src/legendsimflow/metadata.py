@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from collections.abc import Collection
@@ -24,12 +23,19 @@ from pathlib import Path
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendmeta.police import validate_dict_schema
+from lgdo import lh5
 from snakemake.io import Wildcards
 
-from . import SimflowConfig
+from . import SimflowConfig, utils
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
+
+USABILITY_CODE = {
+    "on": 0,
+    "ac": 1,
+    "off": 2,
+}
 
 
 def get_simconfig(
@@ -74,17 +80,6 @@ def get_simconfig(
         raise SimflowConfigError(e, block) from e
 
 
-def hash_dict(d: dict | AttrsDict) -> str:
-    """Compute the hash of a Python dict."""
-    if isinstance(d, AttrsDict):
-        d = d.to_dict()
-
-    return json.dumps(d, sort_keys=True)
-
-    # NOTE: alternatively, return sha256 (shorter string but bad for diffs)
-    # return hashlib.sha256(s.encode()).hexdigest()
-
-
 def smk_hash_simconfig(
     config: SimflowConfig,
     wildcards: Wildcards,
@@ -123,12 +118,63 @@ def smk_hash_simconfig(
             if f in scfg:
                 scfg.pop(f)
 
-    return hash_dict(scfg)
+    return utils.hash_dict(scfg)
 
 
 def extract_integer(file_path: Path) -> int:
     with file_path.open() as f:
         return int(f.read().strip())
+
+
+def usability(
+    metadata: LegendMetadata, det_name: str, runid: str, default: str | None = None
+) -> str:
+    """Get the usability for analysis of `det_name` in run `ruinid`.
+
+    Looks for the ``analysis.usability`` metadata field in the channel map. By
+    default, an error is thrown if no information is found. If `default` is set
+    to a non-None value, it will be returned.
+    """
+
+    rinfo = runinfo(metadata, runid)
+    chmap = metadata.channelmap(rinfo.start_key)
+    if det_name in chmap and "analysis" in chmap[det_name]:
+        return chmap[det_name].analysis.usability
+
+    if default is None:
+        msg = f"no usability metadata found for {det_name} in {runid} and no default provided"
+        raise RuntimeError(msg)
+
+    msg = (
+        f"no usability metadata found for {det_name} in {runid}, returning {default!s}"
+    )
+    log.warning(msg)
+    return default
+
+
+def encode_usability(usability: str) -> int:
+    """Encode the HPGe usability in an int."""
+    return USABILITY_CODE[usability]
+
+
+def decode_usability(usability_code: int) -> str:
+    """Decode the HPGe usability (see {func}`encode_usability`)."""
+    _codes = {v: k for k, v in USABILITY_CODE.items()}
+    return _codes[usability_code]
+
+
+def parse_runid(runid: str) -> (str, int, int, str):
+    """Extract `runid` fields.
+
+    Returns the experiment, period, run and datatype as a tuple. Period and run
+    are integers.
+    """
+    if not is_runid(runid):
+        msg = f"{runid} is not a valid runid"
+        raise ValueError(msg)
+
+    experiment, period, run, datatype = re.split(r"\W+", runid)
+    return experiment, int(period[1:]), int(run[1:]), datatype
 
 
 def runinfo(metadata: LegendMetadata, runid: str) -> str:
@@ -201,7 +247,7 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     return directory.on(runinfo(metadata, runid).start_key, system=datatype)
 
 
-def get_vtx_simconfig(config, simid):
+def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
     """Get the vertex generation configuration for a stp-tier `simid`.
 
     Returns the ``vtx``-tier generator requested by the ``stp``-tier simulation
@@ -235,7 +281,7 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
 
     has_fccd_meta = validate_dict_schema(
         det_meta.characterization,
-        {"combined_0vbb_analysis": {"fccd_in_mm": 0}},
+        {"combined_0vbb_analysis": {"fccd_in_mm": {"value": 0.0}}},
         greedy=False,
         verbose=False,
     )
@@ -245,7 +291,7 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
         log.warning(msg)
         fccd = 1
     else:
-        fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm
+        fccd = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm.value
 
     return fccd
 
@@ -350,3 +396,29 @@ def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
             raise SimflowConfigError(msg, path) from e
 
     return expand_runlist(config.metadata, runlist)
+
+
+# FIXME: this should be removed once the PRL25 data is reprocessed
+def _get_lh5_table(
+    metadata: LegendMetadata,
+    fname: str | Path,
+    hpge: str,
+    tier: str,
+    runid: str,
+) -> str:
+    """The correct LH5 table path.
+
+    Determines the correct path to a `hpge` detector table in tier `tier`.
+    """
+    # check if the latest format is available
+    path = f"{tier}/{hpge}"
+    if lh5.ls(fname, path) == [path]:
+        return path
+
+    # otherwise fall back to the old format
+    timestamp = runinfo(metadata, runid).start_key
+
+    chmap = metadata.channelmap(timestamp)
+
+    rawid = chmap[hpge].daq.rawid
+    return f"ch{rawid}/{tier}"

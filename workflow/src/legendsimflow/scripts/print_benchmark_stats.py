@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import math
 import re
 from datetime import timedelta
 from statistics import mean
@@ -22,8 +23,16 @@ from statistics import mean
 from legendsimflow import nersc
 
 
+def round_down_2sf_5(x):
+    k = math.floor(math.log10(x))  # decade
+    m = x / 10**k  # mantissa in [1, 10)
+
+    m_rd = math.floor(m / 0.5) * 0.5  # steps: 1.0, 1.5, 2.0, 2.5, ...
+    return m_rd * 10**k
+
+
 def printline(*line):
-    print("{:<52}{:>16}{:>27}{:>11}{:>23}".format(*line))
+    print("{:<52}{:>16}{:>27}{:>11}{:>23}{:>23}".format(*line))
 
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
@@ -57,12 +66,14 @@ printline(
     "speed (hot loop) [ev/sec]",
     "evts / 1h",
     "jobs (1h) / 10^8 evts",
+    "primaries per 3.5 hrs",
 )
 printline(
     "-----",
     "-------------",
     "-------------------------",
     "---------",
+    "---------------------",
     "---------------------",
 )
 
@@ -104,10 +115,13 @@ for simd in sorted(logdir.glob("*/*")):
 
     evts_1h = int(speed * 60 * 60) if speed > 0 else "..."
     njobs = int(1e8 / evts_1h) if not isinstance(evts_1h, str) else 0
+    prims_per_job = round_down_2sf_5((speed * 60 * 60) * 3.5)  # primaries per 3.5 hours
+
     printline(
         simd.parent.name + "." + simd.name,
         ("!!! " if runtime < 10 else "") + f"{runtime:.1f}",
         f"{speed:.2f}",
         evts_1h,
         njobs,
+        prims_per_job,
     )

@@ -1,0 +1,114 @@
+V14654A:
+  pars:
+    operations: []
+  results:
+    ecal:
+      cuspEmax_ctc_cal:
+        eres_linear:
+          function: FWHMLinear
+          module: pygama.pargen.energy_cal
+          expression: (a+b*x)**(0.5)
+          parameters:
+            a: 177.40975867040842
+            b: 2.1086194228344367e-07
+          uncertainties:
+            a: 7.509450243154376
+            b: 0.00466501374221571
+          cov:
+            - - 56.3918460988416
+              - -3.478448573358443e-06
+            - - -3.478448573358443e-06
+              - 3.943874368060104e-09
+          csqr:
+            - 4.868908175003771
+            - 0
+          p_val: .nan
+          interp_energy_in_kev: 2039.0
+          Qbb_fwhm_in_kev: .nan
+          Qbb_fwhm_err_in_kev: .nan
+        eres_quadratic:
+          function: FWHMQuadratic
+          module: pygama.pargen.energy_cal
+          expression: (a+b*x+c*x**2)**(0.5)
+          parameters:
+            a: 146.65848167278548
+            b: 0.02388230965630912
+            c: 4.644994978930672e-11
+          uncertainties:
+            a: 2.797255761279004
+            b: 0.007696799929091239
+            c: 2.3668942013976174e-06
+          cov:
+            - - 0.0019916591139477633
+              - -2.038996439139953e-06
+              - 2.4341259260199016e-15
+            - - -2.038996439139953e-06
+              - 5.9313285453214986e-05
+              - -4.92144749617367e-13
+            - - 2.4341259260199016e-15
+              - -4.92144749617367e-13
+              - 4.3976898791023393e-16
+          csqr:
+            - 12.847224624317615
+            - -1
+          p_val: .nan
+          interp_energy_in_kev: 2039.0
+          Qbb_fwhm_in_kev: .nan
+          Qbb_fwhm_err_in_kev: .nan
+V14673A:
+  pars:
+    operations: []
+  results:
+    ecal:
+      cuspEmax_ctc_cal:
+        eres_linear:
+          function: FWHMLinear
+          module: pygama.pargen.energy_cal
+          expression: (a+b*x)**(0.5)
+          parameters:
+            a: 5.153347998296422
+            b: 0.00194018934398312
+          uncertainties:
+            a: 0.12021905808746736
+            b: 6.280021929881631e-05
+          cov:
+            - - 0.014452771634334255
+              - -6.470280811218523e-06
+            - - -6.470280811218523e-06
+              - 3.943871532999951e-09
+          csqr:
+            - 2.770680535189877
+            - 3
+          p_val: 0.42834919273436156
+          interp_energy_in_kev: 2039.0
+          Qbb_fwhm_in_kev: 3.018177276217884
+          Qbb_fwhm_err_in_kev: 0.011297439082783942
+        eres_quadratic:
+          function: FWHMQuadratic
+          module: pygama.pargen.energy_cal
+          expression: (a+b*x+c*x**2)**(0.5)
+          parameters:
+            a: 5.624063504665309
+            b: 0.0010001314630897662
+            c: 2.924981463709852e-07
+          uncertainties:
+            a: 0.09555350287116937
+            b: 0.0014593658284835886
+            c: 2.131304959872727e-08
+          cov:
+            - - 0.00913827756615398
+              - -3.9124662958412553e-07
+              - -1.2708538502002788e-09
+            - - -3.9124662958412553e-07
+              - 7.679710810929965e-10
+              - -2.3863928857357474e-13
+            - - -1.2708538502002788e-09
+              - -2.3863928857357474e-13
+              - 4.54246083552255e-16
+          csqr:
+            - 1.184273387710824
+            - 2
+          p_val: 0.5531441215102635
+          interp_energy_in_kev: 2039.0
+          Qbb_fwhm_in_kev: 2.979831999275091
+          Qbb_fwhm_err_in_kev: 0.010664954175623926

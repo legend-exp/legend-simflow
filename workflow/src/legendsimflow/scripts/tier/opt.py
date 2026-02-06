@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import legenddataflowscripts as ldfs
+import legenddataflowscripts.utils
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.psd
@@ -26,9 +27,10 @@ import reboost.spms
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import nersc
 from legendsimflow import reboost as reboost_utils
 
-args = snakemake  # noqa: F821
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 stp_file = args.input.stp_file
 hit_file = args.output[0]
@@ -37,19 +39,20 @@ gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
-buffer_len = args.params.buffer_len
+buffer_len = "100*MB"
+scintillator_volume_name = args.params.scintillator_volume_name
 
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
-# load the geometry and retrieve registered sensitive volumes
+# load the geometry and retrieve registered sensitive volume tables
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
-sensvols = pygeomtools.detectors.get_all_sensvols(geom)
+sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
-# loop over the sensitive volumes registered in the geometry
-for det_name, geom_meta in sensvols.items():
-    msg = f"looking for data from sensitive volume {det_name} (uid={geom_meta.uid})..."
+# loop over the sensitive volume tables registered in the geometry
+for det_name, geom_meta in sens_tables.items():
+    msg = f"looking for data from sensitive volume {det_name} table (uid={geom_meta.uid})..."
     log.debug(msg)
 
     if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
@@ -70,7 +73,10 @@ for det_name, geom_meta in sensvols.items():
     )
 
     # process the scintillator output
-    if geom_meta.detector_type == "scintillator" and det_name == "lar":
+    if (
+        geom_meta.detector_type == "scintillator"
+        and det_name == scintillator_volume_name
+    ):
         log.info("processing the 'lar' scintillator table...")
 
         # QUESTION/FIXME: what is the right loop order? load a map and process
@@ -86,8 +92,8 @@ for det_name, geom_meta in sensvols.items():
             )
 
             if optmap_per_sipm:
-                for sipm in reboost_utils.get_sensvols(geom, "optical"):
-                    sipm_uid = sensvols[sipm].uid
+                for sipm in reboost_utils.get_senstables(geom, "optical"):
+                    sipm_uid = sens_tables[sipm].uid
 
                     msg = f"applying optical map for SiPM {sipm}"
                     log.debug(msg)
@@ -142,4 +148,4 @@ for det_name, geom_meta in sensvols.items():
 
 
 log.debug("building the TCM")
-reboost_utils.build_tcm(hit_file)
+reboost_utils.build_tcm(hit_file, hit_file)

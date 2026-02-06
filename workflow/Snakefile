@@ -13,16 +13,23 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
+import time
 
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
 
-
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
+
+# it takes a while to generate the list of good HPGes, let's do it at the start
+# and cache it for later
+SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_modeling(
+    config
+)
 
 
 def dvs_ro(x):
@@ -45,39 +52,53 @@ onstart:
     # make sure some packages are initialized before we begin to avoid race conditions
     # https://numba.readthedocs.io/en/stable/developer/caching.html#cache-sharing
     if not workflow.touch and "precompile_pkg" in config:
-        print("INFO: pre-compiling Numba cache")
-        shell(f"python -c 'import {", ".join(config.precompile_pkg)}'")
+        print(
+            f"INFO: pre-compiling Numba cache (NUMBA_CACHE_DIR={os.environ.get('NUMBA_CACHE_DIR')})"
+        )
+        for module in config.precompile_pkg:
+            shell(f"python -c 'from {module} import *'")
 
 
 include: "rules/aux.smk"
 
 
-make_tiers = config.get("make_tiers", ["vtx", "stp", "opt", "hit"])
+make_tiers = config.get("make_tiers", aggregate.TIERS_ORDERED)
+make_tiers = utils.sorted_by(make_tiers, aggregate.TIERS_ORDERED)
+
 for tier in make_tiers:
 
     include: f"rules/{tier}.smk"
 
 
+# strategy: select the latest requested tier (in tiers_ordered),
+# then make the build cumulative by including all tiers up to it.
 def gen_target_all():
-    if config.get("simlist", "*") in ("all", "*"):
-        if "pdf" in make_tiers:
-            return rules.gen_pdf_release.input
-        elif "evt" in make_tiers:
-            return rules.gen_all_tier_evt.input
-        elif "hit" in make_tiers:
-            return (
-                rules.gen_all_tier_hit.input,
-                aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
-            )
-        elif "opt" in make_tiers:
-            return rules.gen_all_tier_opt.input
-        elif "stp" in make_tiers:
-            return (
-                rules.gen_all_tier_stp.input,
-                aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
-            )
-    else:
+    if config.get("simlist", "*") not in ("all", "*"):
         return aggregate.process_simlist(config)
+
+    # latest tier is simply the last element after sorting by tiers_ordered
+    latest = make_tiers[-1]
+
+    # cumulative tiers: walk back to the beginning (i.e. all tiers up to latest)
+    latest_i = aggregate.TIERS_ORDERED.index(latest)
+    cumulative = aggregate.TIERS_ORDERED[: latest_i + 1]
+
+    inputs = []
+    for tier in cumulative:
+        if tier == "cvt":
+            inputs.extend(rules.gen_all_tier_cvt.input)
+        elif tier == "evt":
+            inputs.extend(rules.gen_all_tier_evt.input)
+        elif tier == "hit":
+            inputs.extend(rules.gen_all_tier_hit.input)
+        elif tier == "opt":
+            inputs.extend(rules.gen_all_tier_opt.input)
+        elif tier == "stp":
+            inputs.extend(rules.gen_all_tier_stp.input)
+        elif tier == "vtx":
+            pass
+
+    return inputs
 
 
 rule all:

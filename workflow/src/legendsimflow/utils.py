@@ -15,25 +15,51 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
+import logging
 import os
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
+import awkward as ak
+import dbetto
+import h5py
 import legenddataflowscripts as ldfs
 import pyg4ometry as pg4
-from dbetto import AttrsDict
+import lgdo
+import numpy as np
+from dbetto import AttrsDict, TextDB
+
 from legendmeta import LegendMetadata
-from lgdo import lh5
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
-from . import SimflowConfig
-from . import metadata as mutils
+from . import SimflowConfig, nersc
+
+log = logging.getLogger(__name__)
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
-    # merge default into user without overwriting user values
+    """Recursively merge default values into user configuration.
+
+    Merges values from `default` into `user` without overwriting existing
+    user values. For nested dictionaries, performs recursive merge.
+
+    Parameters
+    ----------
+    user
+        User configuration dictionary.
+    default
+        Default configuration dictionary.
+
+    Returns
+    -------
+    dict
+        Merged configuration dictionary with user values taking precedence.
+    """
     result = dict(default)
     for k, v in user.items():
         if k in result and isinstance(result[k], dict) and isinstance(v, dict):
@@ -43,7 +69,7 @@ def _merge_defaults(user: dict, default: dict) -> dict:
     return result
 
 
-def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
+def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     """Pre-process and sanitize the Simflow configuration.
 
     - set default configuration fields;
@@ -54,6 +80,15 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     - attach a :class:`legendmeta.LegendMetadata` instance to the Simflow
       configuration;
     - export important environment variables.
+
+    Parameters
+    ----------
+    raw_config
+        path to the Simflow configuration file.
+    workflow
+        Snakemake workflow instance. If None, occurrences of ``$_`` in the
+        configuration will be replaced with the path to the current working
+        directory.
 
     Returns a dictionary with useful objects to be used in the Simflow
     Snakefiles (i.e. the "context").
@@ -67,7 +102,16 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
         {"benchmark": {"enabled": False}, "nersc": {"dvs_ro": False, "scratch": False}},
     )
 
-    ldfs.workflow.utils.subst_vars_in_snakemake_config(workflow, raw_config)
+    if workflow is None:
+        ldfs.subst_vars(
+            raw_config,
+            var_values={"_": Path().resolve()},
+            use_env=True,
+            ignore_missing=False,
+        )
+    else:
+        ldfs.workflow.utils.subst_vars_in_snakemake_config(workflow, raw_config)
+
     config = AttrsDict(raw_config)
 
     # convert all strings in the "paths" block to pathlib.Path
@@ -81,12 +125,18 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
 
     config["paths"] = _make_path(config.paths)
 
+    if "l200data" in config.paths:
+        config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)
+
     # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
-    # NOTE: don't use lazy=True, we need a fully functional TextDB
-    metadata = LegendMetadata(config.paths.metadata)
+    metadata = LegendMetadata(config.paths.metadata, lazy=True)
+
     if "legend_metadata_version" in config:
         metadata.checkout(config.legend_metadata_version)
-    config["metadata"] = metadata
+
+    # NOTE: read only path on NERSC, we are not going to modify the db
+    # NOTE: don't use lazy=True, we need a fully functional TextDB
+    config["metadata"] = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
 
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)
@@ -215,8 +265,17 @@ def get_lar_minishroud_confine_commands(
     return lines
 
 
-def setup_logdir_link(config: SimflowConfig, proctime):
-    """Set up the timestamp-tagged directory for the workflow log files."""
+
+def setup_logdir_link(config: SimflowConfig, proctime: str) -> None:
+    """Set up the timestamp-tagged directory for the workflow log files.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    proctime
+        Processing time identifier for the log directory.
+    """
     logdir = Path(config.paths.log)
     logdir.mkdir(parents=True, exist_ok=True)
 
@@ -227,27 +286,122 @@ def setup_logdir_link(config: SimflowConfig, proctime):
     link.symlink_to(proctime, target_is_directory=True)
 
 
-# FIXME: this should be removed once the PRL25 data is reprocessed
-def _get_lh5_table(
-    metadata: LegendMetadata,
-    fname: str | Path,
-    hpge: str,
-    tier: str,
-    runid: str,
-) -> str:
-    """The correct LH5 table path.
+def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
+    """Finds and loads the dataflow configuration file.
 
-    Determines the correct path to a `hpge` detector table in tier `tier`.
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+
+    Returns
+    -------
+    the dataflow configuration file as a dictionary with substitutions
+    performed.
     """
-    # check if the latest format is available
-    path = f"{tier}/{hpge}"
-    if lh5.ls(fname, path) == [path]:
-        return path
+    if not isinstance(l200data, Path):
+        l200data = Path(l200data)
 
-    # otherwise fall back to the old format
-    timestamp = mutils.runinfo(metadata, runid).start_key
-    rawid = metadata.channelmap(timestamp)[hpge].daq.rawid
-    return f"ch{rawid}/{tier}"
+    # look for the dataflow config file
+    df_cfgs = [p for p in l200data.glob("*config.*") if not p.name.startswith(".")]
+
+    if len(df_cfgs) > 1:
+        msg = f"found multiple configuration files in {l200data}, this cannot be!"
+        raise RuntimeError(msg)
+
+    if len(df_cfgs) == 0:
+        msg = f"did not find any valid config file in {l200data}, this cannot be!"
+        raise RuntimeError(msg)
+
+    msg = f"found dataflow configuration file: {df_cfgs[0]}"
+    log.debug(msg)
+
+    df_cfg = AttrsDict(dbetto.utils.load_dict(df_cfgs[0]))
+    df_cfg = df_cfg.setups.l200 if ("setups" in df_cfg) else df_cfg
+
+    # substitute vars
+    ldfs.subst_vars(
+        df_cfg,
+        var_values={"_": l200data.resolve()},
+        use_env=False,
+        ignore_missing=True,
+    )
+
+    return df_cfg
+
+
+def init_generated_pars_db(
+    l200data: str | Path, tier: str | None = None, lazy: bool = True
+) -> TextDB:
+    """Initializes the pars database from a LEGEND-200 data production.
+
+    Parameters
+    ----------
+    l200data
+        path to LEGEND-200 data production cycle.
+    tier
+        pars subfolder referring to a `tier`. If None, return the full `par`
+        database.
+    lazy
+        see :class:`~dbetto.textdb.TextDB`.
+    """
+    dataflow_config = lookup_dataflow_config(l200data)
+    return TextDB(
+        dataflow_config.paths["par" if tier is None else f"par_{tier}"], lazy=lazy
+    )
+
+
+def get_hit_tier_name(l200data: str) -> str:
+    """Extract the name of the hit tier for this production cycle.
+
+    If the `pht` tier is present this is used else the `hit` tier is used.
+
+    Parameters
+    ----------
+    l200data
+        Path to the production cycle of l200 data.
+    """
+
+    df_cfg = lookup_dataflow_config(l200data).paths
+
+    # first check if pht exists
+    has_pht = ("tier_pht" in df_cfg) and Path(df_cfg.tier_pht).exists()
+    has_hit = ("tier_hit" in df_cfg) and Path(df_cfg.tier_hit).exists()
+
+    if has_pht:
+        return "pht"
+    if has_hit:
+        return "hit"
+    msg = f"The l200data {l200data} does not contain a valid pht or hit tier"
+    raise RuntimeError(msg)
+
+
+def hash_dict(d: dict | AttrsDict) -> str:
+    """Compute the hash of a Python dict."""
+    if isinstance(d, AttrsDict):
+        d = d.to_dict()
+
+    return json.dumps(d, sort_keys=True)
+
+    # NOTE: alternatively, return sha256 (shorter string but bad for diffs)
+    # return hashlib.sha256(s.encode()).hexdigest()
+
+
+def string_to_remage_seed(s: str, seed: int = 0) -> int:
+    """Convert a string to a positive 32-bit integer.
+
+    This is good to use as remage seed.
+
+    Parameters
+    ----------
+    s
+        the string to encode.
+    seed
+        optional seed.
+    """
+    seed_bytes = seed.to_bytes(8, byteorder="big", signed=False)  # 0..2^64-1
+    h = hashlib.sha256(seed_bytes + s.encode("utf-8")).digest()
+    return int.from_bytes(h[:4], "big", signed=False) & 0x7FFFFFFF
 
 
 def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
@@ -256,9 +410,58 @@ def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
     param_names = params[1:]
 
     popt_dict = dict(zip(param_names, popt, strict=True))
-    popt_dict["mean_aoe"] = popt_dict["amax"] / 1593
 
     for key, value in popt_dict.items():
         popt_dict[key] = float(f"{value:.3g}")
 
     return popt_dict
+
+
+def add_field_string(name: str, chunk: lgdo.Table, data: str) -> None:
+    """Add a string to the output table.
+
+    This is done in an HDF5-friendly way by storing the runid as a fixed-length
+    string.
+    """
+    # NOTE: is this ok? will it compress well?
+    dtype = h5py.string_dtype(encoding="utf-8", length=len(data))
+    data_array = np.full(len(chunk), fill_value=data, dtype=dtype)
+    chunk.add_field(name, lgdo.Array(data_array))
+
+
+def check_nans_leq(array: ArrayLike, name: str, less_than_frac: float = 0.1) -> None:
+    """Raise an exception if the fraction of NaN values in `array` is above threshold.
+
+    Parameters
+    ----------
+    array
+        the array to analyze.
+    name
+        array name for exception message.
+    less_than_frac
+        raise exception if fraction of NaNs is above this threshold.
+    """
+    flat = ak.ravel(array)
+    n_el = len(flat)
+    n_nans = ak.sum(ak.is_none(ak.nan_to_none(flat)))
+    if (n_nans / n_el) > less_than_frac:
+        msg = f"more than {100 * less_than_frac}% of NaNs detected in array {name}!"
+        raise RuntimeError(msg)
+
+
+def sorted_by(subset: Sequence, order: Sequence) -> list:
+    """Sort a sequence according to a specified order, dropping duplicates."""
+    pos = {k: i for i, k in enumerate(order)}
+
+    # stable sort by order
+    out = sorted(subset, key=pos.__getitem__)
+
+    # deduplicate while preserving order
+    seen = set()
+    uniq = []
+    for x in out:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+
+    return uniq

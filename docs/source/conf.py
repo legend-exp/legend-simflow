@@ -10,6 +10,7 @@ project = "legend-simflow"
 copyright = "2025, the LEGEND Collaboration"
 
 extensions = [
+    "sphinx.ext.todo",
     "sphinx.ext.autodoc",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
@@ -89,3 +90,6 @@ autoclass_content = "both"
 autodoc_typehints = "description"
 autodoc_typehints_description_target = "documented_params"
 autodoc_typehints_format = "short"
+
+# actually show ToDo admonitions
+todo_include_todos = True

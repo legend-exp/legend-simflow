@@ -28,6 +28,8 @@ from .metadata import get_runlist, get_simconfig
 
 log = logging.getLogger(__name__)
 
+TIERS_ORDERED: list[str] = ["vtx", "stp", "opt", "hit", "evt", "cvt"]
+
 
 def get_simid_njobs(config: SimflowConfig, simid: str) -> int:
     """Number of jobs that will be generated for a `tier.simid`.
@@ -64,12 +66,13 @@ def gen_list_of_simid_outputs(
     return patterns.output_simid_filenames(config, n_jobs, tier=tier, simid=simid)
 
 
-def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
+def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kwargs):
     """Generate the list of plots files for a `tier.simid`."""
     if tier == "hit":
         return [
+            patterns.plot_tier_hit_observables_filename(config, simid=simid),
             *gen_list_of_dtmap_plots_outputs(config, simid),
-            *gen_list_of_currmod_plots_outputs(config, simid),
+            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
         ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
@@ -97,11 +100,13 @@ def gen_list_of_all_simid_outputs(config: SimflowConfig, tier: str) -> list[Path
     return mlist
 
 
-def gen_list_of_all_plots_outputs(config: SimflowConfig, tier: str) -> list[Path]:
+def gen_list_of_all_plots_outputs(
+    config: SimflowConfig, tier: str, **kwargs
+) -> list[Path]:
     r"""Generate a list of all plot files that belong to a `tier`."""
     mlist = []
     for simid in gen_list_of_all_simids(config):
-        mlist += gen_list_of_plots_outputs(config, tier, simid)
+        mlist += gen_list_of_plots_outputs(config, tier, simid, **kwargs)
 
     return mlist
 
@@ -137,6 +142,11 @@ def gen_list_of_hpges_valid_for_modeling(
     It generates the list of deployed detectors in `runid` via the LEGEND
     channelmap, then checks if in the crystal metadata there's all the
     information required to generate a drift time map etc.
+
+    Warning
+    -------
+    This function is expensive in terms of filesystem I/O! Do not call it
+    multiple times or in hot loops.
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
@@ -146,7 +156,7 @@ def gen_list_of_hpges_valid_for_modeling(
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
         # TEMPORARY HACK
-        if hpge.name in ("V00050A", "V13046A", "V00048B", "V14654A"):
+        if hpge.name in ("V00050A"):
             continue
 
         # we don't model detectors that are OFF or AC
@@ -174,8 +184,36 @@ def gen_list_of_hpges_valid_for_modeling(
     return sorted(hpges)
 
 
-def gen_list_of_all_runids(config):
-    """The full list of runids required in this workflow."""
+def gen_list_of_all_hpges_valid_for_modeling(
+    config: SimflowConfig,
+) -> dict[str, list[str]]:
+    """Generate the complete list of HPGe detectors valid for modeling.
+
+    Find out which HPGe detectors are valid for each runid.
+    Returns the following dictionary:
+
+    .. code-block::
+
+        {
+          'l200-p03-r000-phy': ['V00048A', ...],
+          'l200-p03-r001-phy': ['V00050B', ...],
+          ...
+        }
+
+    i.e. a mapping ``runid -> hpge_list``.
+    """
+    all_runids = set()
+    for simid in gen_list_of_all_simids(config):
+        all_runids.update(get_runlist(config, simid))
+
+    return {
+        runid: gen_list_of_hpges_valid_for_modeling(config, runid)
+        for runid in sorted(all_runids)
+    }
+
+
+def gen_list_of_all_runids(config) -> set[str]:
+    """The full list of runids required in the Simflow."""
     return {
         runid
         for simid in gen_list_of_all_simids(config)
@@ -183,16 +221,22 @@ def gen_list_of_all_runids(config):
     }
 
 
-def gen_list_of_dtmaps(config: SimflowConfig, runid: str) -> list[str]:
+def gen_list_of_dtmaps(
+    config: SimflowConfig, runid: str, cache: dict[str, list[str]] | None = None
+) -> list[Path]:
     """Generate the list of HPGe drift time map files for a `runid`."""
-    hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+    hpges = (
+        gen_list_of_hpges_valid_for_modeling(config, runid)
+        if cache is None
+        else cache[runid]
+    )
     return [
         patterns.output_dtmap_filename(config, hpge_detector=hpge, runid=runid)
         for hpge in hpges
     ]
 
 
-def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[str]:
+def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
     r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
     return [
         patterns.output_dtmap_merged_filename(config, runid=runid)
@@ -200,20 +244,17 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[str]:
     ]
 
 
-def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> set[str]:
+def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> list[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
-    files = set()
-    for runid in get_runlist(config, simid):
-        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
-            files.add(
-                patterns.plot_dtmap_filename(config, hpge_detector=hpge, runid=runid)
-            )
-
-    return files
+    return [
+        patterns.plot_dtmap_merged_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
 
 
-def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[str]:
+def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
+    # use a set to drop duplicates
     files = set()
     for simid in gen_list_of_all_simids(config):
         files.update(gen_list_of_dtmap_plots_outputs(config, simid))
@@ -221,16 +262,22 @@ def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[str]:
     return files
 
 
-def gen_list_of_currmods(config: SimflowConfig, runid: str) -> list[str]:
+def gen_list_of_currmods(
+    config: SimflowConfig, runid: str, cache: dict[str, list[str]] | None = None
+) -> list[str]:
     """Generate the list of HPGe current model parameter files for a `runid`."""
-    hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+    hpges = (
+        gen_list_of_hpges_valid_for_modeling(config, runid)
+        if cache is None
+        else cache[runid]
+    )
     return [
         patterns.output_currmod_filename(config, hpge_detector=hpge, runid=runid)
         for hpge in hpges
     ]
 
 
-def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[str]:
+def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]:
     r"""Generate the list of (merged) HPGe current model parameter files for all requested `runid`\ s."""
     return [
         patterns.output_currmod_merged_filename(config, runid=runid)
@@ -238,46 +285,62 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[str]:
     ]
 
 
-def gen_list_of_currmod_plots_outputs(config: SimflowConfig, simid: str) -> set[str]:
+def gen_list_of_currmod_plots_outputs(
+    config: SimflowConfig, simid: str, cache: dict[str, list[str]] | None = None
+) -> list[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
-    files = set()
+    files = []
     for runid in get_runlist(config, simid):
-        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
-            files.add(
+        hpges = (
+            gen_list_of_hpges_valid_for_modeling(config, runid)
+            if cache is None
+            else cache[runid]
+        )
+        for hpge in hpges:
+            files.append(
                 patterns.plot_currmod_filename(config, hpge_detector=hpge, runid=runid)
             )
 
     return files
 
 
-def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig) -> set[str]:
+def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig, **kwargs) -> set[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
+    # use a set to drop duplicates
     files = set()
     for simid in gen_list_of_all_simids(config):
-        files.update(gen_list_of_currmod_plots_outputs(config, simid))
+        files.update(gen_list_of_currmod_plots_outputs(config, simid, **kwargs))
 
     return files
+
+
+def gen_list_of_eresmods(config: SimflowConfig, simid: str) -> list[Path]:
+    r"""Generate the list of HPGe energy resolution model parameter files for all requested `runid`\ s."""
+    return [
+        patterns.output_eresmod_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
+
+
+# tier cvt
+
+
+def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
+    """Generate the list of all ``cvt`` tier files in the Simflow."""
+    return [
+        patterns.output_tier_cvt_filename(config, simid=simid, **kwargs)
+        for simid in gen_list_of_all_simids(config)
+    ]
 
 
 def process_simlist(
     config: SimflowConfig, simlist: Iterable[str] | None = None
 ) -> list[Path]:
-    """Produce a list of all output files that refer to a `simlist`
+    """Produce a list of all output files that refer to a `simlist`.
 
-    A "simlist" is a list of strings of the format ``<tier>.<simid>``, used to
-    instruct the Simflow about which tiers and simulations it should process.
-    The simlist should be specified as a field in `config`, located at
-    `config.simlist`.
-
-    This function returns the list of all files that the Simflow has to produce
-    for all identifiers.
-
-    Parameters
-    ----------
-    config
-        :class:`SimflowConfig` object.
-    simlist
-        supply the simlist, if not present in `config`.
+    Each simlist item is ``<tier>.<simid>``. The tier is interpreted as the
+    *latest* tier requested for that simid; outputs are produced cumulatively
+    for all tiers up to (and including) that tier in TIERS_ORDERED.
     """
     if simlist is None:
         simlist = config.simlist
@@ -287,23 +350,34 @@ def process_simlist(
     if not isinstance(simlist, list):
         simlist = simlist.split(",")
 
-    mlist = []
+    pos = {k: i for i, k in enumerate(TIERS_ORDERED)}
+
+    mlist: list[Path] = []
     for line in simlist:
-        # each line is in the format <tier>.<simid>
-        if len(line.split(".")) != 2:
+        parts = line.split(".")
+        if len(parts) != 2:
             msg = (
                 "simflow-config.simlist",
                 f"item '{line}' is not in the format <tier>.<simid>",
             )
             raise SimflowConfigError(*msg)
 
-        tier = line.split(".")[0].strip()
-        simid = line.split(".")[1].strip()
+        tier = parts[0].strip()
+        simid = parts[1].strip()
 
-        mlist += gen_list_of_plots_outputs(config, tier, simid)
-        if tier in ("vtx", "stp", "opt", "hit"):
-            mlist += gen_list_of_simid_outputs(config, tier, simid)
-        elif tier in ("evt", "pdf"):
-            raise NotImplementedError()
+        if tier not in pos:
+            msg = f"unknown tier {tier!r}"
+            raise NotImplementedError(msg)
+
+        # cumulative: build all tiers up to the requested one
+        for t in TIERS_ORDERED[: pos[tier] + 1]:
+            mlist += gen_list_of_plots_outputs(config, t, simid)
+
+            if t == "vtx":
+                pass
+            elif t in ("stp", "opt", "hit", "evt"):
+                mlist += gen_list_of_simid_outputs(config, t, simid)
+            elif t == "cvt":
+                mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
 
     return mlist

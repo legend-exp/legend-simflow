@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from dbetto import AttrsDict
 
 from legendsimflow import metadata
@@ -30,6 +33,8 @@ def test_all(config):
 
 
 def test_run_stuff(config):
+    assert metadata.parse_runid("l200-p42-r999-ant") == ("l200", 42, 999, "ant")
+
     assert metadata.is_runid("l200-p00-r000-phy")
     assert not metadata.is_runid("l200-p00-r00-phy")
     assert not metadata.is_runid("l200-p00-r000-ph0")
@@ -68,3 +73,35 @@ def test_run_stuff(config):
         metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
         == "l200-p16-r007-cal"
     )
+
+
+def test_encode_usability():
+    assert metadata.encode_usability("on") == 0
+    assert metadata.encode_usability("ac") == 1
+    assert metadata.encode_usability("off") == 2
+
+    for use in ["on", "off", "ac"]:
+        assert metadata.decode_usability(metadata.encode_usability(use)) == use
+
+
+def test_fccd(config):
+    assert metadata.get_sanitized_fccd(config.metadata, "B99000A") == 0.75
+
+
+def test_extract_integer():
+    """Test extract_integer reads integer from file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        test_file = tmpdir_path / "test_int.txt"
+
+        # Test simple integer
+        test_file.write_text("42")
+        assert metadata.extract_integer(test_file) == 42
+
+        # Test with whitespace
+        test_file.write_text("  123  \n")
+        assert metadata.extract_integer(test_file) == 123
+
+        # Test negative integer
+        test_file.write_text("-999")
+        assert metadata.extract_integer(test_file) == -999

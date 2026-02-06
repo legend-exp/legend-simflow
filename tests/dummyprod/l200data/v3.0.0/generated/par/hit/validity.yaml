@@ -1,0 +1,291 @@
+- valid_from: 20230311T235840Z
+  apply:
+    - cal/p03/r000/l200-p03-r000-cal-20230311T235840Z-par_hit.yaml
+- valid_from: 20230317T211819Z
+  apply:
+    - cal/p03/r001/l200-p03-r001-cal-20230317T211819Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230324T161401Z
+  apply:
+    - cal/p03/r002/l200-p03-r002-cal-20230324T161401Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230331T161141Z
+  apply:
+    - cal/p03/r003/l200-p03-r003-cal-20230331T161141Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230406T192453Z
+  apply:
+    - cal/p03/r004/l200-p03-r004-cal-20230406T192453Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230412T124030Z
+  apply:
+    - cal/p03/r005/l200-p03-r005-cal-20230412T124030Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230414T215158Z
+  apply:
+    - cal/p04/r000/l200-p04-r000-cal-20230414T215158Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230421T131817Z
+  apply:
+    - cal/p04/r001/l200-p04-r001-cal-20230421T131817Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230424T135858Z
+  apply:
+    - cal/p04/r002/l200-p04-r002-cal-20230424T135858Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230501T161520Z
+  apply:
+    - cal/p04/r003/l200-p04-r003-cal-20230501T161520Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230503T162448Z
+  apply:
+    - cal/p04/r004/l200-p04-r004-cal-20230503T162448Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230503T235733Z
+  apply:
+    - cal/p04/r005/l200-p04-r005-cal-20230503T235733Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230509T101109Z
+  apply:
+    - cal/p04/r006/l200-p04-r006-cal-20230509T101109Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230512T145810Z
+  apply:
+    - cal/p04/r007/l200-p04-r007-cal-20230512T145810Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230517T194602Z
+  apply:
+    - cal/p05/r001/l200-p05-r001-cal-20230517T194602Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230522T121954Z
+  apply:
+    - cal/p05/r002/l200-p05-r002-cal-20230522T121954Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230527T201355Z
+  apply:
+    - cal/p05/r003/l200-p05-r003-cal-20230527T201355Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230601T175847Z
+  apply:
+    - cal/p05/r004/l200-p05-r004-cal-20230601T175847Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230608T190223Z
+  apply:
+    - cal/p05/r005/l200-p05-r005-cal-20230608T190223Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230611T174328Z
+  apply:
+    - cal/p06/r000/l200-p06-r000-cal-20230611T174328Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230619T134311Z
+  apply:
+    - cal/p06/r001/l200-p06-r001-cal-20230619T134311Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230626T165657Z
+  apply:
+    - cal/p06/r002/l200-p06-r002-cal-20230626T165657Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230703T211127Z
+  apply:
+    - cal/p06/r003/l200-p06-r003-cal-20230703T211127Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230710T103450Z
+  apply:
+    - cal/p06/r004/l200-p06-r004-cal-20230710T103450Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230717T130655Z
+  apply:
+    - cal/p06/r005/l200-p06-r005-cal-20230717T130655Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230724T101342Z
+  apply:
+    - cal/p06/r006/l200-p06-r006-cal-20230724T101342Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230725T103957Z
+  apply:
+    - cal/p06/r007/l200-p06-r007-cal-20230725T103957Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230728T201513Z
+  apply:
+    - cal/p06/r008/l200-p06-r008-cal-20230728T201513Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230731T115407Z
+  apply:
+    - cal/p07/r000/l200-p07-r000-cal-20230731T115407Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230807T121150Z
+  apply:
+    - cal/p07/r001/l200-p07-r001-cal-20230807T121150Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230814T101816Z
+  apply:
+    - cal/p07/r002/l200-p07-r002-cal-20230814T101816Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230821T123942Z
+  apply:
+    - cal/p07/r003/l200-p07-r003-cal-20230821T123942Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230828T105109Z
+  apply:
+    - cal/p07/r004/l200-p07-r004-cal-20230828T105109Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230904T134332Z
+  apply:
+    - cal/p07/r005/l200-p07-r005-cal-20230904T134332Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230911T124633Z
+  apply:
+    - cal/p07/r006/l200-p07-r006-cal-20230911T124633Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230918T141158Z
+  apply:
+    - cal/p07/r007/l200-p07-r007-cal-20230918T141158Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230925T080300Z
+  apply:
+    - cal/p07/r008/l200-p07-r008-cal-20230925T080300Z-par_hit.yaml
+  mode: reset
+- valid_from: 20230925T164506Z
+  apply:
+    - cal/p07/r009/l200-p07-r009-cal-20230925T164506Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240110T233711Z
+  apply:
+    - cal/p09/r000/l200-p09-r000-cal-20240110T233711Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240117T195221Z
+  apply:
+    - cal/p09/r001/l200-p09-r001-cal-20240117T195221Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240123T155331Z
+  apply:
+    - cal/p09/r002/l200-p09-r002-cal-20240123T155331Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240129T155211Z
+  apply:
+    - cal/p09/r003/l200-p09-r003-cal-20240129T155211Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240205T154037Z
+  apply:
+    - cal/p09/r004/l200-p09-r004-cal-20240205T154037Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240212T150814Z
+  apply:
+    - cal/p09/r005/l200-p09-r005-cal-20240212T150814Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240218T163814Z
+  apply:
+    - cal/p09/r006/l200-p09-r006-cal-20240218T163814Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240226T104834Z
+  apply:
+    - cal/p10/r000/l200-p10-r000-cal-20240226T104834Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240304T134049Z
+  apply:
+    - cal/p10/r001/l200-p10-r001-cal-20240304T134049Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240311T111135Z
+  apply:
+    - cal/p10/r002/l200-p10-r002-cal-20240311T111135Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240312T175502Z
+  apply:
+    - cal/p10/r003/l200-p10-r003-cal-20240312T175502Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240319T114642Z
+  apply:
+    - cal/p10/r004/l200-p10-r004-cal-20240319T114642Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240326T083019Z
+  apply:
+    - cal/p10/r005/l200-p10-r005-cal-20240326T083019Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240402T225235Z
+  apply:
+    - cal/p10/r006/l200-p10-r006-cal-20240402T225235Z-par_hit.yaml
+  mode: reset
+- valid_from: 20240406T103043Z
+  apply:
+    - cal/p10/r007/l200-p10-r007-cal-20240406T103043Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250425T180115Z
+  apply:
+    - cal/p14/r000/l200-p14-r000-cal-20250425T180115Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250429T160544Z
+  apply:
+    - cal/p14/r001/l200-p14-r001-cal-20250429T160544Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250507T135236Z
+  apply:
+    - cal/p14/r002/l200-p14-r002-cal-20250507T135236Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250516T165104Z
+  apply:
+    - cal/p14/r003/l200-p14-r003-cal-20250516T165104Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250606T001858Z
+  apply:
+    - cal/p14/r004/l200-p14-r004-cal-20250606T001858Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250617T022725Z
+  apply:
+    - cal/p14/r005/l200-p14-r005-cal-20250617T022725Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250623T211529Z
+  apply:
+    - cal/p14/r006/l200-p14-r006-cal-20250623T211529Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250725T180651Z
+  apply:
+    - cal/p15/r002/l200-p15-r002-cal-20250725T180651Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250801T170058Z
+  apply:
+    - cal/p15/r003/l200-p15-r003-cal-20250801T170058Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250806T195729Z
+  apply:
+    - cal/p15/r004/l200-p15-r004-cal-20250806T195729Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250815T180106Z
+  apply:
+    - cal/p15/r005/l200-p15-r005-cal-20250815T180106Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250822T002746Z
+  apply:
+    - cal/p15/r007/l200-p15-r007-cal-20250822T002746Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250827T125510Z
+  apply:
+    - cal/p16/r000/l200-p16-r000-cal-20250827T125510Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250904T182044Z
+  apply:
+    - cal/p16/r001/l200-p16-r001-cal-20250904T182044Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250908T161416Z
+  apply:
+    - cal/p16/r002/l200-p16-r002-cal-20250908T161416Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250916T170054Z
+  apply:
+    - cal/p16/r003/l200-p16-r003-cal-20250916T170054Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250923T180421Z
+  apply:
+    - cal/p16/r004/l200-p16-r004-cal-20250923T180421Z-par_hit.yaml
+  mode: reset
+- valid_from: 20250924T164051Z
+  apply:
+    - cal/p16/r005/l200-p16-r005-cal-20250924T164051Z-par_hit.yaml
+  mode: reset
+- valid_from: 20251001T130640Z
+  apply:
+    - cal/p16/r006/l200-p16-r006-cal-20251001T130640Z-par_hit.yaml
+  mode: reset
+- valid_from: 20251005T220109Z
+  apply:
+    - cal/p16/r007/l200-p16-r007-cal-20251005T220109Z-par_hit.yaml
+  mode: reset

@@ -3,6 +3,8 @@
 
 experiment: l200cfg09
 
+# simflow_rng_seed: 0
+
 # runlist:
 # - l200-p03-r000-phy
 # - l200-p03-r001-phy
@@ -18,6 +20,8 @@ make_tiers:
   - stp
   - opt
   - hit
+  - evt
+  - cvt
 
 # legend_metadata_version: main
 
@@ -47,12 +51,14 @@ paths:
   tier_opt: $_/generated/tier/opt
   tier_hit: $_/generated/tier/hit
   tier_evt: $_/generated/tier/evt
+  tier_cvt: $_/generated/tier/cvt
   tier_pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
   plots: $_/generated/plots
 
 precompile_pkg:
-  - lgdo
+  - dspeed.processors
+  - lgdo.compression
   - matplotlib
   - pygama
   - pygeomhpges

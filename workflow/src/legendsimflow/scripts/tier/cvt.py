@@ -1,4 +1,6 @@
-# Copyright (C) 2023 Luigi Pertoldi <gipert@pm.me>
+# ruff: noqa: I002
+
+# Copyright (C) 2025 Luigi Pertoldi <gipert@pm.me>,
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -12,23 +14,27 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from __future__ import annotations
 
-import json
-from collections import OrderedDict
-from pathlib import Path
+import shutil
+
+import legenddataflowscripts as ldfs
+import legenddataflowscripts.utils
+from lgdo.lh5.concat import lh5concat
+
+from legendsimflow import nersc
+
+args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
+
+evt_files = args.input
+cvt_file = args.output[0]
+log_file = args.log[0]
+metadata = args.config.metadata
 
 
-def smk_get_evt_window(wildcards, input):
-    # open file with run livetime partitioning
-    with Path(input.run_part_file[0]).open() as f:
-        runpart = json.load(f, object_pairs_hook=OrderedDict)
+# setup logging
+log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 
-    runs = list(runpart.keys())
-    weights = list(runpart.values())
-
-    # compute start event and number of events for this run
-    start_event = sum(weights[: runs.index(wildcards.runid)])
-    n_events = runpart[wildcards.runid]
-
-    return (int(start_event), int(n_events))
+if len(evt_files) == 1:
+    shutil.copy(evt_files[0], cvt_file)
+else:
+    lh5concat(evt_files, cvt_file)

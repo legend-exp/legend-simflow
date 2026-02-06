@@ -21,7 +21,17 @@ def test_all(config):
     assert isinstance(p.output_simid_filenames(config, 2, tier="stp"), list)
 
     assert isinstance(p.output_dtmap_filename(config, hpge_detector="boh"), Path)
+    assert isinstance(p.output_currmod_filename(config, hpge_detector="boh"), Path)
 
     assert isinstance(p.vtx_filename_for_stp(config, "lar_hpge_shell_K42"), Path)
     assert p.vtx_filename_for_stp(config, "hpge_bulk_high_thr_Rn222_to_Po214") == []
     assert p.vtx_filename_for_stp(config, "phbr_surface_Ra228_to_Ac228") == []
+
+    assert isinstance(p.tier_cvt_base_segment(config), str)
+    assert isinstance(p.output_tier_cvt_filename(config), Path)
+    assert isinstance(p.log_tier_cvt_filename(config, "now"), Path)
+
+    files = p.output_simjob_filename(config, tier="stp", jobid=["0000", "0001"])
+    assert isinstance(files, list)
+    assert "0000" in files[0].name
+    assert "0001" in files[1].name

@@ -21,9 +21,9 @@ Here's a basic description of its fields:
 
 - `experiment`: labels the experiment to be simulated. The same name is used in
   the metadata to label the corresponding configuration files.
-- `simlist`: list of simulation identifiers (see below) to be processed by
-  Snakemake. Can be a list of strings or a path to a text file. If `*` or `all`,
-  will process all simulations defined in the metadata.
+- `simlist`: list of simulation identifiers to be processed by Snakemake. Can be
+  a list of strings or a path to a text file. If `*` or `all`, will process all
+  simulations defined in the metadata.
 - `runlist`: list of LEGEND data taking runs to build pdfs for, in the standard
   format `<experiment>-<period>-<run>-<type>` (e.g. `l200-p03-r000-phy`)
 - `make_tiers`: list the tiers you would like to populate here. This option is
