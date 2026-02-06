@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 ALIGNMENT_IDX = 3000  # Index to align current waveforms to Amax
 NSAMPLES_OUTPUT_CURRENT_WFS = (
-    4001  # Final length of the realistic current waveforms in the map
+    5001  # Final length of the realistic current waveforms in the map
 )
 
 

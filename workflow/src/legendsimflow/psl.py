@@ -156,7 +156,7 @@ def to_current(wf_array: np.ndarray, dt: float, dt_DATA: float = 16) -> np.ndarr
     """
 
     return (
-        np.diff(wf_array, axis=1, prepend=0) / dt
+        np.diff(wf_array, axis=-1, prepend=0) / dt
     ) * dt_DATA  # [current] = 1/data_sample
 
 
