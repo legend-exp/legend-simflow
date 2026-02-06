@@ -42,7 +42,7 @@ repos:
     rev: "v2.4.1"
     hooks:
       - id: codespell
-        args: ["-L", "nd,unparseable,compiletime,livetime,livetimes"]
+        args: ["-L", "nd,unparseable,compiletime,livetime,livetimes,puls"]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: "v0.11.0.1"

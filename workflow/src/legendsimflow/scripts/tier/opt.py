@@ -35,7 +35,7 @@ from lgdo.lh5 import LH5Iterator
 from reboost.optmap.convolve import OptmapForConvolve
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc
+from legendsimflow import nersc, spms_pars, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.profile import make_profiler
 from legendsimflow.tcm import build_tcm
@@ -50,9 +50,11 @@ gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
+add_random_coincidences = args.params.add_random_coincidences
 scintillator_volume_name = args.params.scintillator_volume_name
 simstat_part_file = args.input.simstat_part_file
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
+l200data = args.config.paths.l200data
 
 hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
@@ -73,6 +75,11 @@ geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 
+def _ak_array_of_empty_arrays(n):
+    content = ak.Array(np.empty(0, dtype=np.float64))
+    return ak.unflatten(content, np.zeros(n, dtype=np.int64))
+
+
 def process_sipm(
     iterator: LH5Iterator,
     optmap_lar: str | Path | OptmapForConvolve,
@@ -81,6 +88,8 @@ def process_sipm(
     out_file: str | Path,
     runid: str,
     usability: str,
+    rc_library: ak.Array | None,
+    rc_offset: dict,
 ) -> None:
     with perf_block("load_optmap()"):
         if not isinstance(optmap_lar, OptmapForConvolve):
@@ -125,12 +134,31 @@ def process_sipm(
                 pe_times_micro, DEFAULT_PHOTOELECTRON_RES
             )
 
-        with perf_block("cluster_photoelectrons()"):
-            pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
-                pe_times_micro,
-                pe_amps_micro,
-                TIME_RESOLUTION_NS,
-            )
+        if TIME_RESOLUTION_NS > 0:
+            with perf_block("cluster_photoelectrons()"):
+                pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
+                    pe_times_micro,
+                    pe_amps_micro,
+                    TIME_RESOLUTION_NS,
+                )
+        else:
+            pe_times = pe_times_micro
+            pe_amps = pe_amps_micro
+
+        # Add random coincidences from forced trigger library
+        if rc_library is not None:
+            with perf_block("add_random_coincidences()"):
+                if usability == "on":
+                    chunk_rc_library = spms_pars.get_rc_library_chunk(
+                        rc_library, len(chunk), rc_offset
+                    )
+
+                    rc_amps, rc_times = spms_pars.get_sipm_rc_data(
+                        chunk_rc_library, sipm, sipm_uid
+                    )
+                else:
+                    rc_amps = _ak_array_of_empty_arrays(len(chunk))
+                    rc_times = _ak_array_of_empty_arrays(len(chunk))
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
@@ -140,6 +168,13 @@ def process_sipm(
             )
             out_table.add_field("energy", VectorOfVectors(pe_amps))
             out_table.add_field("is_saturated", Array(is_saturated))
+
+            if rc_library is not None:
+                # TODO: units should be automatically forwarded
+                out_table.add_field(
+                    "rc_time", VectorOfVectors(rc_times, attrs={"units": "ns"})
+                )
+                out_table.add_field("rc_energy", VectorOfVectors(rc_amps))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]
@@ -175,6 +210,29 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         f"[{runid_idx + 1}/{len(partitions)}], event range {evt_idx_range}"
     )
     log.info(msg)
+
+    # Load forced trigger library and pre-sample for this partition
+    if add_random_coincidences:
+        msg = "loading forced trigger library for random coincidences"
+        log.debug(msg)
+        with perf_block("load_rc_library()"):
+            evt_tier_name = utils.get_evt_tier_name(l200data)
+            evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+
+            # evt_idx_range is [start, end] inclusive; compute number of events
+            evt_start, evt_end = evt_idx_range
+            n_events_partition = evt_end - evt_start + 1
+            rc_library = spms_pars.get_rc_library(evt_files, n_events_partition)
+            if len(rc_library) == 0:
+                msg = "no random coincidences available, cannot continue"
+                raise RuntimeError(msg)
+    else:
+        rc_library = None
+
+    # Offset tracker(s) for iterating through the pre-sampled library
+    # - optmap_per_sipm=True: keep a separate offset per SiPM
+    # - optmap_per_sipm=False: keep a single shared offset ("all")
+    rc_offset = {} if optmap_per_sipm else {"idx": 0}
 
     # loop over the sensitive volume tables registered in the geometry
     for det_name, geom_meta in sens_tables.items():
@@ -214,7 +272,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             )
 
         if optmap_per_sipm:
-            for sipm in reboost_utils.get_senstables(geom, "optical"):
+            for sipm in sorted(reboost_utils.get_senstables(geom, "optical")):
                 sipm_uid = sens_tables[sipm].uid
 
                 # get the usability
@@ -233,6 +291,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     hit_file,
                     runid,
                     usability,
+                    rc_library,
+                    rc_offset.setdefault(sipm, {"idx": 0}),
                 )
 
         else:
@@ -246,6 +306,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 hit_file,
                 runid,
                 "on",
+                rc_library,
+                rc_offset,
             )
 
 

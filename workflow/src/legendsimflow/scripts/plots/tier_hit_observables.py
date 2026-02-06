@@ -54,7 +54,7 @@ def fig(table):
     h_ene = hist.new.Reg(int(5000 / bw), 0, 5000, name="energy (keV)").Double()
     h_ene.fill(data.energy)
     plot.plot_hist(h_ene, ax)
-    ax.set_ylabel(f"Counts / {bw} keV")
+    ax.set_ylabel(f"counts / {bw} keV")
     ax.set_yscale("log")
 
     # energy inset
