@@ -346,8 +346,9 @@ def get_noise_waveforms(
 ):
     """Extract a matrix of noise waveforms, after applying some DSP processing.
 
-    The waveforms are only those with energy less than `threshold` and are the result of the
-    dsp processing defined in `config_path` with output variable `dsp_output.
+    The waveforms are only those with energy less than `threshold` and are the
+    result of the dsp processing defined in `config_path` with output variable
+    `dsp_output`.
 
     Parameters
     ----------
