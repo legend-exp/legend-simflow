@@ -170,7 +170,7 @@ def get_lar_minishroud_confine_commands(
             dz = dz.eval()
 
         command = "AddSolid" if inside else "AddExcludeSolid"
-        lines.append(f"/RMG/Generator/Confinement/Geometrical/{command} Cylinder ")
+        lines.append(f"/RMG/Generator/Confinement/Geometrical/{command} Cylinder")
 
         lines.append(
             f"/RMG/Generator/Confinement/Geometrical/CenterPositionX {center[0]} mm"
