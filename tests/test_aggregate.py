@@ -144,20 +144,20 @@ def test_dtmap_stuff(config):
     assert len(plots) == 8
 
 
-def test_detector_voltage_functions(config):
+def test_hpge_voltage_functions(config):
     runid = "l200-p02-r000-phy"
 
-    # test get_detector_voltage
-    voltage = agg.get_detector_voltage(config, "V99000A", runid)
+    # test get_hpge_voltage
+    voltage = agg.get_hpge_voltage(config, "V99000A", runid)
     assert voltage == 4200
     assert isinstance(voltage, int)
 
-    # test gen_list_of_hpge_detectors_with_voltages
-    detector_voltages = agg.gen_list_of_hpge_detectors_with_voltages(config)
-    assert isinstance(detector_voltages, dict)
-    assert "V99000A" in detector_voltages
-    assert isinstance(detector_voltages["V99000A"], set)
-    assert 4200 in detector_voltages["V99000A"]
+    # test gen_list_of_hpges_with_voltages
+    hpge_voltages = agg.gen_list_of_hpges_with_voltages(config)
+    assert isinstance(hpge_voltages, dict)
+    assert "V99000A" in hpge_voltages
+    assert isinstance(hpge_voltages["V99000A"], set)
+    assert 4200 in hpge_voltages["V99000A"]
 
 
 def test_currmod_stuff(config):

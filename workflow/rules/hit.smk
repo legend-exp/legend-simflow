@@ -153,10 +153,10 @@ def smk_hpge_drift_time_map_inputs(wildcards):
 rule build_hpge_drift_time_map:
     """Produce an HPGe drift time map.
 
-    Uses wildcards `hpge_detector` and `voltage`.
+    Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.voltage}V"
+        "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         unpack(smk_hpge_drift_time_map_inputs),
     params:
@@ -174,7 +174,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
-        "    --opv {wildcards.voltage}"
+        "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 
 

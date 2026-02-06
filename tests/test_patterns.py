@@ -20,8 +20,8 @@ def test_all(config):
     )
     assert isinstance(p.output_simid_filenames(config, 2, tier="stp"), list)
 
-    # test dtmap filename with voltage
-    dtmap = p.output_dtmap_filename(config, hpge_detector="V99000A", voltage=4200)
+    # test dtmap filename with hpge_voltage
+    dtmap = p.output_dtmap_filename(config, hpge_detector="V99000A", hpge_voltage=4200)
     assert isinstance(dtmap, Path)
     assert "V99000A-4200V" in str(dtmap)
 

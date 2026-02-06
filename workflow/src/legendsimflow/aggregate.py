@@ -221,28 +221,28 @@ def gen_list_of_all_runids(config) -> set[str]:
     }
 
 
-def get_detector_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
-    """Get the operational voltage for a detector in a given run.
+def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
+    """Get the operational voltage for an HPGe in a given run.
 
     Returns the voltage as an integer.
     """
     try:
         opv = simpars(config.metadata, "geds.opv", runid)[hpge].operational_voltage_in_V
     except KeyError as e:
-        msg = f"operational voltage for detector {hpge} not found in run {runid}"
+        msg = f"operational voltage for hpge {hpge} not found in run {runid}"
         raise KeyError(msg) from e
     return int(opv)
 
 
-def gen_list_of_hpge_detectors_with_voltages(
+def gen_list_of_hpges_with_voltages(
     config: SimflowConfig, cache: dict[str, list[str]] | None = None
 ) -> dict[str, set[int]]:
     """Generate a mapping of HPGe detectors to the set of voltages needed.
 
-    For each detector that is valid for modeling across all runs, this function
-    collects all unique voltages that the detector has been operated at.
+    For each HPGe that is valid for modeling across all runs, this function
+    collects all unique voltages that the HPGe has been operated at.
 
-    Returns a dictionary mapping detector names to sets of voltages (as integers).
+    Returns a dictionary mapping HPGe names to sets of voltages (as integers).
 
     Example return value:
 
@@ -259,26 +259,19 @@ def gen_list_of_hpge_detectors_with_voltages(
         cache if cache is not None else gen_list_of_all_hpges_valid_for_modeling(config)
     )
 
-    detector_voltages: dict[str, set[int]] = {}
+    hpge_voltages: dict[str, set[int]] = {}
     for runid in sorted(all_runids):
-        if runid not in hpges_by_run:
-            continue
         for hpge in hpges_by_run[runid]:
-            voltage = get_detector_voltage(config, hpge, runid)
-            detector_voltages.setdefault(hpge, set()).add(voltage)
+            voltage = get_hpge_voltage(config, hpge, runid)
+            hpge_voltages.setdefault(hpge, set()).add(voltage)
 
-    return detector_voltages
+    return hpge_voltages
 
 
 def gen_list_of_dtmaps(
     config: SimflowConfig, runid: str, cache: dict[str, list[str]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map files for a `runid`.
-
-    Returns paths to temporary drift time map files that include the voltage
-    in the filename, for example:
-    ``.../hpge/dtmaps/V09724A-2500V-hpge-drift-time-map.lh5``.
-    """
+    """Generate the list of HPGe drift time map files for a `runid`."""
     hpges = (
         gen_list_of_hpges_valid_for_modeling(config, runid)
         if cache is None
@@ -288,7 +281,7 @@ def gen_list_of_dtmaps(
         patterns.output_dtmap_filename(
             config,
             hpge_detector=hpge,
-            voltage=get_detector_voltage(config, hpge, runid),
+            hpge_voltage=get_hpge_voltage(config, hpge, runid),
         )
         for hpge in hpges
     ]
