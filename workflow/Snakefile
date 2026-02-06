@@ -74,7 +74,7 @@ for tier in make_tiers:
 # then make the build cumulative by including all tiers up to it.
 def gen_target_all():
     if config.get("simlist", "*") not in ("all", "*"):
-        return aggregate.process_simlist(config)
+        return aggregate.process_simlist(config, make_tiers=make_tiers)
 
     inputs = []
     for tier in make_tiers:
