@@ -15,56 +15,79 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Constants for drift time map computation
-GRID_SIZE = 0.0005 # in m
-# <001> <110>
-CRYSTAL_AXIS_ANGLES = [0, 45] # in deg
+# Imports needed by this library (not needed in main script)
+using SolidStateDetectors
+using Unitful
+using Base.Threads
+using LinearAlgebra
+using RadiationDetectorDSP
+
+# 8-connectivity neighbor offsets for map extension
+const NEIGHBOR_OFFSETS_8CONN = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 
-function compute_drift_time(wf, rise_convergence_criteria, tint)
+"""
+    extract_drift_time_from_waveform(wf, convergence_threshold, intersect_op)
+
+Extract the drift time from a charge waveform using intersection-based analysis.
+
+# Arguments
+- `wf`: Waveform signal array (unitless)
+- `convergence_threshold`: Fraction of collected charge to define convergence (e.g., 1 - 1e-6)
+- `intersect_op`: An `Intersect` operator from RadiationDetectorDSP
+
+# Returns
+- `Int`: Drift time in samples
+"""
+function extract_drift_time_from_waveform(wf, convergence_threshold, intersect_op)
     collected_charge = wf[argmax(abs.(wf))]
 
-    if collected_charge < 0 # very rare, occurs when electron drift dominates and holes are stuck
-        wf *= -1 # to ensure Intersect() works as intended
+    # Handle rare case where electron drift dominates and holes are stuck
+    if collected_charge < 0
+        wf = wf .* -1  # Create negated copy for Intersect compatibility
         collected_charge *= -1
     end
-    intersection = tint(wf, rise_convergence_criteria * collected_charge)
+
+    threshold_level = convergence_threshold * collected_charge
+    intersection = intersect_op(wf, threshold_level)
     dt_intersection = ceil(Int, intersection.x)
     dt_fallback = length(wf)
     dt_diff = dt_fallback - dt_intersection
 
     dt = if intersection.multiplicity > 0
-        if dt_diff > 2 # dt_intersection is not at the end of the wf
-            tint2 = Intersect(mintot = dt_diff) # check intersect again but with min_n_over_thresh (mintot) set to max
-            intersection2 = tint2(wf, rise_convergence_criteria * collected_charge)
-            if intersection2.multiplicity > 0  # usually monotonic waveforms which converge very slowly
+        if dt_diff > 2
+            # Check intersection again with stricter mintot
+            intersect_recheck = Intersect(mintot = dt_diff)
+            intersection2 = intersect_recheck(wf, threshold_level)
+            if intersection2.multiplicity > 0
+                # Monotonic waveforms converging slowly
                 dt_intersection
-            else # usually non-monotonic waveforms
+            else
+                # Non-monotonic waveforms
                 dt_fallback
             end
-        else # dt_intersection is at the end of the wf (ie. both drift length and wf convergence methods agree)
+        else
+            # Intersection at waveform end (drift length and convergence agree)
             dt_intersection
         end
-    else # no intersection with minimal conditions (mintot=0) found
+    else
+        # No intersection found
         dt_fallback
     end
+
     return dt
 end
 
 
 """
-    extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int=1)
+    extend_drift_time_map!(drift_map; layers=1)
 
-Extend a drift time map by adding layers of pixels around the perimeter of the
-non-NaN region. Each new pixel value is set to the average of its nearest
-non-NaN neighboring pixels.
-
-This makes the map application more robust when a point might be right outside
-the original map domain due to gridding issues.
+Extend a drift time map by adding pixel layers around the valid (non-NaN) region.
+New pixel values are set to the average of neighboring non-NaN pixels (8-connectivity).
 
 # Arguments
-- `drift_map`: A 2D matrix where NaN indicates invalid/outside regions
-- `layers`: Number of pixel layers to add around the perimeter (default: 1)
+- `drift_map::AbstractMatrix`: 2D matrix where NaN indicates invalid regions
+- `layers::Int`: Number of pixel layers to add (default: 1)
 
 # Returns
 - The modified `drift_map` (also modified in-place)
@@ -72,43 +95,29 @@ the original map domain due to gridding issues.
 function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
     nrows, ncols = size(drift_map)
 
-    # Neighbor offsets for 8-connectivity (including diagonals)
-    neighbor_offsets = [
-        (-1, -1), (-1, 0), (-1, 1),
-        (0, -1), (0, 1),
-        (1, -1), (1, 0), (1, 1)
-    ]
-
     for _ in 1:layers
-        # Find all NaN pixels that have at least one non-NaN neighbor
         boundary_pixels = Tuple{Int,Int}[]
         boundary_values = Float64[]
 
-        for row in 1:nrows
-            for col in 1:ncols
-                if isnan(drift_map[row, col])
-                    # Check neighbors and collect non-NaN values
-                    neighbor_vals = Float64[]
-                    for (dr, dc) in neighbor_offsets
-                        nr, nc = row + dr, col + dc
-                        if 1 <= nr <= nrows && 1 <= nc <= ncols
-                            val = drift_map[nr, nc]
-                            if !isnan(val)
-                                push!(neighbor_vals, val)
-                            end
-                        end
+        for row in 1:nrows, col in 1:ncols
+            if isnan(drift_map[row, col])
+                neighbor_vals = Float64[]
+                for (dr, dc) in NEIGHBOR_OFFSETS_8CONN
+                    nr, nc = row + dr, col + dc
+                    if 1 <= nr <= nrows && 1 <= nc <= ncols
+                        val = drift_map[nr, nc]
+                        !isnan(val) && push!(neighbor_vals, val)
                     end
+                end
 
-                    # If this NaN pixel has non-NaN neighbors, it's a boundary pixel
-                    if !isempty(neighbor_vals)
-                        push!(boundary_pixels, (row, col))
-                        push!(boundary_values, sum(neighbor_vals) / length(neighbor_vals))
-                    end
+                if !isempty(neighbor_vals)
+                    push!(boundary_pixels, (row, col))
+                    push!(boundary_values, sum(neighbor_vals) / length(neighbor_vals))
                 end
             end
         end
 
-        # Apply the new values (done after scanning to avoid affecting current layer)
+        # Apply new values after scanning to avoid affecting current layer
         for (idx, (row, col)) in enumerate(boundary_pixels)
             drift_map[row, col] = boundary_values[idx]
         end
@@ -118,133 +127,151 @@ function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
 end
 
 
-function compute_drift_map_for_angle(
-    sim,
-    meta,
-    T,
-    angle_deg
-)
+"""
+    build_simulation_grid_axis(T, boundary, grid_step)
+
+Build a grid axis for detector simulation with extended boundary points.
+
+# Arguments
+- `T`: Numeric type (e.g., Float32)
+- `boundary`: Maximum value of the axis (e.g., detector radius or height in meters)
+- `grid_step`: Grid spacing in meters
+
+# Returns
+- `Vector`: Grid axis including slightly out-of-bound points at both ends
+"""
+function build_simulation_grid_axis(T, boundary, grid_step)
+    SSD = SolidStateDetectors
+    offset = 2 * SSD.ConstructiveSolidGeometry.csg_default_tol(T)
+    inner_start = 0 + offset  # Interior domain starts strictly within (0, boundary)
+    inner_stop = boundary - offset
+
+    n_intervals = max(1, round(Int, (inner_stop - inner_start) / grid_step))
+    step = (inner_stop - inner_start) / n_intervals
+    interior_axis = range(inner_start, step = step, length = n_intervals + 1)
+
+    return [-offset, interior_axis..., boundary + offset]
+end
+
+
+"""
+    find_valid_spawn_position(candidate_idx, spawn_positions, detector; verbose=true)
+
+Find a valid spawn position outside detector contacts. If the candidate position
+is inside a contact, find the nearest valid position inside the detector.
+
+# Arguments
+- `candidate_idx`: Index into `spawn_positions` array
+- `spawn_positions`: Array of CartesianPoint positions
+- `detector`: SolidStateDetector object
+
+# Returns
+- `CartesianPoint`: Valid position for event simulation
+"""
+function find_valid_spawn_position(candidate_idx, spawn_positions, detector; verbose = true)
+    pos_candidate = spawn_positions[candidate_idx]
+
+    if !in(pos_candidate, detector.contacts)
+        return pos_candidate
+    end
+
+    verbose && @debug "Position $pos_candidate is in contact, searching for alternative"
+
+    min_dist = Inf
+    pos_result = nothing
+
+    for pos in spawn_positions
+        if !in(pos, detector.contacts) && in(pos, detector)
+            dist = norm(pos - pos_candidate)
+            if dist < min_dist
+                pos_result = pos
+                min_dist = dist
+            end
+        end
+    end
+
+    verbose && @debug "Found position $pos_result at distance $min_dist"
+
+    return pos_result
+end
+
+
+"""
+    compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
+
+Compute a drift time map for an HPGe detector at a specific crystal axis angle.
+
+# Arguments
+- `sim`: SolidStateDetectors Simulation object
+- `meta`: Detector metadata (PropDict)
+- `T`: Numeric type (e.g., Float32)
+- `angle_deg`: Crystal axis angle in degrees
+- `grid_step`: Grid spacing in meters
+
+# Returns
+- `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix
+"""
+function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
     @info "Computing drift time map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
     angle_rad = deg2rad(angle_deg)
 
-    function make_axis(T, boundary, GRID_SIZE)
-        # define interior domain strictly within (0, boundary)
-        offset = 2 * SSD.ConstructiveSolidGeometry.csg_default_tol(T)
-        inner_start = 0 + offset
-        inner_stop = boundary - offset
-
-        # compute number of intervals in the interior (ensure at least 1)
-        n = max(1, round(Int, (inner_stop - inner_start) / GRID_SIZE))
-
-        # recompute step to fit the inner domain evenly
-        step = (inner_stop - inner_start) / n
-
-        # create interior axis
-        axis = range(inner_start, step = step, length = n + 1)
-
-        # prepend and append slightly out-of-bound points
-        extended_axis = [0 - offset, axis..., boundary + offset]
-
-        return extended_axis
-    end
-
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
 
-    x_axis = make_axis(T, radius, GRID_SIZE)
-    z_axis = make_axis(T, height, GRID_SIZE)
+    r_axis = build_simulation_grid_axis(T, radius, grid_step)
+    z_axis = build_simulation_grid_axis(T, height, grid_step)
 
+    # Build spawn positions grid
     spawn_positions = CartesianPoint{T}[]
     idx_spawn_positions = CartesianIndex[]
 
-    for (i, x) in enumerate(x_axis)
-        for (k, z) in enumerate(z_axis)
-            point = T[x * cos(angle_rad), x * sin(angle_rad), z]
-            push!(spawn_positions, CartesianPoint(point))
-            push!(idx_spawn_positions, CartesianIndex(i, k))
-        end
+    for (i, r) in enumerate(r_axis), (k, z) in enumerate(z_axis)
+        point = T[r * cos(angle_rad), r * sin(angle_rad), z]
+        push!(spawn_positions, CartesianPoint(point))
+        push!(idx_spawn_positions, CartesianIndex(i, k))
     end
-    in_idx = findall(x -> in(x, sim.detector), spawn_positions)
 
-    # simulate events
+    inside_detector_idx = findall(p -> in(p, sim.detector), spawn_positions)
+
+    # Simulation parameters
     time_step = T(1)u"ns"
     max_nsteps = 10000
+    convergence_threshold = 1 - 1e-6
+    intersect_op = Intersect(mintot = 0)
 
-    # prepare thread-local storage
-    n = length(in_idx)
-    dt_threaded = Vector{Int}(undef, n)
-    rise_convergence_criteria = 1 - 1e-6
-    tint = Intersect(mintot = 0)
+    n_points = length(inside_detector_idx)
+    drift_times = Vector{Int}(undef, n_points)
 
-    function deriv(wf)
-        return argmax(ustrip(wf.signal))
-    end
+    @info "Simulating $n_points energy depositions on grid r=0:$grid_step:$radius, z=0:$grid_step:$height at $(angle_deg)°..."
 
-    function get_positions(idx, verbose = true)
-        pos_candidate = spawn_positions[idx]
-
-        # if the point isn't inside the contact do nothing
-        if ((!in(pos_candidate, sim.detector.contacts)))
-            return pos_candidate
-        else
-            min_dist = Inf
-            pos_tmp = nothing
-
-            if (verbose)
-                @debug "position $pos_candidate is in the contact searching for a new one"
-            end
-
-            for pos in spawn_positions
-                if (!in(pos, sim.detector.contacts) && (in(pos, sim.detector)))
-                    dist = norm(pos - pos_candidate)
-
-                    if (dist < min_dist)
-                        pos_tmp = pos
-                        min_dist = dist
-                    end
-                end
-            end
-            if (verbose)
-                @debug "found position $pos_tmp $min_dist away"
-            end
-        end
-        return pos_tmp
-    end
-
-    @info "Simulating energy depositions on grid r=0:$GRID_SIZE:$radius and z=0:$GRID_SIZE:$height at angle $(angle_deg)°..."
-    @threads for i in 1:n
-        if (i % 1000 == 0)
-            x = round(100 * i / n)
-            println("...simulating $i out of $n ($x %)")
+    @threads for i in 1:n_points
+        if i % 1000 == 0
+            pct = round(100 * i / n_points)
+            println("...simulating $i / $n_points ($pct%)")
         end
 
-        p = get_positions(in_idx[i])
-        e = SSD.Event([p], [2039u"keV"])
-        simulate!(e, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
+        pos = find_valid_spawn_position(inside_detector_idx[i], spawn_positions, sim.detector; verbose = false)
+        event = SSD.Event([pos], [2039u"keV"])
+        simulate!(event, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
 
-        wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
-
-        dt_threaded[i] =
-            compute_drift_time(ustrip(wf.signal), rise_convergence_criteria, tint)
-    end
-    dt = dt_threaded
-
-    drift_time = fill(NaN, length(x_axis), length(z_axis))
-    for (i, idx) in enumerate(idx_spawn_positions[in_idx])
-        drift_time[idx] = dt[i]
+        wf = get_electron_and_hole_contribution(event, sim, 1).hole_contribution
+        drift_times[i] = extract_drift_time_from_waveform(ustrip(wf.signal), convergence_threshold, intersect_op)
     end
 
-    # Extend the drift time map to add a layer of pixels around the perimeter
-    extend_drift_time_map!(drift_time)
+    # Build drift time matrix
+    drift_time_matrix = fill(NaN, length(r_axis), length(z_axis))
+    for (i, idx) in enumerate(idx_spawn_positions[inside_detector_idx])
+        drift_time_matrix[idx] = drift_times[i]
+    end
+
+    extend_drift_time_map!(drift_time_matrix)
 
     ang_str = lpad(string(angle_deg), 3, '0')
-    output = (;
-        :r => collect(x_axis) * u"m",
+    return (;
+        :r => collect(r_axis) * u"m",
         :z => collect(z_axis) * u"m",
-        Symbol("drift_time_$(ang_str)_deg") => transpose(drift_time) * u"ns"
+        Symbol("drift_time_$(ang_str)_deg") => transpose(drift_time_matrix) * u"ns"
     )
-
-    return output
 end

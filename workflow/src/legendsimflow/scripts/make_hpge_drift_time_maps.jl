@@ -15,20 +15,27 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-using SolidStateDetectors
+# Configuration constants
+const GRID_SIZE = 0.0005  # Grid spacing in meters
+const CRYSTAL_AXIS_ANGLES = [0, 45]  # Crystal axis angles in degrees (<001> and <110>)
+
+# Imports for main script
 using LegendDataManagement
-using Unitful
 using LegendHDF5IO
-using Base.Threads
-using LinearAlgebra
 using ArgParse
 using PropDicts
 using Printf
-using RadiationDetectorDSP
+using Unitful
 
 # Include helper functions from the library
 include(joinpath(@__DIR__, "libjl", "drift_time_helpers.jl"))
 
+
+"""
+    main()
+
+Generate HPGe drift time maps for specified detector and save to LH5 file.
+"""
 function main()
     SSD = SolidStateDetectors
     T = Float32
@@ -68,22 +75,19 @@ function main()
     @info "Operating $det at $opv V"
 
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
-
     meta.characterization.l200_site.recommended_voltage_in_V = parse(Float32, opv)
 
     ids = Dict("bege" => "B", "coax" => "C", "ppc" => "P", "icpc" => "V")
-    crystal =
-        ids[meta.type] * @sprintf("%02d", meta.production.order) * meta.production.crystal
+    crystal = ids[meta.type] * @sprintf("%02d", meta.production.order) * meta.production.crystal
     xtal = readprops("$meta_path/hardware/detectors/germanium/crystals/$crystal.yaml")
 
-    # make the simulation
+    # Create simulation
     sim = Simulation{T}(LegendData, meta, xtal)
 
     charge_drift_model = ADLChargeDriftModel(
         "$meta_path/simprod/config/pars/geds/ssd/adl-2016-temp-model.yaml"
     )
     sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
-
     sim.detector = SolidStateDetector(
         sim.detector,
         contact_id = 2,
@@ -99,10 +103,11 @@ function main()
 
     @info "Calculating electric field..."
     calculate_electric_field!(sim)
+
     dep = nothing
     try
         dep = estimate_depletion_voltage(sim)
-    catch e
+    catch
         error("Detector is not depleted!")
     end
     @info "Simulated depletion is $dep"
@@ -111,7 +116,7 @@ function main()
     @info "Depletion measured during characterization is $dep_meas"
 
     if abs(dep_meas - dep) > 100 * u"V"
-        error("difference between measured and simulated depletion is larger than 100 V!")
+        error("Difference between measured and simulated depletion is larger than 100 V!")
     end
 
     @info "Calculating weighting potential..."
@@ -122,23 +127,17 @@ function main()
         verbose = false
     )
 
-    # Compute and save drift-time maps for different angles
+    # Compute drift time maps for each crystal axis angle
     output = nothing
-    for a in CRYSTAL_AXIS_ANGLES
-        out = compute_drift_map_for_angle(
-            sim,
-            meta,
-            T,
-            a
-        )
+    for angle in CRYSTAL_AXIS_ANGLES
+        result = compute_drift_time_map(sim, meta, T, angle, GRID_SIZE)
 
-        key = Symbol("drift_time_$(lpad(string(a), 3, '0'))_deg")
-        if output == nothing
-            output = Dict(pairs(out))
+        key = Symbol("drift_time_$(lpad(string(angle), 3, '0'))_deg")
+        if output === nothing
+            output = Dict(pairs(result))
         else
-            output[key] = out[key]
+            output[key] = result[key]
         end
-
     end
 
     @info "Saving to disk..."
