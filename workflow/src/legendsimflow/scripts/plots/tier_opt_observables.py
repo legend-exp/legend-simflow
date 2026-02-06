@@ -17,14 +17,14 @@
 
 from pathlib import Path
 
+import awkward as ak
 import hist
 import matplotlib.pyplot as plt
-import numpy as np
 from lgdo import lh5
 from matplotlib.backends.backend_pdf import PdfPages
 
-from legendsimflow import metadata as mutils
 from legendsimflow import nersc, plot
+from legendsimflow.plot import n_nans
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -34,7 +34,7 @@ simid = args.wildcards.simid
 
 
 def fig(table):
-    fig = plt.figure(figsize=(12, 6))
+    fig = plt.figure(figsize=(14, 8))
 
     data = plot.read_concat_wempty(hit_files, table)
 
@@ -44,57 +44,42 @@ def fig(table):
         return fig
 
     outer = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1, 1])
-    gs_top = outer[0].subgridspec(1, 2, width_ratios=[4, 1])
-    gs_bot = outer[1].subgridspec(1, 3, width_ratios=[1, 1, 0.6])
+    gs_top = outer[0].subgridspec(1, 2, width_ratios=[1, 1])
+    gs_bot = outer[1].subgridspec(1, 2, width_ratios=[1, 1])
 
-    # energy
+    # time
     ax = fig.add_subplot(gs_top[0, 0])
-    bw = 5
-    h_ene = hist.new.Reg(int(5000 / bw), 0, 5000, name="energy (keV)").Double()
-    h_ene.fill(data.energy)
-    plot.plot_hist(h_ene, ax)
-    ax.set_ylabel(f"Counts / {bw} keV")
+    h_time = hist.new.Reg(300, 0, 3000, name="photoelectron $t - t_0$ (ns)").Double()
+    dt = data.time - data.t0
+    h_time.fill_flattened(dt)
+    plot.plot_hist(h_time, ax, n_nans=n_nans(dt))
+    ax.set_ylabel("counts / 10 ns")
     ax.set_yscale("log")
-
-    # energy inset
-    ax = fig.add_subplot(gs_top[0, 1])
-
-    # find tallest gamma peak above 1 MeV
-    _h = h_ene[1000j:]
-    if _h.sum() != 0:
-        argmax_e = _h.axes[0].centers[_h.view().argmax()]
-
-        h_ene_z = hist.new.Reg(
-            80, argmax_e - 20, argmax_e + 20, name="energy (keV)"
-        ).Double()
-        h_ene_z.fill(data.energy)
-        plot.plot_hist(h_ene_z, ax, flow="none")
-    else:
-        # no events above 1 MeV; mark inset as empty
-        plot.set_empty(ax)
-
-    ax.set_ylabel("Counts / 0.5 keV")
-    ax.set_yscale("log")
-
-    # A/E
-    ax = fig.add_subplot(gs_bot[0, 0])
-    h_aoe = hist.new.Reg(200, 0, 1.2, name="A/E").Double()
-    h_aoe.fill(data.aoe)
-    plot.plot_hist(h_aoe, ax, color="tab:red")
-
-    # drift time
-    ax = fig.add_subplot(gs_bot[0, 1])
-    h_dt = hist.new.Reg(300, 0, 3000, name="drift time (ns)").Double()
-    h_dt.fill_flattened(data.drift_time)
-    plot.plot_hist(h_dt, ax, color="tab:orange")
 
     # usability
-    ax = fig.add_subplot(gs_bot[0, 2])
-    vals, counts = np.unique(data.usability, return_counts=True)
-    plt.pie(
-        counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
-    )
-    ax.set_aspect("equal")  # keep it circular
+    ax = fig.add_subplot(gs_top[0, 1])
+    plot.set_empty(ax)
+    # vals, counts = np.unique(data.usability, return_counts=True)
+    # plt.pie(
+    #     counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
+    # )
+    # ax.set_aspect("equal")  # keep it circular
+
+    ax = fig.add_subplot(gs_bot[0, 0])
+    h_peamp = hist.new.Reg(
+        300, 0, 20, name="light per cluster (photoelectrons)"
+    ).Double()
+    h_peamp.fill_flattened(data.energy)
+    plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy))
+    ax.set_ylabel("counts")
+    ax.set_yscale("log")
+
+    ax = fig.add_subplot(gs_bot[0, 1])
+    h_npe = hist.new.Reg(200, 0, 150, name="light per event (photoelectrons)").Double()
+    h_npe.fill(ak.sum(data.energy, axis=-1))
+    plot.plot_hist(h_npe, ax, flow="hint")
+    ax.set_ylabel("counts / 1 pe")
+    ax.set_yscale("log")
 
     fig.suptitle(f"{simid}: {table} hits")
     return fig
