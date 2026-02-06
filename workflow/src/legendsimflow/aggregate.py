@@ -226,7 +226,11 @@ def get_detector_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
 
     Returns the voltage as an integer.
     """
-    opv = simpars(config.metadata, "geds.opv", runid)[hpge].operational_voltage_in_V
+    try:
+        opv = simpars(config.metadata, "geds.opv", runid)[hpge].operational_voltage_in_V
+    except KeyError as e:
+        msg = f"operational voltage for detector {hpge} not found in run {runid}"
+        raise KeyError(msg) from e
     return int(opv)
 
 
@@ -261,9 +265,7 @@ def gen_list_of_hpge_detectors_with_voltages(
             continue
         for hpge in hpges_by_run[runid]:
             voltage = get_detector_voltage(config, hpge, runid)
-            if hpge not in detector_voltages:
-                detector_voltages[hpge] = set()
-            detector_voltages[hpge].add(voltage)
+            detector_voltages.setdefault(hpge, set()).add(voltage)
 
     return detector_voltages
 
