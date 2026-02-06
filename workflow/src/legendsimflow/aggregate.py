@@ -297,10 +297,18 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
 
 def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> list[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
-    return [
-        patterns.plot_dtmap_merged_filename(config, runid=runid)
-        for runid in get_runlist(config, simid)
-    ]
+    files = []
+    for runid in get_runlist(config, simid):
+        hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+        for hpge in hpges:
+            files.append(
+                patterns.plot_dtmap_filename(
+                    config,
+                    hpge_detector=hpge,
+                    hpge_voltage=get_hpge_voltage(config, hpge, runid),
+                )
+            )
+    return files
 
 
 def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[Path]:

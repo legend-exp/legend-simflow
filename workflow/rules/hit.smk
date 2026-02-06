@@ -162,7 +162,7 @@ rule build_hpge_drift_time_map:
     params:
         metadata_path=config.paths.metadata,
     output:
-        temp(patterns.output_dtmap_filename(config)),
+        patterns.output_dtmap_filename(config),
     log:
         patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
     benchmark:
@@ -221,14 +221,14 @@ rule merge_hpge_drift_time_maps:
 rule plot_hpge_drift_time_maps:
     """Produce a validation plot of an HPGe drift time map.
 
-    Uses wildcards `runid`.
+    Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Plotting drift time maps for HPGes in {wildcards.runid}"
+        "Plotting drift time map for HPGe {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
-        rules.merge_hpge_drift_time_maps.output,
+        rules.build_hpge_drift_time_map.output,
     output:
-        patterns.plot_dtmap_merged_filename(config),
+        patterns.plot_dtmap_filename(config),
     script:
         "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 

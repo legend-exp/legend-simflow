@@ -141,7 +141,9 @@ def test_dtmap_stuff(config):
 
     plots = agg.gen_list_of_all_dtmap_plots_outputs(config)
     assert isinstance(plots, set)
-    assert len(plots) == 8
+    # Plots are now per unique (hpge_detector, hpge_voltage) pair, so we get 1 unique plot
+    # since the same detector V99000A runs at 4200V across all runs
+    assert len(plots) == 1
 
 
 def test_hpge_voltage_functions(config):
