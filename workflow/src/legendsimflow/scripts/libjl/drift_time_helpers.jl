@@ -84,28 +84,39 @@ end
 
 Extend a drift time map by adding pixel layers around the valid (non-NaN) region.
 New pixel values are set to the average of neighboring non-NaN pixels (8-connectivity).
+The grid is internally enlarged by `layers` on all sides to ensure the extended map is not clipped.
 
 # Arguments
 - `drift_map::AbstractMatrix`: 2D matrix where NaN indicates invalid regions
 - `layers::Int`: Number of pixel layers to add (default: 1)
 
 # Returns
-- The modified `drift_map` (also modified in-place)
+- Extended drift map matrix (enlarged by `layers` on all sides)
 """
 function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
-    nrows, ncols = size(drift_map)
+    orig_nrows, orig_ncols = size(drift_map)
 
+    # Create enlarged grid with `layers` extra rows/cols on each side
+    new_nrows = orig_nrows + 2 * layers
+    new_ncols = orig_ncols + 2 * layers
+    work_map = fill(NaN, new_nrows, new_ncols)
+
+    # Copy original data into center of enlarged grid
+    work_map[(layers + 1):(layers + orig_nrows), (layers + 1):(layers + orig_ncols)] = drift_map
+
+    # Extend the non-NaN region layer by layer
     for _ in 1:layers
+        cur_nrows, cur_ncols = size(work_map)
         boundary_pixels = Tuple{Int,Int}[]
         boundary_values = Float64[]
 
-        for row in 1:nrows, col in 1:ncols
-            if isnan(drift_map[row, col])
+        for row in 1:cur_nrows, col in 1:cur_ncols
+            if isnan(work_map[row, col])
                 neighbor_vals = Float64[]
                 for (dr, dc) in NEIGHBOR_OFFSETS_8CONN
                     nr, nc = row + dr, col + dc
-                    if 1 <= nr <= nrows && 1 <= nc <= ncols
-                        val = drift_map[nr, nc]
+                    if 1 <= nr <= cur_nrows && 1 <= nc <= cur_ncols
+                        val = work_map[nr, nc]
                         !isnan(val) && push!(neighbor_vals, val)
                     end
                 end
@@ -119,11 +130,11 @@ function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
 
         # Apply new values after scanning to avoid affecting current layer
         for (idx, (row, col)) in enumerate(boundary_pixels)
-            drift_map[row, col] = boundary_values[idx]
+            work_map[row, col] = boundary_values[idx]
         end
     end
 
-    return drift_map
+    return work_map
 end
 
 
@@ -266,12 +277,19 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
         drift_time_matrix[idx] = drift_times[i]
     end
 
-    extend_drift_time_map!(drift_time_matrix)
+    # Extend drift time map (internally enlarges grid by 1 layer on all sides)
+    extended_map = extend_drift_time_map!(transpose(drift_time_matrix))
+
+    # Extend axes to match the enlarged grid (1 layer = 1 extra point on each side)
+    r_step = length(r_axis) > 1 ? abs(r_axis[2] - r_axis[1]) : grid_step
+    z_step = length(z_axis) > 1 ? abs(z_axis[2] - z_axis[1]) : grid_step
+    extended_r_axis = [r_axis[1] - r_step; collect(r_axis); r_axis[end] + r_step] * u"m"
+    extended_z_axis = [z_axis[1] - z_step; collect(z_axis); z_axis[end] + z_step] * u"m"
 
     ang_str = lpad(string(angle_deg), 3, '0')
     return (;
-        :r => collect(r_axis) * u"m",
-        :z => collect(z_axis) * u"m",
-        Symbol("drift_time_$(ang_str)_deg") => transpose(drift_time_matrix) * u"ns"
+        :r => extended_r_axis,
+        :z => extended_z_axis,
+        Symbol("drift_time_$(ang_str)_deg") => extended_map * u"ns"
     )
 end
