@@ -76,15 +76,8 @@ def gen_target_all():
     if config.get("simlist", "*") not in ("all", "*"):
         return aggregate.process_simlist(config)
 
-    # latest tier is simply the last element after sorting by tiers_ordered
-    latest = make_tiers[-1]
-
-    # cumulative tiers: walk back to the beginning (i.e. all tiers up to latest)
-    latest_i = aggregate.TIERS_ORDERED.index(latest)
-    cumulative = aggregate.TIERS_ORDERED[: latest_i + 1]
-
     inputs = []
-    for tier in cumulative:
+    for tier in make_tiers:
         if tier == "cvt":
             inputs.extend(rules.gen_all_tier_cvt.input)
         elif tier == "evt":

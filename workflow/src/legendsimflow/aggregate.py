@@ -334,23 +334,25 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
 
 
 def process_simlist(
-    config: SimflowConfig, simlist: Iterable[str] | None = None
+    config: SimflowConfig,
+    simlist: Iterable[str] | None = None,
+    make_tiers: Iterable[str] | None = None,
 ) -> list[Path]:
     """Produce a list of all output files that refer to a `simlist`.
 
     Each simlist item is ``<tier>.<simid>``. The tier is interpreted as the
     *latest* tier requested for that simid; outputs are produced cumulatively
-    for all tiers up to (and including) that tier in TIERS_ORDERED.
+    for all tiers up to (and including) that tier in `make_tiers`.
     """
     if simlist is None:
         simlist = config.simlist
+    if make_tiers is None:
+        make_tiers = TIERS_ORDERED
 
     # if it's a list, every item is a simid
     # otherwise, interpret as comma-separated list
     if not isinstance(simlist, list):
         simlist = simlist.split(",")
-
-    pos = {k: i for i, k in enumerate(TIERS_ORDERED)}
 
     mlist: list[Path] = []
     for line in simlist:
@@ -365,12 +367,12 @@ def process_simlist(
         tier = parts[0].strip()
         simid = parts[1].strip()
 
-        if tier not in pos:
+        if tier not in make_tiers:
             msg = f"unknown tier {tier!r}"
             raise NotImplementedError(msg)
 
         # cumulative: build all tiers up to the requested one
-        for t in TIERS_ORDERED[: pos[tier] + 1]:
+        for t in make_tiers:
             mlist += gen_list_of_plots_outputs(config, t, simid)
 
             if t == "vtx":

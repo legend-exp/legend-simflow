@@ -70,6 +70,28 @@ def test_process_simlist_is_cumulative(config):
     assert set(targets_evt2).issubset(targets_cvt)
 
 
+def test_process_simlist_is_cumulative_make_tiers(config):
+    make_tiers = ["stp", "evt"]
+    # evt must include vtx/stp/opt/hit outputs for the same simid
+    simid = "birds_nest_K40"
+    targets_evt = agg.process_simlist(
+        config, simlist=[f"evt.{simid}"], make_tiers=make_tiers
+    )
+    targets_vtx = agg.process_simlist(config, simlist=[f"vtx.{simid}"])
+    targets_stp = agg.process_simlist(
+        config, simlist=[f"stp.{simid}"], make_tiers=make_tiers
+    )
+    targets_opt = agg.process_simlist(config, simlist=[f"opt.{simid}"])
+    targets_hit = agg.process_simlist(config, simlist=[f"hit.{simid}"])
+
+    assert targets_evt != []
+    assert set(targets_stp).issubset(targets_evt)
+
+    assert not set(targets_vtx).issubset(targets_evt)
+    assert not set(targets_opt).issubset(targets_evt)
+    assert not set(targets_hit).issubset(targets_evt)
+
+
 def test_hpge_harvesting(config):
     cry = agg.crystal_meta(
         config, config.metadata.hardware.detectors.germanium.diodes.V99000A
