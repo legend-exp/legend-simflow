@@ -15,13 +15,13 @@
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import inspect
 import json
 import logging
 import os
 from collections.abc import Sequence
-import fnmatch
 from datetime import datetime
 from pathlib import Path
 
@@ -31,9 +31,8 @@ import h5py
 import legenddataflowscripts as ldfs
 import lgdo
 import numpy as np
-from dbetto import AttrsDict, TextDB
 import pyg4ometry as pg4
-from dbetto import AttrsDict
+from dbetto import AttrsDict, TextDB
 from legendmeta import LegendMetadata
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
@@ -158,17 +157,21 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     )
 
 
-def _get_matching_volumes(volume_list: list, patterns: str | list) -> list[int]:
+def _get_matching_volumes(volume_list: list, patterns: str | list) -> list[str]:
     """Get the list of volumes from the GDML. The string can include wildcards."""
 
     wildcard_list = [patterns] if isinstance(patterns, str) else patterns
 
     # find all volumes matching at least one pattern
     matched_list = []
+    matched_set = set()
     for key in volume_list:
         for name in wildcard_list:
             if fnmatch.fnmatch(key, name):
-                matched_list.append(key)
+                if key not in matched_set:
+                    matched_list.append(key)
+                    matched_set.add(key)
+                break
     return matched_list
 
 
@@ -187,7 +190,8 @@ def get_lar_minishroud_confine_commands(
     pattern
         The pattern used to search for physical volumes of minishrouds.
     inside
-        Where to generate points only inside NMS to exclude them.
+        If True, generate points inside the minishroud (NMS) volumes; if False,
+        exclude the minishroud volumes from the generation region.
     lar_name
         The name of the physical volume of the LAr.
 
@@ -209,7 +213,23 @@ def get_lar_minishroud_confine_commands(
         center = vol.position.eval()
         solid = vol.logicalVolume.solid
 
+        # Validate expected geometry structure before accessing attributes
+        if not hasattr(solid, "obj1") or solid.obj1 is None:
+            msg = (
+                f"Expected solid for physical volume '{s}' to have an 'obj1' "
+                "attribute representing the outer minishroud cylinder, but it was  missing or None."
+            )
+            raise ValueError(msg)
+
         outer_ms = solid.obj1
+
+        if not hasattr(outer_ms, "pRMax") or not hasattr(outer_ms, "pDz"):
+            msg = (
+                f"Expected solid for physical volume '{s}'.obj1 to have an pRMax and pDz attributes representing the outer minishroud cylinder,"
+                "but they were  missing or None."
+            )
+            raise ValueError(msg)
+
         r_max = outer_ms.pRMax
         dz = outer_ms.pDz
 
@@ -221,7 +241,7 @@ def get_lar_minishroud_confine_commands(
             dz = dz.eval()
 
         command = "AddSolid" if inside else "AddExcludeSolid"
-        lines.append(f"/RMG/Generator/Confinement/Geometrical/{command} Cylinder ")
+        lines.append(f"/RMG/Generator/Confinement/Geometrical/{command} Cylinder")
 
         lines.append(
             f"/RMG/Generator/Confinement/Geometrical/CenterPositionX {center[0]} mm"
@@ -235,7 +255,9 @@ def get_lar_minishroud_confine_commands(
         lines.append(
             f"/RMG/Generator/Confinement/Geometrical/Cylinder/OuterRadius {r_max} mm"
         )
-        lines.append(f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {dz} mm")
+        lines.append(
+            f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {2 * dz} mm"
+        )
 
     return lines
 
