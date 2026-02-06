@@ -154,11 +154,9 @@ function extend_drift_time_map(
     # Extend axes to match the enlarged grid
     row_vals = ustrip.(row_axis)
     col_vals = ustrip.(col_axis)
-    row_unit = unit(eltype(row_axis))
-    col_unit = unit(eltype(col_axis))
 
-    row_step = length(row_vals) > 1 ? abs(row_vals[2] - row_vals[1]) : 0.0
-    col_step = length(col_vals) > 1 ? abs(col_vals[2] - col_vals[1]) : 0.0
+    row_step = maximum(abs.(diff(row_vals)))
+    col_step = maximum(abs.(diff(col_vals)))
 
     # Extend row axis on both sides
     extended_row_vals = vcat(
@@ -175,8 +173,8 @@ function extend_drift_time_map(
 
     return (;
         drift_map = work_map,
-        row_axis = extended_row_vals * row_unit,
-        col_axis = extended_col_vals * col_unit
+        row_axis = extended_row_vals * unit(eltype(row_axis)),
+        col_axis = extended_col_vals * unit(eltype(col_axis))
     )
 end
 
