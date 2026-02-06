@@ -326,7 +326,7 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
     # extend_drift_time_map expects (rows × cols) with corresponding (row_axis, col_axis)
     # transposed_map is (z × r), so pass (z_axis, r_axis)
     # Note: col_axis (r) won't be extended into negative values
-    extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units, layers=2)
+    extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units, layers = 2)
 
     ang_str = lpad(string(angle_deg), 3, '0')
     return (;

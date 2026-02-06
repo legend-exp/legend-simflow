@@ -95,7 +95,8 @@ repos:
     hooks:
       - id: julia-format
         name: JuliaFormatter
-        entry: julia --color=yes -e 'using JuliaFormatter; format(".")'
+        entry: julia --color=yes -e 'using JuliaFormatter; format(ARGS)'
         language: system
         files: '\.jl$'
-        pass_filenames: false
+        exclude: '^\.pixi/'
+        pass_filenames: true
