@@ -114,10 +114,14 @@ def _get_matching_volumes(volume_list: list, patterns: str | list) -> list[str]:
 
     # find all volumes matching at least one pattern
     matched_list = []
+    matched_set = set()
     for key in volume_list:
         for name in wildcard_list:
             if fnmatch.fnmatch(key, name):
-                matched_list.append(key)
+                if key not in matched_set:
+                    matched_list.append(key)
+                    matched_set.add(key)
+                break
     return matched_list
 
 
