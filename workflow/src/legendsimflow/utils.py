@@ -107,7 +107,7 @@ def init_simflow_context(raw_config: dict, workflow) -> AttrsDict:
     )
 
 
-def _get_matching_volumes(volume_list: list, patterns: str | list) -> list[int]:
+def _get_matching_volumes(volume_list: list, patterns: str | list) -> list[str]:
     """Get the list of volumes from the GDML. The string can include wildcards."""
 
     wildcard_list = [patterns] if isinstance(patterns, str) else patterns
