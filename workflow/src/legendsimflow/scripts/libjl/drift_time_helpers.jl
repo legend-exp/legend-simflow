@@ -80,7 +80,7 @@ end
 
 
 """
-    extend_drift_time_map!(drift_map; layers=1)
+    extend_drift_time_map(drift_map, r_axis, z_axis; layers=1)
 
 Extend a drift time map by adding pixel layers around the valid (non-NaN) region.
 New pixel values are set to the average of neighboring non-NaN pixels (8-connectivity).
@@ -88,12 +88,19 @@ The grid is internally enlarged by `layers` on all sides to ensure the extended 
 
 # Arguments
 - `drift_map::AbstractMatrix`: 2D matrix where NaN indicates invalid regions
+- `r_axis::AbstractVector`: Original radial axis values
+- `z_axis::AbstractVector`: Original height axis values
 - `layers::Int`: Number of pixel layers to add (default: 1)
 
 # Returns
-- Extended drift map matrix (enlarged by `layers` on all sides)
+- `NamedTuple`: Contains extended `:drift_map`, `:r_axis`, and `:z_axis`
 """
-function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
+function extend_drift_time_map(
+    drift_map::AbstractMatrix,
+    r_axis::AbstractVector,
+    z_axis::AbstractVector;
+    layers::Int = 1
+)
     orig_nrows, orig_ncols = size(drift_map)
 
     # Create enlarged grid with `layers` extra rows/cols on each side
@@ -134,7 +141,32 @@ function extend_drift_time_map!(drift_map::AbstractMatrix; layers::Int = 1)
         end
     end
 
-    return work_map
+    # Extend axes to match the enlarged grid
+    r_vals = ustrip.(r_axis)
+    z_vals = ustrip.(z_axis)
+    r_unit = unit(eltype(r_axis))
+    z_unit = unit(eltype(z_axis))
+
+    r_step = length(r_vals) > 1 ? abs(r_vals[2] - r_vals[1]) : 0.0
+    z_step = length(z_vals) > 1 ? abs(z_vals[2] - z_vals[1]) : 0.0
+
+    # Add `layers` points on each side of each axis
+    extended_r_vals = vcat(
+        [r_vals[1] - r_step * i for i in layers:-1:1],
+        r_vals,
+        [r_vals[end] + r_step * i for i in 1:layers]
+    )
+    extended_z_vals = vcat(
+        [z_vals[1] - z_step * i for i in layers:-1:1],
+        z_vals,
+        [z_vals[end] + z_step * i for i in 1:layers]
+    )
+
+    return (;
+        drift_map = work_map,
+        r_axis = extended_r_vals * r_unit,
+        z_axis = extended_z_vals * z_unit
+    )
 end
 
 
@@ -271,25 +303,25 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
         drift_times[i] = extract_drift_time_from_waveform(ustrip(wf.signal), convergence_threshold, intersect_op)
     end
 
-    # Build drift time matrix
+    # Build drift time matrix (r × z layout)
     drift_time_matrix = fill(NaN, length(r_axis), length(z_axis))
     for (i, idx) in enumerate(idx_spawn_positions[inside_detector_idx])
         drift_time_matrix[idx] = drift_times[i]
     end
 
-    # Extend drift time map (internally enlarges grid by 1 layer on all sides)
-    extended_map = extend_drift_time_map!(transpose(drift_time_matrix))
+    # Transpose to z × r layout for output, then extend drift time map and axes
+    transposed_map = transpose(drift_time_matrix)  # Now z × r
+    r_axis_with_units = collect(r_axis) * u"m"
+    z_axis_with_units = collect(z_axis) * u"m"
 
-    # Extend axes to match the enlarged grid (1 layer = 1 extra point on each side)
-    r_step = length(r_axis) > 1 ? abs(r_axis[2] - r_axis[1]) : grid_step
-    z_step = length(z_axis) > 1 ? abs(z_axis[2] - z_axis[1]) : grid_step
-    extended_r_axis = [r_axis[1] - r_step; collect(r_axis); r_axis[end] + r_step] * u"m"
-    extended_z_axis = [z_axis[1] - z_step; collect(z_axis); z_axis[end] + z_step] * u"m"
+    # extend_drift_time_map expects (rows × cols) with corresponding (row_axis, col_axis)
+    # transposed_map is (z × r), so pass (z_axis, r_axis)
+    extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units)
 
     ang_str = lpad(string(angle_deg), 3, '0')
     return (;
-        :r => extended_r_axis,
-        :z => extended_z_axis,
-        Symbol("drift_time_$(ang_str)_deg") => extended_map * u"ns"
+        :r => extended.z_axis,  # column axis of extended map
+        :z => extended.r_axis,  # row axis of extended map
+        Symbol("drift_time_$(ang_str)_deg") => extended.drift_map * u"ns"
     )
 end
