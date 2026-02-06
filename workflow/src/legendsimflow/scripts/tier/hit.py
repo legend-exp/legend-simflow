@@ -185,7 +185,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 chunk.yloc,
                 chunk.zloc,
                 pyobj,
-                det_loc.eval(),
+                det_loc,
                 distances_precompute=chunk.dist_to_surf,
                 precompute_cutoff=(fccd + 1),
                 surface_type="nplus",
