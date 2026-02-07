@@ -21,6 +21,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
 import numpy as np
+import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
@@ -53,6 +54,8 @@ l200data = args.config.paths.l200data
 
 BUFFER_LEN = "500*MB"
 
+u = pint.UnitRegistry()
+
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
     return 2.5 * np.sqrt(energy / 2039)  # FWHM
@@ -78,6 +81,11 @@ partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 msg = "loading TCM"
 log.debug(msg)
 tcm = lh5.read_as("tcm", stp_file, library="ak")
+
+# load detector_origins table
+msg = "loading detector origins"
+log.debug(msg)
+
 
 # loop over the partitions for this file
 for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -111,6 +119,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
+        # extract the detector origin
+        det_loc = [
+            lh5.read(f"detector_origins/{det_name}", stp_file)[field]
+            for field in ["xloc", "yloc", "zloc"]
+        ] * u.m
+
         msg = f"looking for data from sensitive volume table {det_name} (uid={geom_meta.uid})..."
         log.debug(msg)
 
@@ -162,7 +176,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         )
 
         fccd = mutils.get_sanitized_fccd(metadata, det_name)
-        det_loc = geom.physicalVolumeDict[det_name].position
 
         # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
@@ -176,26 +189,26 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         n_tot = 0
         # iterate over input data
         for lgdo_chunk in iterator:
-            chunk = lgdo_chunk.view_as("ak")
+            chunk = lgdo_chunk.view_as("ak", with_units=True)
 
             n_tot += len(chunk)
 
             _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
-                chunk.xloc * 1000,  # mm
-                chunk.yloc * 1000,  # mm
-                chunk.zloc * 1000,  # mm
+                chunk.xloc,
+                chunk.yloc,
+                chunk.zloc,
                 pyobj,
-                det_loc.eval(),
-                distances_precompute=chunk.dist_to_surf * 1000,
+                det_loc,
+                distances_precompute=chunk.dist_to_surf,
                 precompute_cutoff=(fccd + 1),
                 surface_type="nplus",
             )
 
             _activeness = reboost.math.functions.piecewise_linear_activeness(
                 _distance_to_nplus,
-                fccd=fccd,
+                fccd_in_mm=fccd,
                 dlf=0.5,
-            ).view_as("ak")
+            )
 
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
@@ -221,7 +234,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy = reboost.math.stats.gaussian_sample(
                 energy_true,
                 energy_res / 2.35482,
-            ).view_as("ak")
+            )
 
             # energy can't be negative as a result of smearing and later we
             # divide for it
