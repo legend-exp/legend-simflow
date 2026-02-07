@@ -22,6 +22,9 @@ from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
 
+
+print("INFO: initializing workflow context")
+
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
 
@@ -30,6 +33,8 @@ config = SIMFLOW_CONTEXT.config
 SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_modeling(
     config
 )
+
+print("INFO: done. handing it over to Snakemake")
 
 
 def dvs_ro(x):
@@ -42,6 +47,7 @@ wildcard_constraints:
     jobid=r"\d+",
     runid=r"[-\w]+",
     hpge_detector=r"[VPBC]\w{6}",
+    hpge_voltage=r"\d+",
 
 
 onstart:

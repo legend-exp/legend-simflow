@@ -18,6 +18,7 @@
 # Configuration constants
 const GRID_SIZE = 0.0005  # Grid spacing in meters
 const CRYSTAL_AXIS_ANGLES = [0, 45]  # Crystal axis angles in degrees (<001> and <110>)
+const PADDING = 3  # nr of pixels for padding around the map to avoid grid edge effects
 
 # Imports for main script
 using LegendDataManagement
@@ -130,7 +131,7 @@ function main()
     # Compute drift time maps for each crystal axis angle
     output = nothing
     for angle in CRYSTAL_AXIS_ANGLES
-        result = compute_drift_time_map(sim, meta, T, angle, GRID_SIZE)
+        result = compute_drift_time_map(sim, meta, T, angle, GRID_SIZE, PADDING)
 
         key = Symbol("drift_time_$(lpad(string(angle), 3, '0'))_deg")
         if output === nothing

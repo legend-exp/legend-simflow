@@ -118,7 +118,8 @@ def test_hpge_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    assert hpges["l200-p02-r000-phy"] == ["V99000A"]
+    # now returns dict[str, int] (hpge -> voltage)
+    assert hpges["l200-p02-r000-phy"] == {"V99000A": 4200}
 
 
 def test_runlist_harvesting(config):
@@ -131,13 +132,22 @@ def test_dtmap_stuff(config):
     runid = "l200-p02-r000-phy"
     simid = "stp.pen_plates_Ra224_to_Pb208"
 
-    assert len(agg.gen_list_of_dtmaps(config, runid)) == 1
+    dtmaps = agg.gen_list_of_dtmaps(config, runid)
+    assert len(dtmaps) == 1
+    # check that the dtmap filename contains the voltage
+    assert "4200V" in str(dtmaps[0])
+
     assert len(agg.gen_list_of_merged_dtmaps(config, simid)) == 1
     assert len(agg.gen_list_of_dtmap_plots_outputs(config, simid)) == 1
 
-    plots = agg.gen_list_of_all_dtmap_plots_outputs(config)
-    assert isinstance(plots, set)
-    assert len(plots) == 8
+
+def test_hpge_voltage_functions(config):
+    runid = "l200-p02-r000-phy"
+
+    # test get_hpge_voltage
+    voltage = agg.get_hpge_voltage(config, "V99000A", runid)
+    assert voltage == 4200
+    assert isinstance(voltage, int)
 
 
 def test_currmod_stuff(config):
@@ -147,10 +157,6 @@ def test_currmod_stuff(config):
     assert len(agg.gen_list_of_currmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
-
-    plots = agg.gen_list_of_all_currmod_plots_outputs(config)
-    assert isinstance(plots, set)
-    assert len(plots) == 8
 
 
 def test_tier_evt_stuff(config):
