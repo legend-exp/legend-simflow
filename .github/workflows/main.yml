@@ -84,3 +84,16 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+  test_julia:
+    name: Run Julia tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.10"
+      - name: Run Julia tests
+        run: julia --project=julia/LegendSimflow -e 'using Pkg; Pkg.test()'
