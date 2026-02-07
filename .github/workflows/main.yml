@@ -94,7 +94,7 @@ jobs:
       - name: Set up Julia
         uses: julia-actions/setup-julia@v2
         with:
-          version: "1.10"
+          version: "1.11"
       - name: Add LEGEND registry
         run: julia --project=workflow/julia/LegendSimflow -e 'using Pkg; pkg"registry add General https://github.com/legend-exp/LegendJuliaRegistry.git"'
       - name: Run Julia tests
