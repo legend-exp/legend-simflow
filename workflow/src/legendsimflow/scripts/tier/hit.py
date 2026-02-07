@@ -52,7 +52,6 @@ simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
 
 BUFFER_LEN = "500*MB"
-DETECTOR_NOISE_THRESHOLD_KEV = 5  # Typical detector noise threshold
 M_TO_MM = 1000  # Conversion factor from meters to millimeters
 
 
@@ -256,8 +255,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 energy_res / 2.35482,
             )
 
-            # Set energy below detector noise threshold to zero
-            energy = ak.where(energy < DETECTOR_NOISE_THRESHOLD_KEV, 0, energy)
+            # energy can't be negative as a result of smearing and later we
+            # divide for it
+            energy = ak.where(
+                (energy <= 0) & (energy_true >= 0), np.finfo(float).tiny, energy
+            )
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
