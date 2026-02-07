@@ -52,6 +52,8 @@ simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
 
 BUFFER_LEN = "500*MB"
+DETECTOR_NOISE_THRESHOLD_KEV = 5  # Typical detector noise threshold
+M_TO_MM = 1000  # Conversion factor from meters to millimeters
 
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
@@ -183,9 +185,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 # Create Position object from detector_origins data
                 det_loc = pyg4ometry.gdml.Defines.Position(
                     f"{det_name}_pos",
-                    float(det_origin.xloc) * 1000,  # convert m to mm
-                    float(det_origin.yloc) * 1000,
-                    float(det_origin.zloc) * 1000,
+                    float(det_origin.xloc) * M_TO_MM,  # convert m to mm
+                    float(det_origin.yloc) * M_TO_MM,
+                    float(det_origin.zloc) * M_TO_MM,
                     unit="mm"
                 )
             else:
@@ -255,8 +257,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             )
 
             # Set energy below detector noise threshold to zero
-            # Typical detector noise is ~5 keV
-            energy = ak.where(energy < 5, 0, energy)
+            energy = ak.where(energy < DETECTOR_NOISE_THRESHOLD_KEV, 0, energy)
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
