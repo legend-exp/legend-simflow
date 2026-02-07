@@ -21,6 +21,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
 import numpy as np
+import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
@@ -52,7 +53,6 @@ simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
 
 BUFFER_LEN = "500*MB"
-M_TO_MM = 1000  # Conversion factor from meters to millimeters
 
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
@@ -80,16 +80,10 @@ msg = "loading TCM"
 log.debug(msg)
 tcm = lh5.read_as("tcm", stp_file, library="ak")
 
-# load detector_origins table if available (remage v0.13+)
+# load detector_origins table
 msg = "loading detector origins"
 log.debug(msg)
-try:
-    detector_origins = lh5.read("stp/detector_origins", stp_file)
-    detector_origins_ak = detector_origins.view_as("ak")
-except (KeyError, FileNotFoundError):
-    msg = "detector_origins table not found in stp file, will use GDML positions"
-    log.warning(msg)
-    detector_origins_ak = None
+detector_origins = lh5.read("stp/detector_origins", stp_file)
 
 # loop over the partitions for this file
 for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -175,26 +169,32 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
         fccd = mutils.get_sanitized_fccd(metadata, det_name)
         
-        # Get detector position from detector_origins table if available, else use GDML
-        if detector_origins_ak is not None:
-            # Find the detector in detector_origins by uid
-            det_origin_mask = detector_origins_ak.uid == geom_meta.uid
-            if ak.any(det_origin_mask):
-                det_origin = detector_origins_ak[det_origin_mask][0]
-                # Create Position object from detector_origins data
-                det_loc = pyg4ometry.gdml.Defines.Position(
-                    f"{det_name}_pos",
-                    float(det_origin.xloc) * M_TO_MM,  # convert m to mm
-                    float(det_origin.yloc) * M_TO_MM,
-                    float(det_origin.zloc) * M_TO_MM,
-                    unit="mm"
-                )
-            else:
-                msg = f"detector {det_name} (uid={geom_meta.uid}) not found in detector_origins, using GDML"
-                log.warning(msg)
-                det_loc = geom.physicalVolumeDict[det_name].position
-        else:
-            det_loc = geom.physicalVolumeDict[det_name].position
+        # Get detector position from detector_origins table
+        # Find the detector in detector_origins by uid
+        det_origins_ak = detector_origins.view_as("ak")
+        det_origin_mask = det_origins_ak.uid == geom_meta.uid
+        det_origin = det_origins_ak[det_origin_mask][0]
+        
+        # Extract position with units from LGDO attributes
+        # Read units from the LGDO fields and convert to mm for pyg4ometry
+        ureg = pint.get_application_registry()
+        
+        xloc_unit = detector_origins.xloc.attrs.get("units", "m")
+        yloc_unit = detector_origins.yloc.attrs.get("units", "m")
+        zloc_unit = detector_origins.zloc.attrs.get("units", "m")
+        
+        xloc_mm = (float(det_origin.xloc) * ureg(xloc_unit)).to("mm").m
+        yloc_mm = (float(det_origin.yloc) * ureg(yloc_unit)).to("mm").m
+        zloc_mm = (float(det_origin.zloc) * ureg(zloc_unit)).to("mm").m
+        
+        # Create Position object
+        det_loc = pyg4ometry.gdml.Defines.Position(
+            f"{det_name}_pos",
+            xloc_mm,
+            yloc_mm,
+            zloc_mm,
+            unit="mm"
+        )
 
         # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
