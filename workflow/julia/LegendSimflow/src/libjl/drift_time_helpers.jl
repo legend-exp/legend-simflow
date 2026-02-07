@@ -180,19 +180,19 @@ end
 
 
 """
-    build_simulation_grid_axis(T, boundary, grid_step)
+    build_simulation_grid_axis(boundary::T, grid_step::T) where {T<:AbstractFloat}
 
 Build a grid axis for detector simulation with extended boundary points.
 
 # Arguments
-- `T`: Numeric type (e.g., Float32)
 - `boundary`: Maximum value of the axis (e.g., detector radius or height in meters)
 - `grid_step`: Grid spacing in meters
 
 # Returns
 - `Vector`: Grid axis including slightly out-of-bound points at both ends
 """
-function build_simulation_grid_axis(T, boundary, grid_step)
+
+function build_simulation_grid_axis(boundary::T, grid_step::T)::Vector{T} where {T<:AbstractFloat}
     SSD = SolidStateDetectors
     offset = 2 * SSD.ConstructiveSolidGeometry.csg_default_tol(T)
     inner_start = 0 + offset  # Interior domain starts strictly within (0, boundary)
@@ -265,7 +265,7 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 # Returns
 - `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix
 """
-function compute_drift_time_map(sim, meta, T, angle_deg, grid_step, padding)
+function compute_drift_time_map(sim::Simulation, meta, angle_deg::Real, grid_step::Real, padding::Int, T::Type{<:AbstractFloat})
     @info "Computing drift time map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
@@ -274,8 +274,8 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step, padding)
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
 
-    r_axis = build_simulation_grid_axis(T, radius, grid_step)
-    z_axis = build_simulation_grid_axis(T, height, grid_step)
+    r_axis = build_simulation_grid_axis(radius, grid_step)
+    z_axis = build_simulation_grid_axis(height, grid_step)
 
     # Build spawn positions grid
     spawn_positions = CartesianPoint{T}[]
@@ -303,7 +303,7 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step, padding)
     @threads for i in 1:n_points
         if i % 1000 == 0
             pct = round(100 * i / n_points)
-            println("...simulating $i / $n_points ($pct%)")
+            @info "...simulating $i / $n_points ($pct%)"
         end
 
         pos = find_valid_spawn_position(inside_detector_idx[i], spawn_positions, sim.detector; verbose = false)
