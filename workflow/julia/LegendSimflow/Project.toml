@@ -1,4 +1,7 @@
-name = "legend-simflow"
+name = "LegendSimflow"
+uuid = "e0429681-d517-4d43-86a3-34ddced27072"
+version = "0.1.0"
+authors = ["Toby Dixon <toby.dixon.23@ucl.ac.uk>"]
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
@@ -9,4 +12,8 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PropDicts = "4dc08600-4268-439e-8673-d706fafbb426"
 RadiationDetectorDSP = "afd6e06f-c550-5763-af36-7391d39e46ec"
 SolidStateDetectors = "71e43887-2bd9-5f77-aebd-47f656f0a3f0"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[compat]
+Test = "1.11.0"
