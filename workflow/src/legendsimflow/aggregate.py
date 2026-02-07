@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -71,7 +72,7 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
     if tier == "hit":
         return [
             patterns.plot_tier_hit_observables_filename(config, simid=simid),
-            *gen_list_of_dtmap_plots_outputs(config, simid),
+            *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
             *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
         ]
     if tier == "stp":
@@ -202,14 +203,20 @@ def gen_list_of_all_hpges_valid_for_modeling(
 
     i.e. a mapping ``runid -> hpge_list``.
     """
+    start = time.time()
+
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
 
-    return {
+    out = {
         runid: gen_list_of_hpges_valid_for_modeling(config, runid)
         for runid in sorted(all_runids)
     }
+    print(  # noqa: T201
+        f"DEBUG: gen_list_of_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
+    )
+    return out
 
 
 def gen_list_of_all_runids(config) -> set[str]:
@@ -254,6 +261,8 @@ def gen_list_of_hpges_with_voltages(
           ...
         }
     """
+    start = time.time()
+
     all_runids = gen_list_of_all_runids(config)
     hpges_by_run = (
         cache if cache is not None else gen_list_of_all_hpges_valid_for_modeling(config)
@@ -265,6 +274,9 @@ def gen_list_of_hpges_with_voltages(
             voltage = get_hpge_voltage(config, hpge, runid)
             hpge_voltages.setdefault(hpge, set()).add(voltage)
 
+    print(  # noqa: T201
+        f"DEBUG: gen_list_of_hpges_with_voltages() took {time.time() - start:.1f} sec"
+    )
     return hpge_voltages
 
 
@@ -295,29 +307,26 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
     ]
 
 
-def gen_list_of_dtmap_plots_outputs(config: SimflowConfig, simid: str) -> list[Path]:
+def gen_list_of_dtmap_plots_outputs(
+    config: SimflowConfig, simid: str, cache: dict[str, list[str]] | None = None
+) -> list[Path]:
     """Generate the list of HPGe drift time map plot outputs."""
-    files = []
+    files = set()
     for runid in get_runlist(config, simid):
-        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid):
-            files.append(
+        hpges = (
+            gen_list_of_hpges_valid_for_modeling(config, runid)
+            if cache is None
+            else cache[runid]
+        )
+        for hpge in hpges:
+            files.add(
                 patterns.plot_dtmap_filename(
                     config,
                     hpge_detector=hpge,
                     hpge_voltage=get_hpge_voltage(config, hpge, runid),
                 )
             )
-    return files
-
-
-def gen_list_of_all_dtmap_plots_outputs(config: SimflowConfig) -> set[Path]:
-    """Generate the list of HPGe drift time map plot outputs."""
-    # use a set to drop duplicates
-    files = set()
-    for simid in gen_list_of_all_simids(config):
-        files.update(gen_list_of_dtmap_plots_outputs(config, simid))
-
-    return files
+    return list(files)
 
 
 def gen_list_of_currmods(
@@ -358,16 +367,6 @@ def gen_list_of_currmod_plots_outputs(
             files.append(
                 patterns.plot_currmod_filename(config, hpge_detector=hpge, runid=runid)
             )
-
-    return files
-
-
-def gen_list_of_all_currmod_plots_outputs(config: SimflowConfig, **kwargs) -> set[Path]:
-    """Generate the list of HPGe drift time map plot outputs."""
-    # use a set to drop duplicates
-    files = set()
-    for simid in gen_list_of_all_simids(config):
-        files.update(gen_list_of_currmod_plots_outputs(config, simid, **kwargs))
 
     return files
 
