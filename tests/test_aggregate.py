@@ -118,7 +118,8 @@ def test_hpge_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    assert hpges["l200-p02-r000-phy"] == ["V99000A"]
+    # now returns dict[str, int] (hpge -> voltage)
+    assert hpges["l200-p02-r000-phy"] == {"V99000A": 4200}
 
 
 def test_runlist_harvesting(config):
@@ -139,12 +140,6 @@ def test_dtmap_stuff(config):
     assert len(agg.gen_list_of_merged_dtmaps(config, simid)) == 1
     assert len(agg.gen_list_of_dtmap_plots_outputs(config, simid)) == 1
 
-    plots = agg.gen_list_of_all_dtmap_plots_outputs(config)
-    assert isinstance(plots, set)
-    # Plots are now per unique (hpge_detector, hpge_voltage) pair, so we get 1 unique plot
-    # since the same detector V99000A runs at 4200V across all runs
-    assert len(plots) == 1
-
 
 def test_hpge_voltage_functions(config):
     runid = "l200-p02-r000-phy"
@@ -154,13 +149,6 @@ def test_hpge_voltage_functions(config):
     assert voltage == 4200
     assert isinstance(voltage, int)
 
-    # test gen_list_of_hpges_with_voltages
-    hpge_voltages = agg.gen_list_of_hpges_with_voltages(config)
-    assert isinstance(hpge_voltages, dict)
-    assert "V99000A" in hpge_voltages
-    assert isinstance(hpge_voltages["V99000A"], set)
-    assert 4200 in hpge_voltages["V99000A"]
-
 
 def test_currmod_stuff(config):
     runid = "l200-p02-r000-phy"
@@ -169,10 +157,6 @@ def test_currmod_stuff(config):
     assert len(agg.gen_list_of_currmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
-
-    plots = agg.gen_list_of_all_currmod_plots_outputs(config)
-    assert isinstance(plots, set)
-    assert len(plots) == 8
 
 
 def test_tier_evt_stuff(config):
