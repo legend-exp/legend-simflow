@@ -96,6 +96,6 @@ jobs:
         with:
           version: "1.10"
       - name: Add LEGEND registry
-        run: julia --project=workflow/julia/LegendSimflow -e 'using Pkg; Pkg.Registry.add(url="https://github.com/legend-exp/LegendJuliaRegistry.git")'
+        run: julia --project=workflow/julia/LegendSimflow -e 'using Pkg; pkg"add General https://github.com/legend-exp/LegendJuliaRegistry.git"'
       - name: Run Julia tests
         run: julia --project=workflow/julia/LegendSimflow -e 'using Pkg; Pkg.test()'
