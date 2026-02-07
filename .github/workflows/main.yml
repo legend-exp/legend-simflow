@@ -96,4 +96,4 @@ jobs:
         with:
           version: "1.10"
       - name: Run Julia tests
-        run: julia --project=julia/LegendSimflow -e 'using Pkg; Pkg.test()'
+        run: julia --project=workflow/julia/LegendSimflow -e 'using Pkg; Pkg.test()'
