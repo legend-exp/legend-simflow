@@ -304,7 +304,7 @@ rule merge_current_pulse_model_pars:
         import dbetto
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid]
+        hpges = list(SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid])
 
         out_dict = {}
         for i, f in enumerate(input):
