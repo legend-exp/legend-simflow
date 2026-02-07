@@ -79,6 +79,17 @@ msg = "loading TCM"
 log.debug(msg)
 tcm = lh5.read_as("tcm", stp_file, library="ak")
 
+# load detector_origins table if available (remage v0.13+)
+msg = "loading detector origins"
+log.debug(msg)
+try:
+    detector_origins = lh5.read("stp/detector_origins", stp_file)
+    detector_origins_ak = detector_origins.view_as("ak")
+except (KeyError, FileNotFoundError):
+    msg = "detector_origins table not found in stp file, will use GDML positions"
+    log.warning(msg)
+    detector_origins_ak = None
+
 # loop over the partitions for this file
 for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     msg = (
@@ -162,7 +173,27 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         )
 
         fccd = mutils.get_sanitized_fccd(metadata, det_name)
-        det_loc = geom.physicalVolumeDict[det_name].position
+        
+        # Get detector position from detector_origins table if available, else use GDML
+        if detector_origins_ak is not None:
+            # Find the detector in detector_origins by uid
+            det_origin_mask = detector_origins_ak.uid == geom_meta.uid
+            if ak.any(det_origin_mask):
+                det_origin = detector_origins_ak[det_origin_mask][0]
+                # Create Position object from detector_origins data
+                det_loc = pyg4ometry.gdml.Defines.Position(
+                    f"{det_name}_pos",
+                    float(det_origin.xloc) * 1000,  # convert m to mm
+                    float(det_origin.yloc) * 1000,
+                    float(det_origin.zloc) * 1000,
+                    unit="mm"
+                )
+            else:
+                msg = f"detector {det_name} (uid={geom_meta.uid}) not found in detector_origins, using GDML"
+                log.warning(msg)
+                det_loc = geom.physicalVolumeDict[det_name].position
+        else:
+            det_loc = geom.physicalVolumeDict[det_name].position
 
         # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
@@ -176,7 +207,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         n_tot = 0
         # iterate over input data
         for lgdo_chunk in iterator:
-            chunk = lgdo_chunk.view_as("ak")
+            chunk = lgdo_chunk.view_as("ak", with_units=True)
 
             n_tot += len(chunk)
 
@@ -223,11 +254,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 energy_res / 2.35482,
             )
 
-            # energy can't be negative as a result of smearing and later we
-            # divide for it
-            energy = ak.where(
-                (energy <= 0) & (energy_true >= 0), np.finfo(float).tiny, energy
-            )
+            # Set energy below detector noise threshold to zero
+            # Typical detector noise is ~5 keV
+            energy = ak.where(energy < 5, 0, energy)
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
