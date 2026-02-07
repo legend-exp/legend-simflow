@@ -259,11 +259,13 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 - `T`: Numeric type (e.g., Float32)
 - `angle_deg`: Crystal axis angle in degrees
 - `grid_step`: Grid spacing in meters
+- `padding`: pixels used to pad the map and avoid grid edge effects (see
+  `extend_drift_time_map()`).
 
 # Returns
 - `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix
 """
-function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
+function compute_drift_time_map(sim, meta, T, angle_deg, grid_step, padding)
     @info "Computing drift time map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
@@ -326,7 +328,7 @@ function compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
     # extend_drift_time_map expects (rows × cols) with corresponding (row_axis, col_axis)
     # transposed_map is (z × r), so pass (z_axis, r_axis)
     # Note: col_axis (r) won't be extended into negative values
-    extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units, layers = 2)
+    extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units, layers = padding)
 
     ang_str = lpad(string(angle_deg), 3, '0')
     return (;
