@@ -47,10 +47,10 @@ scintillator_volume_name = args.params.scintillator_volume_name
 
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
-BUFFER_LEN = "50*MB"
-MAP_SCALING = 0.1
-DEFAULT_PHOTOELECTRON_RES = 0.2  # FWHM
-TIME_RESOLUTION_NS = 16
+BUFFER_LEN = "30*MB"
+MAP_SCALING = 0.1  # FIXME: guess
+DEFAULT_PHOTOELECTRON_RES = 0.3  # FWHM FIXME: guess
+TIME_RESOLUTION_NS = 3 * 16  # FIXME: guess
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
