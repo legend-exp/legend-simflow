@@ -384,7 +384,7 @@ def test_forced_trigger_library_custom_ranges(legend_testdata):
         ext_trig_range_ns=[(1000, 2000)],  # Single smaller range
         ge_trig_range_ns=[(1000, 2000)],  # Single smaller range
     )
-    
+
     assert len(result) == 0
     assert "npe" in result.fields
     assert "t0" in result.fields
