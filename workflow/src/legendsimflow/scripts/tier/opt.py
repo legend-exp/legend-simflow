@@ -17,6 +17,7 @@
 
 from pathlib import Path
 
+import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import pyg4ometry
@@ -93,6 +94,10 @@ def process_sipm(
             pe_times_micro = reboost.spms.pe.photoelectron_times(
                 nr_pe, chunk.particle, chunk.time, "lar"
             ).view_as("ak")
+
+            # the photoelectron_times() processor does not guarantee time
+            # ordering
+            pe_times_micro = ak.sort(pe_times_micro, axis=-1)
 
         with perf_block("photoelectron_resolution()"):
             pe_amps_micro = reboost_utils.smear_photoelectrons(
