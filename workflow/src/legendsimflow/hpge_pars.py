@@ -219,15 +219,17 @@ def plot_noise_waveforms(
 
     fig, axs = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
 
-    for wf in noise[0:20]:
-        axs[0].plot(wf + temp)
-        axs[1].plot(wf)
+    for idx, wf in enumerate(noise[0:20]):
+        axs[0].plot(wf + temp, label=("noise + current template" if idx == 0 else None))
+        axs[1].plot(wf, label=("noise" if idx == 0 else None))
 
     axs[1].set_xlabel("time [sample]")
 
     axs[0].set_ylabel("waveform")
     axs[1].set_ylabel("waveform")
-    plt.tight_layout()
+
+    axs[0].legend()
+    axs[1].legend()
 
     return fig, axs
 
@@ -408,7 +410,12 @@ def plot_currmod_fit_result(
     """Plot the best fit results."""
     fig, ax = plt.subplots(figsize=(6, 4))
 
-    ax.plot(t, A, marker="o", markersize=3, label="Current signal")
+    ax.plot(
+        t,
+        A,
+        linewidth=2,
+        label="Current signal",
+    )
     ax.plot(model_t, model_A, label="Model", color="tab:red")
 
     ax.legend()

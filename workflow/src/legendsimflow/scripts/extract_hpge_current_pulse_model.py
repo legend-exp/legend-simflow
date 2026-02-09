@@ -107,6 +107,7 @@ with PdfPages(plot_file) as pdf:
 
     logger.info("... plot noise waveforms")
     fig, ax = hpge_pars.plot_noise_waveforms(noise_wfs, temp, norm=mean_aoe * 2000)
+    fig.suptitle(f"{hpge} in {runid}: noise waveforms")
     decorate(fig)
     pdf.savefig()
 
@@ -115,7 +116,7 @@ with PdfPages(plot_file) as pdf:
     # now do the plot
     fit_result = hpge_pars.fit_noise_gauss(a_max, bins=1000)
     fig, ax = hpge_pars.plot_gauss_fit(a_max, fit_result, nominal_val=mean_aoe * 2000)
-
+    fig.suptitle(f"{hpge} in {runid}: noise waveforms fit result")
     decorate(fig)
     pdf.savefig()
 
