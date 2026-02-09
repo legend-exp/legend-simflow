@@ -294,9 +294,9 @@ def test_process_spms_windows_basic():
         spms, win_ranges, time_domain_ns, min_sep_ns, ak.Array([]), ak.Array([])
     )
 
-    # Should extract 1 window (1000-7000)
-    # Hits at 2000, 3000 should be included
-    # Hits at 8000, 9000 should be in next window (8000-14000)
+    # Should extract 2 windows: first (1000-7000), second (8000-14000)
+    # Hits at 2000, 3000 should be included in the first window
+    # Hits at 8000, 9000 should be included in the second window
     assert len(npe) == 2  # Two windows captured
     flat_npe = ak.flatten(npe)
     assert ak.sum(flat_npe) == 7.0

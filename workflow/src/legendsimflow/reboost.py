@@ -613,12 +613,35 @@ def _process_spms_windows(
     t0
         Accumulated times relative to time_domain_ns.
     """
+    # Validate inputs to avoid infinite loops and invalid window definitions
+    if time_domain_ns[1] <= time_domain_ns[0]:
+        msg = (
+            f"time_domain_ns must have time_domain_ns[1] > time_domain_ns[0], "
+            f"got {time_domain_ns}"
+        )
+        raise ValueError(msg)
+    if min_sep_ns < 0:
+        msg = f"min_sep_ns must be non-negative, got {min_sep_ns}"
+        raise ValueError(msg)
     win_len_ns = time_domain_ns[1] - time_domain_ns[0]
 
+    npe_list = []
+    t0_list = []
+
     for win_range in win_ranges:
+        # Ensure each window range is a valid (start, end) pair
+        if len(win_range) != 2:
+            msg = f"Each win_range must be a (start, end) tuple, got {win_range!r}"
+            raise ValueError(msg)
+        start, end = win_range
+        if end <= start:
+            msg = (
+                f"Each win_range must satisfy start < end, got start={start}, end={end}"
+            )
+            raise ValueError(msg)
         starts = []
-        current_start = win_range[0]
-        while current_start + win_len_ns <= win_range[1]:
+        current_start = start
+        while current_start + win_len_ns <= end:
             starts.append(current_start)
             current_start += win_len_ns + min_sep_ns
         ends = [s + win_len_ns for s in starts]
@@ -628,8 +651,15 @@ def _process_spms_windows(
             npe_tmp = spms.energy[tmsk]
             t0_tmp = spms.t0[tmsk] - (wstart - time_domain_ns[0])
 
-            npe = ak.concatenate((npe, npe_tmp))
-            t0 = ak.concatenate((t0, t0_tmp))
+            npe_list.append(npe_tmp)
+            t0_list.append(t0_tmp)
+
+    # Concatenate all results at once
+    if npe_list:
+        new_npe = ak.concatenate(npe_list)
+        new_t0 = ak.concatenate(t0_list)
+        npe = ak.concatenate((npe, new_npe))
+        t0 = ak.concatenate((t0, new_t0))
 
     return npe, t0
 
@@ -719,22 +749,17 @@ def get_forced_trigger_library(
 
         # Process forced/pulser events with full waveform windows
         mask_forced_pulser = (is_forced | is_pulser) & ~is_muon
-        idx_forced_pulser = ak.where(mask_forced_pulser)[0].to_list()
-
-        if len(idx_forced_pulser) > 0:
-            spms_fp = evt.spms[idx_forced_pulser]
+        spms_fp = evt.spms[mask_forced_pulser]
+        if len(spms_fp) > 0:
             npe, t0 = _process_spms_windows(
                 spms_fp, ext_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
             )
-
         # Process geds trigger events with limited window
         mask_geds = is_geds_trig & ~is_muon
-        idx_geds = ak.where(mask_geds)[0].to_list()
-
-        if len(idx_geds) > 0:
-            spms_geds = evt.spms[idx_geds]
+        spms_ge_trig = evt.spms[mask_geds]
+        if len(spms_ge_trig) > 0:
             npe, t0 = _process_spms_windows(
-                spms_geds, ge_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
+                spms_ge_trig, ge_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
             )
 
         rawids = rawids_tmp
