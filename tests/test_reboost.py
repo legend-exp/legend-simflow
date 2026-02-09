@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import awkward as ak
+import numpy as np
 import pyg4ometry
 import pytest
 import reboost
@@ -185,3 +186,91 @@ def test_cluster_photoelectrons_mismatched_shapes():
 
     with pytest.raises(ValueError, match="mismatched list lengths"):
         rutils.cluster_photoelectrons(times, amps, thr=1.0)
+
+
+def test_smear_photoelectrons_shape_preservation():
+    """Test that smear_photoelectrons preserves input array shape for 1D ragged arrays."""
+    # Test with 1D ragged arrays (the intended use case)
+    array_1d = ak.Array([[1.0, 2.0, 3.0], [4.0], [5.0, 6.0]])
+    array_empty = ak.Array([[], [1.0, 2.0], []])
+
+    rng = np.random.default_rng(42)
+    result_1d = rutils.smear_photoelectrons(array_1d, fwhm_in_pe=0.5, rng=rng)
+    # Check that the structure is preserved (number of elements per sublist)
+    assert ak.num(result_1d, axis=1).to_list() == ak.num(array_1d, axis=1).to_list()
+    assert len(result_1d) == len(array_1d)
+
+    rng = np.random.default_rng(42)
+    result_empty = rutils.smear_photoelectrons(array_empty, fwhm_in_pe=0.5, rng=rng)
+    assert (
+        ak.num(result_empty, axis=1).to_list() == ak.num(array_empty, axis=1).to_list()
+    )
+    assert len(result_empty) == len(array_empty)
+
+
+def test_smear_photoelectrons_non_negativity():
+    """Test that smear_photoelectrons clamps negative values to zero."""
+    # Use large FWHM to increase probability of negative samples
+    # With loc=1 and sigma=2/2.35482≈0.85, ~12% of samples would be negative
+    array = ak.Array([np.ones(10000)])
+    rng = np.random.default_rng(42)
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=2.0, rng=rng)
+
+    # Verify no negative values
+    flat_result = ak.flatten(result, axis=None)
+    assert ak.all(flat_result >= 0)
+
+    # Verify that clamping actually occurred (some zeros should exist)
+    assert ak.sum(flat_result == 0) > 0
+
+
+def test_smear_photoelectrons_statistical_properties():
+    """Test that smear_photoelectrons produces correct statistical distribution."""
+    # Generate large sample to test statistical properties
+    n_samples = 100000
+    array = ak.Array([np.ones(n_samples)])
+    fwhm = 0.4
+    expected_sigma = fwhm / 2.35482
+
+    rng = np.random.default_rng(42)
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng)
+
+    flat_result = ak.flatten(result, axis=None)
+    # Filter out clamped zeros for statistical analysis of untruncated distribution
+    non_zero = flat_result[flat_result > 0]
+
+    # Mean should be close to 1 (allowing for small statistical fluctuation)
+    # With small FWHM, very few values get clamped, so mean ≈ 1
+    mean = ak.mean(non_zero)
+    assert 0.99 < mean < 1.01
+
+    # Standard deviation should match expected value (with tolerance)
+    # Excluding clamped values gives us the true Gaussian sigma
+    std = ak.std(non_zero)
+    assert 0.95 * expected_sigma < std < 1.05 * expected_sigma
+
+
+def test_smear_photoelectrons_reproducibility():
+    """Test that smear_photoelectrons is reproducible with same seed."""
+    array = ak.Array([[1.0, 2.0, 3.0, 4.0]])
+    fwhm = 0.5
+
+    rng1 = np.random.default_rng(123)
+    result1 = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng1)
+
+    rng2 = np.random.default_rng(123)
+    result2 = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng2)
+
+    assert ak.all(result1 == result2)
+
+
+def test_smear_photoelectrons_default_rng():
+    """Test that smear_photoelectrons works with default RNG (no rng parameter)."""
+    array = ak.Array([[1.0, 2.0, 3.0]])
+
+    # Should not raise an error
+    result = rutils.smear_photoelectrons(array, fwhm_in_pe=0.5)
+
+    # Should still preserve shape and non-negativity
+    assert ak.num(result, axis=1).to_list() == ak.num(array, axis=1).to_list()
+    assert ak.all(ak.flatten(result, axis=None) >= 0)
