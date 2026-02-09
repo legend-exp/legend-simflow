@@ -60,6 +60,7 @@ dependencies = [
     "matplotlib",
     "mplhep",
     "numpy",
+    "psutil",
     "pyg4ometry",
     "pygama >=2.3.1",
     "pylegendmeta >=1.3.5",
@@ -187,6 +188,7 @@ legend-pygeom-tools = ">=0.2,<0.3"
 matplotlib = "*"
 numpy = "*"
 pylegendmeta = ">=1.3.5,<1.4"
+psutil = "*"
 
 # execution
 snakemake = ">=9,<10"
