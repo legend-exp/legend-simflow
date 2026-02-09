@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
 import awkward as ak
@@ -579,10 +580,11 @@ def gauss_smear(arr_true: ak.Array, arr_reso: ak.Array) -> ak.Array:
     return ak.where((arr_smear <= 0) & (arr_true >= 0), np.finfo(float).tiny, arr_smear)
 
 def get_forced_trigger_library(
-    evt_file_path: str | Path,
+    evt_files: Iterable[str],
     win_len_ns: float = 6_000,
     min_sep_ns: float = 6_000,
-    win_range_ns: tuple[float, float] = (1_000, 44_000),
+    win_range_ns: tuple[float, float] | list[tuple[float, float]] = (1_000, 44_000),
+    where: Callable[[ak.Array], ak.Array] | None = None,
 ) -> ak.Array:
     """Extract a library of forced trigger events to be used
     in correcting the SiPM pe and times with random coincidences.
@@ -595,41 +597,78 @@ def get_forced_trigger_library(
 
     Parameters
     ----------
-    evt_file_path
-        Path to the event tier data.
-    win_len
+    evt_files
+        List of event tier data files.
+    win_len_ns
         Window length of a "forced trigger", in nanoseconds.
-    min_sep
+    min_sep_ns
         Minimal separation time between two windows in a trace, in nanoseconds.
     win_range_ns
-        Available window range in a waveform in data.
+        Available window range(s) in a waveform in data. Can be a single tuple ``(start, end)``
+        or a list of tuples ``[(start1, end1), (start2, end2), ...]`` to define multiple non-overlapping ranges.
         Depends on which data is used (forced trigger data allows full waveform, while HPGe-/LAr-triggered data only allows first half).
+    where
+        Optional callable to filter events. Must take an awkward array and return a boolean mask.
+        Example: ``lambda evt: evt.coincident.muon == False``. Fields accessed by the callable
+        will be automatically loaded from the files.
 
     Returns
     -------
     Array with fields "npe", the number of pe per SiPM and per hit,
     "t0", the time relative to the start of a window in the trace, per SiPM and per hit (makes sure that t0 are between 0 and win_len time),
     and "rawids" the SiPM channel numbers.
+
+    Example
+    -------
+    # For forced/pulser data
+    rc_data_forced = get_forced_trigger_library(
+        evt_files,
+        win_range_ns=[(1_000, 44_000), (55_000, 100_000)],
+        where=lambda evt: evt.trigger.is_forced | evt.coincident.puls  # codespell:ignore puls
+    )
+
+    # For HPGe/LAr triggered data
+    rc_data_physics = get_forced_trigger_library(
+        evt_files,
+        win_range_ns=(1_000, 44_000),
+        where=lambda evt: ~evt.trigger.is_forced & ~evt.coincident.puls  # codespell:ignore puls
+    )
     """
 
     npe = None
     t0 = None
     rawids = None
 
+    # Normalize win_range_ns to always be a list of tuples
+    win_ranges_ns = [win_range_ns] if isinstance(win_range_ns, tuple) else win_range_ns
+
     # determine window starts and ends
     starts = []
-    current_start = win_range_ns[0]
-    while current_start + win_len_ns <= win_range_ns[1]:
-        starts.append(current_start)
-        current_start += win_len_ns + min_sep_ns  # move to next window
+    for win_range in win_ranges_ns:
+        current_start = win_range[0]
+        while current_start + win_len_ns <= win_range[1]:
+            starts.append(current_start)
+            current_start += win_len_ns + min_sep_ns  # move to next window
     ends = [s + win_len_ns for s in starts]
 
-    files = Path(evt_file_path).glob("*")
+    for file in evt_files:
+        # Always apply muon veto
+        is_muon = lh5.read("evt/coincident/muon_offline", file).view_as("ak")
 
-    for file in files:
+        # Apply additional where filter if provided
+        if where is not None:
+            evt = lh5.read("evt/", file).view_as("ak")
+            where_mask = where(evt)
+            combined_mask = ~is_muon & where_mask
+        else:
+            combined_mask = ~is_muon
+
+        idx = ak.where(combined_mask)[0].to_list()
+
         spms = lh5.read(
             "evt/",
             file,
+            idx=idx,
             field_mask=["spms/energy", "spms/t0", "spms/rawid"],
         ).view_as("ak")
 
@@ -659,55 +698,3 @@ def get_forced_trigger_library(
             "rawid": np.vstack([rawids] * len(npe)),
         }
     )
-
-
-def add_forced_triggers(
-    sipm_uid: int, rc_data: ak.Array, times: ak.Array, amps: ak.Array
-) -> tuple[ak.Array, ak.Array]:
-    """Apply a random coincidence correction to simulated number of pe and times.
-
-    Parameters
-    ----------
-    sipm_uid
-        The unique identifier (uid) for a SiPM channel.
-    rc_data
-        Random coincidence data library with fields "npe", "t0", "rawid".
-    times
-        Awkward array of hit times.
-    amps
-        Awkward array of amplitudes corresponding to times.
-    Returns
-    -------
-    corr_t
-        Awkward array containing simulated hit times, and the random coincidence hit times.
-    corr_a
-        Awkward array containing simulated hit amplitues, and the random coincidence hit amplitudes.
-    """
-
-    rc_data_ch = rc_data[rc_data.rawid == sipm_uid]
-
-    # Check that times and amps have same length
-    if len(times) != len(amps):
-        msg = f"times length ({len(times)}) != amps length ({len(amps)})"
-        raise ValueError(msg)
-
-    # Check that rc_data.t0 and rc_data.npe have same length
-    if len(rc_data_ch.t0) != len(rc_data_ch.npe):
-        msg = f"rc_data.t0 length ({len(rc_data_ch.t0)}) != rc_data.npe length ({len(rc_data_ch.npe)})"
-        raise ValueError(msg)
-
-    if len(rc_data_ch) < len(amps):
-        msg = f"Random coincidence data length ({len(rc_data_ch)}) is smaller than simulated data length ({len(amps)})"
-        raise ValueError(msg)
-
-    if len(rc_data_ch) > len(amps):
-        rng = np.random.default_rng()
-        indices = rng.choice(len(rc_data_ch), size=len(amps), replace=False)
-        rc_data_ch = rc_data_ch[
-            np.sort(indices)
-        ]  # sorting to keep temporal order of forced trigger data, could be removed if unwanted.
-
-    corr_t = ak.concatenate([times, rc_data_ch.t0], axis=1)
-    corr_a = ak.concatenate([amps, rc_data_ch.npe], axis=1)
-
-    return corr_t, corr_a
