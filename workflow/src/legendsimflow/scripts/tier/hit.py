@@ -21,6 +21,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
 import numpy as np
+import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
@@ -30,6 +31,7 @@ import reboost.hpge.utils
 import reboost.math.functions
 import reboost.math.stats
 import reboost.spms
+from dbetto import AttrsDict
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
@@ -52,6 +54,8 @@ simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
 
 BUFFER_LEN = "500*MB"
+
+u = pint.UnitRegistry()
 
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
@@ -78,6 +82,15 @@ partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 msg = "loading TCM"
 log.debug(msg)
 tcm = lh5.read_as("tcm", stp_file, library="ak")
+
+# extract the detector origin
+det_loc = lh5.read("detector_origins", stp_file)
+# convert to right format and add units
+# FIXME: units should be already present, to be fixed in remage
+det_loc = {
+    k: [v[field].value for field in ("xloc", "yloc", "zloc")] * u.m
+    for k, v in det_loc.items()
+}
 
 # loop over the partitions for this file
 for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -107,7 +120,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         snakemake.config,  # noqa: F821
         runid=runid,
     )
-    currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
+    currmod_pars_all = AttrsDict(dbetto.utils.load_dict(currmod_pars_file))
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
@@ -162,7 +175,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         )
 
         fccd = mutils.get_sanitized_fccd(metadata, det_name)
-        det_loc = geom.physicalVolumeDict[det_name].position
 
         # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
@@ -176,26 +188,26 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         n_tot = 0
         # iterate over input data
         for lgdo_chunk in iterator:
-            chunk = lgdo_chunk.view_as("ak")
+            chunk = lgdo_chunk.view_as("ak", with_units=True)
 
             n_tot += len(chunk)
 
             _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
-                chunk.xloc * 1000,  # mm
-                chunk.yloc * 1000,  # mm
-                chunk.zloc * 1000,  # mm
+                chunk.xloc,
+                chunk.yloc,
+                chunk.zloc,
                 pyobj,
-                det_loc.eval(),
-                distances_precompute=chunk.dist_to_surf * 1000,
+                det_loc[det_name],
+                distances_precompute=chunk.dist_to_surf,
                 precompute_cutoff=(fccd + 1),
                 surface_type="nplus",
             )
 
             _activeness = reboost.math.functions.piecewise_linear_activeness(
                 _distance_to_nplus,
-                fccd=fccd,
+                fccd_in_mm=fccd,
                 dlf=0.5,
-            ).view_as("ak")
+            )
 
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
@@ -221,7 +233,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy = reboost.math.stats.gaussian_sample(
                 energy_true,
                 energy_res / 2.35482,
-            ).view_as("ak")
+            )
 
             # energy can't be negative as a result of smearing and later we
             # divide for it
@@ -242,7 +254,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 log.info(msg)
 
                 drift_time = reboost_utils.hpge_corrected_drift_time(
-                    chunk, dt_map, det_loc
+                    chunk, dt_map, det_loc[det_name]
                 )
                 utils.check_nans_leq(drift_time, "drift_time", 0.1)
 
@@ -250,7 +262,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     edep_active, drift_time, currmod_pars
                 )
                 # Apply current resolution smearing based on configured A/E noise parameters
-                a_sigma = pars["current_reso"] / pars["mean_aoe"]
+                a_sigma = pars.current_reso / pars.mean_aoe
 
                 _a_max = reboost.math.stats.gaussian_sample(_a_max, sigma=a_sigma)
                 utils.check_nans_leq(_a_max, "max_current", 0.1)

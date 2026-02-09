@@ -28,6 +28,7 @@ import pyg4ometry
 import pygama.evt
 import pygeomtools
 import reboost.hpge.utils
+import reboost.units
 from lgdo import LGDO, lh5
 
 from . import patterns
@@ -285,9 +286,21 @@ def hpge_corrected_drift_time(
     ----
     This function will be moved to :mod:`reboost`.
     """
+    # Convert det_loc to pint Quantity
+    det_loc_pint = reboost.units.pg4_to_pint(det_loc)
+
+    # Use reboost.units to get conversion factors for chunk coordinates
+    # This handles the case when chunk has units attached (with_units=True)
+    xloc_conv = reboost.units.units_convfact(chunk.xloc, det_loc_pint.units)
+    yloc_conv = reboost.units.units_convfact(chunk.yloc, det_loc_pint.units)
+
+    # Unwrap LGDO/pint if present
+    xloc, _ = reboost.units.unwrap_lgdo(chunk.xloc)
+    yloc, _ = reboost.units.unwrap_lgdo(chunk.yloc)
+
     phi = np.arctan2(
-        chunk.yloc * 1000 - det_loc.eval()[1],
-        chunk.xloc * 1000 - det_loc.eval()[0],
+        yloc * yloc_conv - det_loc_pint[1].m,
+        xloc * xloc_conv - det_loc_pint[0].m,
     )
 
     drift_time = {}
@@ -298,7 +311,7 @@ def hpge_corrected_drift_time(
             chunk.zloc,
             _map,
             coord_offset=det_loc,
-        ).view_as("ak")
+        )
 
     return (
         drift_time["045"]
@@ -338,7 +351,7 @@ def hpge_max_current(
         drift_time,
         template=a_tmpl,
         times=times,
-    ).view_as("ak")
+    )
 
 
 def build_tcm(
