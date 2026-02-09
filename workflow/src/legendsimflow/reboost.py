@@ -18,6 +18,7 @@ import logging
 import re
 from collections.abc import Mapping
 from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 import awkward as ak
@@ -579,12 +580,65 @@ def gauss_smear(arr_true: ak.Array, arr_reso: ak.Array) -> ak.Array:
     # energy can't be negative as a result of smearing
     return ak.where((arr_smear <= 0) & (arr_true >= 0), np.finfo(float).tiny, arr_smear)
 
+def _process_spms_windows(
+    spms: ak.Array,
+    win_ranges: list[tuple[float, float]],
+    time_domain_ns: tuple[float, float],
+    min_sep_ns: float,
+    npe: ak.Array | None = None,
+    t0: ak.Array | None = None,
+) -> tuple[ak.Array, ak.Array]:
+    """Helper function to process SiPM data within specified window ranges.
+
+    Parameters
+    ----------
+    spms
+        SiPM data array with fields 'energy' and 't0'.
+    win_ranges
+        List of (start, end) tuples defining window ranges in nanoseconds.
+    time_domain_ns
+        Target time range (start, end) for output times in nanoseconds.
+        E.g., (-1000, 5000) means output times will be in [-1000, 5000].
+    min_sep_ns
+        Minimal separation between windows in nanoseconds.
+    npe
+        Existing npe array to concatenate to (optional).
+    t0
+        Existing t0 array to concatenate to (optional).
+
+    Returns
+    -------
+    npe
+        Accumulated photoelectron counts.
+    t0
+        Accumulated times relative to time_domain_ns.
+    """
+    win_len_ns = time_domain_ns[1] - time_domain_ns[0]
+
+    for win_range in win_ranges:
+        starts = []
+        current_start = win_range[0]
+        while current_start + win_len_ns <= win_range[1]:
+            starts.append(current_start)
+            current_start += win_len_ns + min_sep_ns
+        ends = [s + win_len_ns for s in starts]
+
+        for wstart, wend in zip(starts, ends, strict=True):
+            tmsk = (spms.t0 > wstart) & (spms.t0 <= wend)
+            npe_tmp = spms.energy[tmsk]
+            t0_tmp = spms.t0[tmsk] - (wstart - time_domain_ns[0])
+
+            npe = npe_tmp if npe is None else ak.concatenate((npe, npe_tmp))
+            t0 = t0_tmp if t0 is None else ak.concatenate((t0, t0_tmp))
+
+    return npe, t0
+
 def get_forced_trigger_library(
     evt_files: Iterable[str],
-    win_len_ns: float = 6_000,
+    time_domain_ns: tuple[float, float] = (-1_000, 5_000),
     min_sep_ns: float = 6_000,
-    win_range_ns: tuple[float, float] | list[tuple[float, float]] = (1_000, 44_000),
-    where: Callable[[ak.Array], ak.Array] | None = None,
+    ext_trig_range_ns: list[tuple[float, float]] | None = None,
+    ge_trig_range_ns: list[tuple[float, float]] | None = None,
 ) -> ak.Array:
     """Extract a library of forced trigger events to be used
     in correcting the SiPM pe and times with random coincidences.
@@ -592,102 +646,96 @@ def get_forced_trigger_library(
     This reformats the data to make use of several windows within a waveform to build forced trigger events
     and then stores the number of pe and times for each SiPM channel from that window (to be used for corrections).
 
-    Using this approach, we can maximize the number of forced-trigger-like events,
-    that are not actually generated from forced trigger data.
+    This function processes two types of triggers with different window ranges:
+    - Forced/pulser triggers: uses full waveform [(1_000, 44_000), (55_000, 100_000)] ns
+    - HPGe/LAr triggers: uses first half only (1_000, 44_000) ns
+
+    Both are always filtered to exclude muon coincidences.
 
     Parameters
     ----------
     evt_files
         List of event tier data files.
-    win_len_ns
-        Window length of a "forced trigger", in nanoseconds.
+    time_domain_ns
+        Target time range (start, end) for output times in nanoseconds.
+        E.g., (-1000, 5000) means output times will be in [-1000, 5000].
+        Default: (-1_000, 5_000).
     min_sep_ns
         Minimal separation time between two windows in a trace, in nanoseconds.
-    win_range_ns
-        Available window range(s) in a waveform in data. Can be a single tuple ``(start, end)``
-        or a list of tuples ``[(start1, end1), (start2, end2), ...]`` to define multiple non-overlapping ranges.
-        Depends on which data is used (forced trigger data allows full waveform, while HPGe-/LAr-triggered data only allows first half).
-    where
-        Optional callable to filter events. Must take an awkward array and return a boolean mask.
-        Example: ``lambda evt: evt.coincident.muon == False``. Fields accessed by the callable
-        will be automatically loaded from the files.
+    ext_trig_range_ns
+        Window ranges for forced/pulser trigger events, as list of (start, end) tuples in nanoseconds.
+        Default: [(1_000, 44_000), (55_000, 100_000)].
+    ge_trig_range_ns
+        Window ranges for HPGe/LAr trigger events, as list of (start, end) tuples in nanoseconds.
+        Default: [(1_000, 44_000)].
 
     Returns
     -------
     Array with fields "npe", the number of pe per SiPM and per hit,
-    "t0", the time relative to the start of a window in the trace, per SiPM and per hit (makes sure that t0 are between 0 and win_len time),
+    "t0", the time relative to the start of a window in the trace, per SiPM and per hit (makes sure that t0 are between bounds specified in time_domain_ns),
     and "rawids" the SiPM channel numbers.
 
     Example
     -------
-    # For forced/pulser data
-    rc_data_forced = get_forced_trigger_library(
-        evt_files,
-        win_range_ns=[(1_000, 44_000), (55_000, 100_000)],
-        where=lambda evt: evt.trigger.is_forced | evt.coincident.puls  # codespell:ignore puls
-    )
-
-    # For HPGe/LAr triggered data
-    rc_data_physics = get_forced_trigger_library(
-        evt_files,
-        win_range_ns=(1_000, 44_000),
-        where=lambda evt: ~evt.trigger.is_forced & ~evt.coincident.puls  # codespell:ignore puls
-    )
+    rc_data = get_forced_trigger_library(evt_files)
     """
 
     npe = None
     t0 = None
     rawids = None
 
-    # Normalize win_range_ns to always be a list of tuples
-    win_ranges_ns = [win_range_ns] if isinstance(win_range_ns, tuple) else win_range_ns
-
-    # determine window starts and ends
-    starts = []
-    for win_range in win_ranges_ns:
-        current_start = win_range[0]
-        while current_start + win_len_ns <= win_range[1]:
-            starts.append(current_start)
-            current_start += win_len_ns + min_sep_ns  # move to next window
-    ends = [s + win_len_ns for s in starts]
+    # Set defaults if not provided
+    if ext_trig_range_ns is None:
+        ext_trig_range_ns = [(1_000, 44_000), (55_000, 100_000)]
+    if ge_trig_range_ns is None:
+        ge_trig_range_ns = [(1_000, 44_000)]
 
     for file in evt_files:
-        # Always apply muon veto
-        is_muon = lh5.read("evt/coincident/muon_offline", file).view_as("ak")
-
-        # Apply additional where filter if provided
-        if where is not None:
-            evt = lh5.read("evt/", file).view_as("ak")
-            where_mask = where(evt)
-            combined_mask = ~is_muon & where_mask
-        else:
-            combined_mask = ~is_muon
-
-        idx = ak.where(combined_mask)[0].to_list()
-
-        spms = lh5.read(
+        # Load all necessary data once
+        evt = lh5.read(
             "evt/",
             file,
-            idx=idx,
-            field_mask=["spms/energy", "spms/t0", "spms/rawid"],
+            field_mask=[
+                "trigger/is_forced",
+                "coincident/geds",
+                "coincident/muon_offline",
+                "coincident/puls",  # codespell:ignore puls
+                "spms/energy",
+                "spms/t0",
+                "spms/rawid",
+            ],
         ).view_as("ak")
 
-        rawids_tmp = spms.spms.rawid[0]
+        is_forced = evt.trigger.is_forced
+        is_geds_trig = evt.coincident.geds
+        is_muon = evt.coincident.muon_offline
+        is_pulser = evt.coincident.puls  # codespell:ignore puls
+
+        rawids_tmp = evt.spms.rawid[0]
 
         if rawids is not None and not ak.all(rawids == rawids_tmp):
             msg = "rawid should be the same in all cases"
             raise ValueError(msg)
 
-        for wstart, wend in zip(starts, ends, strict=True):
-            tmsk = (spms.spms.t0 > wstart) & (spms.spms.t0 <= wend)
-            npe_tmp = spms.spms.energy[tmsk]
+        # Process forced/pulser events with full waveform windows
+        mask_forced_pulser = (is_forced | is_pulser) & ~is_geds_trig & ~is_muon
+        idx_forced_pulser = ak.where(mask_forced_pulser)[0].to_list()
 
-            # times between 0 and 6 µs
-            t0_tmp = spms.spms.t0[tmsk] - wstart
+        if len(idx_forced_pulser) > 0:
+            spms_fp = evt.spms[idx_forced_pulser]
+            npe, t0 = _process_spms_windows(
+                spms_fp, ext_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
+            )
 
-            npe = npe_tmp if npe is None else ak.concatenate((npe, npe_tmp))
+        # Process geds trigger events with limited window
+        mask_geds = is_geds_trig & ~is_muon
+        idx_geds = ak.where(mask_geds)[0].to_list()
 
-            t0 = t0_tmp if t0 is None else ak.concatenate((t0, t0_tmp))
+        if len(idx_geds) > 0:
+            spms_geds = evt.spms[idx_geds]
+            npe, t0 = _process_spms_windows(
+                spms_geds, ge_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
+            )
 
         rawids = rawids_tmp
 
