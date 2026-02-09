@@ -274,3 +274,172 @@ def test_smear_photoelectrons_default_rng():
     # Should still preserve shape and non-negativity
     assert ak.num(result, axis=1).to_list() == ak.num(array, axis=1).to_list()
     assert ak.all(ak.flatten(result, axis=None) >= 0)
+
+
+def test_process_spms_windows_basic():
+    """Test _process_spms_windows with simple data."""
+    # Create mock SiPM data
+    spms = ak.Array(
+        {
+            "t0": [[2000, 3000, 8000, 9000]],  # Two hits in first window, two in second
+            "energy": [[1.0, 2.0, 3.0, 4.0]],
+        }
+    )
+
+    win_ranges = [(1000, 14000)]  # Single range covering both windows
+    time_domain_ns = (-1000, 5000)  # 6000 ns window
+    min_sep_ns = 1000
+
+    npe, t0 = rutils._process_spms_windows(
+        spms, win_ranges, time_domain_ns, min_sep_ns, ak.Array([]), ak.Array([])
+    )
+
+    # Should extract 1 window (1000-7000)
+    # Hits at 2000, 3000 should be included
+    # Hits at 8000, 9000 should be in next window (8000-14000)
+    assert len(npe) == 2  # Two windows captured
+    flat_npe = ak.flatten(npe)
+    assert ak.sum(flat_npe) == 7.0
+
+    # Check that times are shifted to time_domain_ns
+    flat_t0 = ak.flatten(t0)
+    assert ak.all(flat_t0 >= time_domain_ns[0])
+    assert ak.all(flat_t0 <= time_domain_ns[1])
+
+
+def test_process_spms_windows_concatenation():
+    """Test that _process_spms_windows correctly concatenates to existing arrays."""
+    spms = ak.Array(
+        {
+            "t0": [[2000]],
+            "energy": [[5.0]],
+        }
+    )
+
+    win_ranges = [(1000, 7000)]
+    time_domain_ns = (0, 6000)
+    min_sep_ns = 10000
+
+    # Start with existing data
+    existing_npe = ak.Array([[1.0, 2.0]])
+    existing_t0 = ak.Array([[100, 200]])
+
+    npe, _ = rutils._process_spms_windows(
+        spms, win_ranges, time_domain_ns, min_sep_ns, existing_npe, existing_t0
+    )
+
+    # Should concatenate new data to existing
+    flat_npe = ak.flatten(npe)
+    assert len(flat_npe) == 3  # 2 existing + 1 new
+    assert flat_npe[-1] == 5.0  # New hit appended
+
+
+def test_forced_trigger_library_basic(legend_testdata):
+    """Test get_forced_trigger_library with real event data."""
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    # Test with default parameters
+    result = rutils.get_forced_trigger_library([f_evt])
+
+    # Check returned structure
+    assert "npe" in result.fields
+    assert "t0" in result.fields
+    assert "rawid" in result.fields
+
+    # Check that we got some data
+    assert len(result) > 0
+
+    # Check that times are in expected domain
+    flat_t0 = ak.flatten(result.t0)
+    if len(flat_t0) > 0:
+        assert ak.all(flat_t0 >= -1000)  # Default time_domain_ns[0]
+        assert ak.all(flat_t0 <= 5000)  # Default time_domain_ns[1]
+
+    # Check that npe values are non-negative
+    flat_npe = ak.flatten(result.npe)
+    assert ak.all(flat_npe >= 0)
+
+
+def test_forced_trigger_library_custom_time_domain(legend_testdata):
+    """Test get_forced_trigger_library with custom time domain."""
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    # Use custom time domain
+    result = rutils.get_forced_trigger_library([f_evt], time_domain_ns=(-500, 3000))
+
+    # Check that times are in custom domain
+    flat_t0 = ak.flatten(result.t0)
+    if len(flat_t0) > 0:
+        assert ak.all(flat_t0 >= -500)
+        assert ak.all(flat_t0 <= 3000)
+
+
+def test_forced_trigger_library_custom_ranges(legend_testdata):
+    """Test get_forced_trigger_library with custom window ranges."""
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    # Use custom ranges
+    result = rutils.get_forced_trigger_library(
+        [f_evt],
+        ext_trig_range_ns=[(1000, 2000)],  # Single smaller range
+        ge_trig_range_ns=[(1000, 2000)],  # Single smaller range
+    )
+    
+    assert len(result) == 0
+    assert "npe" in result.fields
+    assert "t0" in result.fields
+    assert "rawid" in result.fields
+
+
+def test_forced_trigger_library_rawid_consistency(legend_testdata):
+    """Test that rawid is consistent across all entries."""
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    result = rutils.get_forced_trigger_library([f_evt])
+
+    if len(result) > 1:
+        # All rows should have identical rawid arrays
+        first_rawid = result.rawid[0]
+        for i in range(1, len(result)):
+            assert ak.all(result.rawid[i] == first_rawid)
+
+
+def test_forced_trigger_library_structure(legend_testdata):
+    """Test the structure of returned data from get_forced_trigger_library."""
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    result = rutils.get_forced_trigger_library([f_evt])
+
+    # npe and t0 should have matching shapes at each level
+    assert len(result.npe) == len(result.t0)
+
+    # Each entry should have matching npe and t0 sub-array lengths
+    for i in range(len(result)):
+        npe_counts = ak.num(result.npe[i])
+        t0_counts = ak.num(result.t0[i])
+        assert ak.all(npe_counts == t0_counts)
+
+
+def test_forced_trigger_library_evt_number(legend_testdata):
+    """Test the structure of returned data from get_forced_trigger_library."""
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    result = rutils.get_forced_trigger_library([f_evt])
+
+    evt = lh5.read_as("evt", f_evt, "ak")
+
+    is_forced = evt.trigger.is_forced
+    is_geds_trig = evt.coincident.geds
+    is_muon = evt.coincident.muon_offline
+    is_pulser = evt.coincident.puls  # codespell:ignore puls
+
+    mask_forced_pulser = (is_forced | is_pulser) & ~is_muon
+    num_forced_pulser = len(evt[mask_forced_pulser])
+
+    mask_geds = is_geds_trig & ~is_muon
+    num_geds = len(evt[mask_geds])
+
+    # using default window ranges, window lengths and minimal separation:
+    # 8 windows in forced trigger / pulser data
+    # 4 windows in HPGe-triggered data
+    assert len(result) == num_forced_pulser * 8 + num_geds * 4

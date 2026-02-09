@@ -585,8 +585,8 @@ def _process_spms_windows(
     win_ranges: list[tuple[float, float]],
     time_domain_ns: tuple[float, float],
     min_sep_ns: float,
-    npe: ak.Array | None = None,
-    t0: ak.Array | None = None,
+    npe: ak.Array,
+    t0: ak.Array,
 ) -> tuple[ak.Array, ak.Array]:
     """Helper function to process SiPM data within specified window ranges.
 
@@ -602,9 +602,9 @@ def _process_spms_windows(
     min_sep_ns
         Minimal separation between windows in nanoseconds.
     npe
-        Existing npe array to concatenate to (optional).
+        Existing npe array to concatenate to.
     t0
-        Existing t0 array to concatenate to (optional).
+        Existing t0 array to concatenate to.
 
     Returns
     -------
@@ -628,8 +628,8 @@ def _process_spms_windows(
             npe_tmp = spms.energy[tmsk]
             t0_tmp = spms.t0[tmsk] - (wstart - time_domain_ns[0])
 
-            npe = npe_tmp if npe is None else ak.concatenate((npe, npe_tmp))
-            t0 = t0_tmp if t0 is None else ak.concatenate((t0, t0_tmp))
+            npe = ak.concatenate((npe, npe_tmp))
+            t0 = ak.concatenate((t0, t0_tmp))
 
     return npe, t0
 
@@ -680,8 +680,8 @@ def get_forced_trigger_library(
     rc_data = get_forced_trigger_library(evt_files)
     """
 
-    npe = None
-    t0 = None
+    npe = ak.Array([])
+    t0 = ak.Array([])
     rawids = None
 
     # Set defaults if not provided
@@ -718,7 +718,7 @@ def get_forced_trigger_library(
             raise ValueError(msg)
 
         # Process forced/pulser events with full waveform windows
-        mask_forced_pulser = (is_forced | is_pulser) & ~is_geds_trig & ~is_muon
+        mask_forced_pulser = (is_forced | is_pulser) & ~is_muon
         idx_forced_pulser = ak.where(mask_forced_pulser)[0].to_list()
 
         if len(idx_forced_pulser) > 0:
@@ -739,10 +739,19 @@ def get_forced_trigger_library(
 
         rawids = rawids_tmp
 
+    # Handle case where no events passed the filters
+    if len(npe) == 0 or rawids is None:
+        log.warning(
+            "No events passed the filters in get_forced_trigger_library, returning empty arrays"
+        )
+        rawid = np.empty((0, len(rawids) if rawids is not None else 0), dtype=np.int32)
+    else:
+        rawid = np.vstack([rawids] * len(npe))
+
     return ak.Array(
         {
             "npe": npe,
             "t0": t0,
-            "rawid": np.vstack([rawids] * len(npe)),
+            "rawid": rawid,
         }
     )

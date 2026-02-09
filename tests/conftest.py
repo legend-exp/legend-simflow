@@ -18,7 +18,7 @@ config_filename = testprod / "simflow-config.yaml"
 @pytest.fixture(scope="session")
 def legend_testdata():
     ldata = LegendTestData()
-    ldata.checkout("0bb2dfc")
+    ldata.checkout("9f03127e93b3cbeb49a0a8c62d6e6887fac67d7b")
     return ldata
 
 
