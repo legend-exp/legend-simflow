@@ -673,7 +673,7 @@ def get_forced_trigger_library(
     -------
     Array with fields "npe", the number of pe per SiPM and per hit,
     "t0", the time relative to the start of a window in the trace, per SiPM and per hit (makes sure that t0 are between bounds specified in time_domain_ns),
-    and "rawids" the SiPM channel numbers.
+    and "rawid" the SiPM channel numbers.
 
     Example
     -------
