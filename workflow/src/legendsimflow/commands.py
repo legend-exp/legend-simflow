@@ -360,7 +360,7 @@ def make_remage_macro(
             msg = (
                 (
                     "the field must be a str or list[str] prefixed by "
-                    "~define: / ~volumes.surface: / ~volumes.bulk: ~lar_volumes: or ~vertices:"
+                    "~defines: / ~volumes.surface: / ~volumes.bulk: / ~lar_volumes: / ~vertices:"
                 ),
                 f"{block}.confinement",
             )
