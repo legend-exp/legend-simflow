@@ -311,6 +311,7 @@ def make_remage_macro(
                 ]
                 if sim_cfg.confinement.startswith("~volumes.surface:"):
                     confinement += ["/RMG/Generator/Confinement/SampleOnSurface true"]
+                    confinement += ["/RMG/Generator/Confinement/SurfaceSampleMaxIntersections 1000"]
 
         elif isinstance(sim_cfg.confinement, list | tuple):
             confinement = ["/RMG/Generator/Confine Volume"]
