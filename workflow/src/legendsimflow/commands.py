@@ -14,11 +14,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
+import fnmatch
 import shlex
 from copy import copy
 from pathlib import Path
 
 import legenddataflowscripts as lds
+import pyg4ometry
+from pyg4ometry import geant4 as pg4
 
 from . import SimflowConfig, nersc, patterns, utils
 from .exceptions import SimflowConfigError
@@ -103,7 +106,7 @@ def remage_run(
     sim_cfg = get_simconfig(config, tier, simid=simid)
 
     # get macro
-    macro_text, _ = make_remage_macro(config, simid, tier=tier)
+    macro_text, _ = make_remage_macro(config, simid, tier=tier, geom=geom)
 
     # need some modifications if this is a benchmark run
     try:
@@ -203,7 +206,7 @@ def _confine_by_volume(
 
 
 def make_remage_macro(
-    config: SimflowConfig, simid: str, tier: str = "stp"
+    config: SimflowConfig, simid: str, tier: str = "stp", geom: str | None = None
 ) -> (str, Path):
     """Render the remage macro for a given simulation and write it to disk.
 
@@ -226,7 +229,8 @@ def make_remage_macro(
         Simulation identifier to select the simconfig.
     tier
         Simulation tier (e.g. "stp", "ver", ...). Default is "stp".
-
+    geom
+        Path to the geometry file.
     Returns
     -------
     A tuple with:
@@ -279,7 +283,7 @@ def make_remage_macro(
             mac_subs["CONFINEMENT"] = None
         else:
             msg = (
-                "the field must be prefixed with ~vertices: or ~defines:",
+                "the field must be prefixed with ~vertices: or ~defines"
                 f"{block}.generator",
             )
             raise SimflowConfigError(*msg)
@@ -304,6 +308,24 @@ def make_remage_macro(
                     "/RMG/Generator/Confine FromFile",
                     f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
                 ]
+            elif sim_cfg.confinement.startswith("~lar_volumes:"):
+                # in this case we need to parse the GDML to get the actual confinement commands
+                reg = pyg4ometry.gdml.Reader(
+                    str(nersc.dvs_ro(config, geom))
+                ).getRegistry()
+
+                volume_type = sim_cfg.confinement.partition(":")[2]
+
+                if volume_type == "inside_nms":
+                    confinement = get_lar_minishroud_confine_commands(reg, inside=True)
+                elif volume_type == "outside_nms":
+                    confinement = get_lar_minishroud_confine_commands(reg, inside=False)
+                else:
+                    msg = (
+                        "invalid volume type for ~lar_volumes, expected inside_nms or outside_nms",
+                        f"{block}.confinement",
+                    )
+                    raise SimflowConfigError(*msg)
 
             elif sim_cfg.confinement.startswith("~defines:"):
                 key = sim_cfg.confinement.removeprefix("~defines:")
@@ -338,7 +360,7 @@ def make_remage_macro(
             msg = (
                 (
                     "the field must be a str or list[str] prefixed by "
-                    "~define: / ~volumes.surface: / ~volumes.bulk:"
+                    "~define: / ~volumes.surface: / ~volumes.bulk: ~lar_volumes: or ~vertices:"
                 ),
                 f"{block}.confinement",
             )
