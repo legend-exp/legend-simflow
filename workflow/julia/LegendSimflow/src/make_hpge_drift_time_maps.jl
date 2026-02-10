@@ -27,10 +27,7 @@ using ArgParse
 using PropDicts
 using Printf
 using Unitful
-
-# Include helper functions from the library
-include(joinpath(@__DIR__, "libjl", "drift_time_helpers.jl"))
-
+using LegendSimflow
 
 """
     main()
