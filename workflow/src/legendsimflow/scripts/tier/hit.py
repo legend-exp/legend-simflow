@@ -230,15 +230,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
-            energy = reboost.math.stats.gaussian_sample(
+            energy = reboost_utils.gauss_smear(
                 energy_true,
                 energy_res / 2.35482,
-            )
-
-            # energy can't be negative as a result of smearing and later we
-            # divide for it
-            energy = ak.where(
-                (energy <= 0) & (energy_true >= 0), np.finfo(float).tiny, energy
             )
 
             # PSD: if the drift time map is none, it means that we don't
@@ -246,36 +240,44 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # way
 
             # default to NaN
-            drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
+            _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
+            t_max = np.full(len(chunk), np.nan)
 
             if dt_map is not None and currmod_pars is not None:
                 msg = "computing PSD observables"
                 log.info(msg)
 
-                drift_time = reboost_utils.hpge_corrected_drift_time(
+                _drift_time = reboost_utils.hpge_corrected_drift_time(
                     chunk, dt_map, det_loc[det_name]
                 )
-                # TODO: fix dtmap nan issue
-                utils.check_nans_leq(drift_time, "drift_time", 0.9)
+                utils.check_nans_leq(_drift_time, "_drift_time", 0.01)
 
-                _a_max = reboost_utils.hpge_max_current(
-                    edep_active, drift_time, currmod_pars
+                _a_max_true = reboost_utils.hpge_max_current(
+                    edep_active, _drift_time, currmod_pars
                 )
+                utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
+
                 # Apply current resolution smearing based on configured A/E noise parameters
-                a_sigma = pars.current_reso / pars.mean_aoe
+                _a_max = reboost_utils.gauss_smear(
+                    _a_max_true, pars.current_reso / pars.mean_aoe
+                )
 
-                _a_max = reboost.math.stats.gaussian_sample(_a_max, sigma=a_sigma)
-                # TODO: fix dtmap nan issue
-                utils.check_nans_leq(_a_max, "max_current", 0.9)
-
+                # finally calculate A/E
                 aoe = _a_max / energy
+
+                # also calculate drift time at A position
+                # FIXME: this is wasting compute resources, max_current should
+                # return (maxA, t_maxA)
+                t_max = reboost_utils.hpge_max_current(
+                    edep_active, _drift_time, currmod_pars, return_mode="max_time"
+                )
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
             out_table.add_field(
-                "drift_time", lgdo.VectorOfVectors(drift_time, attrs={"units": "ns"})
+                "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
             )
             out_table.add_field("aoe", lgdo.Array(aoe))
 

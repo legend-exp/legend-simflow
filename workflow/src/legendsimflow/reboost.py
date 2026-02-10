@@ -323,6 +323,7 @@ def hpge_max_current(
     edep: ak.Array,
     drift_time: ak.Array,
     currmod_pars: Mapping,
+    **kwargs,
 ) -> ak.Array:
     """Calculate the maximum of the current pulse.
 
@@ -335,6 +336,8 @@ def hpge_max_current(
     currmod_pars
         dictionary storing the parameters of the current model (see
         :func:`reboost.hpge.psd.get_current_template`)
+    kwargs
+        forwarded to :func:`reboost.hpge.psd.maximum_current`.
     """
     # current pulse template domain in ns (step is 1 ns)
     t_domain = {"low": -1000, "high": 4000, "step": 1}
@@ -351,6 +354,7 @@ def hpge_max_current(
         drift_time,
         template=a_tmpl,
         times=times,
+        **kwargs,
     )
 
 
@@ -589,3 +593,18 @@ def smear_photoelectrons(
     flat = np.where(flat < 0, 0, flat)
 
     return ak.unflatten(flat, counts)
+
+
+def gauss_smear(arr_true: ak.Array, arr_reso: ak.Array) -> ak.Array:
+    """Smear values with expected resolution.
+
+    Samples from gaussian and shifts negative values to a fixed, tiny positive
+    value.
+    """
+    arr_smear = reboost.math.stats.gaussian_sample(
+        arr_true,
+        arr_reso,
+    )
+
+    # energy can't be negative as a result of smearing
+    return ak.where((arr_smear <= 0) & (arr_true >= 0), np.finfo(float).tiny, arr_smear)
