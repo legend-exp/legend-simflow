@@ -18,6 +18,7 @@
 from pathlib import Path
 
 import awkward as ak
+import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import pyg4ometry
@@ -37,6 +38,7 @@ from legendsimflow.profile import make_profiler
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 stp_file = args.input.stp_file
+jobid = args.wildcards.jobid
 hit_file = args.output[0]
 optmap_lar_file = args.input.optmap_lar
 gdml_file = args.input.geom
@@ -44,6 +46,7 @@ log_file = args.log[0]
 metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
+simstat_part_file = args.input.simstat_part_file
 
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
@@ -125,25 +128,57 @@ def process_sipm(
             )
 
 
-# loop over the sensitive volume tables registered in the geometry
-for det_name, geom_meta in sens_tables.items():
-    msg = f"looking for data from sensitive volume {det_name} table (uid={geom_meta.uid})..."
-    log.debug(msg)
+partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
 
-    if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
-        msg = (
-            f"detector {det_name} not found in {stp_file}. "
-            "possibly because it was not read-out or there were no hits recorded"
-        )
-        log.warning(msg)
-        continue
+# load TCM, to be used to chunk the event statistics according to the run partitioning
+msg = "loading TCM"
+log.debug(msg)
+tcm = lh5.read_as("tcm", stp_file, library="ak")
 
-    # process the scintillator output
-    if (
-        geom_meta.detector_type == "scintillator"
-        and det_name == scintillator_volume_name
-    ):
+# loop over the partitions for this file
+for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
+    msg = (
+        f"processing partition corresponding to {runid} "
+        f"[{runid_idx + 1}/{len(partitions)}], event range {evt_idx_range}"
+    )
+    log.info(msg)
+
+    # loop over the sensitive volume tables registered in the geometry
+    for det_name, geom_meta in sens_tables.items():
+        msg = f"looking for data from sensitive volume {det_name} table (uid={geom_meta.uid})..."
+        log.debug(msg)
+
+        if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
+            msg = (
+                f"detector {det_name} not found in {stp_file}. "
+                "possibly because it was not read-out or there were no hits recorded"
+            )
+            log.warning(msg)
+            continue
+
+        # process the scintillator output
+        if not (
+            geom_meta.detector_type == "scintillator"
+            and det_name == scintillator_volume_name
+        ):
+            continue
+
         log.info("processing the 'lar' scintillator table...")
+
+        msg = "looking for indices of hit table rows to read..."
+        log.debug(msg)
+        i_start, n_entries = reboost_utils.get_remage_hit_range(
+            tcm, det_name, geom_meta.uid, evt_idx_range
+        )
+
+        def _make_iterator(det_name=det_name, i_start=i_start, n_entries=n_entries):
+            return LH5Iterator(
+                stp_file,
+                f"stp/{det_name}",
+                i_start=i_start,
+                n_entries=n_entries,
+                buffer_len=BUFFER_LEN,
+            )
 
         if optmap_per_sipm:
             for sipm in reboost_utils.get_senstables(geom, "optical"):
@@ -152,24 +187,16 @@ for det_name, geom_meta in sens_tables.items():
                 msg = f"applying optical map for SiPM {sipm}"
                 log.debug(msg)
 
-                iterator = LH5Iterator(
-                    stp_file,
-                    f"stp/{det_name}",
-                    buffer_len=BUFFER_LEN,
+                process_sipm(
+                    _make_iterator(), optmap_lar_file, sipm, sipm_uid, hit_file
                 )
-
-                process_sipm(iterator, optmap_lar_file, sipm, sipm_uid, hit_file)
 
         else:
             log.debug("applying sum optical map")
 
-            iterator = LH5Iterator(
-                stp_file,
-                f"stp/{det_name}",
-                buffer_len=BUFFER_LEN,
+            process_sipm(
+                _make_iterator(), optmap_lar_file, "all", geom_meta.uid, hit_file
             )
-
-            process_sipm(iterator, optmap_lar_file, "all", geom_meta.uid, hit_file)
 
 
 log.debug("building the TCM")
