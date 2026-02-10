@@ -188,6 +188,20 @@ def remage_run(
     return joined_cmd
 
 
+def _confine_by_volume(
+    is_surface: bool, volume: str, surface_max_intersections: int = 100
+) -> list[str]:
+    """Helper function to generate confinement macro lines for a given volume."""
+    lines = ["/RMG/Generator/Confinement/Physical/AddVolume " + volume]
+    if is_surface:
+        lines += ["/RMG/Generator/Confinement/SampleOnSurface true"]
+        lines += [
+            f"/RMG/Generator/Confinement/SurfaceSampleMaxIntersections {surface_max_intersections}"
+        ]
+
+    return lines
+
+
 def make_remage_macro(
     config: SimflowConfig, simid: str, tier: str = "stp"
 ) -> (str, Path):
@@ -304,26 +318,19 @@ def make_remage_macro(
             elif sim_cfg.confinement.startswith(
                 ("~volumes.surface:", "~volumes.bulk:")
             ):
-                confinement = [
-                    "/RMG/Generator/Confine Volume",
-                    "/RMG/Generator/Confinement/Physical/AddVolume "
-                    + sim_cfg.confinement.partition(":")[2],
-                ]
-                if sim_cfg.confinement.startswith("~volumes.surface:"):
-                    confinement += ["/RMG/Generator/Confinement/SampleOnSurface true"]
-
+                confinement = ["/RMG/Generator/Confine Volume"]
+                confinement += _confine_by_volume(
+                    is_surface=sim_cfg.confinement.startswith("~volumes.surface:"),
+                    volume=sim_cfg.confinement.partition(":")[2],
+                )
         elif isinstance(sim_cfg.confinement, list | tuple):
             confinement = ["/RMG/Generator/Confine Volume"]
             for val in sim_cfg.confinement:
                 if val.startswith(("~volumes.surface:", "~volumes.bulk:")):
-                    confinement += [
-                        "/RMG/Generator/Confinement/Physical/AddVolume "
-                        + val.partition(":")[2]
-                    ]
-                    if val.startswith("~volumes.surface:"):
-                        confinement += [
-                            "/RMG/Generator/Confinement/SampleOnSurface true"
-                        ]
+                    confinement += _confine_by_volume(
+                        is_surface=val.startswith("~volumes.surface:"),
+                        volume=val.partition(":")[2],
+                    )
                 else:
                     confinement = None
 
