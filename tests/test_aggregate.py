@@ -61,6 +61,9 @@ def test_process_simlist_is_cumulative(config):
     assert set(targets_opt).issubset(targets_evt)
     assert set(targets_hit).issubset(targets_evt)
 
+    assert not set(targets_evt).issubset(targets_hit)
+    assert not set(targets_evt).issubset(targets_opt)
+
     # cvt must include evt outputs (and therefore also lower tiers)
     simid2 = "pen_plates_Ra224_to_Pb208"
     targets_cvt = agg.process_simlist(config, simlist=[f"cvt.{simid2}"])
@@ -77,17 +80,19 @@ def test_process_simlist_is_cumulative_make_tiers(config):
     targets_evt = agg.process_simlist(
         config, simlist=[f"evt.{simid}"], make_tiers=make_tiers
     )
-    targets_vtx = agg.process_simlist(config, simlist=[f"vtx.{simid}"])
     targets_stp = agg.process_simlist(
-        config, simlist=[f"stp.{simid}"], make_tiers=make_tiers
+        config, simlist=[f"stp.{simid}"], make_tiers=["stp"]
     )
-    targets_opt = agg.process_simlist(config, simlist=[f"opt.{simid}"])
-    targets_hit = agg.process_simlist(config, simlist=[f"hit.{simid}"])
+    targets_opt = agg.process_simlist(
+        config, simlist=[f"opt.{simid}"], make_tiers=["opt"]
+    )
+    targets_hit = agg.process_simlist(
+        config, simlist=[f"hit.{simid}"], make_tiers=["hit"]
+    )
 
     assert targets_evt != []
     assert set(targets_stp).issubset(targets_evt)
 
-    assert not set(targets_vtx).issubset(targets_evt)
     assert not set(targets_opt).issubset(targets_evt)
     assert not set(targets_hit).issubset(targets_evt)
 
