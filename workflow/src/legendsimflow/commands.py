@@ -283,7 +283,7 @@ def make_remage_macro(
             mac_subs["CONFINEMENT"] = None
         else:
             msg = (
-                "the field must be prefixed with ~vertices: or ~defines"
+                "the field must be prefixed with ~vertices: or ~defines",
                 f"{block}.generator",
             )
             raise SimflowConfigError(*msg)
