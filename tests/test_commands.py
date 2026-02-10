@@ -62,7 +62,6 @@ def test_make_macro(config):
         "/RMG/Generator/Confinement/Physical/AddVolume phbr_washer.*",
         "/RMG/Generator/Confinement/SampleOnSurface true",
         "/RMG/Generator/Confinement/SurfaceSampleMaxIntersections 100",
-
     ]
     assert set(confine).issubset(text.split("\n"))
 
