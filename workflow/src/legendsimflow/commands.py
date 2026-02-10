@@ -188,12 +188,16 @@ def remage_run(
     return joined_cmd
 
 
-def _confine_by_volume(is_surface: bool, volume: str) -> list[str]:
+def _confine_by_volume(
+    is_surface: bool, volume: str, surface_max_intersections: int = 100
+) -> list[str]:
     """Helper function to generate confinement macro lines for a given volume."""
     lines = ["/RMG/Generator/Confinement/Physical/AddVolume " + volume]
     if is_surface:
         lines += ["/RMG/Generator/Confinement/SampleOnSurface true"]
-        lines += ["/RMG/Generator/Confinement/SurfaceSampleMaxIntersections 100"]
+        lines += [
+            f"/RMG/Generator/Confinement/SurfaceSampleMaxIntersections {surface_max_intersections}"
+        ]
 
     return lines
 
@@ -314,7 +318,8 @@ def make_remage_macro(
             elif sim_cfg.confinement.startswith(
                 ("~volumes.surface:", "~volumes.bulk:")
             ):
-                confinement = _confine_by_volume(
+                confinement = ["/RMG/Generator/Confine Volume"]
+                confinement += _confine_by_volume(
                     is_surface=sim_cfg.confinement.startswith("~volumes.surface:"),
                     volume=sim_cfg.confinement.partition(":")[2],
                 )
