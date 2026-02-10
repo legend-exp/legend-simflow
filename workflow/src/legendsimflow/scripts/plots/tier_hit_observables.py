@@ -79,18 +79,41 @@ def fig(table):
 
     # A/E
     ax = fig.add_subplot(gs_bot[0, 0])
+    aoe = data.aoe[data.energy > 100]
     h_aoe = hist.new.Reg(200, 0, 2, name="A/E").Double()
-    h_aoe.fill(data.aoe)
+    h_aoe.fill(aoe)
 
-    plot.plot_hist(h_aoe, ax, color="tab:red", n_nans=n_nans(data.aoe))
+    if len(aoe) > 0:
+        plot.plot_hist(
+            h_aoe,
+            ax,
+            color="tab:red",
+            label="energy > 100 keV",
+            n_nans=n_nans(data.aoe),
+        )
+        ax.legend()
+    else:
+        plot.set_empty(ax)
 
     # drift time
     ax = fig.add_subplot(gs_bot[0, 1])
     h_dt = hist.new.Reg(
         300, 0, 3000, name="drift time · $t_{max(A)} - t_0$ (ns)"
     ).Double()
-    h_dt.fill_flattened(data.drift_time_amax)
-    plot.plot_hist(h_dt, ax, color="tab:orange", n_nans=n_nans(data.drift_time_amax))
+    dt = data.drift_time_amax[data.energy > 100]
+    h_dt.fill(dt)
+
+    if len(dt) > 0:
+        plot.plot_hist(
+            h_dt,
+            ax,
+            color="tab:orange",
+            label="energy > 100 keV",
+            n_nans=n_nans(data.drift_time_amax),
+        )
+        ax.legend()
+    else:
+        plot.set_empty(ax)
 
     # usability
     ax = fig.add_subplot(gs_bot[0, 2])
