@@ -31,6 +31,7 @@ import reboost.math.functions
 import reboost.spms
 from lgdo import Array, VectorOfVectors, lh5
 from lgdo.lh5 import LH5Iterator
+from reboost.optmap.convolve import OptmapForConvolve
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc
@@ -42,7 +43,7 @@ args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 stp_file = args.input.stp_file
 jobid = args.wildcards.jobid
 hit_file = args.output[0]
-optmap_lar_file = args.input.optmap_lar
+optmap_lar = args.input.optmap_lar
 gdml_file = args.input.geom
 log_file = args.log[0]
 metadata = args.config.metadata
@@ -68,14 +69,16 @@ sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 def process_sipm(
     iterator: LH5Iterator,
-    optmap_lar_file: str | Path,
+    optmap_lar: str | Path | OptmapForConvolve,
     sipm: str,
     sipm_uid: int,
     out_file: str | Path,
     runid: str,
+    usability: str,
 ) -> None:
     with perf_block("load_optmap()"):
-        optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
+        if not isinstance(optmap_lar, OptmapForConvolve):
+            optmap_lar = reboost.spms.pe.load_optmap(optmap_lar, sipm)
 
     for lgdo_chunk in iterator:
         chunk = lgdo_chunk.view_as("ak")
@@ -91,7 +94,7 @@ def process_sipm(
                 chunk.yloc,
                 chunk.zloc,
                 scint_ph,
-                optmap,
+                optmap_lar,
                 sipm,
                 map_scaling=MAP_SCALING,
             )
@@ -148,6 +151,10 @@ msg = "loading TCM"
 log.debug(msg)
 tcm = lh5.read_as("tcm", stp_file, library="ak")
 
+# pre load optical map for a little speed up
+if not optmap_per_sipm:
+    optmap_lar = reboost.spms.pe.load_optmap(optmap_lar, "all")
+
 # loop over the partitions for this file
 for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     msg = (
@@ -161,19 +168,19 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         msg = f"looking for data from sensitive volume {det_name} table (uid={geom_meta.uid})..."
         log.debug(msg)
 
+        # process the scintillator output
+        if not (
+            geom_meta.detector_type == "scintillator"
+            and det_name == scintillator_volume_name
+        ):
+            continue
+
         if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
             msg = (
                 f"detector {det_name} not found in {stp_file}. "
                 "possibly because it was not read-out or there were no hits recorded"
             )
             log.warning(msg)
-            continue
-
-        # process the scintillator output
-        if not (
-            geom_meta.detector_type == "scintillator"
-            and det_name == scintillator_volume_name
-        ):
             continue
 
         log.info("processing the 'lar' scintillator table...")
@@ -205,18 +212,25 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
                 process_sipm(
                     _make_iterator(),
-                    optmap_lar_file,
+                    optmap_lar,
                     sipm,
                     sipm_uid,
                     hit_file,
                     runid,
+                    usability,
                 )
 
         else:
             log.debug("applying sum optical map")
 
             process_sipm(
-                _make_iterator(), optmap_lar_file, "all", geom_meta.uid, hit_file, runid
+                _make_iterator(),
+                optmap_lar,
+                "all",
+                geom_meta.uid,
+                hit_file,
+                runid,
+                usability,
             )
 
 

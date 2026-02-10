@@ -75,7 +75,6 @@ def test_process_simlist_is_cumulative(config):
 
 def test_process_simlist_is_cumulative_make_tiers(config):
     make_tiers = ["stp", "evt"]
-    # evt must include vtx/stp/opt/hit outputs for the same simid
     simid = "birds_nest_K40"
     targets_evt = agg.process_simlist(
         config, simlist=[f"evt.{simid}"], make_tiers=make_tiers
