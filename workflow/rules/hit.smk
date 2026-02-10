@@ -71,7 +71,7 @@ rule build_tier_hit:
     This rule implements the post-processing of the `stp` tier HPGe data in
     chunks, in the following steps:
 
-    - each chunk is partitioned according the the livetime span of each run
+    - each chunk is partitioned according to the livetime span of each run
       (see the `make_simstat_partition_file` rule). For each partition:
     - the detector usability is retrieved from `legend-metadata` and stored in
       the output;

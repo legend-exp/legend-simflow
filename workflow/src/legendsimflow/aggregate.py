@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from dbetto import AttrsDict
@@ -372,7 +372,7 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
 def process_simlist(
     config: SimflowConfig,
     simlist: Iterable[str] | None = None,
-    make_tiers: Iterable[str] | None = None,
+    make_tiers: Sequence[str] | None = None,
 ) -> list[Path]:
     """Produce a list of all output files that refer to a `simlist`.
 
@@ -404,11 +404,11 @@ def process_simlist(
         simid = parts[1].strip()
 
         if tier not in make_tiers:
-            msg = f"unknown tier {tier!r}"
+            msg = f"unknown tier or missing from 'make_tiers': {tier!r}"
             raise NotImplementedError(msg)
 
         # cumulative: build all tiers up to the requested one
-        for t in make_tiers:
+        for t in make_tiers[: make_tiers.index(tier) + 1]:
             mlist += gen_list_of_plots_outputs(config, t, simid)
 
             if t == "vtx":
