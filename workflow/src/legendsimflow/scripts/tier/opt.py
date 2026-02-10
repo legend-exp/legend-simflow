@@ -21,6 +21,7 @@ import awkward as ak
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import numpy as np
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.psd
@@ -28,9 +29,10 @@ import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
 import reboost.spms
-from lgdo import VectorOfVectors, lh5
+from lgdo import Array, VectorOfVectors, lh5
 from lgdo.lh5 import LH5Iterator
 
+from legendsimflow import metadata as mutils
 from legendsimflow import nersc
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.profile import make_profiler
@@ -70,6 +72,7 @@ def process_sipm(
     sipm: str,
     sipm_uid: int,
     out_file: str | Path,
+    runid: str,
 ) -> None:
     with perf_block("load_optmap()"):
         optmap = reboost.spms.pe.load_optmap(optmap_lar_file, sipm)
@@ -116,10 +119,20 @@ def process_sipm(
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+
             out_table.add_field(
                 "time", VectorOfVectors(pe_times, attrs={"units": "ns"})
             )
             out_table.add_field("energy", VectorOfVectors(pe_amps))
+
+            _, period, run, _ = mutils.parse_runid(runid)
+            field_vals = [period, run, mutils.encode_usability(usability)]
+            for i, field in enumerate(["period", "run", "usability"]):
+                out_table.add_field(
+                    field,
+                    Array(np.full(shape=len(chunk), fill_value=field_vals[i])),
+                )
+
             reboost_utils.write_chunk(
                 out_table,
                 "/hit/" + ("spms" if sipm == "all" else sipm),
@@ -165,6 +178,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
         log.info("processing the 'lar' scintillator table...")
 
+        # get the usability
+        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
+
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)
         i_start, n_entries = reboost_utils.get_remage_hit_range(
@@ -188,14 +204,19 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 log.debug(msg)
 
                 process_sipm(
-                    _make_iterator(), optmap_lar_file, sipm, sipm_uid, hit_file
+                    _make_iterator(),
+                    optmap_lar_file,
+                    sipm,
+                    sipm_uid,
+                    hit_file,
+                    runid,
                 )
 
         else:
             log.debug("applying sum optical map")
 
             process_sipm(
-                _make_iterator(), optmap_lar_file, "all", geom_meta.uid, hit_file
+                _make_iterator(), optmap_lar_file, "all", geom_meta.uid, hit_file, runid
             )
 
 
