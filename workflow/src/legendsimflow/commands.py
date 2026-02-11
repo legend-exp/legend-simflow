@@ -14,14 +14,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-import fnmatch
+import ast
+import importlib
 import shlex
 from copy import copy
 from pathlib import Path
 
 import legenddataflowscripts as lds
 import pyg4ometry
-from pyg4ometry import geant4 as pg4
 
 from . import SimflowConfig, nersc, patterns, utils
 from .exceptions import SimflowConfigError
@@ -203,6 +203,76 @@ def _confine_by_volume(
         ]
 
     return lines
+# Extract function path
+def _get_full_name(node: ast.AST) -> str:
+    """Get the name of the function being called, including the module path if it's an attribute access."""
+
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return _get_full_name(node.value) + "." + node.attr
+    msg = f"unsupported node type {type(node)} in function path!"
+    raise ValueError(msg)
+
+
+def get_confinement_from_function(
+    function_string: str, reg: pyg4ometry.gdml.Registry
+) -> list[str]:
+    """Get the confinement commands for a function defined in the GDML.
+
+    The function string must correspond to the following format
+    ```
+        function(<...>, arg = ...)
+    ```
+    where `<...>` will be replaced with the {class}`pyg4ometry.gdml.Registry` instance
+    for the geometry.
+
+
+    Parameters
+    ----------
+    function_string
+        String describing the function to be used.
+    reg
+        The pyg4ometry registry containing the geometry information.
+
+    Returns
+    -------
+    A list of remage confinement commands corresponding to the function definition.
+
+    """
+    if "<...>" not in function_string:
+        msg = "the function string must contain the placeholder <...> for the registry argument!"
+        raise ValueError(msg)
+
+    function_string = function_string.replace("<...>", "___OBJ___")
+
+    tree = ast.parse(function_string, mode="eval")
+
+    if not isinstance(tree.body, ast.Call):
+        msg = f"{tree.body} is not a function call!"
+        raise ValueError(msg)
+
+    call_node = tree.body
+    full_name = _get_full_name(call_node.func)
+
+    # Resolve function object
+    module_path, func_name = full_name.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    func = getattr(module, func_name)
+
+    # Process arguments
+    args = []
+    for arg in call_node.args:
+        if isinstance(arg, ast.Name) and arg.id == "___OBJ___":
+            args.append(reg)
+        else:
+            args.append(ast.literal_eval(arg))
+
+    kwargs = {}
+    for kw in call_node.keywords:
+        kwargs[kw.arg] = ast.literal_eval(kw.value)
+
+    return func(*args, **kwargs)
 
 
 def make_remage_macro(
@@ -308,24 +378,14 @@ def make_remage_macro(
                     "/RMG/Generator/Confine FromFile",
                     f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
                 ]
-            elif sim_cfg.confinement.startswith("~lar_volumes:"):
+            elif sim_cfg.confinement.startswith("~function:"):
                 # in this case we need to parse the GDML to get the actual confinement commands
                 reg = pyg4ometry.gdml.Reader(
                     str(nersc.dvs_ro(config, geom))
                 ).getRegistry()
 
-                volume_type = sim_cfg.confinement.partition(":")[2]
-
-                if volume_type == "inside_nms":
-                    confinement = get_lar_minishroud_confine_commands(reg, inside=True)
-                elif volume_type == "outside_nms":
-                    confinement = get_lar_minishroud_confine_commands(reg, inside=False)
-                else:
-                    msg = (
-                        "invalid volume type for ~lar_volumes, expected inside_nms or outside_nms",
-                        f"{block}.confinement",
-                    )
-                    raise SimflowConfigError(*msg)
+                func_name = sim_cfg.confinement.removeprefix("~function:")
+                confinement = get_confinement_from_function(func_name, reg)
 
             elif sim_cfg.confinement.startswith("~defines:"):
                 key = sim_cfg.confinement.removeprefix("~defines:")
@@ -360,7 +420,7 @@ def make_remage_macro(
             msg = (
                 (
                     "the field must be a str or list[str] prefixed by "
-                    "~defines: / ~volumes.surface: / ~volumes.bulk: / ~lar_volumes: / ~vertices:"
+                    "~define: / ~volumes.surface: / ~volumes.bulk: / ~function: or ~vertices:"
                 ),
                 f"{block}.confinement",
             )
