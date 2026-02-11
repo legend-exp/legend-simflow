@@ -26,8 +26,9 @@ from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
 
-ENERGY_THR_KEV = 25
-BUFFER_LEN = "500*MB"
+GEDS_ENERGY_THR_KEV = 25
+SPMS_ENERGY_THR_PE = 0
+BUFFER_LEN = "100*MB"
 OFF = encode_usability("off")
 ON = encode_usability("on")
 
@@ -56,9 +57,11 @@ reboost_utils.build_tcm(hit_file.values(), evt_file)
 
 if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
     msg = (
-        "stp and evt tcm should have same number of rows not stp",
-        f"{lh5.read_n_rows('tcm', stp_file)} and evt {lh5.read_n_rows('tcm', evt_file)} hit: {lh5.read_n_rows('tcm', hit_file['hit'])}",
-        f"opt: {lh5.read_n_rows('tcm', hit_file['opt'])}",
+        "stp and evt tcm should have same number of rows not "
+        f"stp={lh5.read_n_rows('tcm', stp_file)}, "
+        f"evt={lh5.read_n_rows('tcm', evt_file)}, "
+        f"hit={lh5.read_n_rows('tcm', hit_file['hit'])}, ",
+        f"opt={lh5.read_n_rows('tcm', hit_file['opt'])}",
     )
 
     raise ValueError(msg)
@@ -90,6 +93,7 @@ def _read_hits(tcm_ak, tier, field):
         field,
         "hit",
         det2uid[tier],
+        with_units=True,
     )
 
 
@@ -139,8 +143,9 @@ for chunk in it:
 
     # we want to only store hits from events in ON and AC detectors and above
     # our energy threshold
-    hitsel = (usability != OFF) & (energy > ENERGY_THR_KEV)
+    hitsel = (usability != OFF) & (energy > GEDS_ENERGY_THR_KEV)
 
+    # we want to still be able to know which detectors are ON (and not AC)
     out_table.add_field(
         "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
     )
@@ -165,8 +170,39 @@ for chunk in it:
     # ----------
     out_table.add_field("spms", Table(size=len(unified_tcm)))
 
-    pe_time = _read_hits(tcm, "opt", "time")
-    out_table.add_field("spms/t0", VectorOfVectors(pe_time))
+    # also here, we exclude the non usable channels. this is in line with what
+    # done in the evt tier in pygama
+    usability = _read_hits(tcm, "opt", "usability")
+    energy = _read_hits(tcm, "opt", "energy")
+    chansel = usability != OFF
+    # we also discard all pulses with amplitude below threshold
+    pesel = energy > SPMS_ENERGY_THR_PE
+
+    out_table.add_field("spms/energy", VectorOfVectors(energy[pesel][chansel]))
+
+    # fields to identify detectors and lookup stuff in the lower tiers
+    out_table.add_field("spms/rawid", VectorOfVectors(tcm["opt"].table_key[chansel]))
+    out_table.add_field(
+        "spms/hit_idx", VectorOfVectors(tcm["opt"].row_in_table[chansel])
+    )
+
+    for field in ["time"]:
+        field_data = _read_hits(tcm, "opt", field)
+        out_table.add_field(
+            f"spms/{field}", VectorOfVectors(field_data[pesel][chansel])
+        )
+
+    # total amount of light per event
+    energy_sum = ak.sum(ak.sum(energy, axis=-1), axis=-1)
+    out_table.add_field("spms/energy_sum", Array(energy_sum))
+
+    # how many channels say some light
+    multiplicity = ak.sum(chansel, axis=-1)
+    out_table.add_field("spms/multiplicity", Array(multiplicity))
+
+    # the HPGE-SiPM coincidence classifier
+    lar_veto = (multiplicity >= 4) | (energy_sum >= 4)
+    out_table.add_field("spms/geds_coincidence_classifier", Array(lar_veto))
 
     # now write down
     lh5.write(out_table, "evt", evt_file, wo_mode="append")
