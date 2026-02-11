@@ -1,18 +1,8 @@
 from __future__ import annotations
 
-import pygeoml200
 import pytest
 
 from legendsimflow import commands, confine
-
-
-@pytest.fixture(scope="session")
-def test_generate_gdml(config):
-    geom_config = config.metadata.simprod.config.geom["l200p02-geom-config"]
-
-    return pygeoml200.core.construct(
-        use_detailed_fiber_model=False, config=geom_config, public_geometry=True
-    )
 
 
 def test_get_lar_minishroud_confine_commands(test_generate_gdml):

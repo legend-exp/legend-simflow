@@ -26,6 +26,15 @@ def legend_test_metadata(legend_testdata):
     return LegendMetadata(legend_testdata["legend/metadata"])
 
 
+@pytest.fixture(scope="session")
+def test_generate_gdml(config):
+    geom_config = config.metadata.simprod.config.geom["l200p02-geom-config"]
+
+    return pygeoml200.core.construct(
+        use_detailed_fiber_model=False, config=geom_config, public_geometry=True
+    )
+
+
 def make_config(legend_testdata):
     with config_filename.open() as f:
         config = yaml.safe_load(f)
