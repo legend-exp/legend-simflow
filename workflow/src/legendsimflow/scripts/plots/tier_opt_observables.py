@@ -20,9 +20,11 @@ from pathlib import Path
 import awkward as ak
 import hist
 import matplotlib.pyplot as plt
+import numpy as np
 from lgdo import lh5
 from matplotlib.backends.backend_pdf import PdfPages
 
+from legendsimflow import metadata as mutils
 from legendsimflow import nersc, plot
 from legendsimflow.plot import n_nans
 
@@ -58,12 +60,11 @@ def fig(table):
 
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
-    plot.set_empty(ax)
-    # vals, counts = np.unique(data.usability, return_counts=True)
-    # plt.pie(
-    #     counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
-    # )
-    # ax.set_aspect("equal")  # keep it circular
+    vals, counts = np.unique(data.usability, return_counts=True)
+    plt.pie(
+        counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
+    )
+    ax.set_aspect("equal")  # keep it circular
 
     ax = fig.add_subplot(gs_bot[0, 0])
     h_peamp = hist.new.Reg(
