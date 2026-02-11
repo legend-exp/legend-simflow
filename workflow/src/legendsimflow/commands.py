@@ -226,7 +226,7 @@ def get_confinement_from_function(
 
     .. code-block::
 
-        function(<...>, arg=...)
+        module.function(<...>, arg=...)
 
     where ``<...>`` will be replaced with the
     :class:`pyg4ometry.gdml.Registry` instance for the geometry.
