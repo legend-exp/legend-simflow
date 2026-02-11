@@ -218,7 +218,7 @@ def _get_full_name(node: ast.AST) -> str:
 def get_confinement_from_function(
     function_string: str, reg: pyg4ometry.gdml.Registry
 ) -> list[str]:
-"""Get the confinement commands for a function defined in the GDML.
+    """Get the confinement commands for a function defined in the GDML.
 
     The function string must correspond to the following format:
 
