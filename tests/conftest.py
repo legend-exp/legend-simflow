@@ -9,6 +9,7 @@ import yaml
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendtestdata import LegendTestData
+from pygeoml200 import core
 
 testprod = Path(__file__).parent / "dummyprod"
 config_filename = testprod / "simflow-config.yaml"
