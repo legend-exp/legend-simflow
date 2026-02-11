@@ -15,10 +15,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Configuration constants
-const GRID_SIZE = 0.0005  # Grid spacing in meters
-const CRYSTAL_AXIS_ANGLES = [0, 45]  # Crystal axis angles in degrees (<001> and <110>)
-const PADDING = 3  # nr of pixels for padding around the map to avoid grid edge effects
+# grid spacing in meters
+const GRID_SIZE = 0.0005
+# crystal axis angles in degrees (<001> and <110>)
+const CRYSTAL_AXIS_ANGLES = [0, 45]
+# SSD adaptive-mesh refinement thresholds as fractions of the crystal radius
+# matches current SSD behaviour
+const REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
+# nr of pixels for padding around the map to avoid grid edge effects
+const PADDING = 3
 
 # Imports for main script
 using LegendDataManagement
@@ -98,7 +103,7 @@ function main()
     @info "Calculating electric potential..."
     calculate_electric_potential!(
         sim,
-        refinement_limits = [0.2, 0.1, 0.05, 0.01],
+        refinement_limits = REFINEMENT_LIMITS,
         depletion_handling = true
     )
 
@@ -124,7 +129,7 @@ function main()
     calculate_weighting_potential!(
         sim,
         sim.detector.contacts[1].id,
-        refinement_limits = [0.2, 0.1, 0.05, 0.01],
+        refinement_limits = REFINEMENT_LIMITS,
         verbose = false
     )
 
