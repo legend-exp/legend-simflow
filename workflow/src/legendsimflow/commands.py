@@ -218,15 +218,16 @@ def _get_full_name(node: ast.AST) -> str:
 def get_confinement_from_function(
     function_string: str, reg: pyg4ometry.gdml.Registry
 ) -> list[str]:
-    """Get the confinement commands for a function defined in the GDML.
+"""Get the confinement commands for a function defined in the GDML.
 
-    The function string must correspond to the following format
-    ```
-        function(<...>, arg = ...)
-    ```
-    where `<...>` will be replaced with the {class}`pyg4ometry.gdml.Registry` instance
-    for the geometry.
+    The function string must correspond to the following format:
 
+    .. code-block:: python
+
+        function(<...>, arg=...)
+
+    where ``<...>`` will be replaced with the
+    :class:`pyg4ometry.gdml.Registry` instance for the geometry.
 
     Parameters
     ----------
@@ -237,9 +238,11 @@ def get_confinement_from_function(
 
     Returns
     -------
-    A list of remage confinement commands corresponding to the function definition.
-
+    list[str]
+        A list of remage confinement commands corresponding to the
+        function definition.
     """
+
     if "<...>" not in function_string:
         msg = "the function string must contain the placeholder <...> for the registry argument!"
         raise ValueError(msg)
