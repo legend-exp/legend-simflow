@@ -88,7 +88,7 @@ def get_lar_minishroud_confine_commands(
         if not hasattr(solid, "obj1") or solid.obj1 is None:
             msg = (
                 f"Expected solid for physical volume '{s}' to have an 'obj1' "
-                "attribute representing the outer minishroud cylinder, but it was  missing or None."
+                "attribute representing the outer minishroud cylinder, but it was missing or None."
             )
             raise ValueError(msg)
 
@@ -102,10 +102,10 @@ def get_lar_minishroud_confine_commands(
         dz = outer_ms.pDz
 
         # type conversions from pyg4ometry types
-        if not isinstance(r_max, float):
+        if not isinstance(r_max, (float, int)):
             r_max = r_max.eval()
 
-        if not isinstance(dz, float):
+        if not isinstance(dz, (float, int)):
             dz = dz.eval()
 
         command = "AddSolid" if inside else "AddExcludedSolid"

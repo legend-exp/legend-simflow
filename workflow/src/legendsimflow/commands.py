@@ -203,6 +203,8 @@ def _confine_by_volume(
         ]
 
     return lines
+
+
 # Extract function path
 def _get_full_name(node: ast.AST) -> str:
     """Get the name of the function being called, including the module path if it's an attribute access."""
@@ -222,7 +224,7 @@ def get_confinement_from_function(
 
     The function string must correspond to the following format:
 
-    .. code-block:: python
+    .. code-block::
 
         function(<...>, arg=...)
 
@@ -280,7 +282,7 @@ def get_confinement_from_function(
 
 def make_remage_macro(
     config: SimflowConfig, simid: str, tier: str = "stp", geom: str | None = None
-) -> (str, Path):
+) -> tuple[str, Path]:
     """Render the remage macro for a given simulation and write it to disk.
 
     This function reads the simulation configuration for the provided tier/simid,
@@ -356,7 +358,7 @@ def make_remage_macro(
             mac_subs["CONFINEMENT"] = None
         else:
             msg = (
-                "the field must be prefixed with ~vertices: or ~defines",
+                "the field must be prefixed with ~vertices: or ~defines:",
                 f"{block}.generator",
             )
             raise SimflowConfigError(*msg)
@@ -383,6 +385,13 @@ def make_remage_macro(
                 ]
             elif sim_cfg.confinement.startswith("~function:"):
                 # in this case we need to parse the GDML to get the actual confinement commands
+                if not geom:
+                    msg = (
+                        "confinement uses '~function:' but no geometry (geom) was provided; "
+                        f"please set either {block}.geom or adjust {block}.confinement",
+                        f"{block}.confinement",
+                    )
+                    raise SimflowConfigError(*msg)
                 reg = pyg4ometry.gdml.Reader(
                     str(nersc.dvs_ro(config, geom))
                 ).getRegistry()

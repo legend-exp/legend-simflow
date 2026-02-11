@@ -1,22 +1,31 @@
 from __future__ import annotations
 
-import pyg4ometry
+import pygeoml200
 import pytest
 
 from legendsimflow import commands, confine
 
 
-def test_get_lar_minishroud_confine_commands(config):
-    reg = pyg4ometry.gdml.Reader(config.paths.geom / "l200p02-geom.gdml").getRegistry()
+@pytest.fixture(scope="session")
+def test_generate_gdml(config):
+    geom_config = config.metadata.simprod.config.geom["l200p02-geom-config"]
 
-    lines = confine.get_lar_minishroud_confine_commands(reg, inside=True)
+    return pygeoml200.core.construct(
+        use_detailed_fiber_model=False, config=geom_config, public_geometry=True
+    )
+
+
+def test_get_lar_minishroud_confine_commands(test_generate_gdml):
+    lines = confine.get_lar_minishroud_confine_commands(test_generate_gdml, inside=True)
 
     assert len(lines) > 0
     assert isinstance(lines, list)
 
     assert "/RMG/Generator/Confinement/Geometrical/AddSolid Cylinder" in lines
 
-    lines_outside = confine.get_lar_minishroud_confine_commands(reg, inside=False)
+    lines_outside = confine.get_lar_minishroud_confine_commands(
+        test_generate_gdml, inside=False
+    )
 
     assert len(lines_outside) > 0
     assert isinstance(lines_outside, list)
@@ -28,41 +37,36 @@ def test_get_lar_minishroud_confine_commands(config):
 
     with pytest.raises(ValueError):
         confine.get_lar_minishroud_confine_commands(
-            reg, pattern="non_existent_pattern*"
+            test_generate_gdml, pattern="non_existent_pattern*"
         )
     with pytest.raises(ValueError):
         # exist pattern but not a nms
-        confine.get_lar_minishroud_confine_commands(reg, pattern="V**")
+        confine.get_lar_minishroud_confine_commands(test_generate_gdml, pattern="V**")
 
     # test with eval
 
     lines_eval = commands.get_confinement_from_function(
         "legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,inside=True)",
-        reg,
+        test_generate_gdml,
     )
     assert lines_eval == lines
 
     lines_outside_eval = commands.get_confinement_from_function(
         "legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,inside=False)",
-        reg,
+        test_generate_gdml,
     )
     assert lines_outside_eval == lines_outside
-
-    lines_outside_eval = commands.get_confinement_from_function(
-        "legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,inside=False)",
-        reg,
-    )
 
     # test with string
     lines_eval_string = commands.get_confinement_from_function(
         "legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,lar_name= 'liquid_argon',inside=True)",
-        reg,
+        test_generate_gdml,
     )
     assert lines_eval_string == lines
 
     # without any kwarg
     lines_eval_args = commands.get_confinement_from_function(
         "legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,'minishroud_tube*',True,lar_name= 'liquid_argon')",
-        reg,
+        test_generate_gdml,
     )
     assert lines_eval_args == lines
