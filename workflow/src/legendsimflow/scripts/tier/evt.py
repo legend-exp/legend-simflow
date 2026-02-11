@@ -131,7 +131,7 @@ for chunk in it:
 
     timestamp = _read_hits(tcm, "hit", "t0")
     timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
-    out_table.add_field("trigger/timestamp", Array(timestamp))
+    out_table.add_field("trigger/timestamp", Array(timestamp, attrs={"units": "ns"}))
 
     # HPGe table
     # ----------
@@ -149,7 +149,9 @@ for chunk in it:
     out_table.add_field(
         "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
     )
-    out_table.add_field("geds/energy", VectorOfVectors(energy[hitsel]))
+    out_table.add_field(
+        "geds/energy", VectorOfVectors(energy[hitsel], attrs={"units": "keV"})
+    )
 
     # fields to identify detectors and lookup stuff in the lower tiers
     out_table.add_field("geds/rawid", VectorOfVectors(tcm["hit"].table_key[hitsel]))
@@ -186,11 +188,10 @@ for chunk in it:
         "spms/hit_idx", VectorOfVectors(tcm["opt"].row_in_table[chansel])
     )
 
-    for field in ["time"]:
-        field_data = _read_hits(tcm, "opt", field)
-        out_table.add_field(
-            f"spms/{field}", VectorOfVectors(field_data[pesel][chansel])
-        )
+    time = _read_hits(tcm, "opt", "time")
+    out_table.add_field(
+        "spms/time", VectorOfVectors(time[pesel][chansel], attrs={"units": "ns"})
+    )
 
     # total amount of light per event
     energy_sum = ak.sum(ak.sum(energy, axis=-1), axis=-1)
