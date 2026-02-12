@@ -68,7 +68,8 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 perf_block, print_perf = make_profiler()
 
 # load the geometry and retrieve registered sensitive volume tables
-geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
+with perf_block("load_pygeom()"):
+    geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 # determine list of stp tables in the stp file
@@ -151,9 +152,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)
-        i_start, n_entries = reboost_utils.get_remage_hit_range(
-            tcm, det_name, geom_meta.uid, evt_idx_range
-        )
+        with perf_block("get_remage_hit_range()"):
+            i_start, n_entries = reboost_utils.get_remage_hit_range(
+                tcm, det_name, geom_meta.uid, evt_idx_range
+            )
 
         # initialize the stp file iterator
         # NOTE: if the entry list is empty, there will be no processing but an
@@ -234,11 +236,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
-            with perf_block("gauss_smear()"):
-                energy = reboost_utils.gauss_smear(
-                    energy_true,
-                    energy_res / 2.35482,
-                )
+            energy = reboost_utils.gauss_smear(
+                energy_true,
+                energy_res / 2.35482,
+            )
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
@@ -266,10 +267,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
 
                 # Apply current resolution smearing based on configured A/E noise parameters
-                with perf_block("gauss_smear()"):
-                    _a_max = reboost_utils.gauss_smear(
-                        _a_max_true, pars.current_reso / pars.mean_aoe
-                    )
+                _a_max = reboost_utils.gauss_smear(
+                    _a_max_true, pars.current_reso / pars.mean_aoe
+                )
 
                 # finally calculate A/E
                 aoe = _a_max / energy
