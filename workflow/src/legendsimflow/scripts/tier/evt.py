@@ -60,8 +60,8 @@ if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
         "stp and evt tcm should have same number of rows not "
         f"stp={lh5.read_n_rows('tcm', stp_file)}, "
         f"evt={lh5.read_n_rows('tcm', evt_file)}, "
-        f"hit={lh5.read_n_rows('tcm', hit_file['hit'])}, ",
-        f"opt={lh5.read_n_rows('tcm', hit_file['opt'])}",
+        f"hit={lh5.read_n_rows('tcm', hit_file['hit'])}, "
+        f"opt={lh5.read_n_rows('tcm', hit_file['opt'])}"
     )
 
     raise ValueError(msg)
@@ -202,7 +202,7 @@ for chunk in it:
     )
 
     # total amount of light per event
-    energy_sum = ak.sum(ak.sum(energy, axis=-1), axis=-1)
+    energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
     out_table.add_field("spms/energy_sum", Array(energy_sum))
 
     # how many channels say some light
