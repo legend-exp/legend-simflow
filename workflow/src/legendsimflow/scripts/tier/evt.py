@@ -28,7 +28,7 @@ from legendsimflow.metadata import encode_usability
 
 GEDS_ENERGY_THR_KEV = 25
 SPMS_ENERGY_THR_PE = 0
-BUFFER_LEN = "100*MB"
+BUFFER_LEN = "50*MB"
 OFF = encode_usability("off")
 ON = encode_usability("on")
 
