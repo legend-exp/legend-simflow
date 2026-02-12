@@ -17,6 +17,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pyg4ometry
 import pygeomhpges
 import pygeomhpges.draw
 from lgdo import lh5
@@ -29,6 +30,9 @@ args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
 dtmap_file = args.input[0]
 output_pdf = args.output[0]
+
+reg = pyg4ometry.geant4.Registry()
+natge = pygeomhpges.materials.make_natural_germanium(registry=reg)
 
 
 def symmetrize(a):
@@ -46,7 +50,9 @@ def save_page(pdf, make_fig):
 def fig(hpge):
     # HPGe profile
     pyobj = pygeomhpges.make_hpge(
-        args.config.metadata.hardware.detectors.germanium.diodes[hpge], registry=None
+        args.config.metadata.hardware.detectors.germanium.diodes[hpge],
+        registry=reg,
+        material=natge,
     )
 
     dtmap = lh5.read(hpge, dtmap_file)
