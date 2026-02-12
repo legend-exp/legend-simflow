@@ -152,6 +152,13 @@ for chunk in it:
     out_table.add_field(
         "geds/energy", VectorOfVectors(energy[hitsel], attrs={"units": "keV"})
     )
+    # NOTE: the energy sum does not include AC detectors
+    out_table.add_field(
+        "geds/energy_sum",
+        Array(
+            ak.sum(energy[hitsel & (usability == ON)], axis=-1), attrs={"units": "keV"}
+        ),
+    )
 
     # fields to identify detectors and lookup stuff in the lower tiers
     out_table.add_field("geds/rawid", VectorOfVectors(tcm["hit"].table_key[hitsel]))
@@ -160,13 +167,14 @@ for chunk in it:
     )
 
     # simply forward some fields
-    for field in ["aoe"]:
-        field_data = _read_hits(tcm, "hit", field)
-        out_table.add_field(f"geds/{field}", VectorOfVectors(field_data[hitsel]))
+    aoe = _read_hits(tcm, "hit", "aoe")
+    out_table.add_field("geds/aoe", VectorOfVectors(aoe[hitsel]))
+
+    out_table.add_field("geds/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
 
     # compute multiplicity
-    multiplicity = ak.sum(hitsel, axis=-1)
-    out_table.add_field("geds/multiplicity", Array(multiplicity))
+    geds_multiplicity = ak.sum(hitsel, axis=-1)
+    out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
 
     # SiPM table
     # ----------
@@ -198,12 +206,19 @@ for chunk in it:
     out_table.add_field("spms/energy_sum", Array(energy_sum))
 
     # how many channels say some light
-    multiplicity = ak.sum(chansel, axis=-1)
-    out_table.add_field("spms/multiplicity", Array(multiplicity))
+    spms_multiplicity = ak.sum(chansel, axis=-1)
+    out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
 
-    # the HPGE-SiPM coincidence classifier
-    lar_veto = (multiplicity >= 4) | (energy_sum >= 4)
-    out_table.add_field("spms/geds_coincidence_classifier", Array(lar_veto))
+    # coincidences table
+    # ------------------
+    out_table.add_field("coincident", Table(size=len(unified_tcm)))
+
+    # is there a signal in the HPGe array?
+    out_table.add_field("coincident/geds", Array(geds_multiplicity > 0))
+
+    # is there a signal in the LAr instrumentation?
+    lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
+    out_table.add_field("coincident/spms", Array(lar_veto))
 
     # now write down
     lh5.write(out_table, "evt", evt_file, wo_mode="append")
