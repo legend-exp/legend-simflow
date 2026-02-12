@@ -38,6 +38,7 @@ from lgdo.lh5 import LH5Iterator
 from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.profile import make_profiler
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -64,6 +65,7 @@ def DEFAULT_ENERGY_RES_FUNC(energy):
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+perf_block, print_perf = make_profiler()
 
 # load the geometry and retrieve registered sensitive volume tables
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
@@ -192,22 +194,24 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             n_tot += len(chunk)
 
-            _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
-                chunk.xloc,
-                chunk.yloc,
-                chunk.zloc,
-                pyobj,
-                det_loc[det_name],
-                distances_precompute=chunk.dist_to_surf,
-                precompute_cutoff=(fccd + 1),
-                surface_type="nplus",
-            )
+            with perf_block("distance_to_surface()"):
+                _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
+                    chunk.xloc,
+                    chunk.yloc,
+                    chunk.zloc,
+                    pyobj,
+                    det_loc[det_name],
+                    distances_precompute=chunk.dist_to_surf,
+                    precompute_cutoff=(fccd + 1),
+                    surface_type="nplus",
+                )
 
-            _activeness = reboost.math.functions.piecewise_linear_activeness(
-                _distance_to_nplus,
-                fccd_in_mm=fccd,
-                dlf=0.5,
-            )
+            with perf_block("piecewise_linear_activeness()"):
+                _activeness = reboost.math.functions.piecewise_linear_activeness(
+                    _distance_to_nplus,
+                    fccd_in_mm=fccd,
+                    dlf=0.5,
+                )
 
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
@@ -230,10 +234,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
-            energy = reboost_utils.gauss_smear(
-                energy_true,
-                energy_res / 2.35482,
-            )
+            with perf_block("gauss_smear()"):
+                energy = reboost_utils.gauss_smear(
+                    energy_true,
+                    energy_res / 2.35482,
+                )
 
             # PSD: if the drift time map is none, it means that we don't
             # have the detector model to simulate PSD in a more advanced
@@ -248,20 +253,23 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 msg = "computing PSD observables"
                 log.info(msg)
 
-                _drift_time = reboost_utils.hpge_corrected_drift_time(
-                    chunk, dt_map, det_loc[det_name]
-                )
+                with perf_block("hpge_corrected_drift_time()"):
+                    _drift_time = reboost_utils.hpge_corrected_drift_time(
+                        chunk, dt_map, det_loc[det_name]
+                    )
                 utils.check_nans_leq(_drift_time, "_drift_time", 0.01)
 
-                _a_max_true = reboost_utils.hpge_max_current(
-                    edep_active, _drift_time, currmod_pars
-                )
+                with perf_block("hpge_max_current()"):
+                    _a_max_true = reboost_utils.hpge_max_current(
+                        edep_active, _drift_time, currmod_pars
+                    )
                 utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
 
                 # Apply current resolution smearing based on configured A/E noise parameters
-                _a_max = reboost_utils.gauss_smear(
-                    _a_max_true, pars.current_reso / pars.mean_aoe
-                )
+                with perf_block("gauss_smear()"):
+                    _a_max = reboost_utils.gauss_smear(
+                        _a_max_true, pars.current_reso / pars.mean_aoe
+                    )
 
                 # finally calculate A/E
                 aoe = _a_max / energy
@@ -269,9 +277,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 # also calculate drift time at A position
                 # FIXME: this is wasting compute resources, max_current should
                 # return (maxA, t_maxA)
-                t_max = reboost_utils.hpge_max_current(
-                    edep_active, _drift_time, currmod_pars, return_mode="max_time"
-                )
+                with perf_block("hpge_max_current()"):
+                    t_max = reboost_utils.hpge_max_current(
+                        edep_active, _drift_time, currmod_pars, return_mode="max_time"
+                    )
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
@@ -289,12 +298,13 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     lgdo.Array(np.full(shape=len(chunk), fill_value=field_vals[i])),
                 )
 
-            reboost_utils.write_chunk(
-                out_table,
-                f"/hit/{det_name}",
-                hit_file,
-                geom_meta.uid,
-            )
+            with perf_block("write_chunk()"):
+                reboost_utils.write_chunk(
+                    out_table,
+                    f"/hit/{det_name}",
+                    hit_file,
+                    geom_meta.uid,
+                )
 
         assert n_tot == n_entries
         # this table has been processed
@@ -309,3 +319,5 @@ if not_done:
 
 log.debug("building the TCM")
 reboost_utils.build_tcm(hit_file, hit_file)
+
+print_perf()
