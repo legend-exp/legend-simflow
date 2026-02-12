@@ -69,6 +69,10 @@ def gen_list_of_simid_outputs(
 
 def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kwargs):
     """Generate the list of plots files for a `tier.simid`."""
+    if tier == "cvt":
+        return [
+            patterns.plot_tier_cvt_observables_filename(config, simid=simid),
+        ]
     if tier == "hit":
         return [
             patterns.plot_tier_hit_observables_filename(config, simid=simid),
