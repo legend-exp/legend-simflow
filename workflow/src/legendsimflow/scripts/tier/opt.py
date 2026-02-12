@@ -186,11 +186,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
         log.info("processing the 'lar' scintillator table...")
 
-        # get the usability
-        usability = usabilities[runid][det_name]
-        if usability is None:
-            usability = "on"
-
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)
         i_start, n_entries = reboost_utils.get_remage_hit_range(
@@ -209,6 +204,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         if optmap_per_sipm:
             for sipm in reboost_utils.get_senstables(geom, "optical"):
                 sipm_uid = sens_tables[sipm].uid
+
+                # get the usability
+                usability = usabilities[runid][sipm]
+                if usability is None:
+                    usability = "on"
 
                 msg = f"applying optical map for SiPM {sipm}"
                 log.debug(msg)
@@ -233,7 +233,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 geom_meta.uid,
                 hit_file,
                 runid,
-                usability,
+                "on",
             )
 
 
