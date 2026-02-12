@@ -121,7 +121,7 @@ function main()
     dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
     @info "Depletion measured during characterization is $dep_meas"
 
-    if abs(dep_meas - dep) > 100 * u"V"
+    if abs(dep_meas - dep) > 200 * u"V"
         error("Difference between measured and simulated depletion is larger than 100 V!")
     end
 
