@@ -580,6 +580,7 @@ def gauss_smear(arr_true: ak.Array, arr_reso: ak.Array) -> ak.Array:
     # energy can't be negative as a result of smearing
     return ak.where((arr_smear <= 0) & (arr_true >= 0), np.finfo(float).tiny, arr_smear)
 
+
 def _process_spms_windows(
     spms: ak.Array,
     win_ranges: list[tuple[float, float]],
@@ -662,6 +663,7 @@ def _process_spms_windows(
         t0 = ak.concatenate((t0, new_t0))
 
     return npe, t0
+
 
 def get_forced_trigger_library(
     evt_files: Iterable[str],

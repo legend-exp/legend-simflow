@@ -35,7 +35,7 @@ from lgdo.lh5 import LH5Iterator
 from reboost.optmap.convolve import OptmapForConvolve
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc
+from legendsimflow import nersc, spms_pars, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.profile import make_profiler
 from legendsimflow.tcm import build_tcm
@@ -53,6 +53,8 @@ optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
 simstat_part_file = args.input.simstat_part_file
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
+l200data = args.config.paths.l200data
+evt_tier_name = utils.get_evt_tier_name(l200data)
 
 hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
@@ -81,6 +83,7 @@ def process_sipm(
     out_file: str | Path,
     runid: str,
     usability: str,
+    rand_coinc_sampler: spms_pars.RandCoincSampler,
 ) -> None:
     with perf_block("load_optmap()"):
         if not isinstance(optmap_lar, OptmapForConvolve):
@@ -132,6 +135,11 @@ def process_sipm(
                 TIME_RESOLUTION_NS,
             )
 
+        # Add random coincidences from forced trigger library
+        with perf_block("add_random_coincidences()"):
+            # Sample random coincidence data for this chunk
+            rc_amps, rc_times = rand_coinc_sampler.sample(sipm_uid, len(chunk))
+
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
@@ -140,6 +148,9 @@ def process_sipm(
             )
             out_table.add_field("energy", VectorOfVectors(pe_amps))
             out_table.add_field("is_saturated", Array(is_saturated))
+
+            out_table.add_field("rc_time", VectorOfVectors(rc_times))
+            out_table.add_field("rc_energy", VectorOfVectors(rc_amps))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]
@@ -175,6 +186,16 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         f"[{runid_idx + 1}/{len(partitions)}], event range {evt_idx_range}"
     )
     log.info(msg)
+
+    # Load forced trigger library and create sampler
+    msg = "loading forced trigger library for random coincidences"
+    log.debug(msg)
+    evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+    ft_library = reboost_utils.get_forced_trigger_library(evt_files)
+
+    msg = f"creating random coincidence sampler with {len(ft_library)} events"
+    log.debug(msg)
+    rand_coinc_sampler = spms_pars.RandCoincSampler(ft_library)
 
     # loop over the sensitive volume tables registered in the geometry
     for det_name, geom_meta in sens_tables.items():
@@ -233,6 +254,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     hit_file,
                     runid,
                     usability,
+                    rand_coinc_sampler,
                 )
 
         else:
@@ -246,6 +268,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 hit_file,
                 runid,
                 "on",
+                usability,
+                rand_coinc_sampler,
             )
 
 
