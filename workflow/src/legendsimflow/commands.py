@@ -101,6 +101,9 @@ def remage_run(
     if not isinstance(output, Path):
         output = Path(str(output))
 
+    # geometry is read only here
+    geom = nersc.dvs_ro(config, geom)
+
     # get the config block for this tier/simid
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig.{simid}"
     sim_cfg = get_simconfig(config, tier, simid=simid)
@@ -156,7 +159,7 @@ def remage_run(
         "--procs",
         str(procs),
         "--gdml-files",
-        str(nersc.dvs_ro(config, geom)),
+        str(geom),
         "--output-file",
         str(output),
     ]
@@ -392,9 +395,8 @@ def make_remage_macro(
                         f"{block}.confinement",
                     )
                     raise SimflowConfigError(*msg)
-                reg = pyg4ometry.gdml.Reader(
-                    str(nersc.dvs_ro(config, geom))
-                ).getRegistry()
+
+                reg = pyg4ometry.gdml.Reader(str(geom)).getRegistry()
 
                 func_name = sim_cfg.confinement.removeprefix("~function:")
                 confinement = get_confinement_from_function(func_name, reg)
