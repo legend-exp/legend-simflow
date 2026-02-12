@@ -83,7 +83,8 @@ def process_sipm(
     out_file: str | Path,
     runid: str,
     usability: str,
-    rand_coinc_sampler: spms_pars.RandCoincSampler,
+    sampled_ft_library: ak.Array,
+    ft_offset: dict,
 ) -> None:
     with perf_block("load_optmap()"):
         if not isinstance(optmap_lar, OptmapForConvolve):
@@ -137,8 +138,15 @@ def process_sipm(
 
         # Add random coincidences from forced trigger library
         with perf_block("add_random_coincidences()"):
-            # Sample random coincidence data for this chunk
-            rc_amps, rc_times = rand_coinc_sampler.sample(sipm_uid, len(chunk))
+            # Extract the pre-sampled forced trigger library for this chunk
+            chunk_ft_library = sampled_ft_library[
+                ft_offset["idx"] : ft_offset["idx"] + len(chunk)
+            ]
+            ft_offset["idx"] += len(chunk)
+
+            rc_amps, rc_times = spms_pars.forced_trig_sipm_data(
+                chunk_ft_library, sipm, sipm_uid
+            )
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
@@ -187,15 +195,20 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     )
     log.info(msg)
 
-    # Load forced trigger library and create sampler
+    # Load forced trigger library and pre-sample for this partition
     msg = "loading forced trigger library for random coincidences"
     log.debug(msg)
     evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
     ft_library = reboost_utils.get_forced_trigger_library(evt_files)
 
-    msg = f"creating random coincidence sampler with {len(ft_library)} events"
-    log.debug(msg)
-    rand_coinc_sampler = spms_pars.RandCoincSampler(ft_library)
+    # Pre-sample the library with the total number of events in this partition
+    i_start_global, n_entries_partition = evt_idx_range
+    sampled_ft_library = spms_pars.subsample_forced_trig_library(
+        ft_library, n_entries_partition
+    )
+
+    # Offset tracker for iterating through the pre-sampled library
+    ft_offset = {"idx": 0}
 
     # loop over the sensitive volume tables registered in the geometry
     for det_name, geom_meta in sens_tables.items():
@@ -254,7 +267,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     hit_file,
                     runid,
                     usability,
-                    rand_coinc_sampler,
+                    sampled_ft_library,
+                    ft_offset,
                 )
 
         else:
@@ -269,7 +283,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 runid,
                 "on",
                 usability,
-                rand_coinc_sampler,
+                sampled_ft_library,
+                ft_offset,
             )
 
 

@@ -280,13 +280,16 @@ def get_evt_tier_name(l200data: str) -> str:
 
     df_cfg = lookup_dataflow_config(l200data).paths
 
-    # first check if pht exists
+    # first check if pet exists
+    has_pet = ("tier_pet" in df_cfg) and Path(df_cfg.tier_pet).exists()
     has_evt = ("tier_evt" in df_cfg) and Path(df_cfg.tier_evt).exists()
 
+    if has_pet:
+        return "pet"
     if has_evt:
         return "evt"
 
-    msg = f"The l200data {l200data} does not contain a valid evt tier"
+    msg = f"The l200data {l200data} does not contain a valid pet or evt tier"
     raise RuntimeError(msg)
 
 
