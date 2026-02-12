@@ -67,6 +67,15 @@ def _merge_defaults(user: dict, default: dict) -> dict:
     return result
 
 
+def _make_path(d):
+    for k, v in d.items():
+        if isinstance(v, str):
+            d[k] = Path(v).resolve()
+        else:
+            d[k] = _make_path(v)
+    return d
+
+
 def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     """Pre-process and sanitize the Simflow configuration.
 
@@ -113,14 +122,6 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     config = AttrsDict(raw_config)
 
     # convert all strings in the "paths" block to pathlib.Path
-    def _make_path(d):
-        for k, v in d.items():
-            if isinstance(v, str):
-                d[k] = Path(v)
-            else:
-                d[k] = _make_path(v)
-        return d
-
     config["paths"] = _make_path(config.paths)
 
     if "l200data" in config.paths:
@@ -215,6 +216,9 @@ def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
         use_env=False,
         ignore_missing=True,
     )
+
+    # convert all strings in the "paths" block to pathlib.Path
+    df_cfg["paths"] = _make_path(df_cfg.paths)
 
     return df_cfg
 

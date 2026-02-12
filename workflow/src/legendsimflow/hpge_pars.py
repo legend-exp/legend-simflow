@@ -474,26 +474,15 @@ def lookup_file_paths(l200data: str, runid: str, hit_tier_name: str) -> AttrsDic
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
-    dataflow_config = utils.lookup_dataflow_config(l200data)
+    df_cfg = utils.lookup_dataflow_config(l200data).paths
 
-    # get the paths to hit and raw tier files
-    df_cfg = (
-        dataflow_config["setups"]["l200"]["paths"]
-        if ("setups" in dataflow_config)
-        else dataflow_config["paths"]
-    )
-
-    hit_path = Path(
-        df_cfg[f"tier_{hit_tier_name}"].replace("$_", str(l200data))
-    ).resolve()
-    hit_files = list((hit_path / data_type / period / run).glob("*"))
-
-    raw_path = Path(df_cfg["tier_raw"].replace("$_", str(l200data))).resolve()
+    hit_path = df_cfg[f"tier_{hit_tier_name}"]
+    hit_files = list((hit_path / data_type / period / run).glob("*.lh5"))
 
     raw_files = [
         Path(
             str(hit_file)
-            .replace(str(hit_path), str(raw_path))
+            .replace(str(hit_path), str(df_cfg.tier_raw))
             .replace(hit_tier_name, "raw")
         )
         for hit_file in hit_files
@@ -527,13 +516,7 @@ def lookup_currmod_fit_inputs(
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
-    dataflow_config = utils.lookup_dataflow_config(l200data)
-
-    df_cfg = (
-        dataflow_config["setups"]["l200"]["paths"]
-        if ("setups" in dataflow_config)
-        else dataflow_config["paths"]
-    )
+    df_cfg = utils.lookup_dataflow_config(l200data).paths
 
     # get the reference cal run
     cal_runid = mutils.reference_cal_run(metadata, runid)
@@ -542,7 +525,7 @@ def lookup_currmod_fit_inputs(
     msg = f"inferred reference calibration run: {cal_runid}"
     log.debug(msg)
 
-    hit_path = Path(df_cfg[f"tier_{hit_tier_name}"])
+    hit_path = df_cfg[f"tier_{hit_tier_name}"]
     msg = f"looking for hit tier files in {hit_path / 'cal' / period / run}/*"
     log.debug(msg)
 
@@ -573,15 +556,15 @@ def lookup_currmod_fit_inputs(
 
     wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
 
-    raw_path = Path(df_cfg.tier_raw)
+    raw_path = df_cfg.tier_raw
     hit_file = hit_files[file_idx]
-    raw_file = raw_path / str(hit_file.relative_to(hit_path)).replace(
-        hit_tier_name, "raw"
-    )
+    raw_file = (
+        raw_path / str(hit_file.relative_to(hit_path)).replace(hit_tier_name, "raw")
+    ).resolve()
     msg = f"determined raw file: {raw_file} (event index {wf_idx})"
     log.debug(msg)
 
-    return raw_file.resolve(), wf_idx, dsp_cfg_files[0]
+    return raw_file, wf_idx, dsp_cfg_files[0]
 
 
 def lookup_energy_res_metadata(
