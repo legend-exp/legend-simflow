@@ -54,6 +54,7 @@ rule build_tier_opt:
     params:
         optmap_per_sipm=True,
         scintillator_volume_name="liquid_argon",
+        usabilities=SIMFLOW_CONTEXT["usabilities"],
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:

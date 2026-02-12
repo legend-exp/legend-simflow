@@ -50,6 +50,7 @@ metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
 simstat_part_file = args.input.simstat_part_file
+usabilities = args.params.usabilities
 
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
@@ -186,7 +187,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         log.info("processing the 'lar' scintillator table...")
 
         # get the usability
-        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
+        usability = usabilities[runid][det_name]
+        if usability is None:
+            usability = "on"
 
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)

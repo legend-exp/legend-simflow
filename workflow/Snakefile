@@ -21,6 +21,8 @@ import time
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
+from legendsimflow.metadata import get_all_usabilities
+from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
 
 
 print("INFO: initializing workflow context")
@@ -28,11 +30,12 @@ print("INFO: initializing workflow context")
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
 
-# it takes a while to generate the list of good HPGes, let's do it at the start
-# and cache it for later
-SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_modeling(
-    config
-)
+# it takes a while to generate the list of good HPGes and the usability of all
+# channels, let's do it at the start and cache it for later
+SIMFLOW_CONTEXT |= {
+    "modelable_hpges": gen_list_of_all_hpges_valid_for_modeling(config),
+    "usabilities": get_all_usabilities(config.metadata, config.runlist),
+}
 
 print("INFO: done. handing it over to Snakemake")
 

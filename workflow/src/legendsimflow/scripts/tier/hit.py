@@ -53,6 +53,7 @@ hpge_currmods_files = args.input.hpge_currmods
 hpge_eresmods_files = args.input.hpge_eresmods
 simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
+usabilities = args.params.usabilities
 
 BUFFER_LEN = "500*MB"
 
@@ -148,7 +149,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             continue
 
         # get the usability
-        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
+        usability = usabilities[runid][det_name]
+        if usability is None:
+            usability = "on"
 
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)
