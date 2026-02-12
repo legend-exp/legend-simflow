@@ -345,7 +345,7 @@ def get_noise_waveforms(
     length: int = 1000,
     maximum_number: int | None = None,
     energy_var: str = "cuspEmax_cal",
-):
+) -> NDArray:
     """Extract a matrix of noise waveforms, after applying some DSP processing.
 
     The waveforms are only those with energy less than `threshold` and are the
@@ -478,6 +478,10 @@ def lookup_file_paths(l200data: str, runid: str, hit_tier_name: str) -> AttrsDic
 
     hit_path = df_cfg[f"tier_{hit_tier_name}"]
     hit_files = list((hit_path / data_type / period / run).glob("*.lh5"))
+
+    if hit_files == []:
+        msg = f"no LH5 files found in {hit_path / data_type / period / run}"
+        raise RuntimeError(msg)
 
     raw_files = [
         Path(
