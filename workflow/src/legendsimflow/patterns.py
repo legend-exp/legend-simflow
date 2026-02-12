@@ -206,6 +206,12 @@ def plot_tier_opt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def plot_tier_cvt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="cvt") / "tier-cvt-observables.pdf", **kwargs
+    )
+
+
 # drift time maps
 
 
