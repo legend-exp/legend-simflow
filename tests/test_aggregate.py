@@ -33,7 +33,7 @@ def test_simid_harvesting(config):
     simids = agg.gen_list_of_all_simids(config)
     assert isinstance(simids, type({}.keys()))
     assert all(isinstance(s, str) for s in simids)
-    assert len(simids) == 9
+    assert len(simids) == 11
 
 
 def test_simid_outputs(config):
@@ -165,4 +165,4 @@ def test_currmod_stuff(config):
 
 def test_tier_evt_stuff(config):
     files = agg.gen_list_of_all_tier_cvt_outputs(config)
-    assert len(files) == 9
+    assert len(files) == 11
