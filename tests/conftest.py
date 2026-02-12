@@ -9,6 +9,7 @@ import yaml
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendtestdata import LegendTestData
+from pygeoml200 import core
 
 testprod = Path(__file__).parent / "dummyprod"
 config_filename = testprod / "simflow-config.yaml"
@@ -24,6 +25,15 @@ def legend_testdata():
 @pytest.fixture(scope="session")
 def legend_test_metadata(legend_testdata):
     return LegendMetadata(legend_testdata["legend/metadata"])
+
+
+@pytest.fixture(scope="session")
+def test_generate_gdml(config):
+    geom_config = config.metadata.simprod.config.geom["l200p02-geom-config"]
+
+    return core.construct(
+        use_detailed_fiber_model=False, config=geom_config, public_geometry=True
+    )
 
 
 def make_config(legend_testdata):
