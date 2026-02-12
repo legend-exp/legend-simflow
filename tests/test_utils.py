@@ -39,7 +39,8 @@ def test_get_dataflow_config(test_l200data):
 
     assert isinstance(config, AttrsDict)
     assert "paths" in config
-    assert "$_" not in config.paths.tier
+    assert isinstance(config.paths.tier, Path)
+    assert "$_" not in str(config.paths.tier)
 
 
 def test_check_nans_leq():
