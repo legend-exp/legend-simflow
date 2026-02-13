@@ -280,7 +280,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 hit_file,
                 runid,
                 "on",
-                usability,
                 ft_library,
                 ft_offset,
             )
