@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 import awkward as ak
 import numpy as np
 import pytest
@@ -57,78 +55,6 @@ def mock_forced_trig_library():
             "rawid": ak.Array([rawid_array for _ in range(len(npe_data))]),
         }
     )
-
-
-def test_subsample_exact_size(mock_forced_trig_library):
-    """Test subsampling to exact library size."""
-    n_lib = len(mock_forced_trig_library)
-    sampled = spms_pars.subsample_forced_trig_library(mock_forced_trig_library, n_lib)
-
-    assert len(sampled) == n_lib
-
-
-def test_subsample_smaller_size(mock_forced_trig_library):
-    """Test subsampling to smaller size."""
-    sampled = spms_pars.subsample_forced_trig_library(mock_forced_trig_library, 5)
-
-    assert len(sampled) == 5
-
-    # Check that fields exist and have correct structure
-    assert len(sampled.npe) == 5
-    assert len(sampled.t0) == 5
-    assert len(sampled.rawid) == 5
-
-    # Each event should have 3 SiPM channels
-    for npe_event in sampled.npe:
-        assert len(npe_event) == 3
-
-
-def test_subsample_larger_size_with_replacement(mock_forced_trig_library, caplog):
-    """Test subsampling with replacement for large requests."""
-    n_lib = len(mock_forced_trig_library)
-
-    with caplog.at_level(logging.WARNING):
-        sampled = spms_pars.subsample_forced_trig_library(
-            mock_forced_trig_library, n_lib * 5
-        )
-
-    assert len(sampled) == n_lib * 5
-    # Should have warned about replacement
-    assert any(
-        "Sampling with replacement" in record.message for record in caplog.records
-    )
-
-
-def test_subsample_reproducible_with_seed(mock_forced_trig_library):
-    """Test reproducibility with same RNG seed."""
-    rng1 = np.random.default_rng(42)
-    sampled1 = spms_pars.subsample_forced_trig_library(
-        mock_forced_trig_library, 7, rng1
-    )
-
-    rng2 = np.random.default_rng(42)
-    sampled2 = spms_pars.subsample_forced_trig_library(
-        mock_forced_trig_library, 7, rng2
-    )
-
-    # Should be identical with same seed
-    assert ak.to_list(sampled1) == ak.to_list(sampled2)
-
-
-def test_subsample_different_seed_different_result(mock_forced_trig_library):
-    """Test that different seeds produce different samples."""
-    rng1 = np.random.default_rng(42)
-    sampled1 = spms_pars.subsample_forced_trig_library(
-        mock_forced_trig_library, 10, rng1
-    )
-
-    rng2 = np.random.default_rng(123)
-    sampled2 = spms_pars.subsample_forced_trig_library(
-        mock_forced_trig_library, 10, rng2
-    )
-
-    # Very unlikely to be identical with different seeds
-    assert ak.to_list(sampled1) != ak.to_list(sampled2)
 
 
 def test_extract_single_channel(mock_forced_trig_library):

@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 
 import awkward as ak
-import numpy as np
 
 from . import utils
 
@@ -31,47 +30,6 @@ def lookup_evt_files(l200data: str, runid: str, evt_tier_name: str) -> list[str 
 
     evt_path = Path(df_cfg[f"tier_{evt_tier_name}"]).resolve()
     return list((evt_path / data_type / period / run).glob("*"))
-
-
-def subsample_forced_trig_library(
-    forced_trig_library: ak.Array,
-    n_entries: int,
-    rng: np.random.Generator = None,
-) -> ak.Array:
-    """Subsample the forced trigger library to a desired number of events.
-
-    Randomly samples n_entries events from the library with replacement if needed.
-
-    Parameters
-    ----------
-    forced_trig_library
-        Library of forced trigger events from data containing npe, t0, and rawid fields.
-    n_entries
-        Number of entries to sample.
-    rng
-        Random number generator. If None, uses default_rng().
-
-    Returns
-    -------
-    sampled_library
-        Subsampled library with n_entries events.
-    """
-    if rng is None:
-        rng = np.random.default_rng()
-
-    n_available = len(forced_trig_library)
-
-    if n_entries > n_available:
-        log.warning(
-            "Requested %d samples but only %d available in forced trigger library. "
-            "Sampling with replacement - some events will be reused.",
-            n_entries,
-            n_available,
-        )
-
-    indices = rng.choice(n_available, size=n_entries, replace=True)
-
-    return forced_trig_library[indices]
 
 
 def forced_trig_sipm_data(

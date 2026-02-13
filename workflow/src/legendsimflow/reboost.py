@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import re
 from collections.abc import Mapping
 from collections.abc import Callable, Iterable, Mapping
@@ -667,6 +668,7 @@ def _process_spms_windows(
 
 def get_forced_trigger_library(
     evt_files: Iterable[str],
+    num_evts: int,
     time_domain_ns: tuple[float, float] = (-1_000, 5_000),
     min_sep_ns: float = 6_000,
     ext_trig_range_ns: list[tuple[float, float]] | None = None,
@@ -688,6 +690,8 @@ def get_forced_trigger_library(
     ----------
     evt_files
         List of event tier data files.
+    num_evts:
+        Number of events required for forced trigger correction.
     time_domain_ns
         Target time range (start, end) for output times in nanoseconds.
         E.g., (-1000, 5000) means output times will be in [-1000, 5000].
@@ -722,7 +726,15 @@ def get_forced_trigger_library(
     if ge_trig_range_ns is None:
         ge_trig_range_ns = [(1_000, 44_000)]
 
+    # Shuffle evt_files and process until we have enough events
+    evt_files = list(evt_files)
+    random.shuffle(evt_files)
+    num_processed = 0
+
     for file in evt_files:
+        if num_processed >= num_evts:
+            break
+
         # Load all necessary data once
         evt = lh5.read(
             "evt/",
@@ -765,6 +777,9 @@ def get_forced_trigger_library(
             )
 
         rawids = rawids_tmp
+
+        # Update counter and check if we've processed enough events
+        num_processed += len(npe)
 
     # Handle case where no events passed the filters
     if len(npe) == 0 or rawids is None:

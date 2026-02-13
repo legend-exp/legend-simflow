@@ -339,7 +339,7 @@ def test_forced_trigger_library_basic(legend_testdata):
     f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
 
     # Test with default parameters
-    result = rutils.get_forced_trigger_library([f_evt])
+    result = rutils.get_forced_trigger_library([f_evt], 1000)
 
     # Check returned structure
     assert "npe" in result.fields
@@ -365,7 +365,9 @@ def test_forced_trigger_library_custom_time_domain(legend_testdata):
     f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
 
     # Use custom time domain
-    result = rutils.get_forced_trigger_library([f_evt], time_domain_ns=(-500, 3000))
+    result = rutils.get_forced_trigger_library(
+        [f_evt], 1000, time_domain_ns=(-500, 3000)
+    )
 
     # Check that times are in custom domain
     flat_t0 = ak.flatten(result.t0)
@@ -381,6 +383,7 @@ def test_forced_trigger_library_custom_ranges(legend_testdata):
     # Use custom ranges
     result = rutils.get_forced_trigger_library(
         [f_evt],
+        1000,
         ext_trig_range_ns=[(1000, 2000)],  # Single smaller range
         ge_trig_range_ns=[(1000, 2000)],  # Single smaller range
     )
@@ -395,7 +398,7 @@ def test_forced_trigger_library_rawid_consistency(legend_testdata):
     """Test that rawid is consistent across all entries."""
     f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
 
-    result = rutils.get_forced_trigger_library([f_evt])
+    result = rutils.get_forced_trigger_library([f_evt], 1000)
 
     if len(result) > 1:
         # All rows should have identical rawid arrays
@@ -408,7 +411,7 @@ def test_forced_trigger_library_structure(legend_testdata):
     """Test the structure of returned data from get_forced_trigger_library."""
     f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
 
-    result = rutils.get_forced_trigger_library([f_evt])
+    result = rutils.get_forced_trigger_library([f_evt], 1000)
 
     # npe and t0 should have matching shapes at each level
     assert len(result.npe) == len(result.t0)
@@ -424,7 +427,7 @@ def test_forced_trigger_library_evt_number(legend_testdata):
     """Test the structure of returned data from get_forced_trigger_library."""
     f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
 
-    result = rutils.get_forced_trigger_library([f_evt])
+    result = rutils.get_forced_trigger_library([f_evt], 1000)
 
     evt = lh5.read_as("evt", f_evt, "ak")
 
@@ -443,3 +446,14 @@ def test_forced_trigger_library_evt_number(legend_testdata):
     # 8 windows in forced trigger / pulser data
     # 4 windows in HPGe-triggered data
     assert len(result) == num_forced_pulser * 8 + num_geds * 4
+
+
+def test_forced_trigger_library_num_processed_files(legend_testdata):
+    f_evt = legend_testdata["lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"]
+
+    r1 = rutils.get_forced_trigger_library([f_evt], 1000)
+    r2 = rutils.get_forced_trigger_library([f_evt], 3000)
+    r3 = rutils.get_forced_trigger_library([f_evt, f_evt], 8000)
+
+    assert len(r1) == len(r2)
+    assert len(r3) == 2 * len(r1)

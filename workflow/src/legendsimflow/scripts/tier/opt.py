@@ -83,7 +83,7 @@ def process_sipm(
     out_file: str | Path,
     runid: str,
     usability: str,
-    sampled_ft_library: ak.Array,
+    ft_library: ak.Array,
     ft_offset: dict,
 ) -> None:
     with perf_block("load_optmap()"):
@@ -139,7 +139,7 @@ def process_sipm(
         # Add random coincidences from forced trigger library
         with perf_block("add_random_coincidences()"):
             # Extract the pre-sampled forced trigger library for this chunk
-            chunk_ft_library = sampled_ft_library[
+            chunk_ft_library = ft_library[
                 ft_offset["idx"] : ft_offset["idx"] + len(chunk)
             ]
             ft_offset["idx"] += len(chunk)
@@ -199,12 +199,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     msg = "loading forced trigger library for random coincidences"
     log.debug(msg)
     evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
-    ft_library = reboost_utils.get_forced_trigger_library(evt_files)
 
-    # Pre-sample the library with the total number of events in this partition
     i_start_global, n_entries_partition = evt_idx_range
-    sampled_ft_library = spms_pars.subsample_forced_trig_library(
-        ft_library, n_entries_partition
+    ft_library = reboost_utils.get_forced_trigger_library(
+        evt_files, n_entries_partition
     )
 
     # Offset tracker for iterating through the pre-sampled library
@@ -267,7 +265,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     hit_file,
                     runid,
                     usability,
-                    sampled_ft_library,
+                    ft_library,
                     ft_offset,
                 )
 
@@ -283,7 +281,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 runid,
                 "on",
                 usability,
-                sampled_ft_library,
+                ft_library,
                 ft_offset,
             )
 
