@@ -51,6 +51,7 @@ rule build_tier_opt:
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
+        detector_usabilities=rules.cache_detector_usabilities.output,
     params:
         optmap_per_sipm=True,
         scintillator_volume_name="liquid_argon",
