@@ -18,7 +18,6 @@
 from pathlib import Path
 
 import awkward as ak
-import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import numpy as np
@@ -29,6 +28,8 @@ import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math.functions
 import reboost.spms
+from dbetto import AttrsDict
+from dbetto.utils import load_dict
 from lgdo import Array, VectorOfVectors, lh5
 from lgdo.lh5 import LH5Iterator
 from reboost.optmap.convolve import OptmapForConvolve
@@ -50,7 +51,7 @@ metadata = args.config.metadata
 optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
 simstat_part_file = args.input.simstat_part_file
-usabilities = args.params.usabilities
+usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
 
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
@@ -145,7 +146,7 @@ def process_sipm(
             )
 
 
-partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
+partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
 
 # load TCM, to be used to chunk the event statistics according to the run partitioning
 msg = "loading TCM"

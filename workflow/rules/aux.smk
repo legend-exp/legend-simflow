@@ -63,3 +63,26 @@ rule _init_julia_env:
         "cd workflow/src/legendsimflow/scripts && "
         "julia --project=. ./init-julia-env.jl && "
         "touch {output}"
+
+
+rule cache_detector_usabilities:
+    """Cache detector usabilities.
+
+    Querying the metadata for detector analysis usability can be slow and
+    constitute the bottleneck in post-processing (`opt` and `hit` tiers).
+    This rule caches the mapping `run -> detector -> usability` on disk.
+    """
+    localrule: True
+    message:
+        "Caching detector usabilities"
+    params:
+        runlist=config.runlist,
+    output:
+        config.paths.generated / "detector_usabilities.yaml",
+    run:
+        import dbetto
+
+        dbetto.utils.write_dict(
+            get_all_usabilities(config.metadata, config.runlist),
+            output[0],
+        )

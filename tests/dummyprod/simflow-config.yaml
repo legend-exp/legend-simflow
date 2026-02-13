@@ -9,6 +9,7 @@ benchmark:
     stp: 999
 
 paths:
+  generated: $_/generated
   benchmarks: $_/generated/benchmarks
   log: $_/generated/log
 

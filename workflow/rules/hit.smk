@@ -100,9 +100,8 @@ rule build_tier_hit:
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
-        simstat_part_file=rules.make_simstat_partition_file.output[0],
-    params:
-        usabilities=SIMFLOW_CONTEXT["usabilities"],
+        simstat_part_file=rules.make_simstat_partition_file.output,
+        detector_usabilities=rules.cache_detector_usabilities.output,
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:

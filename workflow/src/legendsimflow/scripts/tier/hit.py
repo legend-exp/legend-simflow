@@ -16,7 +16,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import awkward as ak
-import dbetto.utils
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
@@ -32,6 +31,7 @@ import reboost.math.functions
 import reboost.math.stats
 import reboost.spms
 from dbetto import AttrsDict
+from dbetto.utils import load_dict
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
@@ -51,9 +51,9 @@ metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
 hpge_eresmods_files = args.input.hpge_eresmods
-simstat_part_file = args.input.simstat_part_file
+simstat_part_file = args.input.simstat_part_file[0]
 l200data = args.config.paths.l200data
-usabilities = args.params.usabilities
+usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
 
 BUFFER_LEN = "500*MB"
 
@@ -80,7 +80,7 @@ for tbl in lh5.ls(stp_file, "stp/*"):
     if not tbl.removeprefix("stp/").startswith("_"):
         ondisk_stp_tables[tbl] = False
 
-partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
+partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
 
 # load TCM, to be used to chunk the event statistics according to the run partitioning
 msg = "loading TCM"
@@ -110,7 +110,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         snakemake.config,  # noqa: F821
         runid=runid,
     )
-    eresmod_pars_all = dbetto.utils.load_dict(eresmod_pars_file)
+    eresmod_pars_all = load_dict(eresmod_pars_file)
     energy_res_func = hpge_pars.build_energy_res_func_dict(
         l200data,
         metadata,
@@ -124,7 +124,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         snakemake.config,  # noqa: F821
         runid=runid,
     )
-    currmod_pars_all = AttrsDict(dbetto.utils.load_dict(currmod_pars_file))
+    currmod_pars_all = AttrsDict(load_dict(currmod_pars_file))
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
