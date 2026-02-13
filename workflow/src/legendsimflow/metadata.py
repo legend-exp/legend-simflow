@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -151,42 +150,6 @@ def usability(
     )
     log.warning(msg)
     return default
-
-
-def get_all_usabilities(
-    metadata: LegendMetadata, runlist: Iterable[str]
-) -> AttrsDict[str, AttrsDict[str, str]]:
-    """Get usability for all detectors and all runs in `runlist`.
-
-    Use this function to build a cache, in case repeated calls to
-    :func:`usability` are needed.
-
-    Parameters
-    ----------
-    metadata
-        LEGEND metadata database.
-    runlist
-        a list of run identifiers as accepted by the Simflow (see
-        :func:`expand_runlist`).
-    """
-    start = time.time()
-
-    runlist = expand_runlist(metadata, runlist)
-
-    out_dict = {}
-    for runid in runlist:
-        out_dict[runid] = {}
-        rinfo = runinfo(metadata, runid)
-        chmap = metadata.hardware.configuration.channelmaps.on(rinfo.start_key)
-        for chname in chmap:
-            statuses = metadata.datasets.statuses.on(rinfo.start_key)
-            if chname in statuses:
-                out_dict[runid][chname] = statuses[chname].usability
-
-    print(  # noqa: T201
-        f"DEBUG: get_all_usabilities() took {time.time() - start:.1f} sec"
-    )
-    return AttrsDict(out_dict)
 
 
 def encode_usability(usability: str) -> int:

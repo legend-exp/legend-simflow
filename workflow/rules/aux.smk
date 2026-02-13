@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from legendsimflow import aggregate
+
 
 rule print_stats:
     """Prints a table with summary runtime information for each `simid`.
@@ -83,6 +85,6 @@ rule cache_detector_usabilities:
         import dbetto
 
         dbetto.utils.write_dict(
-            get_all_usabilities(config.metadata, config.runlist),
+            aggregate.gen_list_of_all_usabilities(config),
             output[0],
         )

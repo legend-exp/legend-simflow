@@ -166,3 +166,23 @@ def test_currmod_stuff(config):
 def test_tier_evt_stuff(config):
     files = agg.gen_list_of_all_tier_cvt_outputs(config)
     assert len(files) == 11
+
+
+def test_usability_harvesting(config):
+    usability = agg.gen_list_of_all_usabilities(config)
+    assert isinstance(usability, dict)
+    for v in usability.values():
+        assert isinstance(v, dict)
+
+    assert sorted(usability.keys()) == [
+        "l200-p02-r000-phy",
+        "l200-p02-r001-phy",
+        "l200-p02-r002-phy",
+        "l200-p02-r003-phy",
+        "l200-p02-r004-phy",
+        "l200-p02-r005-phy",
+        "l200-p02-r006-phy",
+        "l200-p02-r007-phy",
+    ]
+    # now returns dict[str, int] (hpge -> usability)
+    assert usability["l200-p02-r000-phy"] == {"V99000A": "on", "B99000A": "on"}

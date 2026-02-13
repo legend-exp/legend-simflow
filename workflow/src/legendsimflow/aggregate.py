@@ -25,7 +25,7 @@ from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .metadata import get_runlist, get_simconfig, simpars
+from .metadata import get_runlist, get_simconfig, runinfo, simpars
 
 log = logging.getLogger(__name__)
 
@@ -221,6 +221,52 @@ def gen_list_of_all_hpges_valid_for_modeling(
         f"DEBUG: gen_list_of_all_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
     )
     return out
+
+
+def gen_list_of_all_usabilities(
+    config: SimflowConfig,
+) -> AttrsDict[str, AttrsDict[str, str]]:
+    """Get usability for all detectors and all runs defined in the Simflow.
+
+    Use this function to build a cache, in case repeated calls to
+    :func:`.metadata.usability` are needed. Returns the following dictionary:
+
+    .. code-block::
+
+        {
+          'l200-p03-r000-phy': {'V00048A': "on", ...},
+          'l200-p03-r001-phy': {'V00050B': "off", ...},
+          ...
+        }
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata database.
+    runlist
+        a list of run identifiers as accepted by the Simflow (see
+        :func:`expand_runlist`).
+    """
+    start = time.time()
+
+    all_runids = set()
+    for simid in gen_list_of_all_simids(config):
+        all_runids.update(get_runlist(config, simid))
+
+    out_dict = {}
+    for runid in all_runids:
+        out_dict[runid] = {}
+        rinfo = runinfo(config.metadata, runid)
+        chmap = config.metadata.hardware.configuration.channelmaps.on(rinfo.start_key)
+        for chname in chmap:
+            statuses = config.metadata.datasets.statuses.on(rinfo.start_key)
+            if chname in statuses:
+                out_dict[runid][chname] = statuses[chname].usability
+
+    print(  # noqa: T201
+        f"DEBUG: get_all_usabilities() took {time.time() - start:.1f} sec"
+    )
+    return AttrsDict(out_dict)
 
 
 def gen_list_of_all_runids(config) -> set[str]:

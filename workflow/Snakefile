@@ -21,7 +21,6 @@ import time
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
-from legendsimflow.metadata import get_all_usabilities
 from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
 
 
