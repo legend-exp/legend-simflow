@@ -19,7 +19,7 @@ import shutil
 
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-from lgdo.lh5.concat import lh5concat
+from lgdo import lh5
 
 from legendsimflow import nersc
 
@@ -30,6 +30,8 @@ cvt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
 
+BUFFER_LEN = "500*MB"
+
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -37,4 +39,6 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 if len(evt_files) == 1:
     shutil.copy(evt_files[0], cvt_file)
 else:
-    lh5concat(evt_files, cvt_file)
+    for table in lh5.ls(evt_files[0]):
+        for chunk in lh5.LH5Iterator(evt_files, table, buffer_len=BUFFER_LEN):
+            lh5.write(chunk, table, cvt_file, wo_mode="append")
