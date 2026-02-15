@@ -205,8 +205,8 @@ for chunk in it:
     energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
     out_table.add_field("spms/energy_sum", Array(energy_sum))
 
-    # how many channels say some light
-    spms_multiplicity = ak.sum(chansel, axis=-1)
+    # how many channels saw some light
+    spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
     out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
 
     # coincidences table
