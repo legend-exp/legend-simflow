@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 
 from snakemake.io import InputFiles
@@ -94,7 +95,13 @@ def scratch_dir(config: SimflowConfig) -> Path:
         msg = "scratch folder not set"
         raise RuntimeError(msg)
 
-    return Path(config.nersc.scratch)
+    hidden_field = "_nersc_scratch_dir"
+    if hidden_field not in config:
+        config[hidden_field] = Path(config.nersc.scratch) / datetime.now().strftime(
+            "%Y%m%d-%H%M%S.%f"
+        )
+
+    return config[hidden_field]
 
 
 def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
