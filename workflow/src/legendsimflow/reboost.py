@@ -379,11 +379,11 @@ def build_tcm(
     # on Geant4 event identifier and time of the hits
     # NOTE: uses the same time window as in build_hit() reshaping
     pygama.evt.build_tcm(
-        [(f, r"hit/__by_uid__/*") for f in hit_files],  # input_tables
+        [(str(f), r"hit/__by_uid__/*") for f in hit_files],  # input_tables
         ["evtid", "t0"],  # coin_cols
         hash_func=r"(?<=hit/__by_uid__/det)\d+",
         coin_windows=[0, 10_000],  # in ns
-        out_file=out_file,
+        out_file=str(out_file),
         wo_mode="write_safe",
     )
 

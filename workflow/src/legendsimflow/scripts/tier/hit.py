@@ -55,6 +55,8 @@ simstat_part_file = args.input.simstat_part_file[0]
 l200data = args.config.paths.l200data
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
 
+hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
+
 BUFFER_LEN = "500*MB"
 
 u = pint.UnitRegistry()
@@ -322,5 +324,8 @@ if not_done:
 
 log.debug("building the TCM")
 reboost_utils.build_tcm(hit_file, hit_file)
+
+with perf_block("move_to_cfs()"):
+    move2cfs()
 
 print_perf()

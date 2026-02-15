@@ -30,6 +30,8 @@ cvt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
 
+cvt_file, move2cfs = nersc.make_on_scratch(args.config, cvt_file)
+
 BUFFER_LEN = "500*MB"
 
 
@@ -42,3 +44,5 @@ else:
     for table in lh5.ls(evt_files[0]):
         for chunk in lh5.LH5Iterator(evt_files, table, buffer_len=BUFFER_LEN):
             lh5.write(chunk, table, cvt_file, wo_mode="append")
+
+move2cfs()

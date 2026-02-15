@@ -14,6 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
@@ -46,6 +48,8 @@ hit_file = {
 evt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
+
+evt_file, move2cfs = nersc.make_on_scratch(args.config, evt_file)
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -102,7 +106,7 @@ def _read_hits(tcm_ak, tier, field):
 
 # iterate over the unified tcm
 # NOTE: open mode is append because we will write to the same file
-it = lh5.LH5Iterator(evt_file, "tcm", buffer_len=BUFFER_LEN, h5py_open_mode="a")
+it = lh5.LH5Iterator(str(evt_file), "tcm", buffer_len=BUFFER_LEN, h5py_open_mode="a")
 
 log.info("begin iterating over TCM")
 for chunk in it:
@@ -226,5 +230,9 @@ for chunk in it:
     # now write down
     with perf_block("write_chunk()"):
         lh5.write(out_table, "evt", evt_file, wo_mode="append")
+
+with perf_block("move_to_cfs()"):
+    move2cfs()
+
 
 print_perf()

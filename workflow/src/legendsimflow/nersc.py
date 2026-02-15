@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+import shutil
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -105,7 +106,10 @@ def scratch_dir(config: SimflowConfig) -> Path:
 
 
 def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
-    """Return the path of the file in the scratch folder."""
+    """Return the path of the file in the scratch folder.
+
+    Also makes sure the parent folder exists.
+    """
     path = Path(path)
 
     # rebuild path from parts to normalize (removes //, ./, etc.)
@@ -120,3 +124,15 @@ def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
     new_path = scratch_dir(config) / path
     new_path.parent.mkdir(parents=True, exist_ok=True)
     return new_path
+
+
+def make_on_scratch(config: SimflowConfig, path: str | Path) -> tuple[Path, Callable]:
+    if not is_scratch_enabled(config):
+        return path, lambda: None
+
+    scratch_path = on_scratch(config, path)
+
+    def move(scratch_path=scratch_path, path=path):
+        shutil.move(scratch_path, path)
+
+    return scratch_path, move

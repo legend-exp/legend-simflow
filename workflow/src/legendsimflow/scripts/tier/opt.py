@@ -53,6 +53,8 @@ scintillator_volume_name = args.params.scintillator_volume_name
 simstat_part_file = args.input.simstat_part_file
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
 
+hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
+
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
 BUFFER_LEN = "10*MB"
@@ -240,5 +242,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
 log.debug("building the TCM")
 reboost_utils.build_tcm(hit_file, hit_file)
+
+with perf_block("move_to_cfs()"):
+    move2cfs()
 
 print_perf()
