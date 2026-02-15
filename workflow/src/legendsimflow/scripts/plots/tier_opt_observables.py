@@ -51,12 +51,24 @@ def fig(table):
 
     # time
     ax = fig.add_subplot(gs_top[0, 0])
-    h_time = hist.new.Reg(300, 0, 3000, name="photoelectron $t - t_0$ (ns)").Double()
+    h_time = hist.new.Reg(
+        600, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+    ).Double()
     dt = data.time - data.t0
     h_time.fill_flattened(dt)
-    plot.plot_hist(h_time, ax, n_nans=n_nans(dt))
+    plot.plot_hist(h_time, ax, n_nans=n_nans(dt), label="simulated")
+
+    h_time_rc = hist.new.Reg(
+        600, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+    ).Double()
+    h_time_rc.fill_flattened(data.rc_time)
+    plot.plot_hist(
+        h_time_rc, ax, n_nans=n_nans(data.rc_time), label="random coincidences"
+    )
+
     ax.set_ylabel("counts / 10 ns")
     ax.set_yscale("log")
+    ax.legend()
 
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
@@ -76,8 +88,19 @@ def fig(table):
     h_peamp = hist.new.Reg(
         300, 0, 20, name="light per cluster (photoelectrons)"
     ).Double()
+
     h_peamp.fill_flattened(energy)
     plot.plot_hist(h_peamp, ax, n_nans=n_nans(energy), label="non-saturated")
+    
+    h_peamp.fill_flattened(data.energy)
+    plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy), label="simulated")
+    h_peamp_rc = hist.new.Reg(
+        300, 0, 20, name="light per cluster (photoelectrons)"
+    ).Double()
+    h_peamp_rc.fill_flattened(data.rc_energy)
+    plot.plot_hist(
+        h_peamp_rc, ax, n_nans=n_nans(data.energy), label="random coincidences"
+    )
     ax.set_ylabel("counts")
     ax.set_yscale("log")
     ax.legend()
@@ -94,7 +117,17 @@ def fig(table):
 
     ax.set_ylabel("counts")
     ax.legend()
+
+    h_npe.fill(ak.sum(data.energy, axis=-1))
+    plot.plot_hist(h_npe, ax, flow="hint", label="simulated")
+    h_npe_rc = hist.new.Reg(
+        200, 0, 150, name="light per event (photoelectrons)"
+    ).Double()
+    h_npe_rc.fill(ak.sum(data.rc_energy, axis=-1))
+    plot.plot_hist(h_npe_rc, ax, flow="hint", label="random coincidences")
+    ax.set_ylabel("counts / 1 pe")
     ax.set_yscale("log")
+    ax.legend()
 
     fig.suptitle(f"{simid}: {table} hits")
     return fig

@@ -735,6 +735,8 @@ def get_forced_trigger_library(
         if num_processed >= num_evts:
             break
 
+        npe_len_before = len(npe)
+
         # Load all necessary data once
         evt = lh5.read(
             "evt/",
@@ -779,7 +781,7 @@ def get_forced_trigger_library(
         rawids = rawids_tmp
 
         # Update counter and check if we've processed enough events
-        num_processed += len(npe)
+        num_processed += len(npe) - npe_len_before
 
     # Handle case where no events passed the filters
     if len(npe) == 0 or rawids is None:

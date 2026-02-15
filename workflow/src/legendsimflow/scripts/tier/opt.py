@@ -138,15 +138,24 @@ def process_sipm(
 
         # Add random coincidences from forced trigger library
         with perf_block("add_random_coincidences()"):
-            # Extract the pre-sampled forced trigger library for this chunk
-            chunk_ft_library = ft_library[
-                ft_offset["idx"] : ft_offset["idx"] + len(chunk)
-            ]
-            ft_offset["idx"] += len(chunk)
+            if usability == "on":
+                # Extract the pre-sampled forced trigger library for this chunk
+                if ft_offset["idx"] + len(chunk) > len(ft_library):
+                    msg = "forced trigger library not long enough, reusing events."
+                    log.warning(msg)
+                    ft_offset["idx"] = 0
 
-            rc_amps, rc_times = spms_pars.forced_trig_sipm_data(
-                chunk_ft_library, sipm, sipm_uid
-            )
+                chunk_ft_library = ft_library[
+                    ft_offset["idx"] : ft_offset["idx"] + len(chunk)
+                ]
+                ft_offset["idx"] += len(chunk)
+
+                rc_amps, rc_times = spms_pars.forced_trig_sipm_data(
+                    chunk_ft_library, sipm, sipm_uid
+                )
+            else:
+                rc_amps = ak.Array([])
+                rc_times = ak.Array([])
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
