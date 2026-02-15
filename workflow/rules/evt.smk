@@ -5,6 +5,7 @@ rule gen_all_tier_evt:
     """Aggregate and produce all the `evt` tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="evt"),
+        aggregate.gen_list_of_all_plots_outputs(config, tier="evt"),
 
 
 rule build_tier_evt:

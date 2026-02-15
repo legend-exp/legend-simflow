@@ -5,6 +5,7 @@ rule gen_all_tier_cvt:
     """Aggregate and produce all the `cvt` tier files."""
     input:
         aggregate.gen_list_of_all_tier_cvt_outputs(config),
+        aggregate.gen_list_of_all_plots_outputs(config, tier="cvt"),
 
 
 rule build_tier_cvt:
