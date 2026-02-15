@@ -119,13 +119,13 @@ ax.set_yscale("log")
 ax.legend()
 
 ax = fig.add_subplot(gs_bot[0, 0])
-h = hist.new.Reg(6, 0, 6, name="geds multiplicity").Double()
-h.fill(evt.geds.multiplicity)
+h = hist.new.Reg(10, -0.5, 9.5, name="geds multiplicity").Double()
+h.fill(evt.geds.multiplicity - 0.5)
 plot.plot_hist(h, ax)
 
 ax = fig.add_subplot(gs_bot[0, 1])
-h = hist.new.Reg(60, 0, 60, name="spms multiplicity").Double()
-h.fill(evt.spms.multiplicity)
+h = hist.new.Reg(60, -0.5, 55.5, name="spms multiplicity").Double()
+h.fill(evt.spms.multiplicity - 0.5)
 plot.plot_hist(h, ax)
 
 fig.suptitle(f"{simid}: evt tier")
