@@ -729,13 +729,10 @@ def get_forced_trigger_library(
     # Shuffle evt_files and process until we have enough events
     evt_files = list(evt_files)
     random.shuffle(evt_files)
-    num_processed = 0
 
     for file in evt_files:
-        if num_processed >= num_evts:
+        if len(npe) >= num_evts:
             break
-
-        npe_len_before = len(npe)
 
         # Load all necessary data once
         evt = lh5.read(
@@ -779,9 +776,6 @@ def get_forced_trigger_library(
             )
 
         rawids = rawids_tmp
-
-        # Update counter and check if we've processed enough events
-        num_processed += len(npe) - npe_len_before
 
     # Handle case where no events passed the filters
     if len(npe) == 0 or rawids is None:

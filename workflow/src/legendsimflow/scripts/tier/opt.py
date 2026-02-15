@@ -154,8 +154,8 @@ def process_sipm(
                     chunk_ft_library, sipm, sipm_uid
                 )
             else:
-                rc_amps = ak.Array([])
-                rc_times = ak.Array([])
+                rc_amps = ak.Array([[] for _ in range(len(chunk))])
+                rc_times = ak.Array([[] for _ in range(len(chunk))])
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
