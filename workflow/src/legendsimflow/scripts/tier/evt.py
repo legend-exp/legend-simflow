@@ -25,6 +25,7 @@ from legendsimflow import nersc, patterns
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
+from legendsimflow.profile import make_profiler
 
 GEDS_ENERGY_THR_KEV = 25
 SPMS_ENERGY_THR_PE = 0
@@ -48,6 +49,7 @@ metadata = args.config.metadata
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+perf_block, print_perf = make_profiler()
 
 log.info("building hit+opt unified TCM")
 reboost_utils.build_tcm(hit_file.values(), evt_file)
@@ -86,15 +88,16 @@ def _read_hits(tcm_ak, tier, field):
     msg = f"loading {field=} data from {tier=} (file {hit_file[tier]})"
     log.debug(msg)
 
-    return read_data_at_channel_as_ak(
-        tcm_ak[tier].table_key,
-        tcm_ak[tier].row_in_table,
-        hit_file[tier],
-        field,
-        "hit",
-        det2uid[tier],
-        with_units=True,
-    )
+    with perf_block("read_data()"):
+        return read_data_at_channel_as_ak(
+            tcm_ak[tier].table_key,
+            tcm_ak[tier].row_in_table,
+            hit_file[tier],
+            field,
+            "hit",
+            det2uid[tier],
+            with_units=True,
+        )
 
 
 # iterate over the unified tcm
@@ -221,4 +224,7 @@ for chunk in it:
     out_table.add_field("coincident/spms", Array(lar_veto))
 
     # now write down
-    lh5.write(out_table, "evt", evt_file, wo_mode="append")
+    with perf_block("write_chunk()"):
+        lh5.write(out_table, "evt", evt_file, wo_mode="append")
+
+print_perf()
