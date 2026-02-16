@@ -677,12 +677,14 @@ def get_forced_trigger_library(
     """Extract a library of forced trigger events to be used
     in correcting the SiPM pe and times with random coincidences.
 
-    This reformats the data to make use of several windows within a waveform to build forced trigger events
-    and then stores the number of pe and times for each SiPM channel from that window (to be used for corrections).
+    This reformats the data to make use of several windows within a waveform to
+    build forced trigger events and then stores the number of pe and times for
+    each SiPM channel from that window (to be used for corrections).
 
     This function processes two types of triggers with different window ranges:
-    - Forced/pulser triggers: uses full waveform [(1_000, 44_000), (55_000, 100_000)] ns
-    - HPGe/LAr triggers: uses first half only (1_000, 44_000) ns
+    - Forced/pulser triggers: uses full waveform ``[(1_000, 44_000), (55_000,
+      100_000)]`` ns
+    - HPGe/LAr triggers: uses first half only ``(1_000, 44_000)`` ns
 
     Both are always filtered to exclude muon coincidences.
 
@@ -693,23 +695,25 @@ def get_forced_trigger_library(
     num_evts:
         Number of events required for forced trigger correction.
     time_domain_ns
-        Target time range (start, end) for output times in nanoseconds.
-        E.g., (-1000, 5000) means output times will be in [-1000, 5000].
-        Default: (-1_000, 5_000).
+        Target time range (start, end) for output times in nanoseconds.  E.g.,
+        ``(-1000, 5000)`` means output times will be in ``[-1000, 5000]``.
+        Default: ``(-1_000, 5_000)``.
     min_sep_ns
         Minimal separation time between two windows in a trace, in nanoseconds.
     ext_trig_range_ns
-        Window ranges for forced/pulser trigger events, as list of (start, end) tuples in nanoseconds.
-        Default: [(1_000, 44_000), (55_000, 100_000)].
+        Window ranges for forced/pulser trigger events, as list of (start, end)
+        tuples in nanoseconds. Default: ``[(1_000, 44_000), (55_000,
+        100_000)]``.
     ge_trig_range_ns
-        Window ranges for HPGe/LAr trigger events, as list of (start, end) tuples in nanoseconds.
-        Default: [(1_000, 44_000)].
+        Window ranges for HPGe/LAr trigger events, as list of (start, end)
+        tuples in nanoseconds.  Default: ``[(1_000, 44_000)]``.
 
     Returns
     -------
-    Array with fields "npe", the number of pe per SiPM and per hit,
-    "t0", the time relative to the start of a window in the trace, per SiPM and per hit (makes sure that t0 are between bounds specified in time_domain_ns),
-    and "rawid" the SiPM channel numbers.
+    Array with fields "npe", the number of pe per SiPM and per hit, "t0", the
+    time relative to the start of a window in the trace, per SiPM and per hit
+    (makes sure that t0 are between bounds specified in time_domain_ns), and
+    "rawid" the SiPM channel numbers.
 
     Example
     -------
