@@ -37,7 +37,7 @@ def forced_trig_sipm_data(
     sipm: str,
     sipm_uid: int,
 ) -> tuple[ak.Array, ak.Array]:
-    """Extract npe and times for a specific SiPM channel from the library.
+    """Extract data for a specific SiPM channel from the library.
 
     Filters the forced trigger library to return only the photoelectron counts
     and times for a single SiPM channel across all events.
@@ -47,7 +47,8 @@ def forced_trig_sipm_data(
     ft_library
         Library of forced trigger events containing npe, t0, and rawid fields.
     sipm
-        SiPM channel name to extract data for. If "all", flatten channel dimension.
+        SiPM channel name to extract data for. If "all", flatten channel
+        dimension.
     sipm_uid
         SiPM channel ID to extract data for.
 

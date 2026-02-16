@@ -75,6 +75,11 @@ geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 
+def _ak_array_of_empty_arrays(n):
+    content = ak.Array(np.empty(0, dtype=np.float64))
+    return ak.unflatten(content, np.zeros(n, dtype=np.int64))
+
+
 def process_sipm(
     iterator: LH5Iterator,
     optmap_lar: str | Path | OptmapForConvolve,
@@ -141,7 +146,7 @@ def process_sipm(
             if usability == "on":
                 # Extract the pre-sampled forced trigger library for this chunk
                 if ft_offset["idx"] + len(chunk) > len(ft_library):
-                    msg = "forced trigger library not long enough, reusing events."
+                    msg = "forced trigger library not large enough, reusing events."
                     log.warning(msg)
                     ft_offset["idx"] = 0
 
@@ -154,8 +159,8 @@ def process_sipm(
                     chunk_ft_library, sipm, sipm_uid
                 )
             else:
-                rc_amps = ak.Array([[] for _ in range(len(chunk))])
-                rc_times = ak.Array([[] for _ in range(len(chunk))])
+                rc_amps = _ak_array_of_empty_arrays(len(chunk))
+                rc_times = _ak_array_of_empty_arrays(len(chunk))
 
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
@@ -207,12 +212,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     # Load forced trigger library and pre-sample for this partition
     msg = "loading forced trigger library for random coincidences"
     log.debug(msg)
-    evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+    with perf_block("load_ft_library()"):
+        evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
 
-    i_start_global, n_entries_partition = evt_idx_range
-    ft_library = reboost_utils.get_forced_trigger_library(
-        evt_files, n_entries_partition
-    )
+        ft_library = reboost_utils.get_forced_trigger_library(
+            evt_files, evt_idx_range[1]
+        )
 
     # Offset tracker for iterating through the pre-sampled library
     ft_offset = {"idx": 0}
@@ -255,7 +260,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             )
 
         if optmap_per_sipm:
-            for sipm in reboost_utils.get_senstables(geom, "optical"):
+            for sipm in sorted(reboost_utils.get_senstables(geom, "optical")):
                 sipm_uid = sens_tables[sipm].uid
 
                 # get the usability
