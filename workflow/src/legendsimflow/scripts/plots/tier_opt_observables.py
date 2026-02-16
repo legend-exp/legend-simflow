@@ -49,6 +49,9 @@ def fig(table):
     gs_top = outer[0].subgridspec(1, 2, width_ratios=[1, 1])
     gs_bot = outer[1].subgridspec(1, 2, width_ratios=[1, 1])
 
+    vals, counts = np.unique(data.usability, return_counts=True)
+    vals = [mutils.decode_usability(v) for v in vals]
+
     # time
     ax = fig.add_subplot(gs_top[0, 0])
     h_time = hist.new.Reg(
@@ -58,13 +61,14 @@ def fig(table):
     h_time.fill_flattened(dt)
     plot.plot_hist(h_time, ax, n_nans=n_nans(dt), label="simulated")
 
-    h_time_rc = hist.new.Reg(
-        600, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
-    ).Double()
-    h_time_rc.fill_flattened(data.rc_time)
-    plot.plot_hist(
-        h_time_rc, ax, n_nans=n_nans(data.rc_time), label="random coincidences"
-    )
+    if vals != ["off"]:
+        h_time_rc = hist.new.Reg(
+            600, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+        ).Double()
+        h_time_rc.fill_flattened(data.rc_time)
+        plot.plot_hist(
+            h_time_rc, ax, n_nans=n_nans(data.rc_time), label="random coincidences"
+        )
 
     ax.set_ylabel("counts / 10 ns")
     ax.set_yscale("log")
@@ -72,6 +76,7 @@ def fig(table):
 
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
+
     vals, counts = np.unique(data.usability, return_counts=True)
     labels = [mutils.decode_usability(v) for v in vals]
     plt.pie(
@@ -80,6 +85,8 @@ def fig(table):
         colors=[plot.USABILITY_COLOR[lab] for lab in labels],
         autopct="%1.1f%%",
     )
+
+    plt.pie(counts, labels=vals, autopct="%1.1f%%")
     ax.set_aspect("equal")  # keep it circular
 
     ax = fig.add_subplot(gs_bot[0, 0])
@@ -94,13 +101,16 @@ def fig(table):
     
     h_peamp.fill_flattened(data.energy)
     plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy), label="simulated")
-    h_peamp_rc = hist.new.Reg(
-        300, 0, 20, name="light per cluster (photoelectrons)"
-    ).Double()
-    h_peamp_rc.fill_flattened(data.rc_energy)
-    plot.plot_hist(
-        h_peamp_rc, ax, n_nans=n_nans(data.rc_energy), label="random coincidences"
-    )
+
+    if vals != ["off"]:
+        h_peamp_rc = hist.new.Reg(
+            300, 0, 20, name="light per cluster (photoelectrons)"
+        ).Double()
+        h_peamp_rc.fill_flattened(data.rc_energy)
+        plot.plot_hist(
+            h_peamp_rc, ax, n_nans=n_nans(data.rc_energy), label="random coincidences"
+        )
+
     ax.set_ylabel("counts")
     ax.set_yscale("log")
     ax.legend()
@@ -120,11 +130,14 @@ def fig(table):
 
     h_npe.fill(ak.sum(data.energy, axis=-1))
     plot.plot_hist(h_npe, ax, flow="hint", label="simulated")
-    h_npe_rc = hist.new.Reg(
-        200, 0, 150, name="light per event (photoelectrons)"
-    ).Double()
-    h_npe_rc.fill(ak.sum(data.rc_energy, axis=-1))
-    plot.plot_hist(h_npe_rc, ax, flow="hint", label="random coincidences")
+
+    if vals != ["off"]:
+        h_npe_rc = hist.new.Reg(
+            200, 0, 150, name="light per event (photoelectrons)"
+        ).Double()
+        h_npe_rc.fill(ak.sum(data.rc_energy, axis=-1))
+        plot.plot_hist(h_npe_rc, ax, flow="hint", label="random coincidences")
+
     ax.set_ylabel("counts / 1 pe")
     ax.set_yscale("log")
     ax.legend()
