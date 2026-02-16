@@ -99,7 +99,7 @@ def fig(table):
     ).Double()
     h_peamp_rc.fill_flattened(data.rc_energy)
     plot.plot_hist(
-        h_peamp_rc, ax, n_nans=n_nans(data.energy), label="random coincidences"
+        h_peamp_rc, ax, n_nans=n_nans(data.rc_energy), label="random coincidences"
     )
     ax.set_ylabel("counts")
     ax.set_yscale("log")
