@@ -106,7 +106,7 @@ def process_sipm(
         with perf_block("photoelectron_times()"):
             pe_times_micro = reboost.spms.pe.photoelectron_times(
                 nr_pe, chunk.particle, chunk.time, "lar"
-            ).view_as("ak")
+            )
 
             # the photoelectron_times() processor does not guarantee time
             # ordering
