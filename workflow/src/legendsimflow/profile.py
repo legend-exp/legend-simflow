@@ -74,13 +74,36 @@ def make_profiler() -> tuple[Callable, Callable]:
     def print_stats() -> None:
         msg = "==== profiling report ===="
         log.info(msg)
-        for block in sorted(stats):
+
+        blocks = sorted(stats)
+        sum_wall_s = sum(stats[b]["wall_s"] for b in blocks)
+        sum_max_delta_rss_mb = sum(stats[b]["max_delta_rss_mb"] for b in blocks)
+        sum_avg_delta_rss_mb = sum(stats[b]["avg_delta_rss_mb"] for b in blocks)
+
+        for block in blocks:
             s = stats[block]
+
+            wall_s = s["wall_s"]
+            max_delta_rss_mb = s["max_delta_rss_mb"]
+            avg_delta_rss_mb = s["avg_delta_rss_mb"]
+
+            wall_s_frac = 100.0 * wall_s / sum_wall_s if sum_wall_s else 0.0
+            max_delta_rss_mb_frac = (
+                100.0 * max_delta_rss_mb / sum_max_delta_rss_mb
+                if sum_max_delta_rss_mb
+                else 0.0
+            )
+            avg_delta_rss_mb_frac = (
+                100.0 * avg_delta_rss_mb / sum_avg_delta_rss_mb
+                if sum_avg_delta_rss_mb
+                else 0.0
+            )
+
             msg = (
                 f"block {block} ]]] "
-                f"wall_time_s={_f(s['wall_s'])} "
-                f"max_delta_rss_mb={_f(s['max_delta_rss_mb'])} "
-                f"avg_delta_rss_mb={_f(s['avg_delta_rss_mb'])}"
+                f"wall_time_s={_f(wall_s)} ({_f(wall_s_frac)}%) "
+                f"max_delta_rss_mb={_f(max_delta_rss_mb)} ({_f(max_delta_rss_mb_frac)}%) "
+                f"avg_delta_rss_mb={_f(avg_delta_rss_mb)} ({_f(avg_delta_rss_mb_frac)}%)"
             )
             log.info(msg)
         msg = "=========================="
