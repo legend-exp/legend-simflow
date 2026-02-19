@@ -61,6 +61,7 @@ BUFFER_LEN = "10*MB"
 MAP_SCALING = 0.1  # FIXME: guess
 DEFAULT_PHOTOELECTRON_RES = 0.3  # FWHM FIXME: guess
 TIME_RESOLUTION_NS = 3 * 16  # FIXME: guess
+MAX_PES_PER_HIT = 10
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -93,7 +94,7 @@ def process_sipm(
             )
 
         with perf_block("number_of_detected_photoelectrons()"):
-            nr_pe = reboost.spms.pe.number_of_detected_photoelectrons(
+            _output = reboost.spms.pe.number_of_detected_photoelectrons(
                 chunk.xloc,
                 chunk.yloc,
                 chunk.zloc,
@@ -101,7 +102,13 @@ def process_sipm(
                 optmap_lar,
                 sipm,
                 map_scaling=MAP_SCALING,
+                max_pes_per_hit=MAX_PES_PER_HIT,
             )
+        if MAX_PES_PER_HIT > 0:
+            nr_pe, is_saturated = _output
+        else:
+            nr_pe = _output
+            is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
 
         with perf_block("photoelectron_times()"):
             pe_times_micro = reboost.spms.pe.photoelectron_times(
@@ -131,6 +138,7 @@ def process_sipm(
                 "time", VectorOfVectors(pe_times, attrs={"units": "ns"})
             )
             out_table.add_field("energy", VectorOfVectors(pe_amps))
+            out_table.add_field("is_saturated", Array(is_saturated))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]
