@@ -72,7 +72,10 @@ def make_profiler() -> tuple[Callable, Callable]:
             log.debug(msg)
 
     def print_stats() -> None:
-        for block, s in dict(stats).items():
+        msg = "==== profiling report ===="
+        log.info(msg)
+        for block in sorted(stats):
+            s = stats[block]
             msg = (
                 f"block {block} ]]] "
                 f"wall_time_s={_f(s['wall_s'])} "
@@ -80,5 +83,7 @@ def make_profiler() -> tuple[Callable, Callable]:
                 f"avg_delta_rss_mb={_f(s['avg_delta_rss_mb'])}"
             )
             log.info(msg)
+        msg = "=========================="
+        log.info(msg)
 
     return profile_block, print_stats
