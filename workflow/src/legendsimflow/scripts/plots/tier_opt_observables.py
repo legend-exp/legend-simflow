@@ -61,8 +61,12 @@ def fig(table):
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
     vals, counts = np.unique(data.usability, return_counts=True)
+    labels = [mutils.decode_usability(v) for v in vals]
     plt.pie(
-        counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
+        counts,
+        labels=labels,
+        colors=[plot.USABILITY_COLOR[lab] for lab in labels],
+        autopct="%1.1f%%",
     )
     ax.set_aspect("equal")  # keep it circular
 

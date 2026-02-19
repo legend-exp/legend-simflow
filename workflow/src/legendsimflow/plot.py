@@ -24,6 +24,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lgdo import lh5
 
+USABILITY_COLOR = {
+    "off": "tab:red",
+    "on": "tab:green",
+    "ac": "tab:blue",
+}
+
 
 def decorate(fig):
     fig.text(
