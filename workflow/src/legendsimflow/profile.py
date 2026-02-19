@@ -30,6 +30,10 @@ def _f(x: int | float) -> str:
     return f"{x:.5g}"
 
 
+def _pct(x: int | float) -> str:
+    return f"{x:.1f}"
+
+
 def make_profiler() -> tuple[Callable, Callable]:
     proc = psutil.Process()
     stats = defaultdict(
@@ -101,9 +105,9 @@ def make_profiler() -> tuple[Callable, Callable]:
 
             msg = (
                 f"block {block} ]]] "
-                f"wall_time_s={_f(wall_s)} ({_f(wall_s_frac)}%) "
-                f"max_delta_rss_mb={_f(max_delta_rss_mb)} ({_f(max_delta_rss_mb_frac)}%) "
-                f"avg_delta_rss_mb={_f(avg_delta_rss_mb)} ({_f(avg_delta_rss_mb_frac)}%)"
+                f"wall_time_s={_f(wall_s)} ({_pct(wall_s_frac)}%) "
+                f"max_delta_rss_mb={_f(max_delta_rss_mb)} ({_pct(max_delta_rss_mb_frac)}%) "
+                f"avg_delta_rss_mb={_f(avg_delta_rss_mb)} ({_pct(avg_delta_rss_mb_frac)}%)"
             )
             log.info(msg)
         msg = "=========================="
