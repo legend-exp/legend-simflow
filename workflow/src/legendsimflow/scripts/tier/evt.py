@@ -56,7 +56,8 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 perf_block, print_perf = make_profiler()
 
 log.info("building hit+opt unified TCM")
-reboost_utils.build_tcm(hit_file.values(), evt_file)
+with perf_block("build_tcm()"):
+    reboost_utils.build_tcm(hit_file.values(), evt_file)
 
 
 # test that the evt tcm has the same amount of rows as the stp tcm
@@ -196,6 +197,9 @@ for chunk in it:
     pesel = energy > SPMS_ENERGY_THR_PE
 
     out_table.add_field("spms/energy", VectorOfVectors(energy[pesel][chansel]))
+
+    is_saturated = _read_hits(tcm, "opt", "is_saturated")
+    out_table.add_field("spms/is_saturated", VectorOfVectors(is_saturated[chansel]))
 
     # fields to identify detectors and lookup stuff in the lower tiers
     out_table.add_field("spms/rawid", VectorOfVectors(tcm["opt"].table_key[chansel]))

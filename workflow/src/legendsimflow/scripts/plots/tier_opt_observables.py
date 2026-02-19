@@ -61,25 +61,39 @@ def fig(table):
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
     vals, counts = np.unique(data.usability, return_counts=True)
+    labels = [mutils.decode_usability(v) for v in vals]
     plt.pie(
-        counts, labels=[mutils.decode_usability(v) for v in vals], autopct="%1.1f%%"
+        counts,
+        labels=labels,
+        colors=[plot.USABILITY_COLOR[lab] for lab in labels],
+        autopct="%1.1f%%",
     )
     ax.set_aspect("equal")  # keep it circular
 
     ax = fig.add_subplot(gs_bot[0, 0])
+    energy = data.energy[~data.is_saturated]
+
     h_peamp = hist.new.Reg(
         300, 0, 20, name="light per cluster (photoelectrons)"
     ).Double()
-    h_peamp.fill_flattened(data.energy)
-    plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy))
+    h_peamp.fill_flattened(energy)
+    plot.plot_hist(h_peamp, ax, n_nans=n_nans(energy), label="non-saturated")
     ax.set_ylabel("counts")
     ax.set_yscale("log")
+    ax.legend()
 
     ax = fig.add_subplot(gs_bot[0, 1])
     h_npe = hist.new.Reg(200, 0, 150, name="light per event (photoelectrons)").Double()
-    h_npe.fill(ak.sum(data.energy, axis=-1))
-    plot.plot_hist(h_npe, ax, flow="hint")
-    ax.set_ylabel("counts / 1 pe")
+    h_npe.fill(ak.sum(energy, axis=-1))
+    plot.plot_hist(h_npe, ax, flow="hint", label="non-saturated")
+
+    h_sat = h_npe.copy(deep=True)
+    h_sat.reset()
+    h_sat[hist.overflow] = ak.sum(data.is_saturated)
+    h_sat.plot(ax=ax, label="saturated", flow="show", yerr=False)
+
+    ax.set_ylabel("counts")
+    ax.legend()
     ax.set_yscale("log")
 
     fig.suptitle(f"{simid}: {table} hits")
