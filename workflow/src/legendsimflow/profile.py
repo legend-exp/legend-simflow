@@ -18,7 +18,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import time
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from collections.abc import Callable
 
 import psutil
@@ -36,7 +36,6 @@ def _pct(x: int | float) -> str:
 
 def make_profiler() -> tuple[Callable, Callable]:
     proc = psutil.Process()
-    stats = OrderedDict()
     stats = defaultdict(
         lambda: {
             "wall_s": 0.0,
