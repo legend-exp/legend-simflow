@@ -198,43 +198,27 @@ function main()
         "--detector"
         help = "HPGe detector name"
         required = true
-    end
-    @add_arg_table s begin
         "--metadata"
         help = "Path to legend-metadata"
         required = true
-    end
-    @add_arg_table s begin
         "--output-file"
         help = "Path to output LH5 file"
         required = true
-    end
-    @add_arg_table s begin
         "--use-corrections"
         help = "Apply impurity profile corrections from crystal characterization (default: enabled)"
         action = :store_true
         default = true
-    end
-    @add_arg_table s begin
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
-    end
-    @add_arg_table s begin
         "--use-sqrt" # REVIEW: Outdated??
         help = "Use square-root temperature model"
         action = :store_true
-    end
-    @add_arg_table s begin
         "--use-sqrt-new" # REVIEW: Outdated??
         help = "Use square-root temperature model with 2016 inputs"
         action = :store_true
-    end
-    @add_arg_table s begin
         "--only-holes"
         help = "Use only the hole contribution"
         action = :store_true
-    end
-    @add_arg_table s begin
         "--use-bulk-drift-time"
         help = "Use the drift time for the nearest bulk point for surface events"
         action = :store_true
