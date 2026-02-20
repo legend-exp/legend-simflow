@@ -38,6 +38,7 @@ from legendsimflow import metadata as mutils
 from legendsimflow import nersc
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.profile import make_profiler
+from legendsimflow.tcm import build_tcm
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -249,7 +250,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
 
 log.debug("building the TCM")
-reboost_utils.build_tcm(hit_file, hit_file)
+build_tcm(hit_file, hit_file)
 
 with perf_block("move_to_cfs()"):
     move2cfs()
