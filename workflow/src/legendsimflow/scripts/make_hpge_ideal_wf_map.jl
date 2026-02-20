@@ -26,15 +26,15 @@ using PropDicts
 using Printf
 using RadiationDetectorDSP
 
-include("libjl/drift_time_helpers.jl")
+include(joinpath(@__DIR__, "libjl", "drift_time_helpers.jl"))
 
 ## Constants
-GRID_SIZE = 0.001 # in m
-CRYSTAL_AXIS_ANGLES = [0, 45] # in deg (<001> <110>)
-SIM_ENERGY = 2039u"keV"
-MAX_NSTEPS = 3000
-WAVEFORM_LENGTH = 3000
-TIME_STEP = 1u"ns" # sampling rate sim waveform # REVIEW: should be T(1)u"ns"?
+GRID_SIZE = 0.0005 # cylindrical (r, z) grid spacing in meters
+CRYSTAL_AXIS_ANGLES = [0, 45] # crystal axis orientation angles in degrees (<001>, <110>)
+SIM_ENERGY = 2039u"keV" # mono-energetic deposition used to generate ideal waveforms
+MAX_NSTEPS = 3000 # maximum number of integration steps per drift trajectory (dimensionless)
+WAVEFORM_LENGTH = 3000 # number of time samples per simulated waveform (dimensionless)
+TIME_STEP = 1u"ns" # time step between waveform samples
 
 
 ## Waveform map construction
@@ -124,11 +124,16 @@ function compute_waveform_map_for_angle(
     @threads for i in 1:n
         if (i % 1000 == 0)
             x = round(100 * i / n)
-            println("...simulating $i out of $n ($x %)")
+            @info "...simulating $i out of $n ($x %)"
         end
 
         # Use functions from libjl/drift_time_helpers.jl
         p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
+        if p === nothing
+            error("find_valid_spawn_position did not return a valid spawn position for index $(in_idx[i]); all candidate positions may be within contacts.")
+        end
+
+
         e = SSD.Event([p], [SIM_ENERGY])
         simulate!(e, sim, Δt = TIME_STEP, max_nsteps = MAX_NSTEPS, verbose = false)
 
@@ -192,31 +197,46 @@ function main()
         "--detector"
         help = "HPGe detector name"
         required = true
+    end
+    @add_arg_table s begin
         "--metadata"
         help = "Path to legend-metadata"
         required = true
+    end
+    @add_arg_table s begin
         "--output-file"
         help = "Path to output LH5 file"
         required = true
+    end
+    @add_arg_table s begin
         "--use-corrections"
         help = "Apply impurity profile corrections from crystal characterization (default: enabled)"
         action = :store_true
         default = true
+    end
+    @add_arg_table s begin
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
+    end
+    @add_arg_table s begin
         "--use-sqrt" # REVIEW: Outdated??
         help = "Use square-root temperature model"
         action = :store_true
+    end
+    @add_arg_table s begin
         "--use-sqrt-new" # REVIEW: Outdated??
         help = "Use square-root temperature model with 2016 inputs"
         action = :store_true
+    end
+    @add_arg_table s begin
         "--only-holes"
         help = "Use only the hole contribution"
         action = :store_true
+    end
+    @add_arg_table s begin
         "--use-bulk-drift-time"
         help = "Use the drift time for the nearest bulk point for surface events"
         action = :store_true
-
     end
 
     parsed_args = parse_args(s)
@@ -233,11 +253,14 @@ function main()
         @info "Output file exists and will be overwritten: $output_file"
     end
 
+
+    # Load metadata
+    meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
+
     # Get the opv - could be a String or Nothing
     raw_opv = parsed_args["opv"]
     if isnothing(raw_opv)
-        # If nothing, load the metadata first to find the default
-        meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
+        # If nothing, use the metadata value
         opv_val = Float32(meta.characterization.l200_site.recommended_voltage_in_V)
         @info "No OPV provided. Using metadata default: $opv_val V"
     else
@@ -245,6 +268,7 @@ function main()
         opv_val = parse(Float32, raw_opv)
         @info "Using user-provided OPV: $opv_val V"
     end
+    meta.characterization.l200_site.recommended_voltage_in_V = opv_val
 
     handle_nplus = parsed_args["use-bulk-drift-time"]
     use_sqrt = parsed_args["use-sqrt"]
@@ -254,9 +278,8 @@ function main()
         @warn "Impurity corrections disabled! This may produce unrealistic results."
     end
 
-    # Load metadata
-    meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
-    meta.characterization.l200_site.recommended_voltage_in_V = opv_val
+
+
 
     if (!handle_nplus)
         meta.production.characterization.manufacturer.dl_thickness_in_mm = 0.1
@@ -267,8 +290,12 @@ function main()
     crystal = ids[meta.type] * @sprintf("%02d", meta.production.order) * meta.production.crystal
     xtal = readprops("$meta_path/hardware/detectors/germanium/crystals/$crystal.yaml")
 
-    if (!use_corrections && (:corrections in keys(xtal.impurity_curve)))
-        xtal.impurity_curve.corrections.scale = 1
+    if !use_corrections
+        if :corrections in keys(xtal.impurity_curve)
+            xtal.impurity_curve.corrections.scale = 1
+        else
+            @warn "Impurity corrections were requested to be disabled, but no corrections are defined for crystal $crystal."
+        end
     end
 
     # Run ssd simulation
@@ -329,7 +356,7 @@ function main()
         verbose = false
     )
 
-    # Compute and save drift-time maps for different angles
+    # Compute and save ideal waveforms map for different angles
     output = Dict{Symbol,Any}()
     for a in CRYSTAL_AXIS_ANGLES
         eff_angle = use_sqrt ? (a - 45) : a
