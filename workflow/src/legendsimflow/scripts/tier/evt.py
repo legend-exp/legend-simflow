@@ -27,6 +27,7 @@ from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
 from legendsimflow.profile import make_profiler
+from legendsimflow.tcm import build_tcm
 
 GEDS_ENERGY_THR_KEV = 25
 SPMS_ENERGY_THR_PE = 0
@@ -56,7 +57,7 @@ perf_block, print_perf = make_profiler()
 
 log.info("building hit+opt unified TCM")
 with perf_block("build_tcm()"):
-    reboost_utils.build_tcm(hit_file.values(), evt_file)
+    build_tcm(hit_file.values(), evt_file)
 
 
 # test that the evt tcm has the same amount of rows as the stp tcm

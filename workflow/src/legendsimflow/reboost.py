@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
@@ -25,7 +25,6 @@ import lgdo
 import numba as nb
 import numpy as np
 import pyg4ometry
-import pygama.evt
 import pygeomtools
 import reboost.hpge.utils
 import reboost.units
@@ -355,36 +354,6 @@ def hpge_max_current(
         template=a_tmpl,
         times=times,
         **kwargs,
-    )
-
-
-def build_tcm(
-    hit_files: str | Path | Iterable[str | Path], out_file: str | Path
-) -> None:
-    """Re-create the TCM table from remage.
-
-    Use remage fields `evtid` and `t0` (the latter is assumed to be in
-    nanoseconds) to build coincidences. The settings are identical to the
-    remage built-in TCM settings.
-
-    Note
-    ----
-    This function will be moved to :mod:`reboost`.
-    """
-    if isinstance(hit_files, str | Path):
-        hit_files = [hit_files]
-
-    # use tables keyed by UID in the __by_uid__ group.  in this way, the
-    # TCM will index tables by UID.  the coincidence criterium is based
-    # on Geant4 event identifier and time of the hits
-    # NOTE: uses the same time window as in build_hit() reshaping
-    pygama.evt.build_tcm(
-        [(str(f), r"hit/__by_uid__/*") for f in hit_files],  # input_tables
-        ["evtid", "t0"],  # coin_cols
-        hash_func=r"(?<=hit/__by_uid__/det)\d+",
-        coin_windows=[0, 10_000],  # in ns
-        out_file=str(out_file),
-        wo_mode="write_safe",
     )
 
 
