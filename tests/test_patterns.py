@@ -20,7 +20,11 @@ def test_all(config):
     )
     assert isinstance(p.output_simid_filenames(config, 2, tier="stp"), list)
 
-    assert isinstance(p.output_dtmap_filename(config, hpge_detector="boh"), Path)
+    # test dtmap filename with hpge_voltage
+    dtmap = p.output_dtmap_filename(config, hpge_detector="V99000A", hpge_voltage=4200)
+    assert isinstance(dtmap, Path)
+    assert "V99000A-4200V" in str(dtmap)
+
     assert isinstance(p.output_currmod_filename(config, hpge_detector="boh"), Path)
 
     assert isinstance(p.vtx_filename_for_stp(config, "lar_hpge_shell_K42"), Path)
@@ -30,3 +34,8 @@ def test_all(config):
     assert isinstance(p.tier_cvt_base_segment(config), str)
     assert isinstance(p.output_tier_cvt_filename(config), Path)
     assert isinstance(p.log_tier_cvt_filename(config, "now"), Path)
+
+    files = p.output_simjob_filename(config, tier="stp", jobid=["0000", "0001"])
+    assert isinstance(files, list)
+    assert "0000" in files[0].name
+    assert "0001" in files[1].name

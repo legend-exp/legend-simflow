@@ -194,12 +194,31 @@ def plot_tier_stp_vertices_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def plot_tier_hit_observables_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="hit") / "tier-hit-observables.pdf", **kwargs
+    )
+
+
+def plot_tier_opt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="opt") / "tier-opt-observables.pdf", **kwargs
+    )
+
+
+def plot_tier_cvt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        plots_dirname(config, tier="cvt") / "tier-cvt-observables.pdf", **kwargs
+    )
+
+
 # drift time maps
 
 
 def output_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.dtmaps / "{runid}-{hpge_detector}-hpge-drift-time-map.lh5",
+        config.paths.dtmaps
+        / "singles/{hpge_detector}-{hpge_voltage}V-hpge-drift-time-map.lh5",
         **kwargs,
     )
 
@@ -211,20 +230,23 @@ def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
     pat = (
         log_dirname(config, time)
-        / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.log"
+        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.log"
     )
     return _expand(pat, **kwargs)
 
 
 def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.plots / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.pdf"
+    pat = (
+        config.paths.plots
+        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
+    )
     return _expand(pat, **kwargs)
 
 
 def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     pat = (
         config.paths.benchmarks
-        / "hpge/dtmaps/{runid}-{hpge_detector}-drift-time-map.tsv"
+        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.tsv"
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
@@ -261,6 +283,16 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+# hpge energy resolution
+
+
+def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/eresmod/{runid}-model.yaml",
+        **kwargs,
+    )
+
+
 # hit tier
 
 
@@ -273,7 +305,7 @@ def log_simstat_part_filename(config: SimflowConfig, time: str, **kwargs) -> Pat
 
 
 def tier_cvt_base_segment(config: SimflowConfig, **kwargs) -> str:
-    return _expand("{simid}/" + config.experiment + "-{simid}-tier_cvt", **kwargs)
+    return _expand(config.experiment + "-{simid}-tier_cvt", **kwargs)
 
 
 def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:

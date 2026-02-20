@@ -8,6 +8,22 @@ import pytest
 from legendsimflow import SimflowConfigError, commands, patterns
 
 
+def test_confine_by_volume_commands():
+    # Test with surface sampling enabled
+    lines = commands._confine_by_volume(
+        is_surface=True, volume="test_volume", surface_max_intersections=50
+    )
+    assert "/RMG/Generator/Confinement/Physical/AddVolume test_volume" in lines
+    assert "/RMG/Generator/Confinement/SampleOnSurface true" in lines
+    assert "/RMG/Generator/Confinement/SurfaceSampleMaxIntersections 50" in lines
+
+    # Test with surface sampling disabled
+    lines = commands._confine_by_volume(is_surface=False, volume="test_volume")
+    assert "/RMG/Generator/Confinement/Physical/AddVolume test_volume" in lines
+    assert "/RMG/Generator/Confinement/SampleOnSurface true" not in lines
+    assert "/RMG/Generator/Confinement/SurfaceSampleMaxIntersections 100" not in lines
+
+
 def test_make_macro(config):
     text, fmac = commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
@@ -45,12 +61,14 @@ def test_make_macro(config):
         "/RMG/Generator/Confinement/Physical/AddVolume phbr_spring.*",
         "/RMG/Generator/Confinement/Physical/AddVolume phbr_washer.*",
         "/RMG/Generator/Confinement/SampleOnSurface true",
+        "/RMG/Generator/Confinement/SurfaceSampleMaxIntersections 100",
     ]
     assert set(confine).issubset(text.split("\n"))
 
     text, fmac = commands.make_remage_macro(
         config, "hpge_bulk_high_thr_Rn222_to_Po214", "stp"
     )
+
     assert text is not None
 
     text, fmac = commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")

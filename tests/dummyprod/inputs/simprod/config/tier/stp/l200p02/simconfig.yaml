@@ -72,3 +72,17 @@ exotic_physics_hpge:
   confinement: ~defines:hpge_bulk
   primaries_per_job: 10_000
   number_of_jobs: 4
+
+lar_inside:
+  template: $_/templates/default.mac
+  generator: ~defines:K42
+  confinement: "~function:legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,'minishroud_tube*',True,lar_name= 'liquid_argon')"
+  primaries_per_job: 10_000
+  number_of_jobs: 4
+
+lar_outside:
+  template: $_/templates/default.mac
+  generator: ~defines:K42
+  confinement: "~function:legendsimflow.confine.get_lar_minishroud_confine_commands(<...>,'minishroud_tube*',False,lar_name= 'liquid_argon')"
+  primaries_per_job: 10_000
+  number_of_jobs: 4

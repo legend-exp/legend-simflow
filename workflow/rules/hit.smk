@@ -71,7 +71,7 @@ rule build_tier_hit:
     This rule implements the post-processing of the `stp` tier HPGe data in
     chunks, in the following steps:
 
-    - each chunk is partitioned according the the livetime span of each run
+    - each chunk is partitioned according to the livetime span of each run
       (see the `make_simstat_partition_file` rule). For each partition:
     - the detector usability is retrieved from `legend-metadata` and stored in
       the output;
@@ -97,9 +97,11 @@ rule build_tier_hit:
         # not all of them will be used. room for improvement
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
+        hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
-        simstat_part_file=rules.make_simstat_partition_file.output[0],
+        simstat_part_file=rules.make_simstat_partition_file.output,
+        detector_usabilities=rules.cache_detector_usabilities.output,
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
@@ -110,6 +112,23 @@ rule build_tier_hit:
         "../src/legendsimflow/scripts/tier/hit.py"
 
 
+rule plot_tier_hit_observables:
+    """Produces plots of observables from the tier `hit`.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Producing control plots for job hit.{wildcards.simid}"
+    input:
+        lambda wc: aggregate.gen_list_of_simid_outputs(
+            config, tier="hit", simid=wc.simid
+        ),
+    output:
+        patterns.plot_tier_hit_observables_filename(config),
+    script:
+        "../src/legendsimflow/scripts/plots/tier_hit_observables.py"
+
+
 def smk_hpge_drift_time_map_inputs(wildcards):
     """Prepare inputs for the HPGe drift time map rule."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
@@ -117,10 +136,6 @@ def smk_hpge_drift_time_map_inputs(wildcards):
     crystal_name = (
         ids[meta.type] + format(meta.production.order, "02d") + meta.production.crystal
     )
-
-    # remove the datatype at the end of the runid string, it's not needed to
-    # locate the operational voltage file
-    runid_no_dt = "-".join(wildcards.runid.split("-")[:-1])
 
     _m = Path(config.paths.metadata)
 
@@ -139,19 +154,16 @@ def smk_hpge_drift_time_map_inputs(wildcards):
 rule build_hpge_drift_time_map:
     """Produce an HPGe drift time map.
 
-    Uses wildcards `hpge_detector` and `runid`.
+    Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Generating drift time map for HPGe detector {wildcards.hpge_detector} in run {wildcards.runid}"
+        "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         unpack(smk_hpge_drift_time_map_inputs),
     params:
         metadata_path=config.paths.metadata,
-        operational_voltage=lambda wc: mutils.simpars(
-            config.metadata, "geds.opv", wc.runid
-        )[wc.hpge_detector].operational_voltage_in_V,
     output:
-        temp(patterns.output_dtmap_filename(config)),
+        patterns.output_dtmap_filename(config),
     log:
         patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
     benchmark:
@@ -163,23 +175,8 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
-        "    --opv {params.operational_voltage}"
+        "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
-
-
-rule plot_hpge_drift_time_maps:
-    """Produce a validation plot of an HPGe drift time map.
-
-    Uses wildcards `hpge_detector` and `runid`.
-    """
-    message:
-        "Plotting HPGe drift time map for {wildcards.hpge_detector} in {wildcards.runid}"
-    input:
-        rules.build_hpge_drift_time_map.output,
-    output:
-        patterns.plot_dtmap_filename(config),
-    script:
-        "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 
 
 rule merge_hpge_drift_time_maps:
@@ -193,10 +190,6 @@ rule merge_hpge_drift_time_maps:
         lambda wc: aggregate.gen_list_of_dtmaps(
             config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
         ),
-    params:
-        input_regex=lambda wc: patterns.output_dtmap_filename(
-            config, runid=wc.runid, hpge_detector="*"
-        ),
     output:
         patterns.output_dtmap_merged_filename(config),
     shell:
@@ -204,8 +197,8 @@ rule merge_hpge_drift_time_maps:
         shopt -s nullglob
         out={output}
 
-        # expand glob into $1 $2 ...
-        set -- {params.input_regex}
+        # expand input files
+        set -- {input}
 
         # if no matches, create an empty hdf5 file
         if [ "$#" -eq 0 ]; then
@@ -224,6 +217,21 @@ rule merge_hpge_drift_time_maps:
           done
         done
         """
+
+
+rule plot_hpge_drift_time_maps:
+    """Produce a validation plot of an HPGe drift time map.
+
+    Uses wildcards `hpge_detector` and `hpge_voltage`.
+    """
+    message:
+        "Plotting drift time map for HPGe {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+    input:
+        rules.build_hpge_drift_time_map.output,
+    output:
+        patterns.plot_dtmap_filename(config),
+    script:
+        "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 
 
 def smk_extract_current_pulse_model_inputs(wildcards):
@@ -297,10 +305,48 @@ rule merge_current_pulse_model_pars:
         import dbetto
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid]
+        hpges = list(SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid])
 
         out_dict = {}
         for i, f in enumerate(input):
             out_dict[hpges[i]] = dbetto.utils.load_dict(f)
 
         dbetto.utils.write_dict(out_dict, output[0])
+
+
+rule extract_energy_resolution_model:
+    """Extract from the LEGEND-200 data and store on disk the HPGe energy resolution model.
+
+    Stores a YAML file with a mapping between HPGe detectors and respective
+    information to reconstruct the energy resolution function, as determined
+    during energy calibration. This is done in a separate rule because the
+    data production parameter database is large and we don't want to use a lot
+    of memory in the `build_tier_hit` rule.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Extracting HPGe energy resolution model for {wildcards.runid}"
+    # NOTE: we don't list the file dependencies here because they are
+    # dynamically generated, and that would slow down the DAG generation
+    output:
+        patterns.output_eresmod_filename(config),
+    run:
+        import dbetto
+        from legendsimflow import hpge_pars, utils
+
+        hit_tier_name = utils.get_hit_tier_name(config.paths.l200data)
+
+        pars_dict = hpge_pars.lookup_energy_res_metadata(
+            config.paths.l200data,
+            config.metadata,
+            wildcards.runid,
+            hit_tier_name=hit_tier_name,
+        )
+
+        out_dict = dbetto.AttrsDict({})
+        fields = ["expression", "parameters", "uncertainties"]
+        for hpge, meta in pars_dict.items():
+            out_dict[hpge] = {f: meta[f] for f in fields}
+
+        dbetto.utils.write_dict(out_dict.to_dict(), output[0])
