@@ -74,7 +74,7 @@ def snakemake_nersc_cli():
 
     config["metadata"] = metadata
 
-    simlist = list(config.get("simlist", None))  # make a copy for shuffling later
+    simlist = config.get("simlist", None)
     make_tiers = config.make_tiers
     if simlist is None:
         # auto determine tier from config
@@ -88,6 +88,7 @@ def snakemake_nersc_cli():
     # trick: there won't be anything to do for some simids (targets already
     # done), this could result in a very inefficient partitioning. as a
     # mitigation, we randomly shuffle the simlist first
+    simlist = list(simlist)  # make a copy so we don't modify the input simlist in place
     random.shuffle(simlist)
 
     procs = []

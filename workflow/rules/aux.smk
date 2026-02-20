@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from legendsimflow import aggregate
+
 
 rule print_stats:
     """Prints a table with summary runtime information for each `simid`.
@@ -63,3 +65,26 @@ rule _init_julia_env:
         "cd workflow/src/legendsimflow/scripts && "
         "julia --project=. ./init-julia-env.jl && "
         "touch {output}"
+
+
+rule cache_detector_usabilities:
+    """Cache detector usabilities.
+
+    Querying the metadata for detector analysis usability can be slow and
+    constitute the bottleneck in post-processing (`opt` and `hit` tiers).
+    This rule caches the mapping `run -> detector -> usability` on disk.
+    """
+    localrule: True
+    message:
+        "Caching detector usabilities"
+    params:
+        runlist=config.runlist,
+    output:
+        config.paths.generated / "detector_usabilities.yaml",
+    run:
+        import dbetto
+
+        dbetto.utils.write_dict(
+            aggregate.gen_list_of_all_usabilities(config),
+            output[0],
+        )

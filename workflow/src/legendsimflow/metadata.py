@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Collection
+from collections.abc import Iterable
 from pathlib import Path
 
 from dbetto import AttrsDict
@@ -30,6 +30,12 @@ from . import SimflowConfig, utils
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
+
+USABILITY_CODE = {
+    "on": 0,
+    "ac": 1,
+    "off": 2,
+}
 
 
 def get_simconfig(
@@ -147,36 +153,14 @@ def usability(
 
 
 def encode_usability(usability: str) -> int:
-    """Encode the usability in an int.
-
-    - "on":  0
-    - "ac":  1
-    - "off": 2
-
-    Better to store and faster to manipulate.
-    """
-
-    if usability == "on":
-        return 0
-    if usability == "ac":
-        return 1
-    if usability == "off":
-        return 2
-    msg = "currently only usability of `on` `ac` or `off` are supported"
-    raise ValueError(msg)
+    """Encode the HPGe usability in an int."""
+    return USABILITY_CODE[usability]
 
 
 def decode_usability(usability_code: int) -> str:
-    """Decode the usability (see {func}`encode_usability`)."""
-
-    if usability_code == 0:
-        return "on"
-    if usability_code == 1:
-        return "ac"
-    if usability_code == 2:
-        return "off"
-    msg = f"currently only usability of `on` `ac` or `off` are supported not {usability_code}"
-    raise ValueError(msg)
+    """Decode the HPGe usability (see {func}`encode_usability`)."""
+    _codes = {v: k for k, v in USABILITY_CODE.items()}
+    return _codes[usability_code]
 
 
 def parse_runid(runid: str) -> (str, int, int, str):
@@ -263,7 +247,7 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
     return directory.on(runinfo(metadata, runid).start_key, system=datatype)
 
 
-def get_vtx_simconfig(config, simid):
+def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
     """Get the vertex generation configuration for a stp-tier `simid`.
 
     Returns the ``vtx``-tier generator requested by the ``stp``-tier simulation
@@ -360,9 +344,7 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
     return sorted(runs)
 
 
-def expand_runlist(
-    metadata: LegendMetadata, runlist: str | Collection[str]
-) -> list[str]:
+def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> list[str]:
     """Expands a runlist as passed to the Simflow configuration.
 
     A runlist is a list of:
@@ -433,9 +415,8 @@ def _get_lh5_table(
 
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
-    log.info(timestamp)
 
     chmap = metadata.channelmap(timestamp)
-    log.info(chmap.keys())
+
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"

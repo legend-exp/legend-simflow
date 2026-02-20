@@ -22,7 +22,9 @@ from legendsimflow import metadata as mutils
 rule gen_all_tier_stp:
     """Build the entire `stp` tier."""
     input:
-        aggregate.gen_list_of_all_plots_outputs(config, tier="stp"),
+        aggregate.gen_list_of_all_plots_outputs(
+            config, tier="stp", cache=SIMFLOW_CONTEXT.modelable_hpges
+        ),
         aggregate.gen_list_of_all_simid_outputs(config, tier="stp"),
 
 

@@ -5,16 +5,19 @@ import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import awkward as ak
 import numpy as np
 from dbetto import AttrsDict, TextDB
+from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
 from lgdo import lh5
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
+from pygama.math.distributions import gaussian
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 from scipy.optimize import curve_fit
 
@@ -148,6 +151,144 @@ def fit_currmod(times: NDArray, current: NDArray) -> tuple:
     return popt, x, y
 
 
+def fit_noise_gauss(
+    data: ArrayLike,
+    bins: int,
+    *,
+    fit_range: tuple | None = None,
+    sigma_range: tuple | None = None,
+) -> Minuit:
+    """Fit the data to a Gaussian to extract the resolution.
+
+    Performs a binned maximum likelihood fit using `minuit`.
+
+    Parameters
+    ----------
+    data
+        an array of the data to fit.
+    bins
+        The number of bins.
+    fit_result
+        The results of the `iminuit` fit.
+    fit_range
+        The range to use for the fit, if `None` this is determined from the data as +/- 5 standard deviations round the mean.
+    sigma_range
+        The range of sigma values for the fit, if `None` is determined from the data.
+
+    Returns
+    -------
+        The minuit object holding the fit results.
+    """
+
+    if fit_range is None:
+        fit_range = (np.mean(data) - 5 * np.std(data), np.mean(data) + 5 * np.std(data))
+
+    if sigma_range is None:
+        sigma_range = (0.1 * np.std(data), 10 * np.std(data))
+
+    n, xe = np.histogram(data, bins=bins, range=fit_range)
+    c = cost.BinnedNLL(n, xe, gaussian.cdf_norm)
+
+    # initialise the fit
+    m_norm = Minuit(
+        c,
+        x_lo=fit_range[0],
+        x_hi=fit_range[1],
+        mu=(fit_range[0] + fit_range[1]) / 2,
+        sigma=(sigma_range[0] + sigma_range[1]) / 2,
+    )
+
+    # set parameters
+    m_norm.fixed["x_lo", "x_hi"] = True
+    m_norm.limits["mu"] = fit_range
+    m_norm.limits["sigma"] = sigma_range
+
+    # perform the fit
+    m_norm.migrad()
+    m_norm.hesse()
+
+    return m_norm
+
+
+def plot_noise_waveforms(
+    noise: ArrayLike, temp: ArrayLike, norm: float = 1
+) -> tuple[Figure, Any]:
+    """Plot the waveforms with noise and the noise alone."""
+
+    temp = norm * temp / np.max(temp)
+
+    fig, axs = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
+
+    for idx, wf in enumerate(noise[0:20]):
+        axs[0].plot(wf + temp, label=("noise + current template" if idx == 0 else None))
+        axs[1].plot(wf, label=("noise" if idx == 0 else None))
+
+    axs[1].set_xlabel("time [sample]")
+
+    axs[0].set_ylabel("waveform")
+    axs[1].set_ylabel("waveform")
+
+    axs[0].legend()
+    axs[1].legend()
+
+    return fig, axs
+
+
+def plot_gauss_fit(
+    data: ArrayLike,
+    fit_result: Minuit,
+    fit_range: tuple | None = None,
+    bins: int = 100,
+    nominal_val: float | None = None,
+) -> tuple[Figure, Axes]:
+    """Plot the result of the Gaussian fit.
+
+    Parameters
+    ----------
+    data
+        an array of the data to fit.
+    bins
+        The number of bins.
+    fit_range
+        The range to use for the fit, if `None` this is determined from the data as +/- 5 standard deviations round the mean.
+    nominal_val
+        The nominal mean to add as a line on the plot.
+
+    """
+    if fit_range is None:
+        fit_range = (np.mean(data) - 5 * np.std(data), np.mean(data) + 5 * np.std(data))
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    ax.hist(data, bins=bins, range=fit_range, alpha=0.8, density=True)
+
+    x = np.linspace(*fit_range, 10000)
+
+    ax.plot(
+        x,
+        gaussian.pdf_norm(
+            x,
+            x_lo=fit_result.values["x_lo"],
+            x_hi=fit_result.values["x_hi"],
+            mu=fit_result.values["mu"],
+            sigma=fit_result.values["sigma"],
+        ),
+        label="Fit",
+    )
+
+    if nominal_val is not None:
+        ax.axvline(nominal_val, color="red", linestyle="--", label="Nominal value")
+
+    ax.set_xlabel("A$_{max}$ [arb]")
+    ax.set_ylabel("Prob [arb.]")
+    ax.legend()
+
+    ax.set_yscale("linear")
+    ax.get_legend().set_title(r"$\sigma$" + f" = {fit_result.values['sigma']:.2f}")
+
+    return fig, ax
+
+
 def get_current_pulse(
     raw_file: Path | str,
     lh5_group: str,
@@ -193,14 +334,89 @@ def get_current_pulse(
     return t, A
 
 
+def get_noise_waveforms(
+    raw_files: list,
+    hit_files: list,
+    lh5_group: str,
+    dsp_config: str,
+    dsp_output: str,
+    *,
+    threshold: float = 5,
+    length: int = 1000,
+    maximum_number: int | None = None,
+    energy_var: str = "cuspEmax_cal",
+) -> NDArray:
+    """Extract a matrix of noise waveforms, after applying some DSP processing.
+
+    The waveforms are only those with energy less than `threshold` and are the
+    result of the dsp processing defined in `config_path` with output variable
+    `dsp_output`.
+
+    Parameters
+    ----------
+    raw_files
+        List of paths to raw files.
+    hit_files
+        List of paths to hit files.
+    lh5_group
+        The name of the lh5_group to find the waveform table in.
+    dsp_config
+        the :mod:`dspeed` configuration file defining the DSP processing chain
+        to estimate the current pulse.
+    dsp_output
+        the name of the DSP output corresponding to the current pulse.
+    threshold
+        energy threshold to apply to select the noise waveforms
+    maximum_number
+        Number of waveforms to extract.
+    length
+        length of noise waveform to extract (takes the first `N` samples).
+
+    Returns
+    -------
+    a 2D array of the waveforms.
+
+    """
+    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
+
+    waveforms = []
+
+    for raw_file, hit_file in zip(raw_files, hit_files, strict=True):
+        browser = WaveformBrowser(
+            str(raw_file), lh5_group, dsp_config=dsp_config, lines=[dsp_output]
+        )
+        energies = lh5.read(
+            f"{lh5_group.replace('raw', 'hit')}/{energy_var}", hit_file
+        ).view_as("np")
+
+        # only look at low energy
+        indices = np.where(energies < threshold)
+
+        for idx in indices[0]:
+            browser.find_entry(idx, append=False)
+
+            waveform = browser.lines[dsp_output][0].get_ydata()
+            waveforms.append(waveform[:length].reshape(1, length))
+
+            if maximum_number is not None and len(waveforms) >= maximum_number:
+                return np.concatenate(waveforms, axis=0)
+
+    return np.concatenate(waveforms, axis=0)
+
+
 def plot_currmod_fit_result(
     t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
 ) -> tuple[Figure, Axes]:
     """Plot the best fit results."""
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 4))
 
-    ax.plot(t, A, linewidth=2, label="Waveform")
-    ax.plot(model_t, model_A, linewidth=1, label="Fit")
+    ax.plot(
+        t,
+        A,
+        linewidth=2,
+        label="Current signal",
+    )
+    ax.plot(model_t, model_A, label="Model", color="tab:red")
 
     ax.legend()
 
@@ -217,6 +433,66 @@ def estimate_mean_aoe(popt: list, energy: float = 1593) -> float:
     temp = current_pulse_model(x, *popt)
 
     return float(np.max(temp) / energy)
+
+
+def get_waveform_maxima(
+    template: ArrayLike, noise_wfs: ArrayLike, *, norm: float = 1
+) -> NDArray:
+    """Extract the maximum of each waveform based on combining the
+    `template` with each waveform in `noise_wfs`.
+
+    Note
+    ----
+    The length of the template must be the same as the waveforms in `noise_wfs`
+
+    Parameters
+    ----------
+    template
+        The template of the waveform to use.
+    noise_wfs
+        2D array of each noise waveform.
+    norm
+        The normalisation for the template.
+    """
+    # normalise the template
+    template = norm * template / np.max(template)
+
+    maximum = np.max(noise_wfs + template, axis=1)
+
+    # remove nan
+    maximum = maximum[~np.isnan(maximum)]
+
+    # remove far outliers
+    return maximum[abs(maximum - np.mean(maximum)) < np.std(maximum) * 5]
+
+
+def lookup_file_paths(l200data: str, runid: str, hit_tier_name: str) -> AttrsDict:
+    """Lookup the paths to the `hit` and `raw` files."""
+
+    _, period, run, data_type = re.split(r"\W+", runid)
+
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    df_cfg = utils.lookup_dataflow_config(l200data).paths
+
+    hit_path = df_cfg[f"tier_{hit_tier_name}"]
+    hit_files = list((hit_path / data_type / period / run).glob("*.lh5"))
+
+    if hit_files == []:
+        msg = f"no LH5 files found in {hit_path / data_type / period / run}"
+        raise RuntimeError(msg)
+
+    raw_files = [
+        Path(
+            str(hit_file)
+            .replace(str(hit_path), str(df_cfg.tier_raw))
+            .replace(hit_tier_name, "raw")
+        )
+        for hit_file in hit_files
+    ]
+
+    return AttrsDict({"raw": raw_files, "hit": hit_files})
 
 
 def lookup_currmod_fit_inputs(
@@ -244,7 +520,7 @@ def lookup_currmod_fit_inputs(
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
-    dataflow_config = utils.lookup_dataflow_config(l200data)
+    df_cfg = utils.lookup_dataflow_config(l200data).paths
 
     # get the reference cal run
     cal_runid = mutils.reference_cal_run(metadata, runid)
@@ -253,10 +529,7 @@ def lookup_currmod_fit_inputs(
     msg = f"inferred reference calibration run: {cal_runid}"
     log.debug(msg)
 
-    # get the paths to hit and raw tier files
-    df_cfg = dataflow_config.paths
-
-    hit_path = Path(df_cfg[f"tier_{hit_tier_name}"])
+    hit_path = df_cfg[f"tier_{hit_tier_name}"]
     msg = f"looking for hit tier files in {hit_path / 'cal' / period / run}/*"
     log.debug(msg)
 
@@ -287,15 +560,15 @@ def lookup_currmod_fit_inputs(
 
     wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
 
-    raw_path = Path(df_cfg.tier_raw)
+    raw_path = df_cfg.tier_raw
     hit_file = hit_files[file_idx]
-    raw_file = raw_path / str(hit_file.relative_to(hit_path)).replace(
-        hit_tier_name, "raw"
-    )
+    raw_file = (
+        raw_path / str(hit_file.relative_to(hit_path)).replace(hit_tier_name, "raw")
+    ).resolve()
     msg = f"determined raw file: {raw_file} (event index {wf_idx})"
     log.debug(msg)
 
-    return raw_file.resolve(), wf_idx, dsp_cfg_files[0]
+    return raw_file, wf_idx, dsp_cfg_files[0]
 
 
 def lookup_energy_res_metadata(
@@ -343,7 +616,6 @@ def lookup_energy_res_metadata(
     # get the paths to generated parameters
     if pars_db is None:
         pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-        pars_db.scan()  # need to use .on() later
 
     msg = f"loading {hit_tier_name} pars of production {l200data}"
     log.debug(msg)
@@ -386,7 +658,7 @@ def build_energy_res_func_dict(
     runid: str,
     *,
     hit_tier_name: str = "hit",
-    pars_db: TextDB | None = None,
+    energy_res_pars: dict | AttrsDict | None = None,
 ) -> dict[str, Callable]:
     r"""Build energy resolution functions for each HPGe detector in a LEGEND-200 run.
 
@@ -409,13 +681,16 @@ def build_energy_res_func_dict(
         optional existing *non-lazy* instance of
         ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
     """
-    energy_res_pars = lookup_energy_res_metadata(
-        l200data,
-        metadata,
-        runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
-    )
+    if energy_res_pars is None:
+        energy_res_pars = lookup_energy_res_metadata(
+            l200data,
+            metadata,
+            runid,
+            hit_tier_name=hit_tier_name,
+        )
+
+    if not isinstance(energy_res_pars, AttrsDict):
+        energy_res_pars = AttrsDict(energy_res_pars)
 
     _func_full = build_energy_res_func("FWHMLinear")
 

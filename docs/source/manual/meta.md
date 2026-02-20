@@ -136,6 +136,13 @@ Supported fields per `simid`:
   - a list of the above strings to combine multiple volume patterns
   - `~vertices:NAME` to used the vertex positions similated by the `vtx` tier
     generator `NAME` (see {ref}`vtx-tier-meta`).
+  - `~function:NAME` to use a user-defined function to generate macro commands.
+    `NAME` should be in a format:
+  ```
+    module.function(<...>,*args,**kwargs)
+  ```
+  see {func}`legendsimflow.commands.get_confinement_from_function` for more
+  details. This function should return a list of the _remage_ macro commands.
 - `primaries_per_job` — integer, the number of primaries per job; becomes
   `N_EVENTS` in the macro file.
 - `number_of_jobs` — integer, how many jobs to split the simulation into.

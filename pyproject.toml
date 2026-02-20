@@ -21,7 +21,6 @@ where = ["workflow/src"]
 
 [tool.setuptools_scm]
 write_to = "workflow/src/legendsimflow/_version.py"
-
 [project]
 name = "legend_simflow"
 description = "Python package for processing LEGEND simulations"
@@ -52,16 +51,20 @@ dependencies = [
     "awkward",
     "dbetto >=1.3.2",
     "h5py",
+    "hist",
     "legend-dataflow-scripts >=0.2.2",
     "legend-pydataobj >=1.17.1",
     "legend-pygeom-l200 >=0.8",
     "legend-pygeom-tools >=0.2",
     "legend-pygeom-hpges >=0.9",
+    "matplotlib",
+    "mplhep",
     "numpy",
+    "psutil",
     "pyg4ometry",
-    "pygama >=2.3.1",
+    "pygama >=2.3.3",
     "pylegendmeta >=1.3.5",
-    "reboost >=0.9.1,<0.10",
+    "reboost >=0.10.3,<0.11",
     "revertex >=0.1.2",
     "snakemake >=9",
     "snakemake-storage-plugin-fs",
@@ -182,8 +185,10 @@ dbetto = ">=1.3.2,<1.4"
 legend-pydataobj = ">=1.17.1"
 legend-pygeom-l200 = ">=0.8,<0.9"
 legend-pygeom-tools = ">=0.2,<0.3"
+matplotlib = "*"
 numpy = "*"
 pylegendmeta = ">=1.3.5,<1.4"
+psutil = "*"
 
 # execution
 snakemake = ">=9,<10"
@@ -191,10 +196,12 @@ snakemake-storage-plugin-fs = "*"
 snakemake-executor-plugin-slurm = "*"
 
 # tier hit
+hist = "*"
+mplhep = "*"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
-pygama = ">=2.3.1,<2.4"
-reboost = ">=0.9.1,<0.10"
+pygama = ">=2.3.3,<2.4"
+reboost = ">=0.10.3,<0.11"
 
 # tier stp
 remage = ">=0.19.5,<0.20"

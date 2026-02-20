@@ -20,9 +20,11 @@ import inspect
 import json
 import logging
 import os
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
+import awkward as ak
 import dbetto
 import h5py
 import legenddataflowscripts as ldfs
@@ -39,7 +41,23 @@ log = logging.getLogger(__name__)
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
-    # merge default into user without overwriting user values
+    """Recursively merge default values into user configuration.
+
+    Merges values from `default` into `user` without overwriting existing
+    user values. For nested dictionaries, performs recursive merge.
+
+    Parameters
+    ----------
+    user
+        User configuration dictionary.
+    default
+        Default configuration dictionary.
+
+    Returns
+    -------
+    dict
+        Merged configuration dictionary with user values taking precedence.
+    """
     result = dict(default)
     for k, v in user.items():
         if k in result and isinstance(result[k], dict) and isinstance(v, dict):
@@ -47,6 +65,15 @@ def _merge_defaults(user: dict, default: dict) -> dict:
         else:
             result[k] = v
     return result
+
+
+def _make_path(d):
+    for k, v in d.items():
+        if isinstance(v, str):
+            d[k] = Path(v).resolve()
+        else:
+            d[k] = _make_path(v)
+    return d
 
 
 def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
@@ -95,14 +122,6 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     config = AttrsDict(raw_config)
 
     # convert all strings in the "paths" block to pathlib.Path
-    def _make_path(d):
-        for k, v in d.items():
-            if isinstance(v, str):
-                d[k] = Path(v)
-            else:
-                d[k] = _make_path(v)
-        return d
-
     config["paths"] = _make_path(config.paths)
 
     if "l200data" in config.paths:
@@ -137,8 +156,16 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     )
 
 
-def setup_logdir_link(config: SimflowConfig, proctime):
-    """Set up the timestamp-tagged directory for the workflow log files."""
+def setup_logdir_link(config: SimflowConfig, proctime: str) -> None:
+    """Set up the timestamp-tagged directory for the workflow log files.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    proctime
+        Processing time identifier for the log directory.
+    """
     logdir = Path(config.paths.log)
     logdir.mkdir(parents=True, exist_ok=True)
 
@@ -189,6 +216,9 @@ def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
         use_env=False,
         ignore_missing=True,
     )
+
+    # convert all strings in the "paths" block to pathlib.Path
+    df_cfg["paths"] = _make_path(df_cfg.paths)
 
     return df_cfg
 
@@ -290,3 +320,41 @@ def add_field_string(name: str, chunk: lgdo.Table, data: str) -> None:
     dtype = h5py.string_dtype(encoding="utf-8", length=len(data))
     data_array = np.full(len(chunk), fill_value=data, dtype=dtype)
     chunk.add_field(name, lgdo.Array(data_array))
+
+
+def check_nans_leq(array: ArrayLike, name: str, less_than_frac: float = 0.1) -> None:
+    """Raise an exception if the fraction of NaN values in `array` is above threshold.
+
+    Parameters
+    ----------
+    array
+        the array to analyze.
+    name
+        array name for exception message.
+    less_than_frac
+        raise exception if fraction of NaNs is above this threshold.
+    """
+    flat = ak.ravel(array)
+    n_el = len(flat)
+    n_nans = ak.sum(ak.is_none(ak.nan_to_none(flat)))
+    if (n_nans / n_el) > less_than_frac:
+        msg = f"more than {100 * less_than_frac}% of NaNs detected in array {name}!"
+        raise RuntimeError(msg)
+
+
+def sorted_by(subset: Sequence, order: Sequence) -> list:
+    """Sort a sequence according to a specified order, dropping duplicates."""
+    pos = {k: i for i, k in enumerate(order)}
+
+    # stable sort by order
+    out = sorted(subset, key=pos.__getitem__)
+
+    # deduplicate while preserving order
+    seen = set()
+    uniq = []
+    for x in out:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+
+    return uniq

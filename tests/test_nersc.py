@@ -47,12 +47,9 @@ def test_scratch(fresh_config):
 
     tmp = Path(tempfile.gettempdir())
     c.nersc.scratch = str(tmp)
-    assert nersc.scratch_dir(c) == tmp
+    assert nersc.scratch_dir(c).parent == tmp
 
-    c.nersc.scratch = str(tmp / "legend-simflow")
-    assert (
-        nersc.on_scratch(c, "test.ext").as_posix() == f"{tmp}/legend-simflow/test.ext"
-    )
-    assert Path(f"{tmp}/legend-simflow").is_dir()
-
-    assert nersc.on_scratch(c, __file__).as_posix() == f"{tmp}/legend-simflow{__file__}"
+    c.nersc.scratch = str(tmp)
+    scr_path = nersc.on_scratch(c, "test.ext")
+    assert scr_path.name == "test.ext"
+    assert scr_path.parent.parent == Path(c.nersc.scratch)

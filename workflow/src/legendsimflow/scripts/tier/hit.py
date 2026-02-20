@@ -16,11 +16,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import awkward as ak
-import dbetto.utils
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
 import numpy as np
+import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
@@ -30,12 +30,15 @@ import reboost.hpge.utils
 import reboost.math.functions
 import reboost.math.stats
 import reboost.spms
+from dbetto import AttrsDict
+from dbetto.utils import load_dict
 from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.profile import make_profiler
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -47,11 +50,16 @@ log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
-simstat_part_file = args.input.simstat_part_file
+hpge_eresmods_files = args.input.hpge_eresmods
+simstat_part_file = args.input.simstat_part_file[0]
 l200data = args.config.paths.l200data
-hit_tier_name = utils.get_hit_tier_name(l200data)
+usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
+
+hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
 BUFFER_LEN = "500*MB"
+
+u = pint.UnitRegistry()
 
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
@@ -60,9 +68,11 @@ def DEFAULT_ENERGY_RES_FUNC(energy):
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+perf_block, print_perf = make_profiler()
 
 # load the geometry and retrieve registered sensitive volume tables
-geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
+with perf_block("load_pygeom()"):
+    geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 # determine list of stp tables in the stp file
@@ -72,19 +82,21 @@ for tbl in lh5.ls(stp_file, "stp/*"):
     if not tbl.removeprefix("stp/").startswith("_"):
         ondisk_stp_tables[tbl] = False
 
-partitions = dbetto.utils.load_dict(simstat_part_file)[f"job_{jobid}"]
-
-# pre-load the l200 data pars to save time later
-pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-msg = "loading l200 pars database"
-log.debug(msg)
-pars_db.scan()
+partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
 
 # load TCM, to be used to chunk the event statistics according to the run partitioning
 msg = "loading TCM"
 log.debug(msg)
 tcm = lh5.read_as("tcm", stp_file, library="ak")
+
+# extract the detector origin
+det_loc = lh5.read("detector_origins", stp_file)
+# convert to right format and add units
+# FIXME: units should be already present, to be fixed in remage
+det_loc = {
+    k: [v[field].value for field in ("xloc", "yloc", "zloc")] * u.m
+    for k, v in det_loc.items()
+}
 
 # loop over the partitions for this file
 for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -96,12 +108,16 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
     msg = "loading energy resolution parameters"
     log.debug(msg)
+    eresmod_pars_file = patterns.output_eresmod_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    eresmod_pars_all = load_dict(eresmod_pars_file)
     energy_res_func = hpge_pars.build_energy_res_func_dict(
         l200data,
         metadata,
         runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
+        energy_res_pars=eresmod_pars_all,
     )  # FWHM
 
     msg = "loading current pulse model parameters"
@@ -110,7 +126,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         snakemake.config,  # noqa: F821
         runid=runid,
     )
-    currmod_pars_all = dbetto.utils.load_dict(currmod_pars_file)
+    currmod_pars_all = AttrsDict(load_dict(currmod_pars_file))
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
@@ -135,13 +151,16 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             continue
 
         # get the usability
-        usability = mutils.usability(metadata, det_name, runid=runid, default="on")
+        usability = usabilities[runid][det_name]
+        if usability is None:
+            usability = "on"
 
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)
-        i_start, n_entries = reboost_utils.get_remage_hit_range(
-            tcm, det_name, geom_meta.uid, evt_idx_range
-        )
+        with perf_block("get_remage_hit_range()"):
+            i_start, n_entries = reboost_utils.get_remage_hit_range(
+                tcm, det_name, geom_meta.uid, evt_idx_range
+            )
 
         # initialize the stp file iterator
         # NOTE: if the entry list is empty, there will be no processing but an
@@ -165,7 +184,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         )
 
         fccd = mutils.get_sanitized_fccd(metadata, det_name)
-        det_loc = geom.physicalVolumeDict[det_name].position
 
         # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
         dt_map = reboost_utils.load_hpge_dtmaps(snakemake.config, det_name, runid)  # noqa: F821
@@ -173,32 +191,34 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         # load parameters of the current model
         pars = currmod_pars_all.get(det_name, None)
         currmod_pars = (
-            pars.get("current_pulse_shape", None) if pars is not None else None
+            pars.get("current_pulse_pars", None) if pars is not None else None
         )
 
         n_tot = 0
         # iterate over input data
         for lgdo_chunk in iterator:
-            chunk = lgdo_chunk.view_as("ak")
+            chunk = lgdo_chunk.view_as("ak", with_units=True)
 
             n_tot += len(chunk)
 
-            _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
-                chunk.xloc * 1000,  # mm
-                chunk.yloc * 1000,  # mm
-                chunk.zloc * 1000,  # mm
-                pyobj,
-                det_loc.eval(),
-                distances_precompute=chunk.dist_to_surf * 1000,
-                precompute_cutoff=(fccd + 1),
-                surface_type="nplus",
-            )
+            with perf_block("distance_to_surface()"):
+                _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
+                    chunk.xloc,
+                    chunk.yloc,
+                    chunk.zloc,
+                    pyobj,
+                    det_loc[det_name],
+                    distances_precompute=chunk.dist_to_surf,
+                    precompute_cutoff=(fccd + 1),
+                    surface_type="nplus",
+                )
 
-            _activeness = reboost.math.functions.piecewise_linear_activeness(
-                _distance_to_nplus,
-                fccd=fccd,
-                dlf=0.5,
-            ).view_as("ak")
+            with perf_block("piecewise_linear_activeness()"):
+                _activeness = reboost.math.functions.piecewise_linear_activeness(
+                    _distance_to_nplus,
+                    fccd_in_mm=fccd,
+                    dlf=0.5,
+                )
 
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
@@ -213,9 +233,15 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 )
                 raise RuntimeError(msg)
             else:
+                msg = (
+                    f"{det_name} is marked as '{usability}' but no "
+                    "resolution curves are available. using default "
+                    "resolution of 2.5 keV FWHM at 2 MeV!"
+                )
+                log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
-            energy = reboost.math.stats.gaussian_sample(
+            energy = reboost_utils.gauss_smear(
                 energy_true,
                 energy_res / 2.35482,
             )
@@ -225,25 +251,48 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # way
 
             # default to NaN
-            dt_heuristic = np.full(len(chunk), np.nan)
+            _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
+            t_max = np.full(len(chunk), np.nan)
 
-            if dt_map is not None:
-                _drift_time = reboost_utils.hpge_corrected_drift_time(
-                    chunk, dt_map, det_loc
+            if dt_map is not None and currmod_pars is not None:
+                msg = "computing PSD observables"
+                log.info(msg)
+
+                with perf_block("hpge_corrected_drift_time()"):
+                    _drift_time = reboost_utils.hpge_corrected_drift_time(
+                        chunk, dt_map, det_loc[det_name]
+                    )
+                utils.check_nans_leq(_drift_time, "_drift_time", 0.01)
+
+                with perf_block("hpge_max_current()"):
+                    _a_max_true = reboost_utils.hpge_max_current(
+                        edep_active, _drift_time, currmod_pars
+                    )
+                utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
+
+                # Apply current resolution smearing based on configured A/E noise parameters
+                _a_max = reboost_utils.gauss_smear(
+                    _a_max_true, pars.current_reso / pars.mean_aoe
                 )
-                dt_heuristic = reboost.hpge.psd.drift_time_heuristic(
-                    _drift_time, chunk.edep
-                )
-                _a_max = reboost_utils.hpge_max_current(
-                    edep_active, _drift_time, currmod_pars
-                )
+
+                # finally calculate A/E
                 aoe = _a_max / energy
+
+                # also calculate drift time at A position
+                # FIXME: this is wasting compute resources, max_current should
+                # return (maxA, t_maxA)
+                with perf_block("hpge_max_current()"):
+                    t_max = reboost_utils.hpge_max_current(
+                        edep_active, _drift_time, currmod_pars, return_mode="max_time"
+                    )
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
-            out_table.add_field("drift_time_heuristic", lgdo.Array(dt_heuristic))
+            out_table.add_field(
+                "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
+            )
             out_table.add_field("aoe", lgdo.Array(aoe))
 
             _, period, run, _ = mutils.parse_runid(runid)
@@ -254,12 +303,13 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     lgdo.Array(np.full(shape=len(chunk), fill_value=field_vals[i])),
                 )
 
-            reboost_utils.write_chunk(
-                out_table,
-                f"/hit/{det_name}",
-                hit_file,
-                geom_meta.uid,
-            )
+            with perf_block("write_chunk()"):
+                reboost_utils.write_chunk(
+                    out_table,
+                    f"/hit/{det_name}",
+                    hit_file,
+                    geom_meta.uid,
+                )
 
         assert n_tot == n_entries
         # this table has been processed
@@ -274,3 +324,8 @@ if not_done:
 
 log.debug("building the TCM")
 reboost_utils.build_tcm(hit_file, hit_file)
+
+with perf_block("move_to_cfs()"):
+    move2cfs()
+
+print_perf()

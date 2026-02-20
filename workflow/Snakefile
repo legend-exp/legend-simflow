@@ -21,15 +21,21 @@ import time
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
+from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
+
+
+print("INFO: initializing workflow context")
 
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
 
-# it takes a while to generate the list of good HPGes, let's do it at the start
-# and cache it for later
-SIMFLOW_CONTEXT["modelable_hpges"] = aggregate.gen_list_of_all_hpges_valid_for_modeling(
-    config
-)
+# it takes a while to generate the list of good HPGes of all channels, let's do
+# it at the start and cache it for later
+SIMFLOW_CONTEXT |= {
+    "modelable_hpges": gen_list_of_all_hpges_valid_for_modeling(config),
+}
+
+print("INFO: done. handing it over to Snakemake")
 
 
 def dvs_ro(x):
@@ -42,6 +48,7 @@ wildcard_constraints:
     jobid=r"\d+",
     runid=r"[-\w]+",
     hpge_detector=r"[VPBC]\w{6}",
+    hpge_voltage=r"\d+",
 
 
 onstart:
@@ -62,38 +69,36 @@ onstart:
 include: "rules/aux.smk"
 
 
-make_tiers = config.get("make_tiers", ["vtx", "stp", "opt", "hit", "evt", "cvt"])
+make_tiers = config.get("make_tiers", aggregate.TIERS_ORDERED)
+make_tiers = utils.sorted_by(make_tiers, aggregate.TIERS_ORDERED)
+
 for tier in make_tiers:
 
     include: f"rules/{tier}.smk"
 
 
+# strategy: select the latest requested tier (in tiers_ordered),
+# then make the build cumulative by including all tiers up to it.
 def gen_target_all():
-    if config.get("simlist", "*") in ("all", "*"):
-        if "pdf" in make_tiers:
-            return rules.gen_pdf_release.input
-        elif "cvt" in make_tiers:
-            return rules.gen_all_tier_cvt.input
-        elif "evt" in make_tiers:
-            return rules.gen_all_tier_evt.input
-        elif "hit" in make_tiers:
-            return (
-                rules.gen_all_tier_hit.input,
-                aggregate.gen_list_of_all_plots_outputs(
-                    config, tier="hit", cache=SIMFLOW_CONTEXT.modelable_hpges
-                ),
-            )
-        elif "opt" in make_tiers:
-            return rules.gen_all_tier_opt.input
-        elif "stp" in make_tiers:
-            return (
-                rules.gen_all_tier_stp.input,
-                aggregate.gen_list_of_all_plots_outputs(
-                    config, tier="stp", cache=SIMFLOW_CONTEXT.modelable_hpges
-                ),
-            )
-    else:
-        return aggregate.process_simlist(config)
+    if config.get("simlist", "*") not in ("all", "*"):
+        return aggregate.process_simlist(config, make_tiers=make_tiers)
+
+    inputs = []
+    for tier in make_tiers:
+        if tier == "cvt":
+            inputs.extend(rules.gen_all_tier_cvt.input)
+        elif tier == "evt":
+            inputs.extend(rules.gen_all_tier_evt.input)
+        elif tier == "hit":
+            inputs.extend(rules.gen_all_tier_hit.input)
+        elif tier == "opt":
+            inputs.extend(rules.gen_all_tier_opt.input)
+        elif tier == "stp":
+            inputs.extend(rules.gen_all_tier_stp.input)
+        elif tier == "vtx":
+            pass
+
+    return inputs
 
 
 rule all:
