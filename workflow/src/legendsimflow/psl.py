@@ -252,7 +252,7 @@ def generate_realistic_map(
     Applies the waveform post-processing chain to generate a realistic waveform
     map starting from an ideal one:
 
-    1. Converts coordinates (m to mm) ######################### Correct? Ideal wf map is in meters while reboost wants mm????
+    1. Converts coordinates (m to mm)
     2. Convolves with system response
     3. Aligns by Peak Time
     4. Calculates compensated Drift Time
@@ -273,8 +273,8 @@ def generate_realistic_map(
     realistic_wf_map : dict
         Dictionary containing the processed realistic waveform map with:
         - Converted coordinates (mm)
-        - Realistic current waveforms
-        - Drift times for each waveform
+        - Realistic current waveforms (NaN for invalid pixels)
+        - Drift times for each waveform (NaN for invalid pixels)
         - Updated t0 reference
     """
 
@@ -291,7 +291,7 @@ def generate_realistic_map(
     # Delay of the response kernel
     kernel_delay_idx = np.argmax(rf_kernel)
 
-    # COORDINATE FIX: Convert m to mm ######################### Correct?
+    # COORDINATE FIX: Convert m to mm
     for coord in ["r", "z"]:
         if coord in realistic_wf_map:
             realistic_wf_map[coord] = (
@@ -309,6 +309,9 @@ def generate_realistic_map(
         ideal_wfs_arr = np.asarray(
             ideal_wfs.nda if hasattr(ideal_wfs, "nda") else ideal_wfs
         )
+
+        # Record NaN mask before zeroing (shape: [n_z, n_r], True where pixel is invalid)
+        nan_mask = np.isnan(ideal_wfs_arr).any(axis=-1)
         ideal_wfs_arr = np.nan_to_num(ideal_wfs_arr, nan=0.0)
 
         original_shape = ideal_wfs_arr.shape
@@ -324,17 +327,17 @@ def generate_realistic_map(
         wfs_current = to_current(wfs_convolved, dt)
 
         # Calculate drift time from Amax
-        ######################### Maybe it's better to calculate this outside with dedicated function??
-        ######################### Should this be calculated after MWA? No noise in the simulations, so this should be accurate?
         current_peak_indices = np.argmax(wfs_current, axis=1)
         drift_indices = current_peak_indices - kernel_delay_idx
         drift_times_flat = drift_indices * dt
-
-        # Add drift time to the realistic map
-        dt_key = key.replace("waveform", "drift_time")
-        realistic_wf_map[dt_key] = drift_times_flat.reshape(original_shape[:-1]).astype(
+        drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(
             np.float64
         )
+
+        # Restore NaN for invalid pixels in drift time
+        drift_times_2d[nan_mask] = np.nan
+        dt_key = key.replace("waveform", "drift_time")
+        realistic_wf_map[dt_key] = drift_times_2d
 
         # Moving Window Average
         wfs_mwa = apply_mwa(wfs_current)
@@ -344,12 +347,14 @@ def generate_realistic_map(
             wfs_mwa, alignment_idx, nsamples_output_current_wfs
         )
 
-        # Reshape and save
+        # Reshape
         new_length = wfs_aligned.shape[-1]
         new_shape = (*original_shape[:-1], new_length)
-        realistic_wf_map[key] = np.ascontiguousarray(
-            wfs_aligned.reshape(new_shape), dtype=np.float64
-        )
+        wfs_out = wfs_aligned.reshape(new_shape).astype(np.float64)
+
+        # Restore NaN for invalid pixels in waveforms
+        wfs_out[nan_mask] = np.nan
+        realistic_wf_map[key] = np.ascontiguousarray(wfs_out)
 
     return realistic_wf_map
 
