@@ -130,7 +130,9 @@ function compute_waveform_map_for_angle(
         # Use functions from libjl/drift_time_helpers.jl
         p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
         if p === nothing
-            error("find_valid_spawn_position did not return a valid spawn position for index $(in_idx[i]); all candidate positions may be within contacts.")
+            error(
+                "find_valid_spawn_position did not return a valid spawn position for index $(in_idx[i]); all candidate positions may be within contacts."
+            )
         end
 
 
