@@ -23,11 +23,10 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
     """Merge `tcm_opt` rows into `tcm_stp` at the scintillator uid.
 
     For each `axis=0` row of `tcm_stp`, if `tcm_stp.table_key` contains
-    `scintillator_uid` (assumed at most once per row), replace that single
-    element by splicing in the next row of `tcm_opt.table_key`. The same splice
-    is applied to `row_in_table` using the corresponding
-    `tcm_opt.row_in_table`, preserving alignment between `table_key[i][j]` and
-    `row_in_table[i][j]`.
+    `scintillator_uid`, replace that single element by splicing in the next row
+    of `tcm_opt.table_key`. The same splice is applied to `row_in_table` using
+    the corresponding `tcm_opt.row_in_table`, preserving alignment between
+    `table_key[i][j]` and `row_in_table[i][j]`.
 
     Parameters
     ----------
@@ -46,9 +45,22 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
     stp_r = tcm_stp.row_in_table
 
     is_ph = stp_k == scintillator_uid
-    has_ph = ak.any(is_ph, axis=1)
+    n_ph_per_row = ak.sum(is_ph, axis=1)
+    has_ph = n_ph_per_row > 0
 
-    # index of the placeholder in each row (assumes <= 1 placeholder per row); None if absent
+    if ak.any(n_ph_per_row > 1):
+        msg = "found multiple scintillator_uid placeholders in a single tcm_stp row"
+        raise ValueError(msg)
+
+    n_rows_with_ph = int(ak.sum(has_ph))
+    if len(tcm_opt) != n_rows_with_ph:
+        msg = (
+            f"len(tcm_opt) ({len(tcm_opt)}) must equal number of tcm_stp rows containing "
+            f"scintillator_uid ({n_rows_with_ph})"
+        )
+        raise ValueError(msg)
+
+    # index of the placeholder in each row; None if absent
     pos_ph = ak.firsts(ak.local_index(stp_k)[is_ph])
 
     # map k-th row containing a placeholder -> tcm_opt[k]
