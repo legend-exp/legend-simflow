@@ -144,16 +144,28 @@ def process_sipm(
         # Add random coincidences from forced trigger library
         with perf_block("add_random_coincidences()"):
             if usability == "on":
-                # Extract the pre-sampled forced trigger library for this chunk
-                if ft_offset["idx"] + len(chunk) > len(ft_library):
-                    msg = "forced trigger library not large enough, reusing events."
+                # Extract the pre-sampled forced trigger library for this chunk.
+                # Always return exactly len(chunk) entries, reusing events with
+                # wrap-around when necessary.
+                chunk_len = len(chunk)
+                lib_len = len(ft_library)
+                if lib_len == 0:
+                    msg = "forced trigger library is empty; cannot add random coincidences."
                     log.warning(msg)
-                    ft_offset["idx"] = 0
-
-                chunk_ft_library = ft_library[
-                    ft_offset["idx"] : ft_offset["idx"] + len(chunk)
-                ]
-                ft_offset["idx"] += len(chunk)
+                    chunk_ft_library = ft_library
+                else:
+                    if chunk_len > lib_len:
+                        msg = (
+                            "forced trigger library smaller than chunk; "
+                            "reusing events with wrap-around."
+                        )
+                        log.warning(msg)
+                    start_idx = ft_offset.get("idx", 0)
+                    # Build indices with wrap-around so we always get chunk_len entries
+                    idx_array = (np.arange(chunk_len) + start_idx) % lib_len
+                    chunk_ft_library = ft_library[idx_array]
+                    # Advance offset modulo library length
+                    ft_offset["idx"] = int((start_idx + chunk_len) % lib_len)
 
                 rc_amps, rc_times = spms_pars.forced_trig_sipm_data(
                     chunk_ft_library, sipm, sipm_uid
@@ -215,8 +227,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     with perf_block("load_ft_library()"):
         evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
 
+        # evt_idx_range is [start, end] inclusive; compute number of events
+        evt_start, evt_end = evt_idx_range
+        n_events_partition = evt_end - evt_start + 1
         ft_library = reboost_utils.get_forced_trigger_library(
-            evt_files, evt_idx_range[1]
+            evt_files, n_events_partition
         )
 
     # Offset tracker for iterating through the pre-sampled library

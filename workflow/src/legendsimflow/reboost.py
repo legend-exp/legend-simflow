@@ -668,7 +668,7 @@ def _process_spms_windows(
 
 def get_forced_trigger_library(
     evt_files: Iterable[str],
-    num_evts: int,
+    min_num_evts: int,
     time_domain_ns: tuple[float, float] = (-1_000, 5_000),
     min_sep_ns: float = 6_000,
     ext_trig_range_ns: list[tuple[float, float]] | None = None,
@@ -692,8 +692,9 @@ def get_forced_trigger_library(
     ----------
     evt_files
         List of event tier data files.
-    num_evts:
+    min_num_evts:
         Number of events required for forced trigger correction.
+        Function will return at least ``min_num_evts``.
     time_domain_ns
         Target time range (start, end) for output times in nanoseconds.  E.g.,
         ``(-1000, 5000)`` means output times will be in ``[-1000, 5000]``.
@@ -735,7 +736,7 @@ def get_forced_trigger_library(
     random.shuffle(evt_files)
 
     for file in evt_files:
-        if len(npe) >= num_evts:
+        if len(npe) >= min_num_evts:
             break
 
         # Load all necessary data once

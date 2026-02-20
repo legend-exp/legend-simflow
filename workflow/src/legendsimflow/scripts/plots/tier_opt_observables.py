@@ -98,7 +98,7 @@ def fig(table):
 
     h_peamp.fill_flattened(energy)
     plot.plot_hist(h_peamp, ax, n_nans=n_nans(energy), label="non-saturated")
-    
+
     h_peamp.fill_flattened(data.energy)
     plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy), label="simulated")
 
