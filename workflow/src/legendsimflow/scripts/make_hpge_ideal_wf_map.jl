@@ -1,21 +1,36 @@
-# Script to build ideal waveform map of a detector using ssd
-# Map construction based on https://github.com/legend-exp/legend-simflow/blob/main/workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl
-
+# Copyright (C) 2025 Giovanna Saleh <giovanna.saleh@phd.unipd.it>,
+#                    Luigi Pertoldi <gipert@pm.me>,
+#                    Toby Dixon <toby.dixon.23@ucl.ac.uk> and
+#                    David Hervas <david.hervas@tum.de>
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using SolidStateDetectors
 using LegendDataManagement
 using Unitful
 using LegendHDF5IO
 using Base.Threads
-using LinearAlgebra
 using ArgParse
 using PropDicts
 using Printf
 using RadiationDetectorDSP
 
+include("libjl/drift_time_helpers.jl")
+
 ## Constants
-GRID_SIZE = 0.0005 # in m
-CRYSTAL_AXIS_ANGLES = [0, 45] # in deg <001> <110>
+GRID_SIZE = 0.001 # in m
+CRYSTAL_AXIS_ANGLES = [0, 45] # in deg (<001> <110>)
 SIM_ENERGY = 2039u"keV"
 MAX_NSTEPS = 3000
 WAVEFORM_LENGTH = 3000
@@ -60,6 +75,7 @@ in the (r, z) plane and then rotated to the specified angle.
 - Waveform length is controlled by `WAVEFORM_LENGTH`
 - Positions outside the detector remain as NaN in the output array
 - All waveforms are normalized so max(waveform) = 1.0
+- Grid construction and nearest-bulk-point lookup use helper functions from `drift_time_helpers.jl`
 """
 function compute_waveform_map_for_angle(
     sim::SolidStateDetectors.Simulation,
@@ -74,32 +90,12 @@ function compute_waveform_map_for_angle(
     SSD = SolidStateDetectors
     angle_rad = deg2rad(angle_deg)
 
-    function make_axis(T, boundary, GRID_SIZE)
-        # define interior domain strictly within (0, boundary)
-        offset = 2 * SSD.ConstructiveSolidGeometry.csg_default_tol(T)
-        inner_start = 0 + offset
-        inner_stop = boundary - offset
-
-        # compute number of intervals in the interior (ensure at least 1)
-        n = max(1, round(Int, (inner_stop - inner_start) / GRID_SIZE))
-
-        # recompute step to fit the inner domain evenly
-        step = (inner_stop - inner_start) / n
-
-        # create interior axis
-        axis = range(inner_start, step = step, length = n + 1)
-
-        # prepend and append slightly out-of-bound points
-        extended_axis = [0 - offset, axis..., boundary + offset]
-
-        return extended_axis
-    end
-
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
 
-    x_axis = make_axis(T, radius, GRID_SIZE)
-    z_axis = make_axis(T, height, GRID_SIZE)
+    # Use functions from libjl/drift_time_helpers.jl
+    x_axis = build_simulation_grid_axis(T, radius, GRID_SIZE)
+    z_axis = build_simulation_grid_axis(T, height, GRID_SIZE)
 
     spawn_positions = CartesianPoint{T}[]
     idx_spawn_positions = CartesianIndex[]
@@ -123,27 +119,6 @@ function compute_waveform_map_for_angle(
     n = length(in_idx)
     wf_signals_threaded = Vector{Vector{Float32}}(undef, n)
 
-
-    function get_positions(idx, handle_nplus_local = false)
-        pos_candidate = spawn_positions[idx]
-        if (!handle_nplus_local || (!in(pos_candidate, sim.detector.contacts)))
-            return pos_candidate
-        else
-            min_dist = Inf
-            pos_tmp = nothing
-            for pos in spawn_positions
-                if (!in(pos, sim.detector.contacts) && (in(pos, sim.detector)))
-                    dist = norm(pos - pos_candidate)
-                    if (dist < min_dist)
-                        pos_tmp = pos
-                        min_dist = dist
-                    end
-                end
-            end
-        end
-        return pos_tmp
-    end
-
     @info "Simulating grid (r, z) at angle $(angle_deg)°..."
 
     @threads for i in 1:n
@@ -152,7 +127,8 @@ function compute_waveform_map_for_angle(
             println("...simulating $i out of $n ($x %)")
         end
 
-        p = get_positions(in_idx[i], handle_nplus)
+        # Use functions from libjl/drift_time_helpers.jl
+        p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
         e = SSD.Event([p], [SIM_ENERGY])
         simulate!(e, sim, Δt = TIME_STEP, max_nsteps = MAX_NSTEPS, verbose = false)
 
@@ -165,7 +141,7 @@ function compute_waveform_map_for_angle(
         wf_signals_threaded[i] = ustrip(wf.signal)
     end
 
-    ## Minimal waveform post-processing
+    # Minimal waveform post-processing
     wf_padded = fill(NaN32, WAVEFORM_LENGTH, length(z_axis), length(x_axis)) # Initialize with NaN. Pixels outside the detector (not in in_idx) will remain NaN.
 
     for (i, idx) in enumerate(idx_spawn_positions[in_idx])
@@ -228,10 +204,10 @@ function main()
         default = true
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
-        "--use-sqrt" # Outdated??
+        "--use-sqrt" # REVIEW: Outdated??
         help = "Use square-root temperature model"
         action = :store_true
-        "--use-sqrt-new" # Outdated??
+        "--use-sqrt-new" # REVIEW: Outdated??
         help = "Use square-root temperature model with 2016 inputs"
         action = :store_true
         "--only-holes"
@@ -251,8 +227,8 @@ function main()
     meta_path = parsed_args["metadata"]
 
     output_file = parsed_args["output-file"]
-    #isfile(output_file) && error("output file already exists") # REVIEW: Allow overwriting?
-    # Let the file be overwritten if it exists (matches Python behavior)
+
+    # Let the file be overwritten if it exists (matches Python behavior) # REVIEW: Allow overwriting?
     if isfile(output_file)
         @info "Output file exists and will be overwritten: $output_file"
     end
@@ -260,7 +236,7 @@ function main()
     # Get the opv - could be a String or Nothing
     raw_opv = parsed_args["opv"]
     if isnothing(raw_opv)
-        # 2. If nothing, load the metadata first to find the default
+        # If nothing, load the metadata first to find the default
         meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
         opv_val = Float32(meta.characterization.l200_site.recommended_voltage_in_V)
         @info "No OPV provided. Using metadata default: $opv_val V"
@@ -271,7 +247,7 @@ function main()
     end
 
     handle_nplus = parsed_args["use-bulk-drift-time"]
-    use_sqrt = parsed_args["use-sqrt"] # Remove?
+    use_sqrt = parsed_args["use-sqrt"]
     only_holes = parsed_args["only-holes"]
     use_corrections = parsed_args["use-corrections"]
     if !use_corrections
@@ -309,7 +285,7 @@ function main()
     )
 
 
-    # Physics Models ## Remove??
+    # Physics Models # REVIEW: Remove??
     if (use_sqrt)
         charge_drift_model = ADLChargeDriftModel(
             joinpath(
@@ -321,7 +297,6 @@ function main()
         sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
     end
 
-    # Calculate potential
     @info "Calculating potential at $(opv_val)V..."
     calculate_electric_potential!(sim, refinement_limits = [0.2, 0.1, 0.05, 0.01], depletion_handling = true)
 
