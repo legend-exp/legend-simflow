@@ -17,8 +17,6 @@ from __future__ import annotations
 import logging
 import random
 import re
-from collections.abc import Mapping
-from collections.abc import Callable, Iterable, Mapping
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
