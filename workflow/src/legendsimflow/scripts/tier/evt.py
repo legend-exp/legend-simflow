@@ -27,7 +27,7 @@ from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import encode_usability
 from legendsimflow.profile import make_profiler
-from legendsimflow.tcm import build_tcm
+from legendsimflow.tcm import merge_stp_n_opt_tcms_to_lh5
 
 GEDS_ENERGY_THR_KEV = 25
 SPMS_ENERGY_THR_PE = 0
@@ -56,28 +56,20 @@ log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 perf_block, print_perf = make_profiler()
 
 log.info("merging hit and opt TCMs")
-with perf_block("build_tcm()"):
-    build_tcm(hit_file.values(), evt_file)
+with perf_block("merge_tcms()"):
+    scintillator_uid = next(
+        uid
+        for uid, name in reboost_utils.get_remage_detector_uids(stp_file).items()
+        if name == "liquid_argon"
+    )
 
-    # FIXME: TCM merging much faster but memory hungry!
-    # tcm_stp = lh5.read_as("tcm", stp_file, library="ak")
-    # tcm_opt = lh5.read_as("tcm", hit_file["opt"], library="ak")
-
-    # scintillator_uid = next(
-    #     uid
-    #     for uid, name in reboost_utils.get_remage_detector_uids(stp_file).items()
-    #     if name == "liquid_argon"
-    # )
-
-    # tcm_unified = merge_stp_n_opt_tcms(
-    #     tcm_stp, tcm_opt, scintillator_uid=scintillator_uid
-    # )
-
-    # del tcm_stp, tcm_opt
-
-    # lh5.write(Table(tcm_unified), "tcm", evt_file, wo_mode="write_safe")
-
-    # del tcm_unified
+    merge_stp_n_opt_tcms_to_lh5(
+        stp_file,
+        hit_file["opt"],
+        evt_file,
+        scintillator_uid=scintillator_uid,
+        buffer_len=BUFFER_LEN,
+    )
 
 
 # test that the evt tcm has the same amount of rows as the stp tcm
