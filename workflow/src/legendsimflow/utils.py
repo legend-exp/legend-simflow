@@ -272,6 +272,8 @@ def get_hit_tier_name(l200data: str) -> str:
 def get_evt_tier_name(l200data: str) -> str:
     """Extract the name of the evt tier for this production cycle.
 
+    If the `pet` tier is present this is used else the `evt` tier is used.
+
     Parameters
     ----------
     l200data

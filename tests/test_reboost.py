@@ -281,8 +281,10 @@ def test_process_spms_windows_basic():
     # Create mock SiPM data
     spms = ak.Array(
         {
-            "t0": [[2000, 3000, 8000, 9000]],  # Two hits in first window, two in second
-            "energy": [[1.0, 2.0, 3.0, 4.0]],
+            "t0": [
+                [2000, 3000, 7000, 8000, 9000]
+            ],  # Two hits in first window, two in second
+            "energy": [[1.0, 2.0, 5.0, 3.0, 4.0]],
         }
     )
 
@@ -294,10 +296,12 @@ def test_process_spms_windows_basic():
 
     # Should extract 2 windows: first (1000-7000), second (8000-14000)
     # Hits at 2000, 3000 should be included in the first window
+    # Hit at 7000 is not included in the first window because of half-open interval convention: (spms.t0 >= wstart) & (spms.t0 < wend)
     # Hits at 8000, 9000 should be included in the second window
+    # (lower edge is inclusive: t0 >= wstart)
     assert len(npe) == 2  # Two windows captured
     flat_npe = ak.flatten(npe)
-    assert ak.sum(flat_npe) == 7.0
+    assert ak.sum(flat_npe) == 10.0
 
     # Check that times are shifted to time_domain_ns
     flat_t0 = ak.flatten(t0)

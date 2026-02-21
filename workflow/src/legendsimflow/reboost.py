@@ -641,7 +641,7 @@ def _process_spms_windows(
         ends = [s + win_len_ns for s in starts]
 
         for wstart, wend in zip(starts, ends, strict=True):
-            tmsk = (spms.t0 > wstart) & (spms.t0 <= wend)
+            tmsk = (spms.t0 >= wstart) & (spms.t0 < wend)
             npe_tmp = spms.energy[tmsk]
             t0_tmp = spms.t0[tmsk] - (wstart - time_domain_ns[0])
 

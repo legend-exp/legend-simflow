@@ -86,21 +86,23 @@ def fig(table):
         autopct="%1.1f%%",
     )
 
-    plt.pie(counts, labels=raw_vals, autopct="%1.1f%%")
     ax.set_aspect("equal")  # keep it circular
 
     ax = fig.add_subplot(gs_bot[0, 0])
     energy = data.energy[~data.is_saturated]
 
-    h_peamp = hist.new.Reg(
+    h_peamp_ns = hist.new.Reg(
         300, 0, 20, name="light per cluster (photoelectrons)"
     ).Double()
+    h_peamp_ns.fill_flattened(energy)
+    plot.plot_hist(h_peamp_ns, ax, n_nans=n_nans(energy), label="non-saturated")
 
-    h_peamp.fill_flattened(energy)
-    plot.plot_hist(h_peamp, ax, n_nans=n_nans(energy), label="non-saturated")
+    h_peamp_sim = hist.new.Reg(
+        300, 0, 20, name="light per cluster (photoelectrons)"
+    ).Double()
+    h_peamp_sim.fill_flattened(data.energy)
 
-    h_peamp.fill_flattened(data.energy)
-    plot.plot_hist(h_peamp, ax, n_nans=n_nans(data.energy), label="simulated")
+    plot.plot_hist(h_peamp_sim, ax, n_nans=n_nans(data.energy), label="simulated")
 
     if vals != ["off"]:
         h_peamp_rc = hist.new.Reg(
@@ -128,8 +130,11 @@ def fig(table):
     ax.set_ylabel("counts")
     ax.legend()
 
-    h_npe.fill(ak.sum(data.energy, axis=-1))
-    plot.plot_hist(h_npe, ax, flow="hint", label="simulated")
+    h_npe_sim = hist.new.Reg(
+        200, 0, 150, name="light per event (photoelectrons)"
+    ).Double()
+    h_npe_sim.fill(ak.sum(data.energy, axis=-1))
+    plot.plot_hist(h_npe_sim, ax, flow="hint", label="simulated")
 
     if vals != ["off"]:
         h_npe_rc = hist.new.Reg(
