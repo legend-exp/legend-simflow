@@ -142,7 +142,7 @@ def merge_stp_n_opt_tcms_to_lh5(
     out_file: str | Path,
     *,
     scintillator_uid: int,
-    buffer_len: str = "50*MB",
+    buffer_len: str | int = "50*MB",
 ) -> None:
     """Stream-merge STP and OPT TCMs and write unified TCM to disk in chunks.
 
@@ -179,6 +179,12 @@ def merge_stp_n_opt_tcms_to_lh5(
             tcm_opt_chunk = lh5.read_as(
                 "tcm", str(opt_file), idx=opt_rows, library="ak"
             )
+            if len(tcm_opt_chunk) != n_need:
+                msg = (
+                    "Number of rows read from tcm_opt does not match expected count: "
+                    f"requested {n_need}, got {len(tcm_opt_chunk)}"
+                )
+                raise ValueError(msg)
             opt_pos += n_need
         else:
             tcm_opt_chunk = ak.zip(
