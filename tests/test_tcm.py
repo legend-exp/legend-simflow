@@ -3,7 +3,7 @@ from __future__ import annotations
 import awkward as ak
 import pytest
 
-from legendsimflow.tcm import merge_stp_n_opt_tcms
+from legendsimflow.tcm import merge_stp_n_opt_tcms, merge_stp_n_opt_tcms_chunk
 
 
 def test_merge_tcm_basic():
@@ -23,7 +23,7 @@ def test_merge_tcm_basic():
         depth_limit=1,
     )
 
-    out = merge_stp_n_opt_tcms(tcm_stp, tcm_opt, scintillator_uid=-1)
+    out = merge_stp_n_opt_tcms_chunk(tcm_stp, tcm_opt, scintillator_uid=-1)
 
     assert out.table_key[0].to_list() == [1052802, 1052803, 1086400]
     assert out.row_in_table[0].to_list() == [1, 1, 0]
@@ -55,7 +55,7 @@ def test_merge_tcm_no_placeholders():
         depth_limit=1,
     )
 
-    out = merge_stp_n_opt_tcms(tcm_stp, tcm_opt, scintillator_uid=-1)
+    out = merge_stp_n_opt_tcms_chunk(tcm_stp, tcm_opt, scintillator_uid=-1)
 
     assert out.table_key.to_list() == tcm_stp.table_key.to_list()
     assert out.row_in_table.to_list() == tcm_stp.row_in_table.to_list()

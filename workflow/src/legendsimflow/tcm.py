@@ -21,6 +21,7 @@ from pathlib import Path
 import awkward as ak
 import numpy as np
 import pygama.evt
+from lgdo import Table, lh5
 
 
 def build_tcm(
@@ -72,7 +73,6 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
         Record array with the same length as `tcm_stp`.
     """
     stp_k = tcm_stp.table_key
-    stp_r = tcm_stp.row_in_table
 
     is_ph = stp_k == scintillator_uid
     n_ph_per_row = ak.sum(is_ph, axis=1)
@@ -89,6 +89,24 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
             f"scintillator_uid ({n_rows_with_ph})"
         )
         raise ValueError(msg)
+
+    return merge_stp_n_opt_tcms_chunk(
+        tcm_stp, tcm_opt, scintillator_uid=scintillator_uid
+    )
+
+
+def merge_stp_n_opt_tcms_chunk(tcm_stp, tcm_opt, *, scintillator_uid):
+    """Chunk-level implementation of :func:`merge_stp_n_opt_tcms`.
+
+    This function assumes `tcm_opt` contains *exactly* as many rows as there are
+    rows in `tcm_stp` that contain `scintillator_uid`, in the same order.
+    """
+    stp_k = tcm_stp.table_key
+    stp_r = tcm_stp.row_in_table
+
+    is_ph = stp_k == scintillator_uid
+    n_ph_per_row = ak.sum(is_ph, axis=1)
+    has_ph = n_ph_per_row > 0
 
     # index of the placeholder in each row; None if absent
     pos_ph = ak.firsts(ak.local_index(stp_k)[is_ph])
@@ -116,3 +134,68 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
     merged_r = ak.where(has_ph, ak.concatenate([left_r, opt_r, right_r], axis=1), stp_r)
 
     return ak.zip({"table_key": merged_k, "row_in_table": merged_r}, depth_limit=1)
+
+
+def merge_stp_n_opt_tcms_to_lh5(
+    stp_file: str | Path,
+    opt_file: str | Path,
+    out_file: str | Path,
+    *,
+    scintillator_uid: int,
+    buffer_len: str = "50*MB",
+) -> None:
+    """Stream-merge STP and OPT TCMs and write unified TCM to disk in chunks.
+
+    Iterates over `stp_file:/tcm` using :class:`lgdo.lh5.LH5Iterator`. For each
+    chunk, reads only the required number of OPT TCM rows (those corresponding
+    to STP rows containing the `scintillator_uid` placeholder) via `lh5.read_as`
+    with explicit indices. The merged output is appended to `out_file:/tcm`.
+    """
+    opt_pos = 0
+    out_wo_mode = "write_safe"
+
+    it_stp = lh5.LH5Iterator(
+        str(stp_file),
+        "tcm",
+        buffer_len=buffer_len,
+    )
+
+    for stp_chunk in it_stp:
+        tcm_stp_chunk = stp_chunk.view_as("ak")
+
+        stp_k = tcm_stp_chunk.table_key
+        is_ph = stp_k == scintillator_uid
+        n_ph_per_row = ak.sum(is_ph, axis=1)
+
+        if ak.any(n_ph_per_row > 1):
+            msg = "found multiple scintillator_uid placeholders in a single tcm_stp row"
+            raise ValueError(msg)
+
+        has_ph = n_ph_per_row > 0
+        n_need = int(ak.sum(has_ph))
+
+        if n_need > 0:
+            opt_rows = np.arange(opt_pos, opt_pos + n_need, dtype=np.int64)
+            tcm_opt_chunk = lh5.read_as(
+                "tcm", str(opt_file), idx=opt_rows, library="ak"
+            )
+            opt_pos += n_need
+        else:
+            tcm_opt_chunk = ak.zip(
+                {"table_key": ak.Array([]), "row_in_table": ak.Array([])},
+                depth_limit=1,
+            )
+
+        merged = merge_stp_n_opt_tcms_chunk(
+            tcm_stp_chunk,
+            tcm_opt_chunk,
+            scintillator_uid=scintillator_uid,
+        )
+
+        lh5.write(Table(merged), "tcm", str(out_file), wo_mode=out_wo_mode)
+        out_wo_mode = "append"
+
+    n_opt = lh5.read_n_rows("tcm", str(opt_file))
+    if opt_pos != n_opt:
+        msg = f"len(tcm_opt) ({n_opt}) must equal number of tcm_stp rows containing scintillator_uid ({opt_pos})"
+        raise ValueError(msg)
