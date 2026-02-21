@@ -290,9 +290,7 @@ def test_process_spms_windows_basic():
     time_domain_ns = (-1000, 5000)  # 6000 ns window
     min_sep_ns = 1000
 
-    npe, t0 = rutils._process_spms_windows(
-        spms, win_ranges, time_domain_ns, min_sep_ns, ak.Array([]), ak.Array([])
-    )
+    npe, t0 = rutils._process_spms_windows(spms, win_ranges, time_domain_ns, min_sep_ns)
 
     # Should extract 2 windows: first (1000-7000), second (8000-14000)
     # Hits at 2000, 3000 should be included in the first window
@@ -305,33 +303,6 @@ def test_process_spms_windows_basic():
     flat_t0 = ak.flatten(t0)
     assert ak.all(flat_t0 >= time_domain_ns[0])
     assert ak.all(flat_t0 <= time_domain_ns[1])
-
-
-def test_process_spms_windows_concatenation():
-    """Test that _process_spms_windows correctly concatenates to existing arrays."""
-    spms = ak.Array(
-        {
-            "t0": [[2000]],
-            "energy": [[5.0]],
-        }
-    )
-
-    win_ranges = [(1000, 7000)]
-    time_domain_ns = (0, 6000)
-    min_sep_ns = 10000
-
-    # Start with existing data
-    existing_npe = ak.Array([[1.0, 2.0]])
-    existing_t0 = ak.Array([[100, 200]])
-
-    npe, _ = rutils._process_spms_windows(
-        spms, win_ranges, time_domain_ns, min_sep_ns, existing_npe, existing_t0
-    )
-
-    # Should concatenate new data to existing
-    flat_npe = ak.flatten(npe)
-    assert len(flat_npe) == 3  # 2 existing + 1 new
-    assert flat_npe[-1] == 5.0  # New hit appended
 
 
 def test_forced_trigger_library_basic(legend_testdata):

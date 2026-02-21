@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import random
 import re
+import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -585,8 +586,6 @@ def _process_spms_windows(
     win_ranges: list[tuple[float, float]],
     time_domain_ns: tuple[float, float],
     min_sep_ns: float,
-    npe: ak.Array,
-    t0: ak.Array,
 ) -> tuple[ak.Array, ak.Array]:
     """Helper function to process SiPM data within specified window ranges.
 
@@ -601,17 +600,12 @@ def _process_spms_windows(
         E.g., (-1000, 5000) means output times will be in [-1000, 5000].
     min_sep_ns
         Minimal separation between windows in nanoseconds.
-    npe
-        Existing npe array to concatenate to.
-    t0
-        Existing t0 array to concatenate to.
-
     Returns
     -------
     npe
-        Accumulated photoelectron counts.
+        Photoelectron counts extracted from the requested windows.
     t0
-        Accumulated times relative to time_domain_ns.
+        Times relative to time_domain_ns extracted from the requested windows.
     """
     # Validate inputs to avoid infinite loops and invalid window definitions
     if time_domain_ns[1] <= time_domain_ns[0]:
@@ -654,14 +648,10 @@ def _process_spms_windows(
             npe_list.append(npe_tmp)
             t0_list.append(t0_tmp)
 
-    # Concatenate all results at once
-    if npe_list:
-        new_npe = ak.concatenate(npe_list)
-        new_t0 = ak.concatenate(t0_list)
-        npe = ak.concatenate((npe, new_npe))
-        t0 = ak.concatenate((t0, new_t0))
+    if not npe_list:
+        return ak.Array([]), ak.Array([])
 
-    return npe, t0
+    return ak.concatenate(npe_list), ak.concatenate(t0_list)
 
 
 def get_forced_trigger_library(
@@ -719,8 +709,9 @@ def get_forced_trigger_library(
     rc_data = get_forced_trigger_library(evt_files)
     """
 
-    npe = ak.Array([])
-    t0 = ak.Array([])
+    npe_chunks: list[ak.Array] = []
+    t0_chunks: list[ak.Array] = []
+    n_collected_events = 0
     rawids = None
 
     # Set defaults if not provided
@@ -733,11 +724,20 @@ def get_forced_trigger_library(
     evt_files = list(evt_files)
     random.shuffle(evt_files)
 
+    t_start_total = time.perf_counter()
+    files_processed = 0
+    total_read_wall_s = 0.0
+    total_forced_pulser_wall_s = 0.0
+    total_geds_wall_s = 0.0
+
     for file in evt_files:
-        if len(npe) >= min_num_evts:
+        if n_collected_events >= min_num_evts:
             break
 
+        files_processed += 1
+
         # Load all necessary data once
+        t_read_start = time.perf_counter()
         evt = lh5.read(
             "evt/",
             file,
@@ -751,6 +751,8 @@ def get_forced_trigger_library(
                 "spms/rawid",
             ],
         ).view_as("ak")
+        file_read_wall_s = time.perf_counter() - t_read_start
+        total_read_wall_s += file_read_wall_s
 
         is_forced = evt.trigger.is_forced
         is_geds_trig = evt.coincident.geds
@@ -765,20 +767,70 @@ def get_forced_trigger_library(
 
         # Process forced/pulser events with full waveform windows
         mask_forced_pulser = (is_forced | is_pulser) & ~is_muon
+        n_forced_pulser = int(ak.sum(mask_forced_pulser))
         spms_fp = evt.spms[mask_forced_pulser]
+        file_forced_pulser_wall_s = 0.0
         if len(spms_fp) > 0:
-            npe, t0 = _process_spms_windows(
-                spms_fp, ext_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
+            t_forced_start = time.perf_counter()
+            npe_chunk, t0_chunk = _process_spms_windows(
+                spms_fp, ext_trig_range_ns, time_domain_ns, min_sep_ns
             )
+            if len(npe_chunk) > 0:
+                npe_chunks.append(npe_chunk)
+                t0_chunks.append(t0_chunk)
+                n_collected_events += len(npe_chunk)
+            file_forced_pulser_wall_s = time.perf_counter() - t_forced_start
+            total_forced_pulser_wall_s += file_forced_pulser_wall_s
         # Process geds trigger events with limited window
         mask_geds = is_geds_trig & ~is_muon
+        n_geds = int(ak.sum(mask_geds))
         spms_ge_trig = evt.spms[mask_geds]
+        file_geds_wall_s = 0.0
         if len(spms_ge_trig) > 0:
-            npe, t0 = _process_spms_windows(
-                spms_ge_trig, ge_trig_range_ns, time_domain_ns, min_sep_ns, npe, t0
+            t_geds_start = time.perf_counter()
+            npe_chunk, t0_chunk = _process_spms_windows(
+                spms_ge_trig, ge_trig_range_ns, time_domain_ns, min_sep_ns
             )
+            if len(npe_chunk) > 0:
+                npe_chunks.append(npe_chunk)
+                t0_chunks.append(t0_chunk)
+                n_collected_events += len(npe_chunk)
+            file_geds_wall_s = time.perf_counter() - t_geds_start
+            total_geds_wall_s += file_geds_wall_s
+
+        log.debug(
+            "forced-trigger library file %s: read_wall_s=%.4g forced_or_pulser_events=%d "
+            "forced_or_pulser_wall_s=%.4g geds_events=%d geds_wall_s=%.4g cumulative_events=%d",
+            Path(file).name,
+            file_read_wall_s,
+            n_forced_pulser,
+            file_forced_pulser_wall_s,
+            n_geds,
+            file_geds_wall_s,
+            n_collected_events,
+        )
 
         rawids = rawids_tmp
+
+    total_wall_s = time.perf_counter() - t_start_total
+    log.debug(
+        "forced-trigger library summary: files_processed=%d total_wall_s=%.4g read_wall_s=%.4g "
+        "forced_or_pulser_wall_s=%.4g geds_wall_s=%.4g returned_events=%d requested_min_events=%d",
+        files_processed,
+        total_wall_s,
+        total_read_wall_s,
+        total_forced_pulser_wall_s,
+        total_geds_wall_s,
+        n_collected_events,
+        min_num_evts,
+    )
+
+    if npe_chunks:
+        npe = ak.concatenate(npe_chunks)
+        t0 = ak.concatenate(t0_chunks)
+    else:
+        npe = ak.Array([])
+        t0 = ak.Array([])
 
     # Handle case where no events passed the filters
     if len(npe) == 0 or rawids is None:

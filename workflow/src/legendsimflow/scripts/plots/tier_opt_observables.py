@@ -49,8 +49,8 @@ def fig(table):
     gs_top = outer[0].subgridspec(1, 2, width_ratios=[1, 1])
     gs_bot = outer[1].subgridspec(1, 2, width_ratios=[1, 1])
 
-    vals, counts = np.unique(data.usability, return_counts=True)
-    vals = [mutils.decode_usability(v) for v in vals]
+    usability_vals, counts = np.unique(data.usability, return_counts=True)
+    vals = [mutils.decode_usability(v) for v in usability_vals]
 
     # time
     ax = fig.add_subplot(gs_top[0, 0])
@@ -77,8 +77,8 @@ def fig(table):
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
 
-    vals, counts = np.unique(data.usability, return_counts=True)
-    labels = [mutils.decode_usability(v) for v in vals]
+    raw_vals, counts = np.unique(data.usability, return_counts=True)
+    labels = [mutils.decode_usability(v) for v in raw_vals]
     plt.pie(
         counts,
         labels=labels,
@@ -86,7 +86,7 @@ def fig(table):
         autopct="%1.1f%%",
     )
 
-    plt.pie(counts, labels=vals, autopct="%1.1f%%")
+    plt.pie(counts, labels=raw_vals, autopct="%1.1f%%")
     ax.set_aspect("equal")  # keep it circular
 
     ax = fig.add_subplot(gs_bot[0, 0])
