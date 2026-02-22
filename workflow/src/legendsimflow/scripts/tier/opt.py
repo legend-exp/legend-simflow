@@ -35,7 +35,7 @@ from lgdo.lh5 import LH5Iterator
 from reboost.optmap.convolve import OptmapForConvolve
 
 from legendsimflow import metadata as mutils
-from legendsimflow import nersc
+from legendsimflow import nersc, spms_pars, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.profile import make_profiler
 from legendsimflow.tcm import build_tcm
@@ -53,6 +53,8 @@ optmap_per_sipm = args.params.optmap_per_sipm
 scintillator_volume_name = args.params.scintillator_volume_name
 simstat_part_file = args.input.simstat_part_file
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
+l200data = args.config.paths.l200data
+evt_tier_name = utils.get_evt_tier_name(l200data)
 
 hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
@@ -73,6 +75,11 @@ geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
 
+def _ak_array_of_empty_arrays(n):
+    content = ak.Array(np.empty(0, dtype=np.float64))
+    return ak.unflatten(content, np.zeros(n, dtype=np.int64))
+
+
 def process_sipm(
     iterator: LH5Iterator,
     optmap_lar: str | Path | OptmapForConvolve,
@@ -81,6 +88,8 @@ def process_sipm(
     out_file: str | Path,
     runid: str,
     usability: str,
+    ft_library: ak.Array,
+    ft_offset: dict,
 ) -> None:
     with perf_block("load_optmap()"):
         if not isinstance(optmap_lar, OptmapForConvolve):
@@ -132,6 +141,39 @@ def process_sipm(
                 TIME_RESOLUTION_NS,
             )
 
+        # Add random coincidences from forced trigger library
+        with perf_block("add_random_coincidences()"):
+            if usability == "on":
+                # Extract the pre-sampled forced trigger library for this chunk.
+                # Always return exactly len(chunk) entries, reusing events with
+                # wrap-around when necessary.
+                chunk_len = len(chunk)
+                lib_len = len(ft_library)
+                if lib_len == 0:
+                    msg = "forced trigger library is empty; cannot add random coincidences."
+                    log.warning(msg)
+                    chunk_ft_library = ft_library
+                else:
+                    if chunk_len > lib_len:
+                        msg = (
+                            "forced trigger library smaller than chunk; "
+                            "reusing events with wrap-around."
+                        )
+                        log.warning(msg)
+                    start_idx = ft_offset.get("idx", 0)
+                    # Build indices with wrap-around so we always get chunk_len entries
+                    idx_array = (np.arange(chunk_len) + start_idx) % lib_len
+                    chunk_ft_library = ft_library[idx_array]
+                    # Advance offset modulo library length
+                    ft_offset["idx"] = int((start_idx + chunk_len) % lib_len)
+
+                rc_amps, rc_times = spms_pars.forced_trig_sipm_data(
+                    chunk_ft_library, sipm, sipm_uid
+                )
+            else:
+                rc_amps = _ak_array_of_empty_arrays(len(chunk))
+                rc_times = _ak_array_of_empty_arrays(len(chunk))
+
         with perf_block("write_chunk()"):
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
@@ -140,6 +182,9 @@ def process_sipm(
             )
             out_table.add_field("energy", VectorOfVectors(pe_amps))
             out_table.add_field("is_saturated", Array(is_saturated))
+
+            out_table.add_field("rc_time", VectorOfVectors(rc_times))
+            out_table.add_field("rc_energy", VectorOfVectors(rc_amps))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]
@@ -175,6 +220,22 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         f"[{runid_idx + 1}/{len(partitions)}], event range {evt_idx_range}"
     )
     log.info(msg)
+
+    # Load forced trigger library and pre-sample for this partition
+    msg = "loading forced trigger library for random coincidences"
+    log.debug(msg)
+    with perf_block("load_ft_library()"):
+        evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+
+        # evt_idx_range is [start, end] inclusive; compute number of events
+        evt_start, evt_end = evt_idx_range
+        n_events_partition = evt_end - evt_start + 1
+        ft_library = reboost_utils.get_forced_trigger_library(
+            evt_files, n_events_partition
+        )
+
+    # Offset tracker for iterating through the pre-sampled library
+    ft_offset = {"idx": 0}
 
     # loop over the sensitive volume tables registered in the geometry
     for det_name, geom_meta in sens_tables.items():
@@ -214,7 +275,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             )
 
         if optmap_per_sipm:
-            for sipm in reboost_utils.get_senstables(geom, "optical"):
+            for sipm in sorted(reboost_utils.get_senstables(geom, "optical")):
                 sipm_uid = sens_tables[sipm].uid
 
                 # get the usability
@@ -233,6 +294,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     hit_file,
                     runid,
                     usability,
+                    ft_library,
+                    ft_offset,
                 )
 
         else:
@@ -246,6 +309,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 hit_file,
                 runid,
                 "on",
+                ft_library,
+                ft_offset,
             )
 
 
