@@ -139,11 +139,16 @@ def snakemake_nersc_cli():
     for sig in signals:
         signal.signal(sig, new_signal_handler)
 
+    failed = []
     for p in procs:
         rc = p.wait()
         if rc != 0:
-            msg = f"process failed: {p.args}"
-            raise RuntimeError(msg)
+            failed.append((rc, p.args))
+
+    if failed:
+        details = "\n".join(f"rc={rc} args={args!r}" for rc, args in failed)
+        msg = f"{len(failed)} process(es) failed:\n{details}"
+        raise RuntimeError(msg)
 
     print("INFO: all snakemake processes successfully returned")  # noqa: T201
 
