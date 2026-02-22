@@ -195,12 +195,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             pars.get("current_pulse_pars", None) if pars is not None else None
         )
 
-        n_tot = 0
         # iterate over input data
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak", with_units=True)
-
-            n_tot += len(chunk)
 
             with perf_block("distance_to_surface()"):
                 _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
@@ -312,7 +309,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     geom_meta.uid,
                 )
 
-        assert n_tot == n_entries
         # this table has been processed
         ondisk_stp_tables[stp_table_name] = True
 
