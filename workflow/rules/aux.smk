@@ -97,6 +97,6 @@ rule cache_detector_usabilities:
         import dbetto
 
         dbetto.utils.write_dict(
-            aggregate.gen_list_of_all_usabilities(config),
+            aggregate.gen_list_of_all_usabilities(config).to_dict(),
             output[0],
         )
