@@ -105,7 +105,7 @@ rule build_tier_stp:
         "Producing output file for job stp.{wildcards.simid}.{wildcards.jobid}"
     input:
         verfile=lambda wc: patterns.vtx_filename_for_stp(config, wc.simid),
-        geom=patterns.geom_gdml_filename(config, tier="stp"),
+        geom=on_scratch_smk(patterns.geom_gdml_filename(config, tier="stp")),
     params:
         cmd=smk_remage_run,
         # make this rule dependent on the actual simconfig block it is very

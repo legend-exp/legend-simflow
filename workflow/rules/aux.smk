@@ -13,7 +13,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from legendsimflow import aggregate
+from legendsimflow import aggregate, nersc
+
+
+def on_scratch_smk(path: str | Path):
+    """Move `path` to the scratch directory if requested.
+
+    This function is meant to be used in Snakemake rules to selectively make
+    paths accessible from the scratch folder. If the NERSC scratch folder is
+    disable in the Simflow config, returns `path` as is. Implemented via
+    `snakemake-storage-plugin-fs`. Make sure to setup the local storage
+    directory via Snakemake CLI or workflow profile.
+    """
+    return storage.fs(str(path)) if nersc.is_scratch_enabled(config) else path
 
 
 rule print_stats:

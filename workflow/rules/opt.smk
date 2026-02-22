@@ -45,15 +45,15 @@ rule build_tier_opt:
     message:
         "Producing output file for job opt.{wildcards.simid}.{wildcards.jobid}"
     input:
-        geom=patterns.geom_gdml_filename(config, tier="stp"),
+        geom=on_scratch_smk(patterns.geom_gdml_filename(config, tier="stp")),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=config.paths.optical_maps.lar,
+        optmap_lar=on_scratch_smk(config.paths.optical_maps.lar),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
-        optmap_per_sipm=True,
+        optmap_per_sipm=False,
         scintillator_volume_name="liquid_argon",
     output:
         patterns.output_simjob_filename(config, tier="opt"),
