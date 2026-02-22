@@ -3,7 +3,7 @@
 configfile: simflow-config.yaml
 rerun-incomplete: true
 
-local-storage-prefix: $SCRATCH/legend-simflow
+local-storage-prefix: $SCRATCH/legend-simflow/$HOSTNAME
 shared-fs-usage: [persistence, software-deployment, sources, source-cache]
 
 # there are caps on resources on login nodes:

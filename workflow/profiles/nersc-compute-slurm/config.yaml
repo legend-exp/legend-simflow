@@ -4,7 +4,7 @@ configfile: simflow-config.yaml
 keep-going: true
 rerun-incomplete: true
 
-local-storage-prefix: $SCRATCH/legend-simflow
+local-storage-prefix: $SCRATCH/legend-simflow/$HOSTNAME
 shared-fs-usage: [persistence, software-deployment, sources, source-cache]
 
 # NERSC uses the SLURM job scheduler
