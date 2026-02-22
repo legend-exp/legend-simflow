@@ -4,6 +4,7 @@ configfile: simflow-config.yaml
 keep-going: true
 rerun-incomplete: true
 cores: all
+scheduler: greedy
 
 local-storage-prefix: $SCRATCH/legend-simflow/$HOSTNAME
 shared-fs-usage: [persistence, software-deployment, sources, source-cache]
