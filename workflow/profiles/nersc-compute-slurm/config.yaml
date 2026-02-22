@@ -4,6 +4,9 @@ configfile: simflow-config.yaml
 keep-going: true
 rerun-incomplete: true
 
+local-storage-prefix: $SCRATCH/legend-simflow
+shared-fs-usage: [persistence, software-deployment, sources, source-cache]
+
 # NERSC uses the SLURM job scheduler
 # - https://snakemake.github.io/snakemake-plugin-catalog/plugins/executor/slurm.html
 # - https://docs.nersc.gov/jobs

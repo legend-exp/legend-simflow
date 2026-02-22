@@ -5,6 +5,9 @@ keep-going: true
 rerun-incomplete: true
 cores: all
 
+local-storage-prefix: $SCRATCH/legend-simflow
+shared-fs-usage: [persistence, software-deployment, sources, source-cache]
+
 # https://docs.nersc.gov/systems/perlmutter/architecture/
 resources:
   mem_mb: 512000
