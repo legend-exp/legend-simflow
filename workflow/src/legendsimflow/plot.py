@@ -67,23 +67,24 @@ def plot_hist(h, ax, n_nans: int | None = None, **kwargs):
     kwargs = {"flow": "show", "yerr": False} | kwargs
 
     if h.sum() != 0:
+        if n_nans is not None and n_nans > 0:
+            h_nans = h.copy(deep=True)
+            h_nans.reset()
+            h_nans[hist.overflow] = n_nans
+
+            opts = {
+                "facecolor": "none",  # optional: transparent fill
+                "edgecolor": "tab:red",
+                "hatch": "///",
+                "flow": "show",
+                "yerr": False,
+                "label": "np.nan",
+            }
+            h_nans.plot(ax=ax, **(kwargs | opts))
+
         h.plot(ax=ax, **kwargs)
     else:
         set_empty(ax)
-
-    if n_nans is not None and n_nans > 0:
-        h_nans = h.copy(deep=True)
-        h_nans.reset()
-        h_nans[hist.overflow] = n_nans
-
-        opts = {
-            "facecolor": "none",  # optional: transparent fill
-            "edgecolor": "tab:red",
-            "hatch": "///",
-            "flow": "show",
-            "yerr": False,
-        }
-        h_nans.plot(ax=ax, **(kwargs | opts))
 
 
 def read_concat_wempty(files: Iterable[str | Path], table: str) -> ak.Array | None:
