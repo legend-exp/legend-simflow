@@ -84,15 +84,14 @@ def fig(table):
     h_aoe.fill(aoe)
 
     if len(aoe) > 0:
-        plot.plot_hist(
+        plotted = plot.plot_hist(
             h_aoe,
             ax,
             color="tab:red",
             label="energy > 100 keV",
             n_nans=n_nans(data.aoe),
         )
-        handles, _ = ax.get_legend_handles_labels()
-        if handles:
+        if plotted:
             ax.legend()
     else:
         plot.set_empty(ax)
@@ -106,15 +105,14 @@ def fig(table):
     h_dt.fill(dt)
 
     if len(dt) > 0:
-        plot.plot_hist(
+        plotted = plot.plot_hist(
             h_dt,
             ax,
             color="tab:orange",
             label="energy > 100 keV",
             n_nans=n_nans(data.drift_time_amax),
         )
-        handles, _ = ax.get_legend_handles_labels()
-        if handles:
+        if plotted:
             ax.legend()
     else:
         plot.set_empty(ax)

@@ -83,8 +83,10 @@ def plot_hist(h, ax, n_nans: int | None = None, **kwargs):
             h_nans.plot(ax=ax, **(kwargs | opts))
 
         h.plot(ax=ax, **kwargs)
-    else:
-        set_empty(ax)
+        return True
+
+    set_empty(ax)
+    return False
 
 
 def read_concat_wempty(files: Iterable[str | Path], table: str) -> ak.Array | None:
