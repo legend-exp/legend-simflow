@@ -91,7 +91,9 @@ def fig(table):
             label="energy > 100 keV",
             n_nans=n_nans(data.aoe),
         )
-        ax.legend()
+        handles, _ = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend()
     else:
         plot.set_empty(ax)
 
@@ -111,7 +113,9 @@ def fig(table):
             label="energy > 100 keV",
             n_nans=n_nans(data.drift_time_amax),
         )
-        ax.legend()
+        handles, _ = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend()
     else:
         plot.set_empty(ax)
 
