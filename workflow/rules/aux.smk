@@ -25,7 +25,10 @@ def on_scratch_smk(path: str | Path):
     `snakemake-storage-plugin-fs`. Make sure to setup the local storage
     directory via Snakemake CLI or workflow profile.
     """
-    return storage.fs(str(path)) if nersc.is_scratch_enabled(config) else path
+    if nersc.is_scratch_enabled(config) and not workflow.touch:
+        return storage.fs(str(path))
+
+    return path
 
 
 rule print_stats:
