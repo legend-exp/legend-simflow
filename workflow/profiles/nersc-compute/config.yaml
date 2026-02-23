@@ -7,7 +7,6 @@ cores: all
 scheduler: greedy
 
 local-storage-prefix: $SCRATCH/legend-simflow/$HOSTNAME
-shared-fs-usage: [persistence, software-deployment, sources, source-cache]
 
 # https://docs.nersc.gov/systems/perlmutter/architecture/
 resources:
