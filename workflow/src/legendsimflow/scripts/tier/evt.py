@@ -101,6 +101,7 @@ for tier in ("opt", "hit"):
 
 
 # little helper to simplify the code below
+# TODO: move/fix in reboost
 def _read_hits(tcm_ak, tier, field):
     msg = f"loading {field=} data from {tier=} (file {hit_file[tier]})"
     log.debug(msg)
@@ -111,6 +112,9 @@ def _read_hits(tcm_ak, tier, field):
             tcm_flat = ak.Array({k: ak.flatten(tcm[k]) for k in tcm.fields})
 
         data_flat = []
+        tcm_rows = []
+
+        # for un-flattening at the end
         counts = ak.num(tcm.row_in_table)
 
         for tab_name, key in det2uid[tier].items():
@@ -118,6 +122,7 @@ def _read_hits(tcm_ak, tier, field):
 
             with perf_block("filtering row_in_table"):
                 rows = tcm_flat.row_in_table[mask].to_numpy()
+                tcm_rows.append(np.where(mask)[0].to_numpy())
 
             with perf_block("lh5.read()"):
                 data_ch = lh5.read(f"hit/{tab_name}/{field}", hit_file[tier], idx=rows)
@@ -127,7 +132,10 @@ def _read_hits(tcm_ak, tier, field):
 
             data_flat.append(data_ch)
 
-        data_unflat = ak.unflatten(ak.concatenate(data_flat), counts)
+        tcm_rows_concat = np.concatenate(tcm_rows)
+        data_flat_concat = ak.concatenate(data_flat)[np.argsort(tcm_rows_concat)]
+
+        data_unflat = ak.unflatten(data_flat_concat, counts)
 
         if units is not None:
             return ak.with_parameter(data_unflat, "units", units)
