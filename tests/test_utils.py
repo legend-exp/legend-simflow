@@ -88,14 +88,15 @@ def test_setup_logdir_link():
 
         # Create a mock config object
         config = AttrsDict({"paths": {"log": log_path}})
-        proctime = "20240101T120000Z"
+        proctime = "now"
+        config["_proctime"] = proctime
 
         # Create the target directory
         log_path.mkdir(parents=True, exist_ok=True)
         (log_path / proctime).mkdir(parents=True, exist_ok=True)
 
         # First call should create the symlink
-        utils.setup_logdir_link(config, proctime)
+        utils.setup_logdir_link(config)
 
         link = log_path / "latest"
         assert link.exists()
@@ -104,8 +105,9 @@ def test_setup_logdir_link():
 
         # Second call should update the symlink
         new_proctime = "20240102T130000Z"
+        config["_proctime"] = new_proctime
         (log_path / new_proctime).mkdir(parents=True, exist_ok=True)
-        utils.setup_logdir_link(config, new_proctime)
+        utils.setup_logdir_link(config)
 
         assert link.exists()
         assert link.is_symlink()

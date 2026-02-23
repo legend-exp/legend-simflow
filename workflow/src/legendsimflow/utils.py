@@ -146,17 +146,17 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
         if config.benchmark.enabled
         else datetime.now().strftime("%Y%m%dT%H%M%SZ")
     )
+    config["_proctime"] = proctime
 
     return AttrsDict(
         {
             "config": config,
             "basedir": workflow.basedir,
-            "proctime": proctime,
         }
     )
 
 
-def setup_logdir_link(config: SimflowConfig, proctime: str) -> None:
+def setup_logdir_link(config: SimflowConfig) -> None:
     """Set up the timestamp-tagged directory for the workflow log files.
 
     Parameters
@@ -173,7 +173,7 @@ def setup_logdir_link(config: SimflowConfig, proctime: str) -> None:
     link = logdir / "latest"
     if link.exists() or link.is_symlink():
         link.unlink()
-    link.symlink_to(proctime, target_is_directory=True)
+    link.symlink_to(config._proctime, target_is_directory=True)
 
 
 def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:

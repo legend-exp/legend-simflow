@@ -32,7 +32,7 @@ rule build_tier_vtx:
     output:
         patterns.output_simjob_filename(config, tier="vtx"),
     log:
-        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="vtx"),
+        patterns.log_filename(config, tier="vtx"),
     benchmark:
         patterns.benchmark_filename(config, tier="vtx")
     shell:

@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import shutil
 from collections.abc import Callable, Iterable
-from datetime import datetime
 from pathlib import Path
 
 from snakemake.io import InputFiles
@@ -96,13 +95,7 @@ def scratch_dir(config: SimflowConfig) -> Path:
         msg = "scratch folder not set"
         raise RuntimeError(msg)
 
-    hidden_field = "_nersc_scratch_dir"
-    if hidden_field not in config:
-        config[hidden_field] = Path(config.nersc.scratch) / datetime.now().strftime(
-            "%Y%m%d-%H%M%S.%f"
-        )
-
-    return config[hidden_field]
+    return Path(config.nersc.scratch) / config._proctime
 
 
 def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
@@ -127,6 +120,11 @@ def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
 
 
 def make_on_scratch(config: SimflowConfig, path: str | Path) -> tuple[Path, Callable]:
+    """Return tools to produce a file in the scratch folder and move it to the final destination.
+
+    Returns the temporary path in the scratch dir and a function that will move
+    it back to the original destination.
+    """
     if not is_scratch_enabled(config):
         return path, lambda: None
 

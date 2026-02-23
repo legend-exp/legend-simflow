@@ -7,7 +7,7 @@ from legendsimflow import patterns as p
 
 def test_all(config):
     assert isinstance(p.simjob_base_segment(config), str)
-    assert isinstance(p.log_filename(config, "now"), Path)
+    assert isinstance(p.log_filename(config), Path)
     assert isinstance(p.plots_dirname(config), Path)
     assert isinstance(p.benchmark_filename(config), Path)
     assert isinstance(p.geom_gdml_filename(config), Path)
@@ -33,7 +33,7 @@ def test_all(config):
 
     assert isinstance(p.tier_cvt_base_segment(config), str)
     assert isinstance(p.output_tier_cvt_filename(config), Path)
-    assert isinstance(p.log_tier_cvt_filename(config, "now"), Path)
+    assert isinstance(p.log_tier_cvt_filename(config), Path)
 
     files = p.output_simjob_filename(config, tier="stp", jobid=["0000", "0001"])
     assert isinstance(files, list)
