@@ -57,15 +57,15 @@ def simjob_base_segment(config: SimflowConfig, **kwargs) -> str:
     return _expand("{simid}/" + config.experiment + "-{simid}-job_{jobid}", **kwargs)
 
 
-def log_dirname(config: SimflowConfig, time: str) -> Path:
+def log_dirname(config: SimflowConfig) -> Path:
     """Directory where log files are stored."""
-    return config.paths.log / time
+    return config.paths.log / config._proctime
 
 
-def log_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
+def log_filename(config: SimflowConfig, **kwargs) -> Path:
     """Formats a log file path for a `simid` and `jobid`."""
     pat = (
-        log_dirname(config, time)
+        log_dirname(config)
         / "{tier}"
         / (simjob_base_segment(config) + "-tier_{tier}.log")
     )
@@ -102,10 +102,10 @@ def geom_gdml_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-def geom_log_filename(config: SimflowConfig, time: str, **kwargs) -> str:
+def geom_log_filename(config: SimflowConfig, **kwargs) -> str:
     pat = (
         config.paths.log
-        / time
+        / config._proctime
         / "geom"
         / (config.experiment + "-{simid}-tier_{tier}-geom.log")
     )
@@ -227,9 +227,9 @@ def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(config.paths.dtmaps / "{runid}-hpge-drift-time-maps.lh5", **kwargs)
 
 
-def log_dtmap_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
+def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     pat = (
-        log_dirname(config, time)
+        log_dirname(config)
         / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.log"
     )
     return _expand(pat, **kwargs)
@@ -273,8 +273,8 @@ def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
-def log_currmod_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
-    pat = log_dirname(config, time) / "hpge/currmod/{runid}-{hpge_detector}-model.log"
+def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = log_dirname(config) / "hpge/currmod/{runid}-{hpge_detector}-model.log"
     return _expand(pat, **kwargs)
 
 
@@ -296,8 +296,8 @@ def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
 # hit tier
 
 
-def log_simstat_part_filename(config: SimflowConfig, time: str, **kwargs) -> Path:
-    pat = log_dirname(config, time) / "simstat" / "{simid}-simstat-partition.log"
+def log_simstat_part_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = log_dirname(config) / "simstat" / "{simid}-simstat-partition.log"
     return _expand(pat, **kwargs)
 
 
@@ -314,8 +314,8 @@ def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
-def log_tier_cvt_filename(config: SimflowConfig, time, **kwargs) -> Path:
-    pat = log_dirname(config, time) / "cvt" / (tier_cvt_base_segment(config) + ".log")
+def log_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
+    pat = log_dirname(config) / "cvt" / (tier_cvt_base_segment(config) + ".log")
     return _expand(pat, **kwargs)
 
 
@@ -336,9 +336,12 @@ def output_pdf_filename(config: SimflowConfig, **kwargs):
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
-def log_pdffile_path(config: SimflowConfig, time, **kwargs):
+def log_pdffile_path(config: SimflowConfig, **kwargs):
     pat = str(
-        Path(config["paths"]["log"]) / time / "pdf" / (pdffile_rel_basename() + ".log")
+        Path(config["paths"]["log"])
+        / config._proctime
+        / "pdf"
+        / (pdffile_rel_basename() + ".log")
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 

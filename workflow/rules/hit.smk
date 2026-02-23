@@ -57,7 +57,7 @@ rule make_simstat_partition_file:
     output:
         config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
     log:
-        patterns.log_simstat_part_filename(config, SIMFLOW_CONTEXT.proctime),
+        patterns.log_simstat_part_filename(config),
     script:
         "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
@@ -105,7 +105,7 @@ rule build_tier_hit:
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
-        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="hit"),
+        patterns.log_filename(config, tier="hit"),
     benchmark:
         patterns.benchmark_filename(config, tier="hit")
     script:
@@ -165,7 +165,7 @@ rule build_hpge_drift_time_map:
     output:
         patterns.output_dtmap_filename(config),
     log:
-        patterns.log_dtmap_filename(config, SIMFLOW_CONTEXT.proctime),
+        patterns.log_dtmap_filename(config),
     benchmark:
         patterns.benchmark_dtmap_filename(config)
     # NOTE: not using the `script` directive here since Snakemake has no nice
@@ -283,7 +283,7 @@ rule extract_current_pulse_model:
         pars_file=temp(patterns.output_currmod_filename(config)),
         plot_file=patterns.plot_currmod_filename(config),
     log:
-        patterns.log_currmod_filename(config, SIMFLOW_CONTEXT.proctime),
+        patterns.log_currmod_filename(config),
     script:
         "../src/legendsimflow/scripts/extract_hpge_current_pulse_model.py"
 

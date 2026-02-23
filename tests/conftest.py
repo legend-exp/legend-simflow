@@ -69,6 +69,7 @@ def make_config(legend_testdata):
     metadata = LegendMetadata(testprod / "inputs")
 
     config["metadata"] = metadata
+    config["_proctime"] = "now"
 
     return AttrsDict(config)
 

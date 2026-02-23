@@ -54,7 +54,7 @@ wildcard_constraints:
 onstart:
     print("INFO: starting workflow")
 
-    utils.setup_logdir_link(config, SIMFLOW_CONTEXT.proctime)
+    utils.setup_logdir_link(config)
 
     # make sure some packages are initialized before we begin to avoid race conditions
     # https://numba.readthedocs.io/en/stable/developer/caching.html#cache-sharing

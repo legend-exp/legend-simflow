@@ -29,7 +29,7 @@ rule build_tier_evt:
     output:
         patterns.output_simjob_filename(config, tier="evt"),
     log:
-        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="evt"),
+        patterns.log_filename(config, tier="evt"),
     benchmark:
         patterns.benchmark_filename(config, tier="evt")
     script:

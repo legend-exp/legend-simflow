@@ -71,7 +71,7 @@ rule build_geom_gdml:
     output:
         patterns.geom_gdml_filename(config),
     log:
-        patterns.geom_log_filename(config, SIMFLOW_CONTEXT.proctime),
+        patterns.geom_log_filename(config),
     shell:
         "LEGEND_METADATA={config.paths.metadata} "
         "legend-pygeom-l200 --verbose --config {input} -- {output} &> {log}"
@@ -126,7 +126,7 @@ rule build_tier_stp:
         # TODO: protected()
         patterns.output_simjob_filename(config, tier="stp"),
     log:
-        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="stp"),
+        patterns.log_filename(config, tier="stp"),
     benchmark:
         patterns.benchmark_filename(config, tier="stp")
     threads: 1

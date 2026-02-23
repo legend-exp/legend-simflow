@@ -58,7 +58,7 @@ rule build_tier_opt:
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:
-        patterns.log_filename(config, SIMFLOW_CONTEXT.proctime, tier="opt"),
+        patterns.log_filename(config, tier="opt"),
     benchmark:
         patterns.benchmark_filename(config, tier="opt")
     script:

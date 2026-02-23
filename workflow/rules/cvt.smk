@@ -25,7 +25,7 @@ rule build_tier_cvt:
     output:
         patterns.output_tier_cvt_filename(config),
     log:
-        patterns.log_tier_cvt_filename(config, SIMFLOW_CONTEXT.proctime),
+        patterns.log_tier_cvt_filename(config),
     benchmark:
         patterns.benchmark_tier_cvt_filename(config)
     script:
