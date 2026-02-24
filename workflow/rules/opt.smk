@@ -54,6 +54,7 @@ rule build_tier_opt:
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
         optmap_per_sipm=True,
+        add_random_coincidences=False,
         scintillator_volume_name="liquid_argon",
     output:
         patterns.output_simjob_filename(config, tier="opt"),
