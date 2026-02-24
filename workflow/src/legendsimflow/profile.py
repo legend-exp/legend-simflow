@@ -34,7 +34,7 @@ def _pct(x: int | float) -> str:
     return f"{x:.1f}"
 
 
-def make_profiler() -> tuple[Callable, Callable]:
+def make_profiler() -> tuple[Callable, Callable, Callable]:
     proc = psutil.Process()
     stats = defaultdict(
         lambda: {
@@ -46,6 +46,45 @@ def make_profiler() -> tuple[Callable, Callable]:
             "n_calls": 0,
         }
     )
+    last_stats = {}
+
+    def _print_report(title: str, view_stats: dict) -> None:
+        log.info(title)
+
+        blocks = list(view_stats)
+        sum_wall_s = sum(view_stats[b]["wall_s"] for b in blocks)
+        sum_max_delta_rss_mb = sum(view_stats[b]["max_delta_rss_mb"] for b in blocks)
+        sum_avg_delta_rss_mb = sum(view_stats[b]["avg_delta_rss_mb"] for b in blocks)
+
+        for block in blocks:
+            s = view_stats[block]
+
+            wall_s = s["wall_s"]
+            max_delta_rss_mb = s["max_delta_rss_mb"]
+            avg_delta_rss_mb = s["avg_delta_rss_mb"]
+
+            wall_s_frac = 100.0 * wall_s / sum_wall_s if sum_wall_s else 0.0
+            max_delta_rss_mb_frac = (
+                100.0 * max_delta_rss_mb / sum_max_delta_rss_mb
+                if sum_max_delta_rss_mb
+                else 0.0
+            )
+            avg_delta_rss_mb_frac = (
+                100.0 * avg_delta_rss_mb / sum_avg_delta_rss_mb
+                if sum_avg_delta_rss_mb
+                else 0.0
+            )
+
+            msg = (
+                f"block {block} ]]] "
+                f"wall_time_s={_f(wall_s)} ({_pct(wall_s_frac)}%) "
+                f"max_delta_rss_mb={_f(max_delta_rss_mb)} ({_pct(max_delta_rss_mb_frac)}%) "
+                f"avg_delta_rss_mb={_f(avg_delta_rss_mb)} ({_pct(avg_delta_rss_mb_frac)}%)"
+            )
+            log.info(msg)
+
+        msg = "=========================="
+        log.info(msg)
 
     @contextlib.contextmanager
     def profile_block(name: str) -> None:
@@ -76,41 +115,30 @@ def make_profiler() -> tuple[Callable, Callable]:
             log.debug(msg)
 
     def print_stats() -> None:
-        msg = "==== profiling report ===="
-        log.info(msg)
+        _print_report("==== profiling report ====", stats)
 
-        blocks = list(stats)
-        sum_wall_s = sum(stats[b]["wall_s"] for b in blocks)
-        sum_max_delta_rss_mb = sum(stats[b]["max_delta_rss_mb"] for b in blocks)
-        sum_avg_delta_rss_mb = sum(stats[b]["avg_delta_rss_mb"] for b in blocks)
+    def print_stats_since_last() -> None:
+        nonlocal last_stats
 
-        for block in blocks:
-            s = stats[block]
-
-            wall_s = s["wall_s"]
-            max_delta_rss_mb = s["max_delta_rss_mb"]
-            avg_delta_rss_mb = s["avg_delta_rss_mb"]
-
-            wall_s_frac = 100.0 * wall_s / sum_wall_s if sum_wall_s else 0.0
-            max_delta_rss_mb_frac = (
-                100.0 * max_delta_rss_mb / sum_max_delta_rss_mb
-                if sum_max_delta_rss_mb
-                else 0.0
-            )
-            avg_delta_rss_mb_frac = (
-                100.0 * avg_delta_rss_mb / sum_avg_delta_rss_mb
-                if sum_avg_delta_rss_mb
-                else 0.0
+        view = {}
+        for block in stats:
+            cur = stats[block]
+            prev = last_stats.get(
+                block,
+                {
+                    "wall_s": 0.0,
+                    "max_delta_rss_mb": float("-inf"),
+                    "avg_delta_rss_mb": 0.0,
+                },
             )
 
-            msg = (
-                f"block {block} ]]] "
-                f"wall_time_s={_f(wall_s)} ({_pct(wall_s_frac)}%) "
-                f"max_delta_rss_mb={_f(max_delta_rss_mb)} ({_pct(max_delta_rss_mb_frac)}%) "
-                f"avg_delta_rss_mb={_f(avg_delta_rss_mb)} ({_pct(avg_delta_rss_mb_frac)}%)"
-            )
-            log.info(msg)
-        msg = "=========================="
-        log.info(msg)
+            view[block] = {
+                "wall_s": cur["wall_s"] - prev["wall_s"],
+                "max_delta_rss_mb": cur["max_delta_rss_mb"],
+                "avg_delta_rss_mb": cur["avg_delta_rss_mb"],
+            }
 
-    return profile_block, print_stats
+        _print_report("==== profiling report (since last) ====", view)
+        last_stats = {block: dict(stats[block]) for block in stats}
+
+    return profile_block, print_stats, print_stats_since_last
