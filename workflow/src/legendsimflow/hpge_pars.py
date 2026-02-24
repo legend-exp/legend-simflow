@@ -27,6 +27,35 @@ from . import utils
 log = logging.getLogger(__name__)
 
 
+def _lookup_generated_pars_file(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
+) -> tuple[Any, Any]:
+    if hit_tier_name not in ("hit", "pht"):
+        raise NotImplementedError
+
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    # get the paths to generated parameters
+    if pars_db is None:
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
+    msg = f"loading {hit_tier_name} pars of production {l200data}"
+    log.debug(msg)
+
+    # get the pars file at the correct timestamp
+    tstamp = mutils.runinfo(metadata, runid).start_key
+    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
+    pars_file = pars_db.on(tstamp)
+
+    return pars_file, chmap
+
+
 def lookup_currmod_fit_data(
     hit_files: list[str, Path],
     lh5_group: str,
@@ -607,23 +636,13 @@ def lookup_energy_res_metadata(
         optional existing *non-lazy* instance of
         ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
     """
-    if hit_tier_name not in ("hit", "pht"):
-        raise NotImplementedError
-
-    if isinstance(l200data, str):
-        l200data = Path(l200data)
-
-    # get the paths to generated parameters
-    if pars_db is None:
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-    msg = f"loading {hit_tier_name} pars of production {l200data}"
-    log.debug(msg)
-
-    # get the pars file at the correct timestamp
-    tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
-    pars_file = pars_db.on(tstamp)
+    pars_file, chmap = _lookup_generated_pars_file(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
 
     out_dict = {}
     for key, detmeta in pars_file.items():
@@ -678,23 +697,13 @@ def lookup_aoe_res_metadata(
         optional existing *non-lazy* instance of
         ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
     """
-    if hit_tier_name not in ("hit", "pht"):
-        raise NotImplementedError
-
-    if isinstance(l200data, str):
-        l200data = Path(l200data)
-
-    # get the paths to generated parameters
-    if pars_db is None:
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-    msg = f"loading {hit_tier_name} pars of production {l200data}"
-    log.debug(msg)
-
-    # get the pars file at the correct timestamp
-    tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
-    pars_file = pars_db.on(tstamp)
+    pars_file, chmap = _lookup_generated_pars_file(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
 
     out_dict = {}
     for key, detmeta in pars_file.items():
