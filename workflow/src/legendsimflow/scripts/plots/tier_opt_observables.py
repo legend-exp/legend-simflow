@@ -118,7 +118,7 @@ def fig(table):
     h_sat = h_npe.copy(deep=True)
     h_sat.reset()
     h_sat[hist.overflow] = ak.sum(data.is_saturated)
-    if h_sat.sum() != 0:
+    if h_sat[hist.overflow] > 0:
         h_sat.plot(ax=ax, label="saturated (sim)", flow="show", yerr=False)
 
     ax.set_ylabel("counts")
