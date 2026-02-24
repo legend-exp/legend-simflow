@@ -53,7 +53,7 @@ rule build_tier_opt:
         simstat_part_file=config.paths.genmeta / "simstat" / "partitions_{simid}.yaml",
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
-        optmap_per_sipm=False,
+        optmap_per_sipm=True,
         scintillator_volume_name="liquid_argon",
     output:
         patterns.output_simjob_filename(config, tier="opt"),

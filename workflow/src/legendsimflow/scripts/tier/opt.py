@@ -59,10 +59,10 @@ hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
 # of photons, i.e. high memory usage
 BUFFER_LEN = "10*MB"
-MAP_SCALING = 0.1  # FIXME: guess
+MAP_SCALING = 1  # FIXME: guess
 DEFAULT_PHOTOELECTRON_RES = 0.3  # FWHM FIXME: guess
-TIME_RESOLUTION_NS = 3 * 16  # FIXME: guess
-MAX_PES_PER_HIT = 10
+TIME_RESOLUTION_NS = 16  # FIXME: guess
+MAX_PES_PER_HIT = -1
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
