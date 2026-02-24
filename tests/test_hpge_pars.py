@@ -184,4 +184,50 @@ def test_build_eres_funcs(config, test_l200data):
 
     assert isinstance(meta, dict)
     assert list(meta.keys()) == ["V99000A"]
-    assert meta["V99000A"](2000) == pytest.approx(2.17, abs=0.01)
+
+
+def test_lookup_aoeres(config, test_l200data):
+    meta = hpge_pars.lookup_aoe_res_metadata(
+        test_l200data / "v2.1.5",
+        config.metadata,
+        "l200-p03-r000-phy",
+        hit_tier_name="pht",
+    )
+
+    assert isinstance(meta, AttrsDict)
+    for k, v in meta.items():
+        assert isinstance(k, str)
+        assert "expression" in v
+        assert "pars" in v
+
+    meta = hpge_pars.lookup_aoe_res_metadata(
+        test_l200data / "v3.0.0",
+        config.metadata,
+        "l200-p16-r008-ssc",
+        hit_tier_name="hit",
+    )
+
+    assert isinstance(meta, AttrsDict)
+    for k, v in meta.items():
+        assert isinstance(k, str)
+        assert "expression" in v
+        assert "pars" in v
+
+
+def test_aoeres_func():
+    f = hpge_pars.build_aoe_res_func("SigmaFit")
+    assert isinstance(f, Callable)
+
+
+def test_build_aoeres_funcs(config, test_l200data):
+    meta = hpge_pars.build_aoe_res_func_dict(
+        test_l200data / "v2.1.5",
+        config.metadata,
+        "l200-p03-r000-phy",
+        hit_tier_name="pht",
+    )
+
+    assert isinstance(meta, dict)
+    assert list(meta.keys()) == ["V99000A"]
+    assert meta["V99000A"](2000) == pytest.approx(0.007, abs=0.001)
+    assert meta["V99000A"](2000) == pytest.approx(0.007, abs=0.001)

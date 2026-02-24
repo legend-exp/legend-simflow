@@ -55,6 +55,39 @@ V14654A:
           interp_energy_in_kev: 2039.0
           Qbb_fwhm_in_kev: .nan
           Qbb_fwhm_err_in_kev: .nan
+    aoe:
+      cal_energy_param: cuspEmax_ctc_cal
+      correction_fit_results:
+        mean_fits:
+          func: Pol1
+          module: pygama.pargen.AoE_cal
+          expression: x*a+b
+          pars:
+            a: -3.234992530088688e-05
+            b: 1.0336859418510906
+          errs:
+            a: 1.5143538345254091e-06
+            b: 0.0028555656326472024
+          p_val_mu: 1.0
+          csqr_mu:
+            - 0.6401954798978051
+            - 58
+        SigmaFits:
+          func: SigmaFit
+          module: pygama.pargen.AoE_cal
+          expression: (a+(b/(x+10**-99))**c)**(0.5)
+          pars:
+            a: 0.0006696353604954532
+            b: 64.00934286934289
+            c: 1.9108217970116048
+          errs:
+            a: 0.0003414470573062907
+            b: 23.59536254941461
+            c: 0.2751886852397225
+          p_val_mu: 1.0
+          csqr_mu:
+            - 0.9828808736441715
+            - 57
 V14673A:
   pars:
     operations: []
@@ -112,3 +145,36 @@ V14673A:
           interp_energy_in_kev: 2039.0
           Qbb_fwhm_in_kev: 2.979831999275091
           Qbb_fwhm_err_in_kev: 0.010664954175623926
+    aoe:
+      cal_energy_param: cuspEmax_ctc_cal
+      correction_fit_results:
+        mean_fits:
+          func: Pol1
+          module: pygama.pargen.AoE_cal
+          expression: x*a+b
+          pars:
+            a: -2.661781313947057e-06
+            b: 1.0029758781662947
+          errs:
+            a: 1.8891327042612075e-07
+            b: 0.0003653037972588129
+          p_val_mu: 1.0
+          csqr_mu:
+            - 0.04745112005566786
+            - 58
+        SigmaFits:
+          func: SigmaFit
+          module: pygama.pargen.AoE_cal
+          expression: (a+(b/(x+10**-99))**c)**(0.5)
+          pars:
+            a: 2.187818130327549e-05
+            b: 28.739415446639345
+            c: 2.3710115483295575
+          errs:
+            a: 6.657292985836326e-06
+            b: 8.244231180975385
+            c: 0.19643480937139973
+          p_val_mu: 1.0
+          csqr_mu:
+            - 0.025945827803379142
+            - 57
