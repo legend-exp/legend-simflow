@@ -118,11 +118,18 @@ function main()
     end
     @info "Simulated depletion is $dep"
 
-    dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
-    @info "Depletion measured during characterization is $dep_meas"
+    dep_meas = nothing
+    try
+        dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
+        @info "Depletion measured during characterization is $dep_meas"
+    catch
+        @warn "Measured depletion voltage not found in metadata"
+    end
 
-    if abs(dep_meas - dep) > 200 * u"V"
-        error("Difference between measured and simulated depletion is larger than 100 V!")
+    if dep_meas != nothing
+        if abs(dep_meas - dep) > 200 * u"V"
+            error("Difference between measured and simulated depletion is larger than 100 V!")
+        end
     end
 
     @info "Calculating weighting potential..."
