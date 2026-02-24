@@ -64,7 +64,7 @@ BUFFER_LEN = "10*MB"
 MAP_SCALING = 1  # FIXME: guess
 DEFAULT_PHOTOELECTRON_RES = 0.3  # FWHM FIXME: guess
 TIME_RESOLUTION_NS = 16  # FIXME: guess
-MAX_PES_PER_HIT = 50
+MAX_PES_PER_HIT = 5 if optmap_per_sipm else 100
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -294,7 +294,6 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     rc_library,
                     rc_offset.setdefault(sipm, {"idx": 0}),
                 )
-
         else:
             log.debug("applying sum optical map")
 
