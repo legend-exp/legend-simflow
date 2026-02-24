@@ -51,7 +51,8 @@ def fig(table):
 
     # time
     ax = fig.add_subplot(gs_top[0, 0])
-    h_time = hist.new.Reg(300, 0, 3000, name="photoelectron $t - t_0$ (ns)").Double()
+    # bin width = 16 ns
+    h_time = hist.new.Reg(313, 0, 5008, name="photoelectron $t - t_0$ (ns)").Double()
     dt = data.time - data.t0
     h_time.fill_flattened(dt)
     plot.plot_hist(h_time, ax, n_nans=n_nans(dt))
