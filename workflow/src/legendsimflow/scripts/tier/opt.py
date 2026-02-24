@@ -68,7 +68,7 @@ MAX_PES_PER_HIT = 5 if optmap_per_sipm else 100
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
-perf_block, print_perf = make_profiler()
+perf_block, print_perf, print_perf_last = make_profiler()
 
 # load the geometry and retrieve registered sensitive volume tables
 geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
@@ -294,6 +294,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     rc_library,
                     rc_offset.setdefault(sipm, {"idx": 0}),
                 )
+
+                print_perf_last()
         else:
             log.debug("applying sum optical map")
 

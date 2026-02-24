@@ -69,7 +69,7 @@ def DEFAULT_ENERGY_RES_FUNC(energy):
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
-perf_block, print_perf = make_profiler()
+perf_block, print_perf, _ = make_profiler()
 
 # load the geometry and retrieve registered sensitive volume tables
 with perf_block("load_pygeom()"):

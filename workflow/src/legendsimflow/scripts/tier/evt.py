@@ -53,7 +53,7 @@ evt_file, move2cfs = nersc.make_on_scratch(args.config, evt_file)
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
-perf_block, print_perf = make_profiler()
+perf_block, print_perf, _ = make_profiler()
 
 log.info("merging hit and opt TCMs")
 with perf_block("merge_tcms()"):

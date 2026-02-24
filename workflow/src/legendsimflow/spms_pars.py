@@ -164,7 +164,7 @@ def get_rc_library(
     (makes sure that t0 are between bounds specified in `time_domain_ns`), and
     "rawid" the SiPM channel numbers.
     """
-    perf_block, print_perf = make_profiler()
+    perf_block, print_perf, _ = make_profiler()
 
     npe_chunks: list[ak.Array] = []
     t0_chunks: list[ak.Array] = []
