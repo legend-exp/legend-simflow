@@ -64,7 +64,7 @@ BUFFER_LEN = "10*MB"
 MAP_SCALING = 1  # FIXME: guess
 DEFAULT_PHOTOELECTRON_RES = 0.3  # FWHM FIXME: guess
 TIME_RESOLUTION_NS = 16  # FIXME: guess
-MAX_PES_PER_HIT = -1
+MAX_PES_PER_HIT = 50
 
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
