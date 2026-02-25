@@ -729,7 +729,7 @@ def build_energy_res_func(function: str) -> Callable:
 def build_aoe_res_func(function: str) -> Callable:
     """A/E resolution function builder."""
     if function == "SigmaFit":
-        return lambda aoe, a, b, c: (a + (b / (aoe + 10**-99)) ** c) ** (0.5)
+        return lambda energy, a, b, c: (a + (b / (energy + 10**-99)) ** c) ** (0.5)
 
     raise NotImplementedError
 

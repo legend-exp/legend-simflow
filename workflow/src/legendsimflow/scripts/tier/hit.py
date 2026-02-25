@@ -68,6 +68,10 @@ def DEFAULT_ENERGY_RES_FUNC(energy):
     return 2.5 * np.sqrt(energy / 2039)  # FWHM
 
 
+def DEFAULT_AoE_RES_FUNC(energy):
+    return 0.01 * np.sqrt(energy / 2039)
+
+
 # setup logging
 log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
 perf_block, print_perf, _ = make_profiler()
@@ -255,6 +259,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 )
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
+                aoe_res = DEFAULT_AoE_RES_FUNC(energy_true)
 
             energy = reboost_utils.gauss_smear(
                 energy_true,
