@@ -51,7 +51,8 @@ log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
-hpge_eresmods_files = args.input.hpge_eresmods
+# hpge_eresmods_files = args.input.hpge_eresmods
+# hpge_aoeresmods_files = args.input.hpge_aoeresmods
 simstat_part_file = args.input.simstat_part_file[0]
 l200data = args.config.paths.l200data
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
@@ -120,6 +121,20 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         runid,
         energy_res_pars=eresmod_pars_all,
     )  # FWHM
+
+    msg = "loading A/E resolution parameters"
+    log.debug(msg)
+    aoeresmod_pars_file = patterns.output_aoeresmod_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    aoeresmod_pars_all = load_dict(aoeresmod_pars_file)
+    aoe_res_func = hpge_pars.build_aoe_res_func_dict(
+        l200data,
+        metadata,
+        runid,
+        aoe_res_pars=aoeresmod_pars_all,
+    )
 
     msg = "loading current pulse model parameters"
     log.debug(msg)
@@ -224,6 +239,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # smear energy with detector resolution
             if det_name in energy_res_func:
                 energy_res = energy_res_func[det_name](energy_true)
+                aoe_res = aoe_res_func[det_name](energy_true)
+
             elif usability != "off":
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
@@ -251,6 +268,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # default to NaN
             _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
+            aoe_class = np.full(len(chunk), np.nan)
             t_max = np.full(len(chunk), np.nan)
 
             if dt_map is not None and currmod_pars is not None:
@@ -277,6 +295,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 # finally calculate A/E
                 aoe = _a_max / energy
 
+                # ...and A/E classifier
+                # NOTE: we use the resolution determined from data here instead
+                # of the intrinsic simulated ones due to noise
+                aoe_class = (aoe - 1) / aoe_res
+
                 # also calculate drift time at A position
                 # FIXME: this is wasting compute resources, max_current should
                 # return (maxA, t_maxA)
@@ -291,7 +314,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             out_table.add_field(
                 "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
             )
-            out_table.add_field("aoe", lgdo.Array(aoe))
+            out_table.add_field("aoe_raw", lgdo.Array(aoe))
+            out_table.add_field("aoe", lgdo.Array(aoe_class))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]
