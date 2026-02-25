@@ -404,6 +404,14 @@ def gen_list_of_eresmods(config: SimflowConfig, simid: str) -> list[Path]:
     ]
 
 
+def gen_list_of_aoeresmods(config: SimflowConfig, simid: str) -> list[Path]:
+    r"""Generate the list of HPGe A/E resolution model parameter files for all requested `runid`\ s."""
+    return [
+        patterns.output_aoeresmod_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
+
+
 # tier cvt
 
 

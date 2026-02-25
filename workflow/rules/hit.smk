@@ -98,6 +98,7 @@ rule build_tier_hit:
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
+        hpge_aoresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=rules.make_simstat_partition_file.output,
@@ -314,39 +315,63 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
-rule extract_energy_resolution_model:
-    """Extract from the LEGEND-200 data and store on disk the HPGe energy resolution model.
+rule extract_hpge_observables_models:
+    """Extract from the LEGEND-200 data and store on disk models of the HPGe observables.
 
-    Stores a YAML file with a mapping between HPGe detectors and respective
-    information to reconstruct the energy resolution function, as determined
-    during energy calibration. This is done in a separate rule because the
-    data production parameter database is large and we don't want to use a lot
-    of memory in the `build_tier_hit` rule.
+    Stores YAML files with a mapping between HPGe detectors and respective
+    information to reconstruct:
+
+    - the energy resolution as a function of energy;
+    - the A/E resolution as a function of energy;
+
+    as determined during energy calibration. This is done in a separate rule
+    because the data production parameter database is large and we don't want
+    to use a lot of memory in the `build_tier_hit` rule.
 
     Uses wildcard `runid`.
     """
     message:
-        "Extracting HPGe energy resolution model for {wildcards.runid}"
+        "Extracting HPGe observables models for {wildcards.runid}"
     # NOTE: we don't list the file dependencies here because they are
     # dynamically generated, and that would slow down the DAG generation
     output:
-        patterns.output_eresmod_filename(config),
+        eresmod_file=patterns.output_eresmod_filename(config),
+        aoeresmod_file=patterns.output_aoeresmod_filename(config),
     run:
         import dbetto
         from legendsimflow import hpge_pars, utils
 
-        hit_tier_name = utils.get_hit_tier_name(config.paths.l200data)
+        l200data = config.paths.l200data
 
-        pars_dict = hpge_pars.lookup_energy_res_metadata(
-            config.paths.l200data,
+        hit_tier_name = utils.get_hit_tier_name(l200data)
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
+        eres_pars_dict = hpge_pars.lookup_energy_res_metadata(
+            l200data,
             config.metadata,
             wildcards.runid,
             hit_tier_name=hit_tier_name,
+            pars_db=pars_db,
         )
 
         out_dict = dbetto.AttrsDict({})
         fields = ["expression", "parameters", "uncertainties"]
-        for hpge, meta in pars_dict.items():
+        for hpge, meta in eres_pars_dict.items():
             out_dict[hpge] = {f: meta[f] for f in fields}
 
-        dbetto.utils.write_dict(out_dict.to_dict(), output[0])
+        dbetto.utils.write_dict(out_dict.to_dict(), output.eresmod_file)
+
+        aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
+            l200data,
+            config.metadata,
+            wildcards.runid,
+            hit_tier_name=hit_tier_name,
+            pars_db=pars_db,
+        )
+
+        out_dict = dbetto.AttrsDict({})
+        fields = ["expression", "pars", "errs"]
+        for hpge, meta in aoeres_pars_dict.items():
+            out_dict[hpge] = {f: meta[f] for f in fields}
+
+        dbetto.utils.write_dict(out_dict.to_dict(), output.aoeresmod_file)

@@ -293,6 +293,13 @@ def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def output_aoeresmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/aoeresmod/{runid}-model.yaml",
+        **kwargs,
+    )
+
+
 # hit tier
 
 
