@@ -230,7 +230,6 @@ def test_build_aoeres_funcs(config, test_l200data):
     assert isinstance(meta, dict)
     assert list(meta.keys()) == ["V99000A"]
     assert meta["V99000A"](2000) == pytest.approx(0.007, abs=0.001)
-    assert meta["V99000A"](2000) == pytest.approx(0.007, abs=0.001)
 
 
 def test_lookup_psd_cut_vals(config, test_l200data):

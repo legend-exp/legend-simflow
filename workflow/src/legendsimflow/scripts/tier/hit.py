@@ -300,6 +300,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
             aoe_class = np.full(len(chunk), np.nan)
+            is_single_site = np.full(len(chunk), False)
             t_max = np.full(len(chunk), np.nan)
 
             if dt_map is not None and currmod_pars is not None:

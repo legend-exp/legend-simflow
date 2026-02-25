@@ -75,7 +75,7 @@ def fig(table):
         # no events above 1 MeV; mark inset as empty
         plot.set_empty(ax)
 
-    ax.set_ylabel("Counts / 0.5 keV")
+    ax.set_ylabel("counts / 0.5 keV")
     ax.set_yscale("log")
 
     # A/E
@@ -132,11 +132,18 @@ def fig(table):
 
     # A/E classifier
     _d = data[data.energy > 1000][:10_000]
+    _ss = _d.is_single_site
 
     ax1 = fig.add_subplot(gs_bot[0, 0])
-    h_aoec = hist.new.Reg(100, -20, 5).Double()
-    h_aoec.fill(_d.aoe)
+    h_aoec = hist.new.Reg(100, -20, 5).Double().fill(_d.aoe[_ss])
     plot.plot_hist(
+        hist.new.Reg(100, -20, 5).Double().fill(_d.aoe[~_ss]),
+        ax1,
+        color="tab:gray",
+        flow="none",
+        orientation="horizontal",
+    )
+    plotted = plot.plot_hist(
         h_aoec,
         ax1,
         color="tab:red",
@@ -146,22 +153,27 @@ def fig(table):
     )
 
     def norm(y):
-        scale = 0.5 * h_aoec.sum() * h_aoec.axes[0].widths[0]
+        scale = h_aoec.sum() * h_aoec.axes[0].widths[0]
         return scale * np.exp(-0.5 * y**2) / np.sqrt(2 * np.pi)
 
-    y = np.linspace(-5, 5, 1000)
-    ax1.plot(norm(y), y, label=r"$\mathcal{N}(0,1)$")
+    if plotted:
+        y = np.linspace(-5, 5, 1000)
+        ax1.plot(norm(y), y, label=r"$\mathcal{N}(0,1)$")
+        ax1.legend(loc="lower left")
 
     ax1.invert_xaxis()
     ax1.set_ylabel("A/E classifier")
 
-    ax1.legend()
-
     ax2 = fig.add_subplot(gs_bot[0, 1], sharey=ax1)
-    ax2.scatter(_d.energy, _d.aoe, s=2, color="tab:red")
+    ax2.scatter(
+        _d.energy[_ss], _d.aoe[_ss], s=2, color="tab:red", label="is_single_site"
+    )
+    ax2.scatter(_d.energy[~_ss], _d.aoe[~_ss], s=2, color="tab:gray")
     ax2.set_xlim(1000, None)
     ax2.set_ylim(-20, 5)
     ax2.set_xlabel("energy (keV)")
+    if len(_ss) > 0:
+        ax2.legend()
     ax2.grid()
 
     fig.suptitle(f"{simid}: {table} hits")

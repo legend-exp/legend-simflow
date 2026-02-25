@@ -14,8 +14,6 @@ from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
 from lgdo import lh5
 from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
@@ -210,9 +208,7 @@ def fit_noise_gauss(
     return m_norm
 
 
-def plot_noise_waveforms(
-    noise: ArrayLike, temp: ArrayLike, norm: float = 1
-) -> tuple[Figure, Any]:
+def plot_noise_waveforms(noise: ArrayLike, temp: ArrayLike, norm: float = 1) -> tuple:
     """Plot the waveforms with noise and the noise alone."""
 
     temp = norm * temp / np.max(temp)
@@ -240,7 +236,7 @@ def plot_gauss_fit(
     fit_range: tuple | None = None,
     bins: int = 100,
     nominal_val: float | None = None,
-) -> tuple[Figure, Axes]:
+) -> tuple:
     """Plot the result of the Gaussian fit.
 
     Parameters
@@ -253,7 +249,6 @@ def plot_gauss_fit(
         The range to use for the fit, if `None` this is determined from the data as +/- 5 standard deviations round the mean.
     nominal_val
         The nominal mean to add as a line on the plot.
-
     """
     if fit_range is None:
         fit_range = (np.mean(data) - 5 * np.std(data), np.mean(data) + 5 * np.std(data))
@@ -406,7 +401,7 @@ def get_noise_waveforms(
 
 def plot_currmod_fit_result(
     t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
-) -> tuple[Figure, Axes]:
+) -> tuple:
     """Plot the best fit results."""
     fig, ax = plt.subplots(figsize=(6, 4))
 
@@ -759,9 +754,8 @@ def build_energy_res_func_dict(
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
-    pars_db
-        optional existing *non-lazy* instance of
-        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+    energy_res_pars
+        from :func:`lookup_energy_res_metadata`.
     """
     if energy_res_pars is None:
         energy_res_pars = lookup_energy_res_metadata(
@@ -822,8 +816,7 @@ def build_aoe_res_func_dict(
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
     aoe_res_pars
-        optional existing *non-lazy* instance of
-        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+        from :func:`lookup_aoe_res_metadata`.
     """
     if aoe_res_pars is None:
         aoe_res_pars = lookup_aoe_res_metadata(
