@@ -98,7 +98,8 @@ rule build_tier_hit:
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
-        hpge_aoresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
+        hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
+        hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=rules.make_simstat_partition_file.output,
@@ -337,6 +338,7 @@ rule extract_hpge_observables_models:
     output:
         eresmod_file=patterns.output_eresmod_filename(config),
         aoeresmod_file=patterns.output_aoeresmod_filename(config),
+        psdcuts_file=patterns.output_psdcuts_filename(config),
     run:
         import dbetto
         from legendsimflow import hpge_pars, utils
@@ -375,3 +377,13 @@ rule extract_hpge_observables_models:
             out_dict[hpge] = {f: meta[f] for f in fields}
 
         dbetto.utils.write_dict(out_dict.to_dict(), output.aoeresmod_file)
+
+        aoecuts_pars_dict = hpge_pars.lookup_aoe_cut_values(
+            l200data,
+            config.metadata,
+            wildcards.runid,
+            hit_tier_name=hit_tier_name,
+            pars_db=pars_db,
+        )
+
+        dbetto.utils.write_dict(aoecuts_pars_dict, output.psdcuts_file)

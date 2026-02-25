@@ -857,3 +857,53 @@ def build_aoe_res_func_dict(
         aoe_res_sigma_func[hpge] = _aoeres
 
     return aoe_res_sigma_func
+
+
+def lookup_aoe_cut_values(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
+) -> AttrsDict:
+    r"""Lookup the measured A/E cut values from LEGEND-200 data.
+
+    Returns
+    -------
+    Mapping of HPGe name to metadata dictionary.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
+    runid
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
+    pars_db
+        optional existing *non-lazy* instance of
+        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+    """
+    pars_file, chmap = _lookup_generated_pars_file(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
+
+    out_dict = {}
+    for key, detmeta in pars_file.items():
+        # handle data prod formats
+        hpge = (
+            chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
+        )
+        out_dict[hpge] = {
+            "low_side": detmeta.results.aoe.low_cut,
+            "high_side": detmeta.results.aoe.high_cut,
+        }
+
+    return AttrsDict(out_dict)

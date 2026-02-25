@@ -88,6 +88,8 @@ V14654A:
           csqr_mu:
             - 0.9828808736441715
             - 57
+      low_cut: .nan
+      high_cut: 3
 V14673A:
   pars:
     operations: []
@@ -178,3 +180,5 @@ V14673A:
           csqr_mu:
             - 0.025945827803379142
             - 57
+      low_cut: -1.6
+      high_cut: 3

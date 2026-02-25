@@ -46,7 +46,7 @@ wildcard_constraints:
     tier=r"\w+",
     simid=r"[-\w]+",
     jobid=r"\d+",
-    runid=r"[-\w]+",
+    runid=r"\w+(?:-\w+){3}",
     hpge_detector=r"[VPBC]\w{6}",
     hpge_voltage=r"\d+",
 
