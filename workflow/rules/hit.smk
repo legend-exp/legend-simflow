@@ -378,7 +378,7 @@ rule extract_hpge_observables_models:
 
         dbetto.utils.write_dict(out_dict.to_dict(), output.aoeresmod_file)
 
-        aoecuts_pars_dict = hpge_pars.lookup_aoe_cut_values(
+        aoecuts_pars_dict = hpge_pars.lookup_psd_cut_values(
             l200data,
             config.metadata,
             wildcards.runid,

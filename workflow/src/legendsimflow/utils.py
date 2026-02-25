@@ -22,6 +22,7 @@ import logging
 import os
 from collections.abc import Sequence
 from datetime import datetime
+from numbers import Real
 from pathlib import Path
 
 import awkward as ak
@@ -384,3 +385,29 @@ def sorted_by(subset: Sequence, order: Sequence) -> list:
             uniq.append(x)
 
     return uniq
+
+
+def sanitize_dict_with_defaults(read_dict: dict, defaults: dict) -> dict:
+    """Swap-in defaults when values are illegal."""
+    out = read_dict.copy()
+
+    for key, sub in defaults.items():
+        out.setdefault(key, {})
+        for field, default_val in sub.items():
+            val = out[key].get(field, default_val)
+
+            ok = isinstance(val, type(default_val))
+            if isinstance(default_val, Real):
+                ok = isinstance(val, Real)
+
+            if not ok:
+                msg = (
+                    f"warning: {key}.{field}={val!r} has wrong type; "
+                    f"using default {default_val!r}"
+                )
+                log.warning(msg)
+                out[key][field] = default_val
+            else:
+                out[key][field] = val
+
+    return out

@@ -233,8 +233,8 @@ def test_build_aoeres_funcs(config, test_l200data):
     assert meta["V99000A"](2000) == pytest.approx(0.007, abs=0.001)
 
 
-def test_lookup_aoe_cut_vals(config, test_l200data):
-    meta = hpge_pars.lookup_aoe_cut_values(
+def test_lookup_psd_cut_vals(config, test_l200data):
+    meta = hpge_pars.lookup_psd_cut_values(
         test_l200data / "v2.1.5",
         config.metadata,
         "l200-p03-r000-phy",
@@ -244,10 +244,11 @@ def test_lookup_aoe_cut_vals(config, test_l200data):
     assert isinstance(meta, AttrsDict)
     for k, v in meta.items():
         assert isinstance(k, str)
-        assert "low_side" in v
-        assert "high_side" in v
+        assert "aoe" in v
+        assert "low_side" in v.aoe
+        assert "high_side" in v.aoe
 
-    meta = hpge_pars.lookup_aoe_cut_values(
+    meta = hpge_pars.lookup_psd_cut_values(
         test_l200data / "v3.0.0",
         config.metadata,
         "l200-p16-r008-ssc",
@@ -257,5 +258,6 @@ def test_lookup_aoe_cut_vals(config, test_l200data):
     assert isinstance(meta, AttrsDict)
     for k, v in meta.items():
         assert isinstance(k, str)
-        assert "low_side" in v
-        assert "high_side" in v
+        assert "aoe" in v
+        assert "low_side" in v.aoe
+        assert "high_side" in v.aoe

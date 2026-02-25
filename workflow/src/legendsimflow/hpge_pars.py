@@ -859,7 +859,7 @@ def build_aoe_res_func_dict(
     return aoe_res_sigma_func
 
 
-def lookup_aoe_cut_values(
+def lookup_psd_cut_values(
     l200data: str | Path,
     metadata: LegendMetadata,
     runid: str,
@@ -867,7 +867,7 @@ def lookup_aoe_cut_values(
     hit_tier_name: str = "hit",
     pars_db: TextDB | None = None,
 ) -> AttrsDict:
-    r"""Lookup the measured A/E cut values from LEGEND-200 data.
+    r"""Lookup the measured PSD cut values from LEGEND-200 data.
 
     Returns
     -------
@@ -902,8 +902,10 @@ def lookup_aoe_cut_values(
             chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
         )
         out_dict[hpge] = {
-            "low_side": detmeta.results.aoe.low_cut,
-            "high_side": detmeta.results.aoe.high_cut,
+            "aoe": {
+                "low_side": detmeta.results.aoe.low_cut,
+                "high_side": detmeta.results.aoe.high_cut,
+            }
         }
 
     return AttrsDict(out_dict)
