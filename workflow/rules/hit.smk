@@ -91,7 +91,7 @@ rule build_tier_hit:
     message:
         "Producing output file for job hit.{wildcards.simid}.{wildcards.jobid}"
     input:
-        geom=on_scratch_smk(patterns.geom_gdml_filename(config, tier="stp")),
+        geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         # NOTE: we pass here the full list of maps/current models, but likely
         # not all of them will be used. room for improvement
