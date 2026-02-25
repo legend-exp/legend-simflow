@@ -268,7 +268,7 @@ def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/currmod/{runid}-models.yaml",
+        config.paths.genmeta / "hpge/currmod/{runid}-model.yaml",
         **kwargs,
     )
 

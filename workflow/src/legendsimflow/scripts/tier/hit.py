@@ -241,21 +241,22 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy_true = ak.sum(edep_active, axis=-1)
 
             # smear energy with detector resolution
-            if det_name in energy_res_func:
+            if det_name in energy_res_func and det_name in aoe_res_func:
                 energy_res = energy_res_func[det_name](energy_true)
                 aoe_res = aoe_res_func[det_name](energy_true)
 
             elif usability != "off":
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
-                    "resolution curves are available. this is unacceptable!"
+                    "energy or A/E resolution curves are available. "
+                    "this is unacceptable!"
                 )
                 raise RuntimeError(msg)
             else:
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
-                    "resolution curves are available. using default "
-                    "resolution of 2.5 keV FWHM at 2 MeV!"
+                    "energhy or A/E resolution curves are available. "
+                    "using default values"
                 )
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
@@ -297,7 +298,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     _a_max_true, pars.current_reso / pars.mean_aoe
                 )
 
-                # finally calculate A/E
+                # finally calculate A/E, comparable to the A/E in data
+                # corrected for energy dependence
                 aoe = _a_max / energy
 
                 # ...and A/E classifier

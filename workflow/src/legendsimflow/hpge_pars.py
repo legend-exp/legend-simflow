@@ -851,7 +851,7 @@ def build_aoe_res_func_dict(
         def _aoeres(E, base=base):
             return base(E)
 
-        msg = f"measured A/E resolution for {hpge} at 2 MeV is ~{_aoeres(2000)} keV"
+        msg = f"measured A/E (corrected) resolution for {hpge} at 2 MeV is ~{_aoeres(2000)}"
         log.debug(msg)
 
         aoe_res_sigma_func[hpge] = _aoeres
