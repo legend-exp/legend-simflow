@@ -402,7 +402,7 @@ def sanitize_dict_with_defaults(read_dict: dict, defaults: dict) -> dict:
 
             if not ok:
                 msg = (
-                    f"warning: {key}.{field}={val!r} has wrong type; "
+                    f"{key}.{field}={val!r} has wrong type; "
                     f"using default {default_val!r}"
                 )
                 log.warning(msg)

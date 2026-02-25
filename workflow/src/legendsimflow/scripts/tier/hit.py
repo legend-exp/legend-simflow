@@ -53,6 +53,7 @@ hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
 # hpge_eresmods_files = args.input.hpge_eresmods
 # hpge_aoeresmods_files = args.input.hpge_aoeresmods
+# hpge_psdcuts_files = args.input.hpge_psdcuts
 simstat_part_file = args.input.simstat_part_file[0]
 l200data = args.config.paths.l200data
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
@@ -70,6 +71,14 @@ def DEFAULT_ENERGY_RES_FUNC(energy):
 
 def DEFAULT_AoE_RES_FUNC(energy):
     return 0.01 * np.sqrt(energy / 2039)
+
+
+DEFAULT_PSD_CUTS = {
+    "aoe": {
+        "low_side": -1.5,
+        "high_side": 3,
+    }
+}
 
 
 # setup logging
@@ -147,6 +156,14 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         runid=runid,
     )
     currmod_pars_all = AttrsDict(load_dict(currmod_pars_file))
+
+    msg = "loading PSD cut values"
+    log.debug(msg)
+    psdcuts_file = patterns.output_psdcuts_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    psdcuts_all = load_dict(psdcuts_file)
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
@@ -241,9 +258,17 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy_true = ak.sum(edep_active, axis=-1)
 
             # smear energy with detector resolution
-            if det_name in energy_res_func and det_name in aoe_res_func:
+            # NOTE: the detector either exists or not in all pars files at the
+            # same time by construction
+            if det_name in energy_res_func:
                 energy_res = energy_res_func[det_name](energy_true)
                 aoe_res = aoe_res_func[det_name](energy_true)
+                psdcuts = AttrsDict(
+                    utils.sanitize_dict_with_defaults(
+                        psdcuts_all[det_name],
+                        DEFAULT_PSD_CUTS,
+                    )
+                )
 
             elif usability != "off":
                 msg = (
@@ -307,6 +332,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 # of the intrinsic simulated ones due to noise
                 aoe_class = (aoe - 1) / aoe_res
 
+                # ...and PSD flag
+                is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
+                    aoe_class < psdcuts.aoe.high_side
+                )
+
                 # also calculate drift time at A position
                 # FIXME: this is wasting compute resources, max_current should
                 # return (maxA, t_maxA)
@@ -323,6 +353,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             )
             out_table.add_field("aoe_raw", lgdo.Array(aoe))
             out_table.add_field("aoe", lgdo.Array(aoe_class))
+            out_table.add_field("is_single_site", lgdo.Array(is_single_site))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]

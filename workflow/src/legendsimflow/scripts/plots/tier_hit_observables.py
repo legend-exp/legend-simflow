@@ -131,7 +131,7 @@ def fig(table):
     ax.set_aspect("equal")  # keep it circular
 
     # A/E classifier
-    _d = data[data.energy > 1000]
+    _d = data[data.energy > 1000][:10_000]
 
     ax1 = fig.add_subplot(gs_bot[0, 0])
     h_aoec = hist.new.Reg(100, -20, 5).Double()
