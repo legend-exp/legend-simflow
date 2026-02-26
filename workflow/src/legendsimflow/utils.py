@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from numbers import Real
 from pathlib import Path
+from typing import Any
 
 import awkward as ak
 import dbetto
@@ -411,3 +412,14 @@ def sanitize_dict_with_defaults(read_dict: dict, defaults: dict) -> dict:
                 out[key][field] = val
 
     return out
+
+
+def get_dict_value(d: dict, field: str, default: Any | None = None) -> Any:
+    _ptr = d
+    try:
+        for segment in field.split("."):
+            _ptr = _ptr[segment]
+    except (KeyError, TypeError):
+        return default
+
+    return _ptr

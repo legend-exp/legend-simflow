@@ -383,3 +383,11 @@ def test_sanitize_dict():
     assert out["a"]["y"] == 4.2  # kept (numeric)
     assert out["b"]["flag"] is True  # replaced (wrong type)
     assert out["b"]["name"] == "ok"  # filled from default
+
+
+def test_get_dict_value():
+    d = {"a": {"b": 3, "c": 2}}
+    assert utils.get_dict_value(d, "a") == {"b": 3, "c": 2}
+    assert utils.get_dict_value(d, "a.b") == 3
+    assert utils.get_dict_value(d, "a.b.d") is None
+    assert utils.get_dict_value(d, "a.b.d", 69) == 69

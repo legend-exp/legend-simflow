@@ -21,6 +21,7 @@ from scipy.optimize import curve_fit
 
 from . import metadata as mutils
 from . import utils
+from .utils import get_dict_value as _getpar
 
 log = logging.getLogger(__name__)
 
@@ -647,11 +648,14 @@ def lookup_energy_res_metadata(
         )
 
         if hit_tier_name == "pht":
-            meta = detmeta.results.partition_ecal.cuspEmax_ctc_cal.eres_linear
+            meta = _getpar(
+                detmeta, "results.partition_ecal.cuspEmax_ctc_cal.eres_linear"
+            )
         elif hit_tier_name == "hit":
-            meta = detmeta.results.ecal.cuspEmax_ctc_cal.eres_linear
+            meta = _getpar(detmeta, "results.ecal.cuspEmax_ctc_cal.eres_linear")
 
-        out_dict[hpge] = meta
+        if meta is not None:
+            out_dict[hpge] = meta
 
     return AttrsDict(out_dict)
 
@@ -706,7 +710,9 @@ def lookup_aoe_res_metadata(
         hpge = (
             chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
         )
-        out_dict[hpge] = detmeta.results.aoe.correction_fit_results.SigmaFits
+        par = _getpar(detmeta, "results.aoe.correction_fit_results.SigmaFits")
+        if par is not None:
+            out_dict[hpge] = par
 
     return AttrsDict(out_dict)
 
@@ -896,8 +902,8 @@ def lookup_psd_cut_values(
         )
         out_dict[hpge] = {
             "aoe": {
-                "low_side": detmeta.results.aoe.low_cut,
-                "high_side": detmeta.results.aoe.high_cut,
+                "low_side": _getpar(detmeta, "results.aoe.low_cut"),
+                "high_side": _getpar(detmeta, "results.aoe.high_cut"),
             }
         }
 
