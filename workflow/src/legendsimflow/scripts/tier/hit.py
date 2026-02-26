@@ -73,12 +73,14 @@ def DEFAULT_AoE_RES_FUNC(energy):
     return 0.01 * np.sqrt(energy / 2039)
 
 
-DEFAULT_PSD_CUTS = {
-    "aoe": {
-        "low_side": -1.5,
-        "high_side": 3,
+DEFAULT_PSD_CUTS = AttrsDict(
+    {
+        "aoe": {
+            "low_side": -1.5,
+            "high_side": 3,
+        }
     }
-}
+)
 
 
 # setup logging
@@ -257,11 +259,29 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
 
-            # smear energy with detector resolution
-            # NOTE: the detector either exists or not in all pars files at the
-            # same time by construction
+            # pars strategy: complain if detector is ON and there are no pars
+            # otherwise use defaults and warn
+            # TODO: move to a separate function to clean up
+
             if det_name in energy_res_func:
                 energy_res = energy_res_func[det_name](energy_true)
+
+            elif usability == "on":
+                msg = (
+                    f"{det_name} is marked as ON but no energy resolution"
+                    "curves are available. this is unacceptable!"
+                )
+                raise RuntimeError(msg)
+            else:
+                msg = (
+                    f"{det_name} is marked as '{usability}' and no "
+                    "energy resolution curves are available. "
+                    "using default values"
+                )
+                log.warning(msg)
+                energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
+
+            if det_name in aoe_res_func:
                 aoe_res = aoe_res_func[det_name](energy_true)
                 psdcuts = AttrsDict(
                     utils.sanitize_dict_with_defaults(
@@ -269,24 +289,30 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                         DEFAULT_PSD_CUTS,
                     )
                 )
-
-            elif usability != "off":
-                msg = (
-                    f"{det_name} is marked as '{usability}' but no "
-                    "energy or A/E resolution curves are available. "
-                    "this is unacceptable!"
-                )
-                raise RuntimeError(msg)
             else:
                 msg = (
-                    f"{det_name} is marked as '{usability}' but no "
-                    "energhy or A/E resolution curves are available. "
-                    "using default values"
+                    f"{det_name} is marked as '{usability}' and no "
+                    "A/E resolution curves are available. using default values"
                 )
                 log.warning(msg)
-                energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
                 aoe_res = DEFAULT_AoE_RES_FUNC(energy_true)
 
+            if det_name in psdcuts_all:
+                psdcuts = AttrsDict(
+                    utils.sanitize_dict_with_defaults(
+                        psdcuts_all[det_name],
+                        DEFAULT_PSD_CUTS,
+                    )
+                )
+            else:
+                msg = (
+                    f"{det_name} is marked as '{usability}' and no "
+                    "PSD cut values are available. using default values"
+                )
+                log.warning(msg)
+                psdcuts = DEFAULT_PSD_CUTS
+
+            # smear energy with detector resolution
             energy = reboost_utils.gauss_smear(
                 energy_true,
                 energy_res / 2.35482,
