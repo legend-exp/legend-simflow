@@ -20,6 +20,7 @@ import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
 
@@ -217,9 +218,17 @@ def gen_list_of_all_hpges_valid_for_modeling(
     for runid in sorted(all_runids):
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         out[runid] = {hpge: get_hpge_voltage(config, hpge, runid) for hpge in hpges}
+
     print(  # noqa: T201
         f"DEBUG: gen_list_of_all_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
     )
+
+    # write to disk as well
+    dbetto.utils.write_dict(
+        {runid: list(inner) for runid, inner in out.items()},
+        config.paths.generated / "modelable_hpge_detectors.yaml",
+    )
+
     return out
 
 
