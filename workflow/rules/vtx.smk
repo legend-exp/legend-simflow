@@ -25,7 +25,7 @@ rule build_tier_vtx:
     message:
         "Producing output file for job vtx.{wildcards.simid}.{wildcards.jobid}"
     input:
-        geom=on_scratch_smk(patterns.geom_gdml_filename(config, tier="stp")),
+        geom=patterns.geom_gdml_filename(config, tier="stp"),
     params:
         # NOTE: a change in the simconfig command will be detected by Snakemake
         cmd=smk_build_tier_vtx_shell_cmd,

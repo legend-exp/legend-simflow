@@ -268,7 +268,7 @@ def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/currmod/{runid}-models.yaml",
+        config.paths.genmeta / "hpge/currmod/{runid}-model.yaml",
         **kwargs,
     )
 
@@ -289,6 +289,20 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
         config.paths.genmeta / "hpge/eresmod/{runid}-model.yaml",
+        **kwargs,
+    )
+
+
+def output_aoeresmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/aoeresmod/{runid}-model.yaml",
+        **kwargs,
+    )
+
+
+def output_psdcuts_filename(config: SimflowConfig, **kwargs) -> Path:
+    return _expand(
+        config.paths.genmeta / "hpge/psdcuts/{runid}-psd-cuts.yaml",
         **kwargs,
     )
 

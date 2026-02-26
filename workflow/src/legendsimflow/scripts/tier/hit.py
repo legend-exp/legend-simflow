@@ -51,7 +51,9 @@ log_file = args.log[0]
 metadata = args.config.metadata
 hpge_dtmap_files = args.input.hpge_dtmaps
 hpge_currmods_files = args.input.hpge_currmods
-hpge_eresmods_files = args.input.hpge_eresmods
+# hpge_eresmods_files = args.input.hpge_eresmods
+# hpge_aoeresmods_files = args.input.hpge_aoeresmods
+# hpge_psdcuts_files = args.input.hpge_psdcuts
 simstat_part_file = args.input.simstat_part_file[0]
 l200data = args.config.paths.l200data
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
@@ -65,6 +67,18 @@ u = pint.UnitRegistry()
 
 def DEFAULT_ENERGY_RES_FUNC(energy):
     return 2.5 * np.sqrt(energy / 2039)  # FWHM
+
+
+def DEFAULT_AoE_RES_FUNC(energy):
+    return 0.01 * np.sqrt(energy / 2039)
+
+
+DEFAULT_PSD_CUTS = {
+    "aoe": {
+        "low_side": -1.5,
+        "high_side": 3,
+    }
+}
 
 
 # setup logging
@@ -121,6 +135,20 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         energy_res_pars=eresmod_pars_all,
     )  # FWHM
 
+    msg = "loading A/E resolution parameters"
+    log.debug(msg)
+    aoeresmod_pars_file = patterns.output_aoeresmod_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    aoeresmod_pars_all = load_dict(aoeresmod_pars_file)
+    aoe_res_func = hpge_pars.build_aoe_res_func_dict(
+        l200data,
+        metadata,
+        runid,
+        aoe_res_pars=aoeresmod_pars_all,
+    )
+
     msg = "loading current pulse model parameters"
     log.debug(msg)
     currmod_pars_file = patterns.output_currmod_merged_filename(
@@ -128,6 +156,14 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         runid=runid,
     )
     currmod_pars_all = AttrsDict(load_dict(currmod_pars_file))
+
+    msg = "loading PSD cut values"
+    log.debug(msg)
+    psdcuts_file = patterns.output_psdcuts_filename(
+        snakemake.config,  # noqa: F821
+        runid=runid,
+    )
+    psdcuts_all = load_dict(psdcuts_file)
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
@@ -222,22 +258,34 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             energy_true = ak.sum(edep_active, axis=-1)
 
             # smear energy with detector resolution
+            # NOTE: the detector either exists or not in all pars files at the
+            # same time by construction
             if det_name in energy_res_func:
                 energy_res = energy_res_func[det_name](energy_true)
+                aoe_res = aoe_res_func[det_name](energy_true)
+                psdcuts = AttrsDict(
+                    utils.sanitize_dict_with_defaults(
+                        psdcuts_all[det_name],
+                        DEFAULT_PSD_CUTS,
+                    )
+                )
+
             elif usability != "off":
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
-                    "resolution curves are available. this is unacceptable!"
+                    "energy or A/E resolution curves are available. "
+                    "this is unacceptable!"
                 )
                 raise RuntimeError(msg)
             else:
                 msg = (
                     f"{det_name} is marked as '{usability}' but no "
-                    "resolution curves are available. using default "
-                    "resolution of 2.5 keV FWHM at 2 MeV!"
+                    "energhy or A/E resolution curves are available. "
+                    "using default values"
                 )
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
+                aoe_res = DEFAULT_AoE_RES_FUNC(energy_true)
 
             energy = reboost_utils.gauss_smear(
                 energy_true,
@@ -251,6 +299,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             # default to NaN
             _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
             aoe = np.full(len(chunk), np.nan)
+            aoe_class = np.full(len(chunk), np.nan)
+            is_single_site = np.full(len(chunk), False)
             t_max = np.full(len(chunk), np.nan)
 
             if dt_map is not None and currmod_pars is not None:
@@ -274,8 +324,19 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     _a_max_true, pars.current_reso / pars.mean_aoe
                 )
 
-                # finally calculate A/E
+                # finally calculate A/E, comparable to the A/E in data
+                # corrected for energy dependence
                 aoe = _a_max / energy
+
+                # ...and A/E classifier
+                # NOTE: we use the resolution determined from data here instead
+                # of the intrinsic simulated ones due to noise
+                aoe_class = (aoe - 1) / aoe_res
+
+                # ...and PSD flag
+                is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
+                    aoe_class < psdcuts.aoe.high_side
+                )
 
                 # also calculate drift time at A position
                 # FIXME: this is wasting compute resources, max_current should
@@ -291,7 +352,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             out_table.add_field(
                 "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
             )
-            out_table.add_field("aoe", lgdo.Array(aoe))
+            out_table.add_field("aoe_raw", lgdo.Array(aoe))
+            out_table.add_field("aoe", lgdo.Array(aoe_class))
+            out_table.add_field("is_single_site", lgdo.Array(is_single_site))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]

@@ -214,8 +214,10 @@ for chunk in it:
     # simply forward some fields
     aoe = _read_hits(tcm, "hit", "aoe")
     out_table.add_field("geds/aoe", VectorOfVectors(aoe[hitsel]))
-
     out_table.add_field("geds/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
+
+    is_ss = _read_hits(tcm, "hit", "is_single_site")
+    out_table.add_field("geds/is_single_site", VectorOfVectors(is_ss[hitsel]))
 
     # compute multiplicity
     geds_multiplicity = ak.sum(hitsel, axis=-1)

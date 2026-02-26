@@ -371,3 +371,15 @@ def test_init_generated_pars_db_direct_format(tier_test_data_direct):
     )
     assert par_pht_db is not None
     assert "generated/par/pht" in repr(par_pht_db)
+
+
+def test_sanitize_dict():
+    defaults = {"a": {"x": -1.5, "y": 3}, "b": {"flag": True, "name": "ok"}}
+    read = {"a": {"x": "nope", "y": 4.2}, "b": {"flag": "yes"}}
+
+    out = utils.sanitize_dict_with_defaults(read, defaults)
+
+    assert out["a"]["x"] == -1.5  # replaced (non-numeric)
+    assert out["a"]["y"] == 4.2  # kept (numeric)
+    assert out["b"]["flag"] is True  # replaced (wrong type)
+    assert out["b"]["name"] == "ok"  # filled from default

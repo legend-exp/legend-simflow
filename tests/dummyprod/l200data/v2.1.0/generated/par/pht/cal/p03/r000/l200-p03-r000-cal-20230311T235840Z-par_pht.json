@@ -121,6 +121,45 @@
             "Qbb_fwhm_err_in_kev": 0.01979226341112492
           }
         }
+      },
+      "aoe": {
+        "cal_energy_param": "cuspEmax_ctc_cal",
+        "correction_fit_results": {
+          "mean_fits": {
+            "func": "Pol1",
+            "module": "pygama.pargen.AoE_cal",
+            "expression": "x*a+b",
+            "pars": {
+              "a": -2.939208963424318e-6,
+              "b": 1.0092864354573805
+            },
+            "errs": {
+              "a": 1.363731161340222e-7,
+              "b": 0.0002389138597862855
+            },
+            "p_val_mu": 1.0,
+            "csqr_mu": [0.02872869350695151, 58]
+          },
+          "SigmaFits": {
+            "func": "SigmaFit",
+            "module": "pygama.pargen.AoE_cal",
+            "expression": "(a+(b/(x+10**-99))**c)**(0.5)",
+            "pars": {
+              "a": 3.261388493041796e-5,
+              "b": 32.34893727075356,
+              "c": 2.6573924272324447
+            },
+            "errs": {
+              "a": 4.2790749783282624e-6,
+              "b": 11.862796546790527,
+              "c": 0.2888152653395182
+            },
+            "p_val_mu": 1.0,
+            "csqr_mu": [0.04316204611368643, 57]
+          }
+        },
+        "low_cut": -1.6,
+        "high_cut": 3
       }
     }
   }

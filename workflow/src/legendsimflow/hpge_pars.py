@@ -14,8 +14,6 @@ from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
 from lgdo import lh5
 from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
@@ -210,9 +208,7 @@ def fit_noise_gauss(
     return m_norm
 
 
-def plot_noise_waveforms(
-    noise: ArrayLike, temp: ArrayLike, norm: float = 1
-) -> tuple[Figure, Any]:
+def plot_noise_waveforms(noise: ArrayLike, temp: ArrayLike, norm: float = 1) -> tuple:
     """Plot the waveforms with noise and the noise alone."""
 
     temp = norm * temp / np.max(temp)
@@ -240,7 +236,7 @@ def plot_gauss_fit(
     fit_range: tuple | None = None,
     bins: int = 100,
     nominal_val: float | None = None,
-) -> tuple[Figure, Axes]:
+) -> tuple:
     """Plot the result of the Gaussian fit.
 
     Parameters
@@ -253,7 +249,6 @@ def plot_gauss_fit(
         The range to use for the fit, if `None` this is determined from the data as +/- 5 standard deviations round the mean.
     nominal_val
         The nominal mean to add as a line on the plot.
-
     """
     if fit_range is None:
         fit_range = (np.mean(data) - 5 * np.std(data), np.mean(data) + 5 * np.std(data))
@@ -406,7 +401,7 @@ def get_noise_waveforms(
 
 def plot_currmod_fit_result(
     t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
-) -> tuple[Figure, Axes]:
+) -> tuple:
     """Plot the best fit results."""
     fig, ax = plt.subplots(figsize=(6, 4))
 
@@ -571,6 +566,35 @@ def lookup_currmod_fit_inputs(
     return raw_file, wf_idx, dsp_cfg_files[0]
 
 
+def _lookup_generated_pars_file(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
+) -> tuple[Any, Any]:
+    if hit_tier_name not in ("hit", "pht"):
+        raise NotImplementedError
+
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    # get the paths to generated parameters
+    if pars_db is None:
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
+    msg = f"loading {hit_tier_name} pars of production {l200data}"
+    log.debug(msg)
+
+    # get the pars file at the correct timestamp
+    tstamp = mutils.runinfo(metadata, runid).start_key
+    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
+    pars_file = pars_db.on(tstamp)
+
+    return pars_file, chmap
+
+
 def lookup_energy_res_metadata(
     l200data: str | Path,
     metadata: LegendMetadata,
@@ -607,23 +631,13 @@ def lookup_energy_res_metadata(
         optional existing *non-lazy* instance of
         ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
     """
-    if hit_tier_name not in ("hit", "pht"):
-        raise NotImplementedError
-
-    if isinstance(l200data, str):
-        l200data = Path(l200data)
-
-    # get the paths to generated parameters
-    if pars_db is None:
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-    msg = f"loading {hit_tier_name} pars of production {l200data}"
-    log.debug(msg)
-
-    # get the pars file at the correct timestamp
-    tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
-    pars_file = pars_db.on(tstamp)
+    pars_file, chmap = _lookup_generated_pars_file(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
 
     out_dict = {}
     for key, detmeta in pars_file.items():
@@ -642,12 +656,75 @@ def lookup_energy_res_metadata(
     return AttrsDict(out_dict)
 
 
+def lookup_aoe_res_metadata(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
+) -> AttrsDict:
+    r"""Lookup the measured A/E resolution metadata from LEGEND-200 data.
+
+    The metadata refers to the following model:
+
+    .. math::
+
+        \sigma_\text{A/E}(E) = \sqrt{a + (b/E)^c}
+
+    where :math:`E` is in keV.
+
+    Returns
+    -------
+    Mapping of HPGe name to metadata dictionary.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
+    runid
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
+    pars_db
+        optional existing *non-lazy* instance of
+        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+    """
+    pars_file, chmap = _lookup_generated_pars_file(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
+
+    out_dict = {}
+    for key, detmeta in pars_file.items():
+        # handle data prod formats
+        hpge = (
+            chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
+        )
+        out_dict[hpge] = detmeta.results.aoe.correction_fit_results.SigmaFits
+
+    return AttrsDict(out_dict)
+
+
 def build_energy_res_func(function: str) -> Callable:
     """Energy resolution function builder."""
     if function == "FWHMLinear":
         return lambda energy, a, b: (a + b * energy) ** 0.5
     if function == "FWHMQuadratic":
         return lambda energy, a, b, c: (a + b * energy + c * energy * energy) ** 0.5
+
+    raise NotImplementedError
+
+
+def build_aoe_res_func(function: str) -> Callable:
+    """A/E resolution function builder."""
+    if function == "SigmaFit":
+        return lambda energy, a, b, c: (a + (b / (energy + 10**-99)) ** c) ** (0.5)
 
     raise NotImplementedError
 
@@ -677,9 +754,8 @@ def build_energy_res_func_dict(
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
-    pars_db
-        optional existing *non-lazy* instance of
-        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+    energy_res_pars
+        from :func:`lookup_energy_res_metadata`.
     """
     if energy_res_pars is None:
         energy_res_pars = lookup_energy_res_metadata(
@@ -712,3 +788,117 @@ def build_energy_res_func_dict(
         energy_res_sigma_func[hpge] = _eres
 
     return energy_res_sigma_func
+
+
+def build_aoe_res_func_dict(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    aoe_res_pars: dict | AttrsDict | None = None,
+) -> dict[str, Callable]:
+    r"""Build A/E resolution functions for each HPGe detector in a LEGEND-200 run.
+
+    Returns
+    -------
+    Mapping of HPGe name to A/E resolution as a function of energy, where
+    energy is expected in units of keV.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
+    runid
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
+    aoe_res_pars
+        from :func:`lookup_aoe_res_metadata`.
+    """
+    if aoe_res_pars is None:
+        aoe_res_pars = lookup_aoe_res_metadata(
+            l200data,
+            metadata,
+            runid,
+            hit_tier_name=hit_tier_name,
+        )
+
+    if not isinstance(aoe_res_pars, AttrsDict):
+        aoe_res_pars = AttrsDict(aoe_res_pars)
+
+    _func_full = build_aoe_res_func("SigmaFit")
+
+    aoe_res_sigma_func = {}
+    for hpge, meta in aoe_res_pars.items():
+        # use functools.partial correctly freeze the parameters into the function
+        base = functools.partial(
+            _func_full,
+            a=meta.pars.a,
+            b=meta.pars.b,
+            c=meta.pars.c,
+        )
+
+        def _aoeres(E, base=base):
+            return base(E)
+
+        msg = f"measured A/E (corrected) resolution for {hpge} at 2 MeV is ~{_aoeres(2000)}"
+        log.debug(msg)
+
+        aoe_res_sigma_func[hpge] = _aoeres
+
+    return aoe_res_sigma_func
+
+
+def lookup_psd_cut_values(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    *,
+    hit_tier_name: str = "hit",
+    pars_db: TextDB | None = None,
+) -> AttrsDict:
+    r"""Lookup the measured PSD cut values from LEGEND-200 data.
+
+    Returns
+    -------
+    Mapping of HPGe name to metadata dictionary.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+    metadata
+        The metadata instance
+    runid
+        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
+    hit_tier_name
+        name of the hit tier. This is typically "hit" or "pht".
+    pars_db
+        optional existing *non-lazy* instance of
+        ``TextDB(".../path/to/prod/generated/par_{hit_tier_name}")``.
+    """
+    pars_file, chmap = _lookup_generated_pars_file(
+        l200data,
+        metadata,
+        runid,
+        hit_tier_name=hit_tier_name,
+        pars_db=pars_db,
+    )
+
+    out_dict = {}
+    for key, detmeta in pars_file.items():
+        # handle data prod formats
+        hpge = (
+            chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
+        )
+        out_dict[hpge] = {
+            "aoe": {
+                "low_side": detmeta.results.aoe.low_cut,
+                "high_side": detmeta.results.aoe.high_cut,
+            }
+        }
+
+    return AttrsDict(out_dict)

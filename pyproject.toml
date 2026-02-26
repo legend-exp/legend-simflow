@@ -58,7 +58,7 @@ dependencies = [
     "legend-pygeom-tools >=0.2",
     "legend-pygeom-hpges >=0.9",
     "matplotlib",
-    "mplhep",
+    "mplhep >=1.0",
     "numpy",
     "psutil",
     "pyg4ometry",
@@ -197,7 +197,7 @@ snakemake-executor-plugin-slurm = "*"
 
 # tier hit
 hist = "*"
-mplhep = "*"
+mplhep = ">=1.0"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"

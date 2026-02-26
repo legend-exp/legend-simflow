@@ -45,7 +45,7 @@ rule build_tier_opt:
     message:
         "Producing output file for job opt.{wildcards.simid}.{wildcards.jobid}"
     input:
-        geom=on_scratch_smk(patterns.geom_gdml_filename(config, tier="stp")),
+        geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         optmap_lar=on_scratch_smk(config.paths.optical_maps.lar),
         # NOTE: technically this rule only depends on one block in the

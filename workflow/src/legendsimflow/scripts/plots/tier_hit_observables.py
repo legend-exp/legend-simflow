@@ -35,7 +35,7 @@ simid = args.wildcards.simid
 
 
 def fig(table):
-    fig = plt.figure(figsize=(14, 8))
+    fig = plt.figure(figsize=(14, 12))
 
     data = plot.read_concat_wempty(hit_files, table)
 
@@ -44,9 +44,10 @@ def fig(table):
         plot.set_empty(ax)
         return fig
 
-    outer = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1, 1])
+    outer = fig.add_gridspec(nrows=3, ncols=1, height_ratios=[1, 1, 1])
     gs_top = outer[0].subgridspec(1, 2, width_ratios=[4, 1])
-    gs_bot = outer[1].subgridspec(1, 3, width_ratios=[1, 1, 0.6])
+    gs_mid = outer[1].subgridspec(1, 3, width_ratios=[1, 1, 0.6])
+    gs_bot = outer[2].subgridspec(1, 2, width_ratios=[1, 4])
 
     # energy
     ax = fig.add_subplot(gs_top[0, 0])
@@ -74,22 +75,22 @@ def fig(table):
         # no events above 1 MeV; mark inset as empty
         plot.set_empty(ax)
 
-    ax.set_ylabel("Counts / 0.5 keV")
+    ax.set_ylabel("counts / 0.5 keV")
     ax.set_yscale("log")
 
     # A/E
-    ax = fig.add_subplot(gs_bot[0, 0])
-    aoe = data.aoe[data.energy > 100]
+    ax = fig.add_subplot(gs_mid[0, 0])
+    aoe_raw = data.aoe_raw[data.energy > 100]
     h_aoe = hist.new.Reg(200, 0, 2, name="A/E").Double()
-    h_aoe.fill(aoe)
+    h_aoe.fill(aoe_raw)
 
-    if len(aoe) > 0:
+    if len(aoe_raw) > 0:
         plotted = plot.plot_hist(
             h_aoe,
             ax,
             color="tab:red",
             label="energy > 100 keV",
-            n_nans=n_nans(data.aoe),
+            n_nans=n_nans(data.aoe_raw),
         )
         if plotted:
             ax.legend()
@@ -97,7 +98,7 @@ def fig(table):
         plot.set_empty(ax)
 
     # drift time
-    ax = fig.add_subplot(gs_bot[0, 1])
+    ax = fig.add_subplot(gs_mid[0, 1])
     h_dt = hist.new.Reg(
         300, 0, 3000, name="drift time · $t_{max(A)} - t_0$ (ns)"
     ).Double()
@@ -118,7 +119,7 @@ def fig(table):
         plot.set_empty(ax)
 
     # usability
-    ax = fig.add_subplot(gs_bot[0, 2])
+    ax = fig.add_subplot(gs_mid[0, 2])
     vals, counts = np.unique(data.usability, return_counts=True)
     labels = [mutils.decode_usability(v) for v in vals]
     plt.pie(
@@ -128,6 +129,52 @@ def fig(table):
         autopct="%1.1f%%",
     )
     ax.set_aspect("equal")  # keep it circular
+
+    # A/E classifier
+    _d = data[data.energy > 1000][:10_000]
+    _ss = _d.is_single_site
+
+    ax1 = fig.add_subplot(gs_bot[0, 0])
+    h_aoec = hist.new.Reg(100, -20, 5).Double().fill(_d.aoe[_ss])
+    plot.plot_hist(
+        hist.new.Reg(100, -20, 5).Double().fill(_d.aoe[~_ss]),
+        ax1,
+        color="tab:gray",
+        flow="none",
+        orientation="horizontal",
+    )
+    plotted = plot.plot_hist(
+        h_aoec,
+        ax1,
+        color="tab:red",
+        label="energy > 1 MeV",
+        flow="none",
+        orientation="horizontal",
+    )
+
+    def norm(y):
+        scale = h_aoec.sum() * h_aoec.axes[0].widths[0]
+        return scale * np.exp(-0.5 * y**2) / np.sqrt(2 * np.pi)
+
+    if plotted:
+        y = np.linspace(-5, 5, 1000)
+        ax1.plot(norm(y), y, label=r"$\mathcal{N}(0,1)$")
+        ax1.legend(loc="lower left")
+
+    ax1.invert_xaxis()
+    ax1.set_ylabel("A/E classifier")
+
+    ax2 = fig.add_subplot(gs_bot[0, 1], sharey=ax1)
+    ax2.scatter(
+        _d.energy[_ss], _d.aoe[_ss], s=2, color="tab:red", label="is_single_site"
+    )
+    ax2.scatter(_d.energy[~_ss], _d.aoe[~_ss], s=2, color="tab:gray")
+    ax2.set_xlim(1000, None)
+    ax2.set_ylim(-20, 5)
+    ax2.set_xlabel("energy (keV)")
+    if len(_ss) > 0:
+        ax2.legend()
+    ax2.grid()
 
     fig.suptitle(f"{simid}: {table} hits")
     return fig
