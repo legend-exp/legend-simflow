@@ -125,13 +125,13 @@ _plot_ehist(
 )
 _plot_ehist(
     ax,
-    lambda evt: base_mask(evt) & (evt.geds.aoe > 0.98),
+    lambda evt: base_mask(evt) & evt.geds.is_single_site,
     color="tab:green",
-    label="... geds.aoe > 0.98",
+    label="... geds.is_single_site",
 )
 _plot_ehist(
     ax,
-    lambda evt: base_mask(evt) & (evt.geds.aoe > 0.98) & ~evt.coincident.spms,
+    lambda evt: base_mask(evt) & evt.geds.is_single_site & ~evt.coincident.spms,
     color="tab:red",
     label="... ~coincident.spms",
 )
