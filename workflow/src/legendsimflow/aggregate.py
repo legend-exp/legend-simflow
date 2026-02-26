@@ -192,6 +192,7 @@ def gen_list_of_hpges_valid_for_modeling(
 
 def gen_list_of_all_hpges_valid_for_modeling(
     config: SimflowConfig,
+    write_to_file: str | Path | None = None,
 ) -> dict[str, dict[str, int]]:
     """Generate the complete list of HPGe detectors valid for modeling.
 
@@ -223,11 +224,12 @@ def gen_list_of_all_hpges_valid_for_modeling(
         f"DEBUG: gen_list_of_all_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
     )
 
-    # write to disk as well
-    dbetto.utils.write_dict(
-        {runid: list(inner) for runid, inner in out.items()},
-        config.paths.generated / "modelable_hpge_detectors.yaml",
-    )
+    if write_to_file is not None:
+        Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)
+        # write to disk as well
+        dbetto.utils.write_dict(
+            {runid: list(inner) for runid, inner in out.items()}, write_to_file
+        )
 
     return out
 
