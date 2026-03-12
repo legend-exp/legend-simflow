@@ -69,6 +69,8 @@ dependencies = [
     "snakemake >=9",
     "snakemake-storage-plugin-fs",
     "snakemake-executor-plugin-slurm",
+    "snakemake-logger-plugin-rich",
+    "snakemake-logger-plugin-snkmt",
 ]
 
 [project.optional-dependencies]
@@ -194,6 +196,8 @@ psutil = "*"
 snakemake = ">=9,<10"
 snakemake-storage-plugin-fs = "*"
 snakemake-executor-plugin-slurm = "*"
+# snakemake-logger-plugin-rich = "..."  # not on conda-forge
+snakemake-logger-plugin-snkmt = "*"
 
 # tier hit
 hist = "*"
