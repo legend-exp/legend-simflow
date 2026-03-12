@@ -23,6 +23,7 @@ from pathlib import Path
 import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
+from snakemake.logging import logger as smklog
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
@@ -220,9 +221,10 @@ def gen_list_of_all_hpges_valid_for_modeling(
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         out[runid] = {hpge: get_hpge_voltage(config, hpge, runid) for hpge in hpges}
 
-    print(  # noqa: T201
-        f"DEBUG: gen_list_of_all_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
+    msg = (
+        f"gen_list_of_all_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
     )
+    smklog.debug(msg)
 
     if write_to_file is not None:
         Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)
@@ -274,9 +276,9 @@ def gen_list_of_all_usabilities(
             if chname in statuses:
                 out_dict[runid][chname] = statuses[chname].usability
 
-    print(  # noqa: T201
-        f"DEBUG: get_all_usabilities() took {time.time() - start:.1f} sec"
-    )
+    msg = f"get_all_usabilities() took {time.time() - start:.1f} sec"
+    smklog.debug(msg)
+
     return AttrsDict(out_dict)
 
 

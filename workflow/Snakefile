@@ -18,13 +18,14 @@ from datetime import datetime
 from pathlib import Path
 import time
 
+from snakemake.logging import logger
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
 from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
 
 
-print("INFO: initializing workflow context")
+logger.info("Initializing workflow context")
 
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
@@ -37,7 +38,7 @@ SIMFLOW_CONTEXT |= {
     ),
 }
 
-print("INFO: done. handing it over to Snakemake")
+logger.info("Done! Handing it over to Snakemake")
 
 
 def dvs_ro(x):
@@ -54,18 +55,18 @@ wildcard_constraints:
 
 
 onstart:
-    print("INFO: starting workflow")
-
     utils.setup_logdir_link(config)
 
     # make sure some packages are initialized before we begin to avoid race conditions
     # https://numba.readthedocs.io/en/stable/developer/caching.html#cache-sharing
     if not workflow.touch and "precompile_pkg" in config:
-        print(
-            f"INFO: pre-compiling Numba cache (NUMBA_CACHE_DIR={os.environ.get('NUMBA_CACHE_DIR')})"
+        logger.info(
+            f"Pre-compiling Numba cache (NUMBA_CACHE_DIR={os.environ.get('NUMBA_CACHE_DIR')})"
         )
         for module in config.precompile_pkg:
             shell(f"python -c 'from {module} import *'")
+
+    logger.info("Starting workflow")
 
 
 include: "rules/aux.smk"
