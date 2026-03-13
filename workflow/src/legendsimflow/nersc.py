@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from snakemake.io import InputFiles
+from snakemake.io.container import InputFiles
 from snakemake.script import Snakemake
 
 from . import SimflowConfig
