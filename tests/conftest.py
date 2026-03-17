@@ -96,4 +96,4 @@ def mock_workflow():
 
 @pytest.fixture(scope="session")
 def test_l200data():
-    return Path(__file__).parent / "dummyprod/l200data"
+    return Path(__file__).parent / "l200data"
