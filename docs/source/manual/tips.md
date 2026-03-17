@@ -1,5 +1,13 @@
 # Tips & Tricks
 
+## Logging
+
+The Snakemake default console logging can be overwhelming for large workflows,
+but support for third-party logging plugins was recently added. Consider
+adopting the [`rich`](https://github.com/cademirch/snakemake-logger-plugin-rich)
+and [`snkmt`](https://github.com/cademirch/snakemake-logger-plugin-snkmt)
+plugins via the `--logger` CLI option.
+
 ## Useful Snakemake CLI options
 
 ```
@@ -21,11 +29,6 @@ usage: snakemake [OPTIONS] -- [TARGET ...]
   --keep-going, -k      Go on with independent jobs if a job fails during execution. This only applies to runtime
                         failures in job execution, not to errors during workflow parsing or DAG construction.
                         (default: False)
-  --rerun-triggers {code,input,mtime,params,software-env} [{code,input,mtime,params,software-env} ...]
-                        Define what triggers the rerunning of a job. By default, all triggers are used, which
-                        guarantees that results are consistent with the workflow code and configuration. If you
-                        rather prefer the traditional way of just considering file modification dates, use `--rerun-
-                        trigger mtime`. (default: code input mtime params software-env)
   --rerun-triggers {code,input,mtime,params,software-env} [{code,input,mtime,params,software-env} ...]
                         Define what triggers the rerunning of a job. By default, all triggers are used, which
                         guarantees that results are consistent with the workflow code and configuration. If you

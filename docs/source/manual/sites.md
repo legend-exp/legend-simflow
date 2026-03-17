@@ -62,6 +62,8 @@ e.g. on a compute node:
 
 Using the provided `nersc-*` profiles is recommended (have a look at them!).
 
+(sites-nersc-io-optim)=
+
 ### I/O optimization
 
 On NERSC, the
