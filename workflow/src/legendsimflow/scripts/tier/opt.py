@@ -85,11 +85,13 @@ def process_sipm(
     optmap_lar: str | Path | OptmapForConvolve,
     sipm: str,
     sipm_uid: int,
+    evt_tier_name: str | None,
+    hit_tier_name: str | None,
     out_file: str | Path,
     runid: str,
     usability: str,
-    rc_library: ak.Array | None,
-    rc_offset: dict,
+    rc_file_state: dict,
+    rc_index_lookup: dict[str, dict[str, np.ndarray]] | None = None,
 ) -> None:
     with perf_block("load_optmap()"):
         if not isinstance(optmap_lar, OptmapForConvolve):
@@ -145,17 +147,29 @@ def process_sipm(
             pe_times = pe_times_micro
             pe_amps = pe_amps_micro
 
-        # Add random coincidences from forced trigger library
-        if rc_library is not None:
+        # Add random coincidences from forced trigger files
+        if rc_index_lookup is not None:
             with perf_block("add_random_coincidences()"):
                 if usability == "on":
-                    chunk_rc_library = spms_pars.get_rc_library_chunk(
-                        rc_library, len(chunk), rc_offset
+                    if evt_tier_name is None:
+                        msg = "evt_tier_name must be set when random coincidences are enabled"
+                        raise RuntimeError(msg)
+                    if hit_tier_name is None:
+                        msg = "hit_tier_name must be set when random coincidences are enabled"
+                        raise RuntimeError(msg)
+                    rc_evt_files = [str(f) for f in rc_index_lookup]
+                    chunk_rc = spms_pars.get_chunk_rc_data(
+                        rc_evt_files,
+                        rc_file_state,
+                        len(chunk),
+                        evt_tier_name,
+                        hit_tier_name,
+                        sipm,
+                        sipm_uid,
+                        rc_index_lookup,
                     )
-
-                    rc_amps, rc_times = spms_pars.get_sipm_rc_data(
-                        chunk_rc_library, sipm, sipm_uid
-                    )
+                    rc_amps = chunk_rc.npe
+                    rc_times = chunk_rc.t0
                 else:
                     rc_amps = _ak_array_of_empty_arrays(len(chunk))
                     rc_times = _ak_array_of_empty_arrays(len(chunk))
@@ -169,7 +183,7 @@ def process_sipm(
             out_table.add_field("energy", VectorOfVectors(pe_amps))
             out_table.add_field("is_saturated", Array(is_saturated))
 
-            if rc_library is not None:
+            if rc_index_lookup is not None:
                 # TODO: units should be automatically forwarded
                 out_table.add_field(
                     "rc_time", VectorOfVectors(rc_times, attrs={"units": "ns"})
@@ -211,28 +225,28 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     )
     log.info(msg)
 
-    # Load forced trigger library and pre-sample for this partition
+    # Lookup forced-trigger evt files for this partition
     if add_random_coincidences:
-        msg = "loading forced trigger library for random coincidences"
+        msg = "looking up forced trigger files for random coincidences"
         log.debug(msg)
-        with perf_block("load_rc_library()"):
+        with perf_block("lookup_rc_files()"):
             evt_tier_name = utils.get_evt_tier_name(l200data)
-            evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
-
-            # evt_idx_range is [start, end] inclusive; compute number of events
-            evt_start, evt_end = evt_idx_range
-            n_events_partition = evt_end - evt_start + 1
-            rc_library = spms_pars.get_rc_library(evt_files, n_events_partition)
-            if len(rc_library) == 0:
+            hit_tier_name = utils.get_hit_tier_name(l200data)
+            rc_evt_files = sorted(
+                spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+            )
+            if len(rc_evt_files) == 0:
                 msg = "no random coincidences available, cannot continue"
                 raise RuntimeError(msg)
+        # Precompute RC event-index lookup once per partition
+        msg = "building precomputed event-index lookup for RC masks"
+        log.debug(msg)
+        with perf_block("build_rc_evt_index_lookup()"):
+            rc_index_lookup = spms_pars.build_rc_evt_index_lookup(rc_evt_files)
     else:
-        rc_library = None
-
-    # Offset tracker(s) for iterating through the pre-sampled library
-    # - optmap_per_sipm=True: keep a separate offset per SiPM
-    # - optmap_per_sipm=False: keep a single shared offset ("all")
-    rc_offset = {} if optmap_per_sipm else {"idx": 0}
+        rc_evt_files = None
+        hit_tier_name = None
+        rc_index_lookup = None
 
     # loop over the sensitive volume tables registered in the geometry
     for det_name, geom_meta in sens_tables.items():
@@ -283,32 +297,44 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 msg = f"applying optical map for SiPM {sipm}"
                 log.debug(msg)
 
+                # File-state tracker for iterating through forced-trigger evt files
+                # Each channel gets a fresh file-state tracker.
+                rc_file_state = {}
+
                 process_sipm(
                     _make_iterator(),
                     optmap_lar,
                     sipm,
                     sipm_uid,
+                    evt_tier_name,
+                    hit_tier_name,
                     hit_file,
                     runid,
                     usability,
-                    rc_library,
-                    rc_offset.setdefault(sipm, {"idx": 0}),
+                    rc_file_state,
+                    rc_index_lookup,
                 )
 
                 print_perf_last()
         else:
             log.debug("applying sum optical map")
 
+            # File-state tracker for iterating through forced-trigger evt files
+            # Shared across all chunks when processing summed ("all") SiPM stream
+            rc_file_state = {}
+
             process_sipm(
                 _make_iterator(),
                 optmap_lar,
                 "all",
                 geom_meta.uid,
+                evt_tier_name,
+                hit_tier_name,
                 hit_file,
                 runid,
                 "on",
-                rc_library,
-                rc_offset,
+                rc_file_state,
+                rc_index_lookup,
             )
 
 

@@ -15,9 +15,7 @@
 from __future__ import annotations
 
 import logging
-import random
 import re
-from collections.abc import Iterable
 from pathlib import Path
 
 import awkward as ak
@@ -50,8 +48,177 @@ def lookup_evt_files(l200data: str, runid: str, evt_tier_name: str) -> list[str 
     return list((evt_path / data_type / period / run).glob("*"))
 
 
+def _next_rc_evt_file(evt_files: list[str | Path], rc_file_state: dict) -> str | Path:
+    """Return the next `evt` file, cycling through files in input order before repeating."""
+    if "order" not in rc_file_state:
+        order = list(evt_files)
+        rc_file_state["order"] = order
+        rc_file_state["idx"] = 0
+        rc_file_state["completed_cycle"] = False
+
+    order = rc_file_state["order"]
+    idx = rc_file_state["idx"]
+
+    # if all files were used once, start again from the first file
+    if idx >= len(order):
+        idx = 0
+        if not rc_file_state["completed_cycle"]:
+            log.warning(
+                "restarting evt file iteration for RC correction; "
+                "cycling through %d files again",
+                len(order),
+            )
+            rc_file_state["completed_cycle"] = True
+
+    evt_file = order[idx]
+    rc_file_state["idx"] = idx + 1
+
+    return evt_file
+
+
+def build_rc_evt_index_lookup(
+    rc_evt_files: list[str | Path],
+) -> dict[str, dict[str, np.ndarray]]:
+    """Build per-file trigger index lookup for RC extraction.
+
+    Returns a dictionary keyed by file path string with entries:
+    - ``forced_pulser``: indices for forced/pulser and non-muon events
+    - ``geds``: indices for geds and non-muon events
+    """
+    lookup: dict[str, dict[str, np.ndarray]] = {}
+    for evt_file in rc_evt_files:
+        mask_fp, mask_getrg = get_rc_evt_mask(evt_file)
+        lookup[str(evt_file)] = {
+            "forced_pulser": ak.where(mask_fp)[0].to_numpy(),
+            "geds": ak.where(mask_getrg)[0].to_numpy(),
+        }
+    return lookup
+
+
+def get_chunk_rc_data(
+    rc_evt_files: list[str | Path],
+    rc_file_state: dict,
+    chunk_size: int,
+    evt_tier_name: str,
+    hit_tier_name: str,
+    sipm: str,
+    sipm_uid: int,
+    rc_index_lookup: dict[str, dict[str, np.ndarray]],
+) -> ak.Array:
+    """Assemble random-coincidence data for one chunk.
+
+    Parameters
+    ----------
+    rc_evt_files
+        Ordered list of evt files that can provide random-coincidence data.
+    rc_file_state
+        Mutable state for file cycling and carryover between chunks. Expected
+        keys are created/updated internally (e.g. ``order``, ``idx``,
+        ``counts``, ``carryover``).
+    chunk_size
+        Number of random-coincidence events requested for the current chunk.
+    evt_tier_name
+        Tier name of the evt file path.
+    hit_tier_name
+        Tier name used to derive the hit file path from the evt file path.
+    sipm
+        SiPM channel name. Use ``"all"`` for the summed SiPM stream.
+    sipm_uid
+        SiPM channel UID used when selecting a specific channel.
+    rc_index_lookup
+        Precomputed mapping from evt file to trigger-event indices,
+        built with ``build_rc_evt_index_lookup``.
+
+    Returns
+    -------
+    ak.Array
+        Random-coincidence data for one chunk with fields ``npe`` and ``t0``.
+    """
+    rc_parts: list[ak.Array] = []
+    total_rc_events = 0
+    empty_parts_streak = 0
+    max_empty_parts = max(2 * len(rc_evt_files), 1)
+
+    carryover = rc_file_state.get("carryover")
+    if carryover is not None and len(carryover) > 0:
+        carryover_len = len(carryover)
+        n_from_carryover = min(chunk_size, len(carryover))
+        rc_parts.append(carryover[:n_from_carryover])
+        total_rc_events += n_from_carryover
+        if n_from_carryover < len(carryover):
+            rc_file_state["carryover"] = carryover[n_from_carryover:]
+        else:
+            rc_file_state["carryover"] = None
+        remaining_carryover = rc_file_state.get("carryover")
+        remaining_carryover_len = (
+            len(remaining_carryover) if remaining_carryover is not None else 0
+        )
+        log.debug(
+            "used %d residual RC events from carryover; %d remained queued "
+            "(had %d, chunk needs %d total)",
+            n_from_carryover,
+            remaining_carryover_len,
+            carryover_len,
+            chunk_size,
+        )
+
+    while total_rc_events < chunk_size and empty_parts_streak < max_empty_parts:
+        rc_evt_file = _next_rc_evt_file(rc_evt_files, rc_file_state)
+        n_missing = chunk_size - total_rc_events
+        part = get_rc_library(
+            rc_evt_file,
+            evt_tier_name,
+            evt_tier_name,
+            hit_tier_name,
+            sipm,
+            sipm_uid,
+            rc_index_lookup,
+        )
+        if len(part) == 0:
+            empty_parts_streak += 1
+            log.warning(
+                "forced-trigger library from %s is empty for this chunk; "
+                "trying next file (%d/%d consecutive empties)",
+                Path(rc_evt_file).name,
+                empty_parts_streak,
+                max_empty_parts,
+            )
+            continue
+        empty_parts_streak = 0
+
+        n_take = min(n_missing, len(part))
+        rc_parts.append(part[:n_take])
+        total_rc_events += n_take
+
+        n_left = len(part) - n_take
+        if n_left > 0:
+            rc_file_state["carryover"] = part[n_take:]
+            log.debug(
+                "stored %d residual RC events from %s after taking %d/%d "
+                "for this chunk",
+                n_left,
+                Path(rc_evt_file).name,
+                n_take,
+                len(part),
+            )
+
+    if total_rc_events == 0:
+        msg = "no random coincidences available from any evt file"
+        raise RuntimeError(msg)
+    if total_rc_events < chunk_size:
+        msg = (
+            "insufficient random coincidences to fill chunk: "
+            f"needed {chunk_size}, obtained {total_rc_events} "
+            f"after {empty_parts_streak} consecutive empty libraries"
+        )
+        raise RuntimeError(msg)
+
+    return ak.concatenate(rc_parts) if len(rc_parts) > 1 else rc_parts[0]
+
+
 def _process_spms_windows(
-    spms: ak.Array,
+    time: ak.Array,
+    energy: ak.Array,
     win_ranges: list[tuple[float, float]],
     time_domain_ns: tuple[float, float],
     min_sep_ns: float,
@@ -60,8 +227,10 @@ def _process_spms_windows(
 
     Parameters
     ----------
-    spms
-        SiPM data array with fields `energy` and `t0`.
+    time
+        SiPM `t0` array from `evt` file, or equivalently, `trigger_pos` with `is_valid_hit` from `hit` file.
+    energy
+        SiPM `energy` array from `evt` file, or equivalently, `energy_in_pe` with `is_valid_hit` from `hit` file.
     win_ranges
         List of `(start, end)` tuples defining window ranges in nanoseconds.
     time_domain_ns
@@ -112,9 +281,9 @@ def _process_spms_windows(
         ends = [s + win_len_ns for s in starts]
 
         for wstart, wend in zip(starts, ends, strict=True):
-            tmsk = (spms.t0 >= wstart) & (spms.t0 < wend)
-            npe_tmp = spms.energy[tmsk]
-            t0_tmp = spms.t0[tmsk] - (wstart - time_domain_ns[0])
+            tmsk = (time >= wstart) & (time < wend)
+            npe_tmp = energy[tmsk]
+            t0_tmp = time[tmsk] - (wstart - time_domain_ns[0])
 
             npe_list.append(npe_tmp)
             t0_list.append(t0_tmp)
@@ -125,9 +294,36 @@ def _process_spms_windows(
     return ak.concatenate(npe_list), ak.concatenate(t0_list)
 
 
+def get_rc_evt_mask(evt_file: str | Path) -> tuple[ak.Array, ak.Array]:
+    evt = lh5.read(
+        "evt",
+        evt_file,
+        field_mask=[
+            "trigger/is_forced",
+            "coincident/geds",
+            "coincident/muon_offline",
+            "coincident/puls",
+        ],
+    ).view_as("ak")
+
+    is_forced = evt.trigger.is_forced
+    is_geds_trig = evt.coincident.geds
+    is_muon = evt.coincident.muon_offline
+    is_pulser = evt.coincident.puls  # codespell:ignore puls
+
+    mask_forced_pulser = (is_forced | is_pulser) & ~is_muon
+    mask_geds = is_geds_trig & ~is_muon
+
+    return mask_forced_pulser, mask_geds
+
+
 def get_rc_library(
-    evt_files: Iterable[str],
-    min_num_evts: int,
+    evt_file: str | Path,
+    evt_tier_name: str,
+    hit_tier_name: str,
+    sipm: str,
+    sipm_uid: int,
+    rc_index_lookup: dict[str, dict[str, np.ndarray]],
     time_domain_ns: tuple[float, float] = (-1_000, 5_000),
     min_sep_ns: float = 6_000,
     ext_trig_range_ns: list[tuple[float, float]] | None = None,
@@ -151,12 +347,20 @@ def get_rc_library(
 
     Parameters
     ----------
-    evt_files
-        List of event tier data files.
-    min_num_evts
-        Minimum number of events requested for forced trigger correction. The
-        function attempts to collect at least ``min_num_evts`` events but may
-        return fewer if insufficient data are available in the input files.
+    evt_file
+        Event tier data file.
+    evt_tier_name
+        Tier name of the evt file path.
+    hit_tier_name
+        Tier name used to derive the hit file path from the evt file path.
+    sipm
+        SiPM channel name to extract data for. If "all", flatten channel
+        dimension.
+    sipm_uid
+        SiPM channel ID to extract data for.
+    rc_index_lookup
+        Precomputed mapping from evt file to trigger-event indices,
+        built with ``build_rc_evt_index_lookup``.
     time_domain_ns
         Target time range (start, end) for output times in nanoseconds.  E.g.,
         ``(-1000, 5000)`` means output times will be in ``[-1000, 5000]``.
@@ -174,218 +378,142 @@ def get_rc_library(
 
     Returns
     -------
-    Array with fields "npe", the number of pe per SiPM and per hit, "t0", the
-    time relative to the start of a window in the trace, per SiPM and per hit
-    (makes sure that t0 are between bounds specified in `time_domain_ns`), and
-    "rawid" the SiPM channel numbers.
-
+    Array with fields "npe", the number of pe per hit, and "t0", the
+    corresponding time relative to the start of a window in the trace (bounded
+    by ``time_domain_ns``).
     """
     perf_block, print_perf, _ = make_profiler()
 
-    npe_chunks: list[ak.Array] = []
-    t0_chunks: list[ak.Array] = []
+    npe_list: list[ak.Array] = []
+    t0_list: list[ak.Array] = []
     n_collected_events = 0
-    rawids = None
 
     # Set defaults if not provided
     if ext_trig_range_ns is None:
-        ext_trig_range_ns = [(1_000, 44_000), (55_000, 100_000)]
+        ext_trig_range_ns = [
+            (1_000, 44_000),
+            (55_000, 100_000),
+        ]  # forced/pulser events with full waveform windows except the central window around the trigger
     if ge_trig_range_ns is None:
-        ge_trig_range_ns = [(1_000, 44_000)]
+        ge_trig_range_ns = [
+            (1_000, 44_000)
+        ]  # geds trigger events only in the window before the trigger
 
-    # shuffle evt_files in case rc change during the run
-    evt_files = list(evt_files)
-    random.shuffle(evt_files)
+    evt_file_key = str(evt_file)
+    if evt_file_key in rc_index_lookup:
+        idx_fp = rc_index_lookup[evt_file_key]["forced_pulser"]
+        idx_getrg = rc_index_lookup[evt_file_key]["geds"]
+    else:
+        # Fallback if key not found (shouldn't happen if build_rc_evt_index_lookup was complete)
+        mask_fp, mask_getrg = get_rc_evt_mask(evt_file)
+        idx_fp = ak.where(mask_fp)[0].to_numpy()
+        idx_getrg = ak.where(mask_getrg)[0].to_numpy()
 
-    files_processed = 0
+    n_forced_pulser = len(idx_fp)
+    n_geds = len(idx_getrg)
 
-    for file in evt_files:
-        if n_collected_events >= min_num_evts:
-            break
-
-        files_processed += 1
-
-        # Load all necessary data once
-        with perf_block("ftlib_read_data"):
+    if sipm == "all":
+        with perf_block("ftlib_read_evt_spms()"):
             evt = lh5.read(
                 "evt",
-                file,
+                evt_file,
                 field_mask=[
-                    "trigger/is_forced",
-                    "coincident/geds",
-                    "coincident/muon_offline",
-                    "coincident/puls",
                     "spms/energy",
                     "spms/t0",
-                    "spms/rawid",
                 ],
             ).view_as("ak")
 
-        is_forced = evt.trigger.is_forced
-        is_geds_trig = evt.coincident.geds
-        is_muon = evt.coincident.muon_offline
-        is_pulser = evt.coincident.puls  # codespell:ignore puls
+            spms_fp = evt.spms[idx_fp]
+            time_fp = ak.flatten(spms_fp.t0, axis=-1)
+            energy_fp = ak.flatten(spms_fp.energy, axis=-1)
 
-        rawids_tmp = evt.spms.rawid[0]
+            spms_getrg = evt.spms[idx_getrg]
+            time_getrg = ak.flatten(spms_getrg.t0, axis=-1)
+            energy_getrg = ak.flatten(spms_getrg.energy, axis=-1)
 
-        if rawids is not None and not ak.all(rawids == rawids_tmp):
-            msg = "rawid should be the same in all cases"
-            raise ValueError(msg)
+    else:
+        tcm_file = Path(str(evt_file).replace(evt_tier_name, "tcm"))
+        hit_file = Path(str(evt_file).replace(evt_tier_name, hit_tier_name))
 
-        # Process forced/pulser events with full waveform windows
-        mask_forced_pulser = (is_forced | is_pulser) & ~is_muon
-        n_forced_pulser = int(ak.sum(mask_forced_pulser))
-        spms_fp = evt.spms[mask_forced_pulser]
-        if len(spms_fp) > 0:
-            with perf_block("ftlib_process_windows()"):
-                npe_chunk, t0_chunk = _process_spms_windows(
-                    spms_fp, ext_trig_range_ns, time_domain_ns, min_sep_ns
-                )
-                if len(npe_chunk) > 0:
-                    npe_chunks.append(npe_chunk)
-                    t0_chunks.append(t0_chunk)
-                    n_collected_events += len(npe_chunk)
+        with perf_block("ftlib_read_hit_table()"):
+            data_ch = lh5.read_as(
+                f"ch{sipm_uid}/hit/",
+                hit_file,
+                "ak",
+                field_mask=["trigger_pos", "energy_in_pe", "is_valid_hit"],
+            )
 
-        # Process geds trigger events with limited window
-        mask_geds = is_geds_trig & ~is_muon
-        n_geds = int(ak.sum(mask_geds))
-        spms_ge_trig = evt.spms[mask_geds]
-        if len(spms_ge_trig) > 0:
-            with perf_block("ftlib_process_windows()"):
-                npe_chunk, t0_chunk = _process_spms_windows(
-                    spms_ge_trig, ge_trig_range_ns, time_domain_ns, min_sep_ns
-                )
-                if len(npe_chunk) > 0:
-                    npe_chunks.append(npe_chunk)
-                    t0_chunks.append(t0_chunk)
-                    n_collected_events += len(npe_chunk)
+        with perf_block("ftlib_read_tcm_tables()"):
+            idx_union = np.unique(np.concatenate((idx_fp, idx_getrg)))
+            tcm_all = lh5.read_as(
+                "hardware_tcm_1",
+                tcm_file,
+                "ak",
+                idx=idx_union,
+                field_mask=["table_key", "row_in_table"],
+            )
+            tcm_fp = tcm_all[np.searchsorted(idx_union, idx_fp)]
+            tcm_getrg = tcm_all[np.searchsorted(idx_union, idx_getrg)]
 
-        log.debug(
-            "forced-trigger library file %s: forced_or_pulser_events=%d "
-            "geds_events=%d cumulative_events=%d",
-            Path(file).name,
-            n_forced_pulser,
-            n_geds,
-            n_collected_events,
-        )
+        with perf_block("ftlib_extract_channel_rows()"):
+            mask = tcm_fp.table_key == sipm_uid
+            rows = ak.flatten(tcm_fp.row_in_table[mask]).to_numpy()
 
-        rawids = rawids_tmp
+            if len(rows) > 0:
+                data_ch_fp = data_ch[rows]
+                time_fp = data_ch_fp.trigger_pos[data_ch_fp.is_valid_hit]
+                energy_fp = data_ch_fp.energy_in_pe[data_ch_fp.is_valid_hit]
+            else:
+                time_fp = ak.Array([])
+                energy_fp = ak.Array([])
+
+            mask = tcm_getrg.table_key == sipm_uid
+            rows = ak.flatten(tcm_getrg.row_in_table[mask]).to_numpy()
+
+            if len(rows) > 0:
+                data_ch_getrg = data_ch[rows]
+                time_getrg = data_ch_getrg.trigger_pos[data_ch_getrg.is_valid_hit]
+                energy_getrg = data_ch_getrg.energy_in_pe[data_ch_getrg.is_valid_hit]
+            else:
+                time_getrg = ak.Array([])
+                energy_getrg = ak.Array([])
+
+    if len(time_fp) > 0:
+        with perf_block("ftlib_process_windows()"):
+            npe_chunk, t0_chunk = _process_spms_windows(
+                time_fp, energy_fp, ext_trig_range_ns, time_domain_ns, min_sep_ns
+            )
+            if len(npe_chunk) > 0:
+                npe_list.append(npe_chunk)
+                t0_list.append(t0_chunk)
+                n_collected_events += len(npe_chunk)
+    if len(time_getrg) > 0:
+        with perf_block("ftlib_process_windows()"):
+            npe_chunk, t0_chunk = _process_spms_windows(
+                time_getrg, energy_getrg, ge_trig_range_ns, time_domain_ns, min_sep_ns
+            )
+            if len(npe_chunk) > 0:
+                npe_list.append(npe_chunk)
+                t0_list.append(t0_chunk)
+                n_collected_events += len(npe_chunk)
 
     log.debug(
-        "forced-trigger library summary: files_processed=%d "
-        "returned_events=%d requested_min_events=%d",
-        files_processed,
+        "forced-trigger library file %s: forced_or_pulser_events=%d "
+        "geds_events=%d cumulative_events=%d",
+        Path(evt_file).name,
+        n_forced_pulser,
+        n_geds,
         n_collected_events,
-        min_num_evts,
     )
 
     with perf_block("ftlib_concatenate()"):
-        if npe_chunks:
-            npe = ak.concatenate(npe_chunks)
-            t0 = ak.concatenate(t0_chunks)
+        if npe_list:
+            npe = ak.concatenate(npe_list)
+            t0 = ak.concatenate(t0_list)
         else:
             npe = ak.Array([])
             t0 = ak.Array([])
 
-        # Handle case where no events passed the filters
-        if len(npe) == 0 or rawids is None:
-            log.warning(
-                "No events passed the filters in get_random_coincidences_library, "
-                "returning empty arrays"
-            )
-            rawid = np.empty(
-                (0, len(rawids) if rawids is not None else 0), dtype=np.int32
-            )
-        else:
-            rawid = np.vstack([rawids] * len(npe))
-
     print_perf()
 
-    return ak.Array(
-        {
-            "npe": npe,
-            "t0": t0,
-            "rawid": rawid,
-        }
-    )
-
-
-def get_rc_library_chunk(
-    rc_library: ak.Array,
-    chunk_len: int,
-    rc_offset: dict,
-) -> ak.Array:
-    """Select a chunk-length slice from a pre-sampled random coincidence library.
-
-    Always returns exactly ``chunk_len`` entries using wrap-around indexing when
-    necessary, and advances ``rc_offset["idx"]`` accordingly.
-    """
-    lib_len = len(rc_library)
-
-    if chunk_len > lib_len:
-        msg = (
-            "forced trigger library smaller than chunk; "
-            "reusing events with wrap-around."
-        )
-        log.warning(msg)
-
-    start_idx = rc_offset.get("idx", 0)
-    idx_array = (np.arange(chunk_len) + start_idx) % lib_len
-    rc_offset["idx"] = int((start_idx + chunk_len) % lib_len)
-
-    return rc_library[idx_array]
-
-
-def get_sipm_rc_data(
-    rc_library: ak.Array,
-    sipm: str,
-    sipm_uid: int,
-) -> tuple[ak.Array, ak.Array]:
-    """Extract data for a specific SiPM channel from the library.
-
-    Filters the forced trigger library to return only the photoelectron counts
-    and times for a single SiPM channel across all events.
-
-    Parameters
-    ----------
-    rc_library
-        Library of forced trigger events containing npe, t0, and rawid fields.
-    sipm
-        SiPM channel name to extract data for. If "all", flatten channel
-        dimension.
-    sipm_uid
-        SiPM channel ID to extract data for.
-
-    Returns
-    -------
-    npe
-        Photoelectron counts for the SiPM channel across all events.
-    t0
-        Photoelectron times for the SiPM channel across all events.
-
-    Raises
-    ------
-    ValueError
-        If the SiPM UID is not found in the library.
-
-    """
-    if sipm == "all":
-        npe = ak.flatten(rc_library.npe, axis=-1)
-        t0 = ak.flatten(rc_library.t0, axis=-1)
-
-    else:
-        # Find the channel index for this SiPM UID
-        # rawid[0] gives the channel IDs (should be the same for all events)
-        channel_indices = ak.where(rc_library.rawid[0] == sipm_uid)[0]
-
-        if len(channel_indices) == 0:
-            msg = f"SiPM UID {sipm_uid} not found in forced trigger library"
-            raise ValueError(msg)
-
-        ch_idx = int(channel_indices[0])
-
-        # Select data for this channel from all events
-        npe = rc_library.npe[:, ch_idx]
-        t0 = rc_library.t0[:, ch_idx]
-
-    return npe, t0
+    return ak.Array({"npe": npe, "t0": t0})
