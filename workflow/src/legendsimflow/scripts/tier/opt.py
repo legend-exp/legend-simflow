@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import random
 from pathlib import Path
 
 import awkward as ak
@@ -82,10 +81,9 @@ def _ak_array_of_empty_arrays(n):
 
 
 def _next_rc_evt_file(evt_files: list[str | Path], rc_file_state: dict) -> str | Path:
-    """Return the next `evt` file, cycling through all files in shuffled order before repeating."""
+    """Return the next `evt` file, cycling through files in input order before repeating."""
     if "order" not in rc_file_state:
         order = list(evt_files)
-        random.shuffle(order)
         rc_file_state["order"] = order
         rc_file_state["idx"] = 0
         rc_file_state["counts"] = {}
@@ -93,9 +91,8 @@ def _next_rc_evt_file(evt_files: list[str | Path], rc_file_state: dict) -> str |
     order = rc_file_state["order"]
     idx = rc_file_state["idx"]
 
-    # if all files were used once, shuffle again and reset index to 0
+    # if all files were used once, start again from the first file
     if idx >= len(order):
-        random.shuffle(order)
         idx = 0
 
     evt_file = order[idx]
@@ -186,8 +183,10 @@ def process_sipm(
                     # one file does not contain enough events for the chunk.
                     rc_parts: list[ak.Array] = []
                     total_rc_events = 0
-                    attempts = 0
-                    max_attempts = len(rc_evt_files)
+                    # Track consecutive empty RC parts to avoid infinite loops when
+                    # all libraries are empty or unusable.
+                    empty_parts_streak = 0
+                    max_empty_parts = max(2 * len(rc_evt_files), 1)
 
                     # Reuse overshoot from previous chunk before loading files.
                     carryover = rc_file_state.get("carryover")
@@ -215,18 +214,25 @@ def process_sipm(
                             len(chunk),
                         )
 
-                    while total_rc_events < len(chunk) and attempts < max_attempts:
+                    while (
+                        total_rc_events < len(chunk)
+                        and empty_parts_streak < max_empty_parts
+                    ):
                         rc_evt_file = _next_rc_evt_file(rc_evt_files, rc_file_state)
                         n_missing = len(chunk) - total_rc_events
                         part = spms_pars.get_rc_library([rc_evt_file], n_missing)
-                        attempts += 1
                         if len(part) == 0:
+                            empty_parts_streak += 1
                             log.warning(
                                 "forced-trigger library from %s is empty for this chunk; "
-                                "trying next file",
+                                "trying next file (%d/%d consecutive empties)",
                                 Path(rc_evt_file).name,
+                                empty_parts_streak,
+                                max_empty_parts,
                             )
                             continue
+                        # Successfully obtained events; reset empty streak.
+                        empty_parts_streak = 0
 
                         # Take only what is still needed from the beginning of this file.
                         n_take = min(n_missing, len(part))
@@ -248,6 +254,13 @@ def process_sipm(
 
                     if total_rc_events == 0:
                         msg = "no random coincidences available from any evt file"
+                        raise RuntimeError(msg)
+                    if total_rc_events < len(chunk):
+                        msg = (
+                            "insufficient random coincidences to fill chunk: "
+                            f"needed {len(chunk)}, obtained {total_rc_events} "
+                            f"after {empty_parts_streak} consecutive empty libraries"
+                        )
                         raise RuntimeError(msg)
 
                     chunk_rc_library = (
@@ -388,7 +401,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     runid,
                     usability,
                     rc_evt_files,
-                    rc_file_state.setdefault(sipm, {}),
+                    {},
                 )
 
                 print_perf_last()

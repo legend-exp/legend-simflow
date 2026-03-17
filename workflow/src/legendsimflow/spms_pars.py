@@ -176,7 +176,7 @@ def get_rc_library(
     if ge_trig_range_ns is None:
         ge_trig_range_ns = [(1_000, 44_000)]
 
-    evt_files = [evt_files] if isinstance(evt_files, str | Path) else list(evt_files)
+    evt_files = [evt_files] if isinstance(evt_files, (str, Path)) else list(evt_files)
 
     files_processed = 0
 
