@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import random
 from pathlib import Path
 
 import awkward as ak
@@ -80,6 +81,38 @@ def _ak_array_of_empty_arrays(n):
     return ak.unflatten(content, np.zeros(n, dtype=np.int64))
 
 
+def _next_rc_evt_file(evt_files: list[str | Path], rc_file_state: dict) -> str | Path:
+    """Return the next `evt` file, cycling through all files in shuffled order before repeating."""
+    if "order" not in rc_file_state:
+        order = list(evt_files)
+        random.shuffle(order)
+        rc_file_state["order"] = order
+        rc_file_state["idx"] = 0
+        rc_file_state["counts"] = {}
+
+    order = rc_file_state["order"]
+    idx = rc_file_state["idx"]
+
+    # if all files were used once, shuffle again and reset index to 0
+    if idx >= len(order):
+        random.shuffle(order)
+        idx = 0
+
+    evt_file = order[idx]
+    evt_file_key = str(evt_file)
+    reuse_count = rc_file_state["counts"].get(evt_file_key, 0)
+    if reuse_count >= 1:
+        log.warning(
+            "reusing forced-trigger EVT file %s for RC correction (%d previous uses)",
+            Path(evt_file).name,
+            reuse_count,
+        )
+    rc_file_state["idx"] = idx + 1
+    rc_file_state["counts"][evt_file_key] = reuse_count + 1
+
+    return evt_file
+
+
 def process_sipm(
     iterator: LH5Iterator,
     optmap_lar: str | Path | OptmapForConvolve,
@@ -88,8 +121,8 @@ def process_sipm(
     out_file: str | Path,
     runid: str,
     usability: str,
-    rc_library: ak.Array | None,
-    rc_offset: dict,
+    rc_evt_files: list[str | Path] | None,
+    rc_file_state: dict,
 ) -> None:
     with perf_block("load_optmap()"):
         if not isinstance(optmap_lar, OptmapForConvolve):
@@ -145,12 +178,80 @@ def process_sipm(
             pe_times = pe_times_micro
             pe_amps = pe_amps_micro
 
-        # Add random coincidences from forced trigger library
-        if rc_library is not None:
+        # Add random coincidences from forced trigger files
+        if rc_evt_files is not None:
             with perf_block("add_random_coincidences()"):
                 if usability == "on":
-                    chunk_rc_library = spms_pars.get_rc_library_chunk(
-                        rc_library, len(chunk), rc_offset
+                    # Build a per-chunk RC library, adding more evt files if
+                    # one file does not contain enough events for the chunk.
+                    rc_parts: list[ak.Array] = []
+                    total_rc_events = 0
+                    attempts = 0
+                    max_attempts = len(rc_evt_files)
+
+                    # Reuse overshoot from previous chunk before loading files.
+                    carryover = rc_file_state.get("carryover")
+                    if carryover is not None and len(carryover) > 0:
+                        carryover_len = len(carryover)
+                        n_from_carryover = min(len(chunk), len(carryover))
+                        rc_parts.append(carryover[:n_from_carryover])
+                        total_rc_events += n_from_carryover
+                        if n_from_carryover < len(carryover):
+                            rc_file_state["carryover"] = carryover[n_from_carryover:]
+                        else:
+                            rc_file_state["carryover"] = None
+                        remaining_carryover = rc_file_state.get("carryover")
+                        remaining_carryover_len = (
+                            len(remaining_carryover)
+                            if remaining_carryover is not None
+                            else 0
+                        )
+                        log.debug(
+                            "used %d residual RC events from carryover; %d remained queued "
+                            "(had %d, chunk needs %d total)",
+                            n_from_carryover,
+                            remaining_carryover_len,
+                            carryover_len,
+                            len(chunk),
+                        )
+
+                    while total_rc_events < len(chunk) and attempts < max_attempts:
+                        rc_evt_file = _next_rc_evt_file(rc_evt_files, rc_file_state)
+                        n_missing = len(chunk) - total_rc_events
+                        part = spms_pars.get_rc_library([rc_evt_file], n_missing)
+                        attempts += 1
+                        if len(part) == 0:
+                            log.warning(
+                                "forced-trigger library from %s is empty for this chunk; "
+                                "trying next file",
+                                Path(rc_evt_file).name,
+                            )
+                            continue
+
+                        # Take only what is still needed from the beginning of this file.
+                        n_take = min(n_missing, len(part))
+                        rc_parts.append(part[:n_take])
+                        total_rc_events += n_take
+
+                        # Keep the rest for next chunk(s), rather than discarding it.
+                        n_left = len(part) - n_take
+                        if n_left > 0:
+                            rc_file_state["carryover"] = part[n_take:]
+                            log.debug(
+                                "stored %d residual RC events from %s after taking %d/%d "
+                                "for this chunk",
+                                n_left,
+                                Path(rc_evt_file).name,
+                                n_take,
+                                len(part),
+                            )
+
+                    if total_rc_events == 0:
+                        msg = "no random coincidences available from any evt file"
+                        raise RuntimeError(msg)
+
+                    chunk_rc_library = (
+                        ak.concatenate(rc_parts) if len(rc_parts) > 1 else rc_parts[0]
                     )
 
                     rc_amps, rc_times = spms_pars.get_sipm_rc_data(
@@ -169,7 +270,7 @@ def process_sipm(
             out_table.add_field("energy", VectorOfVectors(pe_amps))
             out_table.add_field("is_saturated", Array(is_saturated))
 
-            if rc_library is not None:
+            if rc_evt_files is not None:
                 # TODO: units should be automatically forwarded
                 out_table.add_field(
                     "rc_time", VectorOfVectors(rc_times, attrs={"units": "ns"})
@@ -211,28 +312,23 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
     )
     log.info(msg)
 
-    # Load forced trigger library and pre-sample for this partition
+    # Lookup forced-trigger evt files for this partition
     if add_random_coincidences:
-        msg = "loading forced trigger library for random coincidences"
+        msg = "looking up forced trigger files for random coincidences"
         log.debug(msg)
-        with perf_block("load_rc_library()"):
+        with perf_block("lookup_rc_files()"):
             evt_tier_name = utils.get_evt_tier_name(l200data)
-            evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
-
-            # evt_idx_range is [start, end] inclusive; compute number of events
-            evt_start, evt_end = evt_idx_range
-            n_events_partition = evt_end - evt_start + 1
-            rc_library = spms_pars.get_rc_library(evt_files, n_events_partition)
-            if len(rc_library) == 0:
+            rc_evt_files = spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+            if len(rc_evt_files) == 0:
                 msg = "no random coincidences available, cannot continue"
                 raise RuntimeError(msg)
     else:
-        rc_library = None
+        rc_evt_files = None
 
-    # Offset tracker(s) for iterating through the pre-sampled library
-    # - optmap_per_sipm=True: keep a separate offset per SiPM
-    # - optmap_per_sipm=False: keep a single shared offset ("all")
-    rc_offset = {} if optmap_per_sipm else {"idx": 0}
+    # File-state tracker(s) for iterating through forced-trigger evt files
+    # - optmap_per_sipm=True: keep a separate state per SiPM
+    # - optmap_per_sipm=False: keep a single shared state ("all")
+    rc_file_state = {}
 
     # loop over the sensitive volume tables registered in the geometry
     for det_name, geom_meta in sens_tables.items():
@@ -291,8 +387,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     hit_file,
                     runid,
                     usability,
-                    rc_library,
-                    rc_offset.setdefault(sipm, {"idx": 0}),
+                    rc_evt_files,
+                    rc_file_state.setdefault(sipm, {}),
                 )
 
                 print_perf_last()
@@ -307,8 +403,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 hit_file,
                 runid,
                 "on",
-                rc_library,
-                rc_offset,
+                rc_evt_files,
+                rc_file_state,
             )
 
 
