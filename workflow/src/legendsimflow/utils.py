@@ -81,13 +81,16 @@ def _make_path(d):
 def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     """Pre-process and sanitize the Simflow configuration.
 
+    Returns a dictionary with useful objects to be used in the Simflow
+    Snakefiles (i.e. the "context"):
+
     - set default configuration fields;
     - substitute ``$_`` and environment variables;
     - convert to :class:`~dbetto.attrsdict.AttrsDict`;
     - cast filesystem paths to :class:`pathlib.Path`;
     - clone and configure `legend-metadata`;
-    - attach a :class:`legendmeta.LegendMetadata` instance to the Simflow
-      configuration;
+    - attach a :class:`~legendmeta.legendmetadata.LegendMetadata` instance to
+      the Simflow configuration;
     - export important environment variables.
 
     Parameters
@@ -98,9 +101,6 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
         Snakemake workflow instance. If None, occurrences of ``$_`` in the
         configuration will be replaced with the path to the current working
         directory.
-
-    Returns a dictionary with useful objects to be used in the Simflow
-    Snakefiles (i.e. the "context").
     """
     if not raw_config:
         msg = "you must set a config file with --configfile"
@@ -326,7 +326,7 @@ def string_to_remage_seed(s: str, seed: int = 0) -> int:
 
 
 def _curve_fit_popt_to_dict(popt: ArrayLike) -> dict:
-    """Get the :func:`scipy.curve_fit` parameter results as a dictionary"""
+    """Get the :func:`scipy.optimize.curve_fit` parameter results as a dictionary."""
     params = list(inspect.signature(current_pulse_model).parameters)
     param_names = params[1:]
 

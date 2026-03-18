@@ -113,7 +113,7 @@ def lookup_currmod_fit_data(
 def fit_currmod(times: NDArray, current: NDArray) -> tuple:
     """Fit the model to the raw HPGe current pulse.
 
-    Uses :func:`scipy.curve_fit` to fit
+    Uses :func:`scipy.optimize.curve_fit` to fit
     :func:`reboost.hpge.psd._current_pulse_model` to the input raw pulse.
 
     Parameters

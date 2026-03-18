@@ -158,7 +158,7 @@ def encode_usability(usability: str) -> int:
 
 
 def decode_usability(usability_code: int) -> str:
-    """Decode the HPGe usability (see {func}`encode_usability`)."""
+    """Decode the HPGe usability (see :func:`encode_usability`)."""
     _codes = {v: k for k, v in USABILITY_CODE.items()}
     return _codes[usability_code]
 

@@ -8,7 +8,8 @@ all: apidoc
       -b html \
       -d "$(BUILDDIR)"/doctrees \
       -D language=en \
-       -W --keep-going \
+      -W --keep-going \
+      -n \
       "$(SOURCEDIR)" "$(BUILDDIR)"
 
 apidoc: clean-apidoc

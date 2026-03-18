@@ -62,7 +62,7 @@ rule gen_geom_config:
 
 
 rule build_geom_gdml:
-    """Build a concrete geometry GDML file with {mod}`legend-pygeom-l200`.
+    """Build a concrete geometry GDML file with {mod}`pygeoml200`.
     """
     message:
         "Building GDML geometry for {wildcards.tier}.{wildcards.simid}"

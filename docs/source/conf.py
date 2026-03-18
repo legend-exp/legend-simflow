@@ -87,7 +87,27 @@ intersphinx_mapping = {
     "reboost": ("https://reboost.readthedocs.io/en/stable", None),
     "revertex": ("https://revertex.readthedocs.io/en/stable", None),
     "legend-pygeom-l200": ("https://legend-pygeom-l200.readthedocs.io/en/stable", None),
+    # additional packages
+    "iminuit": ("https://scikit-hep.org/iminuit/", None),
+    "pygama": ("https://pygama.readthedocs.io/en/stable/", None),
+    "pyg4ometry": ("https://pyg4ometry.readthedocs.io/en/stable/", None),
+    "snakemake": ("https://snakemake-api.readthedocs.io/en/latest/", None),
 }  # add new intersphinx mappings here
+
+# suppress unresolvable cross-references from internal/private types
+nitpick_ignore_regex = [
+    # numpy internal type aliases exposed via type annotations
+    ("py:class", r"numpy\._typing\..*"),
+    # awkward-array uses internal module paths in type annotations
+    ("py:class", r"awkward\.highlevel\..*"),
+    ("py:class", r"awkward\.contents\..*"),
+    # snakemake internal paths differ from public API paths
+    ("py:class", r"snakemake\.io\.container\..*"),
+    # legendmeta re-exports LegendMetadata at top level but inventory uses submodule path
+    ("py:class", r"legendmeta\.LegendMetadata"),
+    # iminuit exposes Minuit at iminuit.Minuit but annotations resolve to internal path
+    ("py:class", r"iminuit\.minuit\.Minuit"),
+]
 
 # sphinx-autodoc
 autodoc_default_options = {"ignore-module-all": True}
