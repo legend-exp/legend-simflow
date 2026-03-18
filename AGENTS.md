@@ -24,12 +24,18 @@ including Pixi configuration.
 
 ## Common Commands
 
-- Install (dev): `uv pip install -e ".[all]"`
-- Test: `pytest -vvv`
-- Lint/format: `pre-commit run --all-files`
-- Build docs: `cd docs && make`
+- Install (dev): `uv pip install -e ".[all]"` — run once after cloning or after
+  dependency changes
+- Test: `pytest -vvv` — run before committing; single test:
+  `pytest tests/test_foo.py::test_bar`
+- Lint/format: `pre-commit run --all-files` — run before committing; every
+  commit must pass
+- Build docs: `cd docs && make` — verify after any documentation change
 
 ## Architecture
+
+To understand the workflow, start with `workflow/Snakefile`, then follow the
+imported modules under `workflow/rules/`.
 
 - `workflow`: project source code
   - `src/legendsimflow`: Python package
@@ -49,14 +55,15 @@ including Pixi configuration.
     for other auxiliary rules.
   - `profiles`: Snakemake workflow profiles with common Snakemake CLI options
   - `Snakefile`: the main Snakefile
-- `templates`: template Simflow configuration files
+- `templates`: template Simflow configuration files that users copy and adapt
+  when setting up a new production
 
 ## Testing
 
 - Stored in `tests/` and managed with Pytest.
 - `conftest.py` stores fixtures to create mock configuration objects required to
   test the package units
-- `test_workflow.py` is dedicated to integrated Snakemake testing od the
+- `test_workflow.py` is dedicated to integrated Snakemake testing of the
   workflow with a dummy production (configured in `tests/dummyprod`) that can be
   tested in CI
 - `l200data` stores test data for the LEGEND-200 data production
