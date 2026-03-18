@@ -71,16 +71,21 @@ intersphinx_mapping = {
     "awkward": ("https://awkward-array.org/doc/stable", None),
     "numba": ("https://numba.readthedocs.io/en/stable", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "h5py": ("https://docs.h5py.org/en/stable", None),
     "pint": ("https://pint.readthedocs.io/en/stable", None),
     "hist": ("https://hist.readthedocs.io/en/latest", None),
+    # legend
     "dspeed": ("https://dspeed.readthedocs.io/en/stable", None),
     "daq2lh5": ("https://legend-daq2lh5.readthedocs.io/en/stable", None),
     "lgdo": ("https://legend-pydataobj.readthedocs.io/en/stable", None),
     "dbetto": ("https://dbetto.readthedocs.io/en/stable", None),
     "pylegendmeta": ("https://pylegendmeta.readthedocs.io/en/stable", None),
+    # remage
+    "remage": ("https://remage.readthedocs.io/en/stable", None),
     "reboost": ("https://reboost.readthedocs.io/en/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy", None),
+    "revertex": ("https://revertex.readthedocs.io/en/stable", None),
+    "legend-pygeom-l200": ("https://legend-pygeom-l200.readthedocs.io/en/stable", None),
 }  # add new intersphinx mappings here
 
 # sphinx-autodoc
