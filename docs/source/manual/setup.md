@@ -64,7 +64,7 @@ Here's a basic description of its fields:
   routines. To avoid Numba precompilation race conditions, the Simflow
   sequentially imports these modules to ensure that the Numba cache is populated
   before workflow execution.
-- `runcmd`: commands overrides
+- `runcmd`: command overrides
   - `remage`: remage command. Useful when not working in a Pixi environment and
     the `remage` command is not available.
 - `nersc`: see {ref}`sites-nersc-io-optim`.

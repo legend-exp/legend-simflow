@@ -8,14 +8,14 @@ macros or post-processing settings) is stored at
 
 ## Key concepts
 
-- "(Snakemake) workflow" , "legend-simflow", "Simflow" are used interchangeably
+- "(Snakemake) workflow", "legend-simflow", "Simflow" are used interchangeably
   throughout the documentation to refer to the same concept.
-- The Simflow is currently talored around the
+- The Simflow is currently tailored around the
   [_remage_](https://remage.readthedocs.io) simulation ecosystem and uses the
   [LEGEND HDF5 (LH5)](https://legend-exp.github.io/legend-data-format-specs)
   file format for inputs and outputs.
-- Simulations are labeled by an unique identifier (e.g. `hpge-bulk-2vbb`), often
-  referred as `simid` (simID). The identifiers are defined in
+- Simulations are labeled by a unique identifier (e.g. `hpge-bulk-2vbb`), often
+  referred to as `simid` (simID). The identifiers are defined in
   [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config)
   through `simconfig.yaml` files in tier directories `stp` and `vtx`.
 - A simulation (`simid`) can consist of several jobs (simulation jobs with
@@ -51,7 +51,7 @@ macros or post-processing settings) is stored at
 
 1. The LEGEND-200 data is queried to extract several runtime quantities of
    interest (HPGe energy resolution, electronic noise, hardware status, etc.).
-   This are typically referred as the "pars".
+   These are typically referred to as the "pars".
 
 1. Run the first (hit-oriented) step of simulation post-processing. Here, a
    "hit" represents a collection of Geant4 "step" in a single detector
