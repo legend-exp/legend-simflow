@@ -20,7 +20,9 @@ the GitHub repository) and allows to customize the workflow in great detail.
 Here's a basic description of its fields:
 
 - `experiment`: labels the experiment to be simulated. The same name is used in
-  the metadata to label the corresponding configuration files.
+  the Simflow metadata to label the corresponding configuration files. See
+  [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config/blob/main/README.md)
+  for a list of currently supported experiment labels.
 - `simlist`: list of simulation identifiers to be processed by Snakemake. Can be
   a list of strings or a path to a text file. If `*` or `all`, will process all
   simulations defined in the metadata.
