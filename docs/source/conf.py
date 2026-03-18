@@ -19,6 +19,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_inline_tabs",
     "myst_parser",
+    "sphinxcontrib.mermaid",
 ]
 
 source_suffix = [".rst", ".md"]
@@ -98,3 +99,6 @@ autodoc_typehints_format = "short"
 
 # actually show ToDo admonitions
 todo_include_todos = True
+
+# mermaid
+mermaid_d3_zoom = True

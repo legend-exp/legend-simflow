@@ -1,0 +1,86 @@
+---
+title: DAG
+---
+flowchart TB
+	id0[all]
+	id1[plot_tier_stp_vertices]
+	id2[build_tier_stp]
+	id3[build_geom_gdml]
+	id4[gen_geom_config]
+	id5[build_tier_vtx]
+	id6[build_tier_opt]
+	id7[make_simstat_partition_file]
+	id8[cache_detector_usabilities]
+	id9[plot_tier_opt_observables]
+	id10[build_tier_hit]
+	id11[merge_hpge_drift_time_maps]
+	id12[build_hpge_drift_time_map]
+	id13[_init_julia_env]
+	id14[merge_current_pulse_model_pars]
+	id15[extract_current_pulse_model]
+	id16[extract_hpge_observables_models]
+	id17[plot_tier_hit_observables]
+	id18[plot_hpge_drift_time_maps]
+	id19[build_tier_evt]
+	id20[build_tier_cvt]
+	id21[plot_tier_cvt_observables]
+	style id0 fill:#D96957,stroke-width:2px,color:#333333
+	style id1 fill:#578DD9,stroke-width:2px,color:#333333
+	style id2 fill:#CBD957,stroke-width:2px,color:#333333
+	style id3 fill:#D97B57,stroke-width:2px,color:#333333
+	style id4 fill:#57D995,stroke-width:2px,color:#333333
+	style id5 fill:#B9D957,stroke-width:2px,color:#333333
+	style id6 fill:#D9D457,stroke-width:2px,color:#333333
+	style id7 fill:#57D9A7,stroke-width:2px,color:#333333
+	style id8 fill:#A7D957,stroke-width:2px,color:#333333
+	style id9 fill:#579ED9,stroke-width:2px,color:#333333
+	style id10 fill:#D9C257,stroke-width:2px,color:#333333
+	style id11 fill:#57D9CB,stroke-width:2px,color:#333333
+	style id12 fill:#D98D57,stroke-width:2px,color:#333333
+	style id13 fill:#D95757,stroke-width:2px,color:#333333
+	style id14 fill:#57D9B9,stroke-width:2px,color:#333333
+	style id15 fill:#95D957,stroke-width:2px,color:#333333
+	style id16 fill:#84D957,stroke-width:2px,color:#333333
+	style id17 fill:#57B0D9,stroke-width:2px,color:#333333
+	style id18 fill:#57D4D9,stroke-width:2px,color:#333333
+	style id19 fill:#D9B057,stroke-width:2px,color:#333333
+	style id20 fill:#D99E57,stroke-width:2px,color:#333333
+	style id21 fill:#57C2D9,stroke-width:2px,color:#333333
+	id19 --> id0
+	id10 --> id0
+	id21 --> id0
+	id15 --> id0
+	id6 --> id0
+	id2 --> id0
+	id17 --> id0
+	id9 --> id0
+	id18 --> id0
+	id20 --> id0
+	id1 --> id0
+	id2 --> id1
+	id5 --> id2
+	id3 --> id2
+	id4 --> id3
+	id3 --> id5
+	id8 --> id6
+	id2 --> id6
+	id7 --> id6
+	id3 --> id6
+	id2 --> id7
+	id6 --> id9
+	id11 --> id10
+	id2 --> id10
+	id14 --> id10
+	id16 --> id10
+	id3 --> id10
+	id7 --> id10
+	id8 --> id10
+	id12 --> id11
+	id13 --> id12
+	id15 --> id14
+	id10 --> id17
+	id12 --> id18
+	id10 --> id19
+	id6 --> id19
+	id19 --> id20
+	id20 --> id21
