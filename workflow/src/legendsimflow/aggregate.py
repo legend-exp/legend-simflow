@@ -254,11 +254,8 @@ def gen_list_of_all_usabilities(
 
     Parameters
     ----------
-    metadata
-        LEGEND metadata database.
-    runlist
-        a list of run identifiers as accepted by the Simflow (see
-        :func:`legendsimflow.metadata.expand_runlist`).
+    config
+        Simflow configuration object.
     """
     start = time.time()
 

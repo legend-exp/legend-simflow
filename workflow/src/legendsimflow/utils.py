@@ -415,6 +415,17 @@ def sanitize_dict_with_defaults(read_dict: dict, defaults: dict) -> dict:
 
 
 def get_dict_value(d: dict, field: str, default: Any | None = None) -> Any:
+    """Return a value from a nested dictionary using a dot-separated field path.
+
+    Parameters
+    ----------
+    d
+        Dictionary to query.
+    field
+        Dot-separated path (e.g. ``"a.b.c"``).
+    default
+        Value returned if the field is not found. Defaults to ``None``.
+    """
     _ptr = d
     try:
         for segment in field.split("."):

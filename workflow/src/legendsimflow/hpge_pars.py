@@ -62,7 +62,7 @@ def lookup_currmod_fit_data(
         center of the energy window to use for the event search (same units as
         in data).
     ewin_width
-        width of the energy window to use for the event search (dame units as
+        width of the energy window to use for the event search (same units as
         in data).
     """
     idxs = []
@@ -125,8 +125,8 @@ def fit_currmod(times: NDArray, current: NDArray) -> tuple:
 
     Returns
     -------
-        tuple of the best fit parameters, and arrays of the best fit model
-        (time and current).
+    Tuple of the best-fit parameters, and arrays of the best-fit model
+    (time and current).
     """
     t = times
     A = current

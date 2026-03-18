@@ -346,7 +346,7 @@ def get_sipm_rc_data(
 
     Parameters
     ----------
-    ft_library
+    rc_library
         Library of forced trigger events containing npe, t0, and rawid fields.
     sipm
         SiPM channel name to extract data for. If "all", flatten channel

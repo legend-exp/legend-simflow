@@ -44,20 +44,21 @@ def get_simconfig(
     simid: str | None = None,
     field: str | None = None,
 ) -> AttrsDict:
-    """Get the simulation configuration.
+    """Return the simulation configuration for the given tier and simid.
 
-    Gets the simconfig and throws proper exceptions.
+    Raise :class:`~legendsimflow.exceptions.SimflowConfigError` if any key is
+    not found.
 
     Parameters
     ----------
     config
-        Snakemake config.
+        Simflow configuration object.
     tier
-        tier name.
+        Tier name.
     simid
-        simulation identifier.
+        Simulation identifier.
     field
-        if not none, return the value of this key in the simconfig.
+        If not ``None``, return the value of this key in the simconfig.
     """
     try:
         _m = config.metadata.simprod.config
@@ -96,9 +97,9 @@ def smk_hash_simconfig(
     wildcards
         Snakemake wildcards object.
     field
-        if not none, return the value of this key in the simconfig.
+        If not ``None``, return the value of this key in the simconfig.
     ignore
-        exclude these fields from the hash.
+        Exclude these fields from the hash.
     kwargs
         provide a value for wildcards that might not be present in `wildcards`.
     """
@@ -129,7 +130,7 @@ def extract_integer(file_path: Path) -> int:
 def usability(
     metadata: LegendMetadata, det_name: str, runid: str, default: str | None = None
 ) -> str:
-    """Get the usability for analysis of `det_name` in run `ruinid`.
+    """Get the usability for analysis of `det_name` in run `runid`.
 
     Looks for the ``analysis.usability`` metadata field in the channel map. By
     default, an error is thrown if no information is found. If `default` is set

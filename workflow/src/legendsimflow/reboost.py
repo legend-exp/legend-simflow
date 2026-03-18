@@ -62,12 +62,14 @@ def get_remage_detector_uids(h5file: str | Path, *, lh5_table: str = "stp") -> d
          11: 'det1',
          12: 'det2',
          101: 'optdet1',
-         102: 'optdet2'g
+         102: 'optdet2'}
 
     Parameters
     ----------
     h5file
-        path to remage output file.
+        Path to remage output file.
+    lh5_table
+        Name of the LH5 table group to inspect.
     """
     if isinstance(h5file, Path):
         h5file = h5file.as_posix()
@@ -183,7 +185,16 @@ def load_hpge_dtmaps(
     """Load HPGe drift time maps from disk.
 
     Automatically finds and loads drift time maps for crystal axes <100> <110>.
-    If no map is found, None is returned.
+    If no map is found, ``None`` is returned.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    det_name
+        HPGe detector name.
+    runid
+        Run identifier.
 
     Note
     ----
