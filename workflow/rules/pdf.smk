@@ -7,7 +7,13 @@ rule gen_all_tier_pdf:
 
 
 rule gen_pdf_release:
-    """Generates a tarball with all the pdf files."""
+    """Generate a compressed archive with all the PDF files.
+
+    Pack all PDF files into a `.tar.xz` archive using `tar --create --xz`,
+    renaming them to a flat `{experiment}-pdfs/` directory structure.
+
+    No wildcards are used.
+    """
     message:
         "Generating pdf release"
     input:
@@ -27,7 +33,13 @@ rule gen_pdf_release:
 
 
 rule build_tier_pdf:
-    """Produces a pdf tier file."""
+    """Produce a `pdf` tier file.
+
+    Run the `build-pdf` command, which reads `evt` tier data and bins it into
+    histograms (the PDFs) according to the PDF configuration file.
+
+    Uses wildcard `simid`.
+    """
     message:
         "Producing output file for job pdf.{wildcards.simid}"
     input:
