@@ -47,9 +47,11 @@ imported modules under `workflow/rules/`.
     - `scripts`: scripts directly used in Snakemake rules
       - `tier/`: scripts used to build the various tiers
       - `plots/`: scripts used to generate validation plots
-      - `libjl/`: small Julia library with code shared by the main Julia scripts
-      - `init-julia-env.jl`: script used to set up the Julia environment (see
-        `Project.toml` in the same folder) used in the Simflow
+      - `init-julia-env.jl`: initializes the Julia environment at first run
+  - `src/LegendSimflow.jl`: Julia package used in the Simflow
+    - `Project.toml`: Julia package manifest
+    - `src/LegendSimflow.jl`: module entrypoint
+    - `test/`: Julia package tests
   - `rules`: Snakemake modules imported by the main `Snakefile`. Rules belonging
     to each tier are organized in separate modules. The `aux.smk` module is used
     for other auxiliary rules.
