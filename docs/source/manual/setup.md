@@ -59,8 +59,10 @@ Here's a basic description of its fields:
     files storing parameters extracted from the LEGEND-200 data, geometry files,
     drift time maps).
   - `macros` (output): generated _remage_ macro files
-  - `geom` (output): generated simulation geometry files.
-  - `dtmaps` (output): generated HPGe drift time maps.
+  - `geom` (optional output): generated simulation geometry files. Defaults to
+    `{paths.pars}/geom` if not set.
+  - `dtmaps` (optional output): generated HPGe drift time maps. Defaults to
+    `{paths.pars}/hpge/dtmaps` if not set.
   - `tier` (dict, output): generated outputs for each tier, keyed by tier name
     (e.g. `tier.stp`, `tier.hit`, ...). Validation plots for each tier are
     stored in a `plots/` subdirectory (e.g. `tier.stp/plots/`).

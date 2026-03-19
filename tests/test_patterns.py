@@ -207,19 +207,17 @@ def test_dtmap_filenames(config):
     assert "singles" in str(result)
     assert result.parent.name == "plots"
 
-    # benchmark_dtmap_filename uses bare expand() and returns str
     result = p.benchmark_dtmap_filename(config, hpge_detector=DET, hpge_voltage=VOLTAGE)
-    assert isinstance(result, str)
-    assert DET in result
-    assert result.endswith(".tsv")
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".tsv"
 
 
 def test_currmod_filenames(config):
-    # input_currmod_evt_idx_file uses bare expand() and returns str
     result = p.input_currmod_evt_idx_file(config, runid=RUNID, hpge_detector=DET)
-    assert isinstance(result, str)
-    assert RUNID in result
-    assert DET in result
+    assert isinstance(result, Path)
+    assert RUNID in str(result)
+    assert DET in str(result)
 
     result = p.output_currmod_filename(config, runid=RUNID, hpge_detector=DET)
     assert isinstance(result, Path)

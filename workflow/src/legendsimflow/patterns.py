@@ -248,7 +248,7 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
         config.paths.benchmarks
         / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.tsv"
     )
-    return expand(pat, **kwargs, allow_missing=True)[0]
+    return _expand(pat, **kwargs)
 
 
 # hpge current model
@@ -256,7 +256,7 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def input_currmod_evt_idx_file(config: SimflowConfig, **kwargs) -> Path:
     pat = config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
-    return expand(pat, **kwargs, allow_missing=True)[0]
+    return _expand(pat, **kwargs)
 
 
 def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
