@@ -8,10 +8,7 @@ dummyprod = Path(__file__).parent / "dummyprod"
 
 
 def test_run():
-    output = smkapi.OutputSettings(
-        verbose=False,
-        dryrun=True,
-    )
+    output = smkapi.OutputSettings(verbose=False)
 
     # build workflow and DAG
     with smkapi.SnakemakeApi(output) as api:
@@ -25,6 +22,4 @@ def test_run():
             resource_settings=smkapi.ResourceSettings(cores=1),
         )
         dag = wf_api.dag()
-        dag.execute_workflow(
-            executor="dryrun",
-        )
+        dag.execute_workflow(executor="touch")
