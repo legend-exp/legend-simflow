@@ -137,7 +137,7 @@ def output_simjob_filename(config: SimflowConfig, **kwargs) -> Path:
         raise RuntimeError(msg)
 
     fname = simjob_base_segment(config) + f"-tier_{tier}.lh5"
-    return _expand(config.paths[f"tier_{tier}"] / fname, **kwargs)
+    return _expand(config.paths.tier[tier] / fname, **kwargs)
 
 
 def output_simjob_regex(config: SimflowConfig, **kwargs) -> str:
@@ -148,7 +148,7 @@ def output_simjob_regex(config: SimflowConfig, **kwargs) -> str:
         raise RuntimeError(msg)
 
     fname = config.experiment + "-*-tier_{tier}.lh5"
-    expr = str(Path(config["paths"][f"tier_{tier}"]) / "{simid}" / fname)
+    expr = str(config.paths.tier[tier] / "{simid}" / fname)
     return _expand(expr, **kwargs)
 
 
@@ -324,7 +324,7 @@ def tier_cvt_base_segment(config: SimflowConfig, **kwargs) -> str:
 
 def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.tier_cvt / (tier_cvt_base_segment(config) + ".lh5"), **kwargs
+        config.paths.tier.cvt / (tier_cvt_base_segment(config) + ".lh5"), **kwargs
     )
 
 
@@ -346,22 +346,17 @@ def pdffile_rel_basename(**kwargs):
 
 
 def output_pdf_filename(config: SimflowConfig, **kwargs):
-    expr = str(Path(config["paths"]["tier_pdf"]) / (pdffile_rel_basename() + ".lh5"))
+    expr = str(config.paths.tier.pdf / (pdffile_rel_basename() + ".lh5"))
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
 def log_pdffile_path(config: SimflowConfig, **kwargs):
     pat = str(
-        Path(config["paths"]["log"])
-        / config._proctime
-        / "pdf"
-        / (pdffile_rel_basename() + ".log")
+        config.paths.log / config._proctime / "pdf" / (pdffile_rel_basename() + ".log")
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
 def benchmark_pdffile_path(config: SimflowConfig, **kwargs):
-    pat = str(
-        Path(config["paths"]["benchmarks"]) / "pdf" / (pdffile_rel_basename() + ".tsv")
-    )
+    pat = str(config.paths.benchmarks / "pdf" / (pdffile_rel_basename() + ".tsv"))
     return expand(pat, **kwargs, allow_missing=True)[0]

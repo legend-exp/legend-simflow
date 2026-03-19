@@ -61,7 +61,8 @@ Here's a basic description of its fields:
   - `macros` (output): generated _remage_ macro files
   - `geom` (output): generated simulation geometry files.
   - `dtmaps` (output): generated HPGe drift time maps.
-  - `tier_TIER` (output): generated outputs in tier `TIER`.
+  - `tier` (dict, output): generated outputs for each tier, keyed by tier name
+    (e.g. `tier.stp`, `tier.hit`, ...).
   - `plots` (output): validation plots/graphics.
 - `precompile_pkg`: list of Python module names that contain Numba-accelerated
   routines. To avoid Numba precompilation race conditions, the Simflow
