@@ -22,8 +22,6 @@ paths:
 
   pars: $_/generated/pars
   macros: $_/generated/macros
-  geom: $_/generated/pars/geom
-  dtmaps: $_/generated/pars/hpge/dtmaps
   tier_vtx: ./generated/tier/vtx
   tier_stp: ./generated/tier/stp
   tier_opt: ./generated/tier/opt

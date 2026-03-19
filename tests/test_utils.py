@@ -80,6 +80,31 @@ def test_merge_defaults():
     assert result["key"] == {"nested": "value"}
 
 
+def test_apply_path_defaults():
+    """Test apply_path_defaults fills in geom and dtmaps from pars when absent."""
+    pars = Path("/prod/generated/pars")
+
+    # both absent: should be derived from pars
+    paths = {"pars": pars}
+    utils.apply_path_defaults(paths)
+    assert paths["geom"] == pars / "geom"
+    assert paths["dtmaps"] == pars / "hpge/dtmaps"
+
+    # both present: should be left unchanged
+    custom_geom = Path("/custom/geom")
+    custom_dtmaps = Path("/custom/dtmaps")
+    paths = {"pars": pars, "geom": custom_geom, "dtmaps": custom_dtmaps}
+    utils.apply_path_defaults(paths)
+    assert paths["geom"] == custom_geom
+    assert paths["dtmaps"] == custom_dtmaps
+
+    # only one absent
+    paths = {"pars": pars, "geom": custom_geom}
+    utils.apply_path_defaults(paths)
+    assert paths["geom"] == custom_geom
+    assert paths["dtmaps"] == pars / "hpge/dtmaps"
+
+
 def test_setup_logdir_link():
     """Test setup_logdir_link creates symlink to log directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
