@@ -255,20 +255,20 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def input_currmod_evt_idx_file(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.genmeta / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
+    pat = config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
 def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
+        config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
         **kwargs,
     )
 
 
 def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/currmod/{runid}-model.yaml",
+        config.paths.pars / "hpge/currmod/{runid}-model.yaml",
         **kwargs,
     )
 
@@ -288,21 +288,21 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/eresmod/{runid}-model.yaml",
+        config.paths.pars / "hpge/eresmod/{runid}-model.yaml",
         **kwargs,
     )
 
 
 def output_aoeresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/aoeresmod/{runid}-model.yaml",
+        config.paths.pars / "hpge/aoeresmod/{runid}-model.yaml",
         **kwargs,
     )
 
 
 def output_psdcuts_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/psdcuts/{runid}-psd-cuts.yaml",
+        config.paths.pars / "hpge/psdcuts/{runid}-psd-cuts.yaml",
         **kwargs,
     )
 

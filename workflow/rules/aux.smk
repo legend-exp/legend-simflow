@@ -95,7 +95,7 @@ rule cache_detector_usabilities:
     params:
         runlist=config.runlist,
     output:
-        config.paths.generated / "detector_usabilities.yaml",
+        config.paths.pars / "detector_usabilities.yaml",
     run:
         import dbetto
 

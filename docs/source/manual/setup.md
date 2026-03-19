@@ -55,8 +55,9 @@ Here's a basic description of its fields:
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.
     - `lar`: the liquid argon optical map file.
-  - `genmeta` (output): generated metadata files (e.g. YAML files storing
-    parameters extracted from the LEGEND-200 data).
+  - `pars` (output): root folder for all generated parameter files (e.g. YAML
+    files storing parameters extracted from the LEGEND-200 data, geometry files,
+    drift time maps).
   - `macros` (output): generated _remage_ macro files
   - `geom` (output): generated simulation geometry files.
   - `dtmaps` (output): generated HPGe drift time maps.

@@ -43,10 +43,10 @@ paths:
     lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
     pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
 
-  genmeta: $_/generated/metadata
+  pars: $_/generated/pars
   macros: $_/generated/macros
-  geom: $_/generated/geom
-  dtmaps: $_/generated/hpge/dtmaps
+  geom: $_/generated/pars/geom
+  dtmaps: $_/generated/pars/hpge/dtmaps
   tier_vtx: $_/generated/tier/vtx
   tier_stp: $_/generated/tier/stp
   tier_opt: $_/generated/tier/opt
