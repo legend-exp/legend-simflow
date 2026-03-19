@@ -26,8 +26,9 @@ including Pixi configuration.
 
 - Install (dev): `uv pip install -e ".[all]"` — run once after cloning or after
   dependency changes
-- Test: `pytest -vvv` — run before committing; single test:
-  `pytest tests/test_foo.py::test_bar`
+- Test: `pixi run test` — run all tests (Python + Julia) before committing;
+  Python only: `pixi run test-python`; Julia only: `pixi run test-julia`; single
+  Python test: `pytest tests/test_foo.py::test_bar`
 - Lint/format: `pre-commit run --all-files` — run before committing; every
   commit must pass
 - Build docs: `cd docs && make` — verify after any documentation change
