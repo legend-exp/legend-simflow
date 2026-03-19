@@ -26,8 +26,9 @@ including Pixi configuration.
 
 - Install (dev): `uv pip install -e ".[all]"` — run once after cloning or after
   dependency changes
-- Test: `pytest -vvv` — run before committing; single test:
-  `pytest tests/test_foo.py::test_bar`
+- Test: `pixi run test` — run all tests (Python + Julia) before committing;
+  Python only: `pixi run test-python`; Julia only: `pixi run test-julia`; single
+  Python test: `pytest tests/test_foo.py::test_bar`
 - Lint/format: `pre-commit run --all-files` — run before committing; every
   commit must pass
 - Build docs: `cd docs && make` — verify after any documentation change
@@ -47,9 +48,11 @@ imported modules under `workflow/rules/`.
     - `scripts`: scripts directly used in Snakemake rules
       - `tier/`: scripts used to build the various tiers
       - `plots/`: scripts used to generate validation plots
-      - `libjl/`: small Julia library with code shared by the main Julia scripts
-      - `init-julia-env.jl`: script used to set up the Julia environment (see
-        `Project.toml` in the same folder) used in the Simflow
+      - `init-julia-env.jl`: initializes the Julia environment at first run
+  - `src/LegendSimflow.jl`: Julia package used in the Simflow
+    - `Project.toml`: Julia package manifest
+    - `src/LegendSimflow.jl`: module entrypoint
+    - `test/`: Julia package tests
   - `rules`: Snakemake modules imported by the main `Snakefile`. Rules belonging
     to each tier are organized in separate modules. The `aux.smk` module is used
     for other auxiliary rules.

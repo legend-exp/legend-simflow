@@ -77,8 +77,8 @@ rule _init_julia_env:
     output:
         config.paths.dtmaps / ".julia-env-initialized",
     shell:
-        "cd workflow/src/legendsimflow/scripts && "
-        "julia --project=. ./init-julia-env.jl && "
+        "julia --project=workflow/src/LegendSimflow.jl "
+        "workflow/src/legendsimflow/scripts/init-julia-env.jl && "
         "touch {output}"
 
 

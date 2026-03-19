@@ -171,6 +171,11 @@ messages_control.disable = [
   "too-many-nested-blocks"
 ]
 
+[tool.pixi.tasks]
+test-python = { cmd = "pytest -vvv" }
+test-julia = { cmd = "julia --project=workflow/src/LegendSimflow.jl -e 'using Pkg; Pkg.test()'" }
+test = { depends-on = ["test-python", "test-julia"] }
+
 [tool.pixi.workspace]
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64"]

@@ -1,6 +1,7 @@
 # AGENTS.md — Testing
 
-Tests are stored in `tests/` and managed with Pytest.
+Python tests are stored in `tests/` and managed with Pytest. Julia tests are in
+`workflow/src/LegendSimflow.jl/test/`. Run all tests with `pixi run test`.
 
 - `conftest.py`: fixtures to create mock configuration objects required to test
   package units

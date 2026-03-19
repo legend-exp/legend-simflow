@@ -180,7 +180,7 @@ rule build_hpge_drift_time_map:
     # NOTE: not using the `script` directive here since Snakemake has no nice
     # way to handle package dependencies nor Project.toml
     shell:
-        "julia --project=workflow/src/legendsimflow/scripts --threads 1"
+        "julia --project=workflow/src/LegendSimflow.jl --threads 1"
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
