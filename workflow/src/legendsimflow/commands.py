@@ -232,7 +232,7 @@ def get_confinement_from_function(
         module.function(<...>, arg=...)
 
     where ``<...>`` will be replaced with the
-    :class:`pyg4ometry.gdml.Registry` instance for the geometry.
+    :class:`pyg4ometry.geant4.Registry` instance for the geometry.
 
     Parameters
     ----------

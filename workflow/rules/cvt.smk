@@ -33,7 +33,10 @@ rule build_tier_cvt:
 
 
 rule plot_tier_cvt_observables:
-    """Produces plots of observables from the tier `cvt`.
+    """Produce validation plots of observable distributions from the `cvt` tier.
+
+    Generates diagnostic plots from all `cvt` output files for the given
+    `simid`.
 
     Uses wildcard `simid`.
     """

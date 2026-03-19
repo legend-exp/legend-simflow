@@ -1,25 +1,90 @@
-# OpenAI Codex
+# AGENTS.md
 
-## Testing requirements
+## Project Overview
 
-Install all required dependencies for tests, linting and docs building by using
-the `all` optional dependency group defined in `pyproject.toml`. With
-python-pip, you would need to run `pip install -e '.[all]'`.
+This repository hosts the workflow to run the Monte Carlo simulation pipeline
+for the LEGEND experiment (often called "the Simflow"). Snakemake is used to
+orchestrate routines based on the remage simulation ecosystem.
 
-Make sure the `bin` directory where executables are installed by pip is added to
-the `PATH` environment variable.
+You can learn about the project from the markdown documentation source in
+`docs/source/`:
 
-There are many dependencies, so it could take a while to install them. Please
-wait, do not interrupt the install process.
+- `index.md`: overview, key concepts
+- `manual/meta.md`: configuration metadata, file naming conventions,
+  partitioning
+- `manual/setup.md`: install the software and main configuration file
+- `manual/prod.md`: how to run the workflow
+- `manual/sites.md`: computing site specific docs
+- `manual/tips.md`: tips and tricks
 
-Use Pytest to run all unit tests.
+## Dependencies & Tooling
+
+Python package. See `pyproject.toml` for dependencies and build config,
+including Pixi configuration.
+
+## Common Commands
+
+- Install (dev): `uv pip install -e ".[all]"` — run once after cloning or after
+  dependency changes
+- Test: `pytest -vvv` — run before committing; single test:
+  `pytest tests/test_foo.py::test_bar`
+- Lint/format: `pre-commit run --all-files` — run before committing; every
+  commit must pass
+- Build docs: `cd docs && make` — verify after any documentation change
+
+## Architecture
+
+To understand the workflow, start with `workflow/Snakefile`, then follow the
+imported modules under `workflow/rules/`.
+
+- `workflow`: project source code
+  - `src/legendsimflow`: Python package
+    - `patterns.py`: filesystem paths used in Snakemake rules
+    - `aggregate.py`: functions to build list of files for the Simflow
+    - `hpge_pars.py`/`spms_pars.py`: routines to compute the HPGe/SiPM
+      parameters to be used in the `hit` and `opt` tiers, based on information
+      from the LEGEND-200 data
+    - `scripts`: scripts directly used in Snakemake rules
+      - `tier/`: scripts used to build the various tiers
+      - `plots/`: scripts used to generate validation plots
+      - `libjl/`: small Julia library with code shared by the main Julia scripts
+      - `init-julia-env.jl`: script used to set up the Julia environment (see
+        `Project.toml` in the same folder) used in the Simflow
+  - `rules`: Snakemake modules imported by the main `Snakefile`. Rules belonging
+    to each tier are organized in separate modules. The `aux.smk` module is used
+    for other auxiliary rules.
+  - `profiles`: Snakemake workflow profiles with common Snakemake CLI options
+  - `Snakefile`: the main Snakefile
+- `templates`: template Simflow configuration files that users copy and adapt
+  when setting up a new production
+
+## Testing
+
+See [`tests/AGENTS.md`](tests/AGENTS.md).
 
 ## Linting
 
-To run linting, use pre-commit. Always make sure pre-commit checks pass before
-committing.
+- Formatting/linting is enforced by pre-commit, hooks are listed in
+  `.pre-commit-config.yaml`, while further configuration is in `pyproject.toml`
 
-## Submitting a Pull Request
+## Documentation
 
-Make sure to include a concise description of the changes and link the relevant
-pull requests or issues.
+See [`docs/AGENTS.md`](docs/AGENTS.md) for documentation conventions, docstring
+style, and Snakemake rule docstring conventions.
+
+## Code Conventions
+
+See [`workflow/AGENTS.md`](workflow/AGENTS.md).
+
+## Git Workflow
+
+- Commit style: Conventional Commits (https://www.conventionalcommits.org)
+- Every commit must pass linting and testing
+- PRs require passing CI
+- Make sure to include a concise description of the changes in a PR and link the
+  relevant related PRs or issues
+
+## Boundaries
+
+- ALWAYS: make sure linting, testing and docs building succeed **before**
+  committing

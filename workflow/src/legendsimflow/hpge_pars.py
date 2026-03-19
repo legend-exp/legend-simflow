@@ -1,3 +1,17 @@
+# Copyright (C) 2025 Luigi Pertoldi <gipert@pm.me>
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
 import functools
@@ -48,7 +62,7 @@ def lookup_currmod_fit_data(
         center of the energy window to use for the event search (same units as
         in data).
     ewin_width
-        width of the energy window to use for the event search (dame units as
+        width of the energy window to use for the event search (same units as
         in data).
     """
     idxs = []
@@ -99,7 +113,7 @@ def lookup_currmod_fit_data(
 def fit_currmod(times: NDArray, current: NDArray) -> tuple:
     """Fit the model to the raw HPGe current pulse.
 
-    Uses :func:`scipy.curve_fit` to fit
+    Uses :func:`scipy.optimize.curve_fit` to fit
     :func:`reboost.hpge.psd._current_pulse_model` to the input raw pulse.
 
     Parameters
@@ -111,8 +125,8 @@ def fit_currmod(times: NDArray, current: NDArray) -> tuple:
 
     Returns
     -------
-        tuple of the best fit parameters, and arrays of the best fit model
-        (time and current).
+    Tuple of the best-fit parameters, and arrays of the best-fit model
+    (time and current).
     """
     t = times
     A = current

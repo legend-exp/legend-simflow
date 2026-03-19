@@ -15,7 +15,7 @@ rule gen_all_tier_opt:
 # rules.build_tiers_stp.output) because we want to support making only the opt
 # tier via the config.make_tiers option
 rule build_tier_opt:
-    """Produces a `opt` tier file starting from a single `stp` tier file.
+    """Produce a `opt` tier file starting from a single `stp` tier file.
 
     This rule implements the post-processing of the `stp` tier liquid argon
     energy depositions in chunks, in the following steps:
@@ -67,7 +67,10 @@ rule build_tier_opt:
 
 
 rule plot_tier_opt_observables:
-    """Produces plots of observables from the tier `opt`.
+    """Produce validation plots of observable distributions from the `opt` tier.
+
+    Generates diagnostic plots from all `opt` output files for the given
+    `simid`.
 
     Uses wildcard `simid`.
     """

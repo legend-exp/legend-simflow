@@ -19,6 +19,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_inline_tabs",
     "myst_parser",
+    "sphinxcontrib.mermaid",
 ]
 
 source_suffix = [".rst", ".md"]
@@ -71,17 +72,42 @@ intersphinx_mapping = {
     "awkward": ("https://awkward-array.org/doc/stable", None),
     "numba": ("https://numba.readthedocs.io/en/stable", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "h5py": ("https://docs.h5py.org/en/stable", None),
     "pint": ("https://pint.readthedocs.io/en/stable", None),
     "hist": ("https://hist.readthedocs.io/en/latest", None),
+    # legend
     "dspeed": ("https://dspeed.readthedocs.io/en/stable", None),
     "daq2lh5": ("https://legend-daq2lh5.readthedocs.io/en/stable", None),
     "lgdo": ("https://legend-pydataobj.readthedocs.io/en/stable", None),
     "dbetto": ("https://dbetto.readthedocs.io/en/stable", None),
     "pylegendmeta": ("https://pylegendmeta.readthedocs.io/en/stable", None),
+    # remage
+    "remage": ("https://remage.readthedocs.io/en/stable", None),
     "reboost": ("https://reboost.readthedocs.io/en/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy", None),
+    "revertex": ("https://revertex.readthedocs.io/en/stable", None),
+    "legend-pygeom-l200": ("https://legend-pygeom-l200.readthedocs.io/en/stable", None),
+    # additional packages
+    "iminuit": ("https://scikit-hep.org/iminuit/", None),
+    "pygama": ("https://pygama.readthedocs.io/en/stable/", None),
+    "pyg4ometry": ("https://pyg4ometry.readthedocs.io/en/stable/", None),
+    "snakemake": ("https://snakemake-api.readthedocs.io/en/latest/", None),
 }  # add new intersphinx mappings here
+
+# suppress unresolvable cross-references from internal/private types
+nitpick_ignore_regex = [
+    # numpy internal type aliases exposed via type annotations
+    ("py:class", r"numpy\._typing\..*"),
+    # awkward-array uses internal module paths in type annotations
+    ("py:class", r"awkward\.highlevel\..*"),
+    ("py:class", r"awkward\.contents\..*"),
+    # snakemake internal paths differ from public API paths
+    ("py:class", r"snakemake\.io\.container\..*"),
+    # legendmeta re-exports LegendMetadata at top level but inventory uses submodule path
+    ("py:class", r"legendmeta\.LegendMetadata"),
+    # iminuit exposes Minuit at iminuit.Minuit but annotations resolve to internal path
+    ("py:class", r"iminuit\.minuit\.Minuit"),
+]
 
 # sphinx-autodoc
 autodoc_default_options = {"ignore-module-all": True}
@@ -93,3 +119,6 @@ autodoc_typehints_format = "short"
 
 # actually show ToDo admonitions
 todo_include_todos = True
+
+# mermaid
+mermaid_d3_zoom = True

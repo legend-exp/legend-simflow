@@ -17,7 +17,7 @@ rule gen_all_tier_hit:
 
 
 rule make_simstat_partition_file:
-    """Creates the file containing the simulation event statistics partitioning file.
+    """Create the simulation event statistics partitioning file.
 
     This rule maps chunks of event indices to partitions associated to the data
     taking runs specified in the "runlist" (from e.g. `config.runlist`) and
@@ -115,7 +115,10 @@ rule build_tier_hit:
 
 
 rule plot_tier_hit_observables:
-    """Produces plots of observables from the tier `hit`.
+    """Produce validation plots of observable distributions from the `hit` tier.
+
+    Generates diagnostic plots from all `hit` output files for the given
+    `simid`.
 
     Uses wildcard `simid`.
     """
@@ -156,6 +159,10 @@ def smk_hpge_drift_time_map_inputs(wildcards):
 rule build_hpge_drift_time_map:
     """Produce an HPGe drift time map.
 
+    Run a Julia script based on a pulse shape simulation performed with the
+    `SolidStateDetectors.jl` package, using crystal geometry information from
+    `legend-metadata`.
+
     Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
@@ -183,6 +190,9 @@ rule build_hpge_drift_time_map:
 
 rule merge_hpge_drift_time_maps:
     """Merge HPGe drift time maps in a single file.
+
+    Copy the top-level LH5 objects from each individual detector drift time map
+    file into a single merged file using `h5copy`.
 
     Uses wildcard `runid`.
     """
@@ -223,6 +233,9 @@ rule merge_hpge_drift_time_maps:
 
 rule plot_hpge_drift_time_maps:
     """Produce a validation plot of an HPGe drift time map.
+
+    Generates diagnostic plots of the computed drift time map for a single
+    detector at the specified operational voltage.
 
     Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
@@ -292,6 +305,9 @@ rule extract_current_pulse_model:
 
 rule merge_current_pulse_model_pars:
     """Merge the HPGe current signal model parameters in a single file per `runid`.
+
+    Collect the individual best-fit parameter files (one per detector) and
+    write them into a single YAML file keyed by detector name.
 
     Uses wildcard `runid`.
     """

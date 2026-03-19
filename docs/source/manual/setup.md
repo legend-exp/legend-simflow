@@ -20,7 +20,9 @@ the GitHub repository) and allows to customize the workflow in great detail.
 Here's a basic description of its fields:
 
 - `experiment`: labels the experiment to be simulated. The same name is used in
-  the metadata to label the corresponding configuration files.
+  the Simflow metadata to label the corresponding configuration files. See
+  [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config/blob/main/README.md)
+  for a list of currently supported experiment labels.
 - `simlist`: list of simulation identifiers to be processed by Snakemake. Can be
   a list of strings or a path to a text file. If `*` or `all`, will process all
   simulations defined in the metadata.
@@ -36,10 +38,38 @@ Here's a basic description of its fields:
   - `enabled`: boolean flag to enable/disable the feature
   - `n_primaries`: number of primary events to be simulated in the lower tiers
     `ver` and `raw`.
-- `paths`: customize paths to input or output files.
-  - `l200data`: path to a LEGEND-200 data production folder (e.g.
+- `paths`: paths to Simflow input or output files (or folder hosting them).
+  - `generated` (output): root folder for all workflow outputs
+  - `l200data` (input): LEGEND-200 data production cycle (e.g.
     `<...>/public/prodenv/prod-blind/ref-v1.0.0`) used to extract production
     parameters (e.g. energy resolution)
+  - `benchmarks` (output): Snakemake rule benchmark files
+  - `log` (output): Snakemake rule log files
+  - `metadata` (input): Simflow input metadata. This is a clone of the
+    [legend-metadata](https://github.com/legend-exp/legend-metadata) repository.
+    If not present at runtime, the Simflow will attempt a fresh clone.
+  - `config` (input): clone of
+    [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
+    This is distributed as a submodule of legend-metadata.
+  - `optical_maps` (dict, input): photoelectron detection probability maps for
+    various scintillators used in the `opt` tier. These maps are currently not
+    produced by the Simflow and therefore supplied as external input.
+    - `lar`: the liquid argon optical map file.
+  - `genmeta` (output): generated metadata files (e.g. YAML files storing
+    parameters extracted from the LEGEND-200 data).
+  - `macros` (output): generated _remage_ macro files
+  - `geom` (output): generated simulation geometry files.
+  - `dtmaps` (output): generated HPGe drift time maps.
+  - `tier_TIER` (output): generated outputs in tier `TIER`.
+  - `plots` (output): validation plots/graphics.
+- `precompile_pkg`: list of Python module names that contain Numba-accelerated
+  routines. To avoid Numba precompilation race conditions, the Simflow
+  sequentially imports these modules to ensure that the Numba cache is populated
+  before workflow execution.
+- `runcmd`: command overrides
+  - `remage`: remage command. Useful when not working in a Pixi environment and
+    the `remage` command is not available.
+- `nersc`: see {ref}`sites-nersc-io-optim`.
 
 :::{tip}
 

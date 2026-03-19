@@ -18,7 +18,11 @@ def smk_build_tier_vtx_shell_cmd(wildcards, input, output):
 
 
 rule build_tier_vtx:
-    """Run a single simulation job for the vtx tier.
+    """Run a single simulation job for the `vtx` tier.
+
+    Run the user-defined vertex generation command from `vtx_simconfig.yaml`,
+    templating it with the geometry file path, output file path, and number of
+    events.
 
     Uses wildcards `simid` and `jobid`.
     """

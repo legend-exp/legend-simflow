@@ -20,7 +20,17 @@ import pyg4ometry
 
 
 def _get_matching_volumes(volume_list: list, patterns: str | list) -> list[str]:
-    """Get the list of volumes from the GDML. The string can include wildcards."""
+    """Return volumes from `volume_list` whose names match `patterns`.
+
+    Wildcard patterns are supported via :func:`fnmatch.fnmatch`.
+
+    Parameters
+    ----------
+    volume_list
+        List of volume names to search.
+    patterns
+        Single wildcard pattern string or a list of patterns.
+    """
 
     wildcard_list = [patterns] if isinstance(patterns, str) else patterns
 
@@ -59,7 +69,7 @@ def get_lar_minishroud_confine_commands(
 
     Returns
     -------
-    a list of confinement commands for remage.
+    A list of confinement commands for remage.
     """
     string_list = _get_matching_volumes(list(reg.physicalVolumeDict.keys()), pattern)
 
