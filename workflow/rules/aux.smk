@@ -75,7 +75,7 @@ rule _init_julia_env:
     message:
         "Initializing Julia environment"
     output:
-        config.paths.dtmaps / ".julia-env-initialized",
+        config.paths.generated / ".julia-env-initialized",
     shell:
         "julia --project=workflow/src/LegendSimflow.jl "
         "workflow/src/legendsimflow/scripts/init-julia-env.jl && "
