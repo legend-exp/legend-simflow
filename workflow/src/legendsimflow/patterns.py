@@ -82,9 +82,9 @@ def benchmark_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-def plots_dirname(config: SimflowConfig, **kwargs) -> Path:
-    """Formats the plots directory path for a `simid` and `tier`."""
-    return _expand(config.paths.plots / "{tier}" / "{simid}", **kwargs)
+def plots_dirname(config: SimflowConfig, tier: str) -> Path:
+    """Returns the plots directory path for a `tier`."""
+    return config.paths.tier[tier] / "plots"
 
 
 # geometry
@@ -190,25 +190,25 @@ def vtx_filename_for_stp(config: SimflowConfig, simid: str, **kwargs) -> Path | 
 
 def plot_tier_stp_vertices_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="stp") / "tier-stp-vertices.pdf", **kwargs
+        plots_dirname(config, "stp") / "{simid}-tier-stp-vertices.pdf", **kwargs
     )
 
 
 def plot_tier_hit_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="hit") / "tier-hit-observables.pdf", **kwargs
+        plots_dirname(config, "hit") / "{simid}-tier-hit-observables.pdf", **kwargs
     )
 
 
 def plot_tier_opt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="opt") / "tier-opt-observables.pdf", **kwargs
+        plots_dirname(config, "opt") / "{simid}-tier-opt-observables.pdf", **kwargs
     )
 
 
 def plot_tier_cvt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="cvt") / "tier-cvt-observables.pdf", **kwargs
+        plots_dirname(config, "cvt") / "{simid}-tier-cvt-observables.pdf", **kwargs
     )
 
 
@@ -237,8 +237,8 @@ def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     pat = (
-        config.paths.plots
-        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
+        config.paths.dtmaps
+        / "singles/plots/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
     )
     return _expand(pat, **kwargs)
 
@@ -279,7 +279,9 @@ def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.plots / "hpge/currmod/{runid}-{hpge_detector}-fit-result.pdf"
+    pat = (
+        config.paths.pars / "hpge/currmod/plots/{runid}-{hpge_detector}-fit-result.pdf"
+    )
     return _expand(pat, **kwargs)
 
 

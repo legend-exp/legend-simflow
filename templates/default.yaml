@@ -56,7 +56,6 @@ paths:
     cvt: $_/generated/tier/cvt
     pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
-  plots: $_/generated/plots
 
 precompile_pkg:
   - dspeed.processors

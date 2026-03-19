@@ -62,8 +62,8 @@ Here's a basic description of its fields:
   - `geom` (output): generated simulation geometry files.
   - `dtmaps` (output): generated HPGe drift time maps.
   - `tier` (dict, output): generated outputs for each tier, keyed by tier name
-    (e.g. `tier.stp`, `tier.hit`, ...).
-  - `plots` (output): validation plots/graphics.
+    (e.g. `tier.stp`, `tier.hit`, ...). Validation plots for each tier are
+    stored in a `plots/` subdirectory (e.g. `tier.stp/plots/`).
 - `precompile_pkg`: list of Python module names that contain Numba-accelerated
   routines. To avoid Numba precompilation race conditions, the Simflow
   sequentially imports these modules to ensure that the Numba cache is populated
