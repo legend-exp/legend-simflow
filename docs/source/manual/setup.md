@@ -55,13 +55,17 @@ Here's a basic description of its fields:
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.
     - `lar`: the liquid argon optical map file.
-  - `genmeta` (output): generated metadata files (e.g. YAML files storing
-    parameters extracted from the LEGEND-200 data).
+  - `pars` (output): root folder for all generated parameter files (e.g. YAML
+    files storing parameters extracted from the LEGEND-200 data, geometry files,
+    drift time maps).
   - `macros` (output): generated _remage_ macro files
-  - `geom` (output): generated simulation geometry files.
-  - `dtmaps` (output): generated HPGe drift time maps.
-  - `tier_TIER` (output): generated outputs in tier `TIER`.
-  - `plots` (output): validation plots/graphics.
+  - `geom` (optional output): generated simulation geometry files. Defaults to
+    `{paths.pars}/geom` if not set.
+  - `dtmaps` (optional output): generated HPGe drift time maps. Defaults to
+    `{paths.pars}/hpge/dtmaps` if not set.
+  - `tier` (dict, output): generated outputs for each tier, keyed by tier name
+    (e.g. `tier.stp`, `tier.hit`, ...). Validation plots for each tier are
+    stored in a `plots/` subdirectory (e.g. `tier.stp/plots/`).
 - `precompile_pkg`: list of Python module names that contain Numba-accelerated
   routines. To avoid Numba precompilation race conditions, the Simflow
   sequentially imports these modules to ensure that the Numba cache is populated

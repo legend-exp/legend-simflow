@@ -20,19 +20,17 @@ paths:
     lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
     pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
 
-  genmeta: $_/generated/metadata
+  pars: $_/generated/pars
   macros: $_/generated/macros
-  geom: $_/generated/geom
-  dtmaps: $_/generated/dtmaps
-  tier_vtx: ./generated/tier/vtx
-  tier_stp: ./generated/tier/stp
-  tier_opt: ./generated/tier/opt
-  tier_hit: ./generated/tier/hit
-  tier_evt: $_/generated/tier/evt
-  tier_cvt: $_/generated/tier/cvt
-  tier_pdf: $_/generated/tier/pdf
+  tier:
+    vtx: ./generated/tier/vtx
+    stp: ./generated/tier/stp
+    opt: ./generated/tier/opt
+    hit: ./generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
-  plots: $_/generated/plots
 
 nersc:
   dvs_ro: false

@@ -78,6 +78,27 @@ def _make_path(d):
     return d
 
 
+def apply_path_defaults(paths: dict) -> None:
+    """Set default values for optional path keys derived from ``paths.pars``.
+
+    The following keys are optional in the Simflow configuration and, if
+    absent, are derived from ``paths.pars``:
+
+    - ``geom``: defaults to ``{paths.pars}/geom``
+    - ``dtmaps``: defaults to ``{paths.pars}/hpge/dtmaps``
+
+    Parameters
+    ----------
+    paths
+        The ``paths`` section of the Simflow configuration, with all values
+        already converted to :class:`pathlib.Path` objects.
+    """
+    if "geom" not in paths:
+        paths["geom"] = paths["pars"] / "geom"
+    if "dtmaps" not in paths:
+        paths["dtmaps"] = paths["pars"] / "hpge/dtmaps"
+
+
 def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
     """Pre-process and sanitize the Simflow configuration.
 
@@ -125,6 +146,9 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
 
     # convert all strings in the "paths" block to pathlib.Path
     config["paths"] = _make_path(config.paths)
+
+    # fill in optional paths derived from paths.pars
+    apply_path_defaults(config["paths"])
 
     if "l200data" in config.paths:
         config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)

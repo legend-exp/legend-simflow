@@ -11,6 +11,8 @@ from legendmeta import LegendMetadata
 from legendtestdata import LegendTestData
 from pygeoml200 import core
 
+from legendsimflow.utils import apply_path_defaults
+
 testprod = Path(__file__).parent / "dummyprod"
 config_filename = testprod / "simflow-config.yaml"
 
@@ -53,6 +55,7 @@ def make_config(legend_testdata):
         return d
 
     config["paths"] = _make_path(config["paths"])
+    apply_path_defaults(config["paths"])
 
     def _copy_skip_existing(src, dst):
         if not Path(dst).exists():

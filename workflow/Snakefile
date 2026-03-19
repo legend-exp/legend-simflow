@@ -34,7 +34,7 @@ config = SIMFLOW_CONTEXT.config
 # it at the start and cache it for later
 SIMFLOW_CONTEXT |= {
     "modelable_hpges": gen_list_of_all_hpges_valid_for_modeling(
-        config, write_to_file=config.paths.generated / "modelable_hpge_detectors.yaml"
+        config, write_to_file=config.paths.pars / "modelable_hpge_detectors.yaml"
     ),
 }
 

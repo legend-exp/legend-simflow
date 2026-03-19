@@ -43,19 +43,19 @@ paths:
     lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
     pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
 
-  genmeta: $_/generated/metadata
+  pars: $_/generated/pars
   macros: $_/generated/macros
-  geom: $_/generated/geom
-  dtmaps: $_/generated/hpge/dtmaps
-  tier_vtx: $_/generated/tier/vtx
-  tier_stp: $_/generated/tier/stp
-  tier_opt: $_/generated/tier/opt
-  tier_hit: $_/generated/tier/hit
-  tier_evt: $_/generated/tier/evt
-  tier_cvt: $_/generated/tier/cvt
-  tier_pdf: $_/generated/tier/pdf
+  # geom: $_/generated/pars/geom
+  # dtmaps: $_/generated/pars/hpge/dtmaps
+  tier:
+    vtx: $_/generated/tier/vtx
+    stp: $_/generated/tier/stp
+    opt: $_/generated/tier/opt
+    hit: $_/generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
   pdf_releases: $_/generated/releases
-  plots: $_/generated/plots
 
 precompile_pkg:
   - dspeed.processors

@@ -75,7 +75,7 @@ rule _init_julia_env:
     message:
         "Initializing Julia environment"
     output:
-        config.paths.dtmaps / ".julia-env-initialized",
+        config.paths.generated / ".julia-env-initialized",
     shell:
         "julia --project=workflow/src/LegendSimflow.jl "
         "workflow/src/legendsimflow/scripts/init-julia-env.jl && "
@@ -95,7 +95,7 @@ rule cache_detector_usabilities:
     params:
         runlist=config.runlist,
     output:
-        config.paths.generated / "detector_usabilities.yaml",
+        config.paths.pars / "detector_usabilities.yaml",
     run:
         import dbetto
 

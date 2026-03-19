@@ -82,9 +82,9 @@ def benchmark_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-def plots_dirname(config: SimflowConfig, **kwargs) -> Path:
-    """Formats the plots directory path for a `simid` and `tier`."""
-    return _expand(config.paths.plots / "{tier}" / "{simid}", **kwargs)
+def plots_dirname(config: SimflowConfig, tier: str) -> Path:
+    """Returns the plots directory path for a `tier`."""
+    return config.paths.tier[tier] / "plots"
 
 
 # geometry
@@ -137,7 +137,7 @@ def output_simjob_filename(config: SimflowConfig, **kwargs) -> Path:
         raise RuntimeError(msg)
 
     fname = simjob_base_segment(config) + f"-tier_{tier}.lh5"
-    return _expand(config.paths[f"tier_{tier}"] / fname, **kwargs)
+    return _expand(config.paths.tier[tier] / fname, **kwargs)
 
 
 def output_simjob_regex(config: SimflowConfig, **kwargs) -> str:
@@ -148,7 +148,7 @@ def output_simjob_regex(config: SimflowConfig, **kwargs) -> str:
         raise RuntimeError(msg)
 
     fname = config.experiment + "-*-tier_{tier}.lh5"
-    expr = str(Path(config["paths"][f"tier_{tier}"]) / "{simid}" / fname)
+    expr = str(config.paths.tier[tier] / "{simid}" / fname)
     return _expand(expr, **kwargs)
 
 
@@ -190,25 +190,25 @@ def vtx_filename_for_stp(config: SimflowConfig, simid: str, **kwargs) -> Path | 
 
 def plot_tier_stp_vertices_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="stp") / "tier-stp-vertices.pdf", **kwargs
+        plots_dirname(config, "stp") / "{simid}-tier-stp-vertices.pdf", **kwargs
     )
 
 
 def plot_tier_hit_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="hit") / "tier-hit-observables.pdf", **kwargs
+        plots_dirname(config, "hit") / "{simid}-tier-hit-observables.pdf", **kwargs
     )
 
 
 def plot_tier_opt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="opt") / "tier-opt-observables.pdf", **kwargs
+        plots_dirname(config, "opt") / "{simid}-tier-opt-observables.pdf", **kwargs
     )
 
 
 def plot_tier_cvt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        plots_dirname(config, tier="cvt") / "tier-cvt-observables.pdf", **kwargs
+        plots_dirname(config, "cvt") / "{simid}-tier-cvt-observables.pdf", **kwargs
     )
 
 
@@ -237,8 +237,8 @@ def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     pat = (
-        config.paths.plots
-        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
+        config.paths.dtmaps
+        / "singles/plots/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
     )
     return _expand(pat, **kwargs)
 
@@ -248,27 +248,27 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
         config.paths.benchmarks
         / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.tsv"
     )
-    return expand(pat, **kwargs, allow_missing=True)[0]
+    return _expand(pat, **kwargs)
 
 
 # hpge current model
 
 
 def input_currmod_evt_idx_file(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.genmeta / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
-    return expand(pat, **kwargs, allow_missing=True)[0]
+    pat = config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
+    return _expand(pat, **kwargs)
 
 
 def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
+        config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
         **kwargs,
     )
 
 
 def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/currmod/{runid}-model.yaml",
+        config.paths.pars / "hpge/currmod/{runid}-model.yaml",
         **kwargs,
     )
 
@@ -279,7 +279,9 @@ def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    pat = config.paths.plots / "hpge/currmod/{runid}-{hpge_detector}-fit-result.pdf"
+    pat = (
+        config.paths.pars / "hpge/currmod/plots/{runid}-{hpge_detector}-fit-result.pdf"
+    )
     return _expand(pat, **kwargs)
 
 
@@ -288,21 +290,21 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/eresmod/{runid}-model.yaml",
+        config.paths.pars / "hpge/eresmod/{runid}-model.yaml",
         **kwargs,
     )
 
 
 def output_aoeresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/aoeresmod/{runid}-model.yaml",
+        config.paths.pars / "hpge/aoeresmod/{runid}-model.yaml",
         **kwargs,
     )
 
 
 def output_psdcuts_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.genmeta / "hpge/psdcuts/{runid}-psd-cuts.yaml",
+        config.paths.pars / "hpge/psdcuts/{runid}-psd-cuts.yaml",
         **kwargs,
     )
 
@@ -324,7 +326,7 @@ def tier_cvt_base_segment(config: SimflowConfig, **kwargs) -> str:
 
 def output_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(
-        config.paths.tier_cvt / (tier_cvt_base_segment(config) + ".lh5"), **kwargs
+        config.paths.tier.cvt / (tier_cvt_base_segment(config) + ".lh5"), **kwargs
     )
 
 
@@ -346,22 +348,17 @@ def pdffile_rel_basename(**kwargs):
 
 
 def output_pdf_filename(config: SimflowConfig, **kwargs):
-    expr = str(Path(config["paths"]["tier_pdf"]) / (pdffile_rel_basename() + ".lh5"))
+    expr = str(config.paths.tier.pdf / (pdffile_rel_basename() + ".lh5"))
     return expand(expr, **kwargs, allow_missing=True)[0]
 
 
 def log_pdffile_path(config: SimflowConfig, **kwargs):
     pat = str(
-        Path(config["paths"]["log"])
-        / config._proctime
-        / "pdf"
-        / (pdffile_rel_basename() + ".log")
+        config.paths.log / config._proctime / "pdf" / (pdffile_rel_basename() + ".log")
     )
     return expand(pat, **kwargs, allow_missing=True)[0]
 
 
 def benchmark_pdffile_path(config: SimflowConfig, **kwargs):
-    pat = str(
-        Path(config["paths"]["benchmarks"]) / "pdf" / (pdffile_rel_basename() + ".tsv")
-    )
+    pat = str(config.paths.benchmarks / "pdf" / (pdffile_rel_basename() + ".tsv"))
     return expand(pat, **kwargs, allow_missing=True)[0]
