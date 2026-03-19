@@ -1,0 +1,29 @@
+name: "000"
+order: "99"
+impurity_measurements:
+  value_in_1e9e_cm3:
+    - 8
+    - 9
+    - 10
+    - 10
+    - 11
+  distance_from_seed_end_mm:
+    - 0
+    - 14
+    - 30
+    - 50
+    - 80
+impurity_curve:
+  model: linear_exponential_boule
+  parameters:
+    a: 8.438
+    b: 0.03898
+    n: 0.0
+    l: 34.18
+    m: 44.09
+  corrections:
+    offset: 0
+    scale: 1
+slices:
+  A:
+    detector_offset_in_mm: 80

@@ -21,9 +21,47 @@ using Unitful
 using Base.Threads
 using LinearAlgebra
 using RadiationDetectorDSP
+using LegendDataManagement
+using Printf
+using PropDicts
 
 # 8-connectivity neighbor offsets for map extension
 const NEIGHBOR_OFFSETS_8CONN = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+
+
+"""
+    load_detector_metadata(meta_path::String, det::String, opv_val::Union{Float32, Nothing})
+
+Load detector and crystal metadata from legend-metadata, and set the operational voltage.
+
+# Arguments
+- `meta_path`: Path to legend-metadata
+- `det`: HPGe detector name (e.g. "V03422A")
+- `opv_val`: Operational voltage in V (Float32). If `nothing`, the value from metadata is used.
+
+# Returns
+- `Tuple`: `(meta, xtal, opv_val)` where `meta` is the detector metadata (PropDict),
+  `xtal` is the crystal metadata (PropDict), and `opv_val` is the operational voltage
+  as Float32 (either from metadata or as provided)
+"""
+function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing})
+
+    meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
+
+    if isnothing(opv_val)
+        opv_val = Float32(meta.characterization.l200_site.recommended_voltage_in_V)
+        @info "No OPV provided. Using metadata default: $opv_val V"
+    else
+        @info "Using user-provided OPV: $opv_val V"
+    end
+    meta.characterization.l200_site.recommended_voltage_in_V = opv_val
+
+    ids = Dict("bege" => "B", "coax" => "C", "ppc" => "P", "icpc" => "V")
+    crystal = ids[meta.type] * @sprintf("%02d", meta.production.order) * meta.production.crystal
+    xtal = readprops("$meta_path/hardware/detectors/germanium/crystals/$crystal.yaml")
+
+    return meta, xtal, opv_val
+end
 
 
 """
@@ -248,8 +286,203 @@ function find_valid_spawn_position(candidate_idx, spawn_positions, detector; ver
 end
 
 
+
 """
-    compute_drift_time_map(sim, meta, T, angle_deg, grid_step)
+    setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, refinement_limits, threshold)
+
+Set up and run the full SSD simulation for an HPGe detector: builds the simulation object,
+applies the ADL charge drift model, calculates electric potential, electric field,
+checks depletion voltage, and calculates weighting potential.
+
+# Arguments
+- `meta_path`: Path to legend-metadata
+- `meta`: Detector metadata (PropDict)
+- `xtal`: Crystal metadata (PropDict)
+- `opv_val`: Operational voltage in V (Float32)
+- `T`: Floating-point precision type (typically Float32)
+- `refinement_limits`: Vector of refinement thresholds for SSD
+-  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 100 V)
+# Returns
+- `sim`: Fully configured SolidStateDetectors Simulation object
+"""
+function setup_hpge_simulation(meta_path::String,
+    meta::PropDict, xtal::PropDict,
+    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 100)
+
+    sim = Simulation{T}(LegendData, meta, xtal)
+
+    charge_drift_model = ADLChargeDriftModel(
+        "$meta_path/simprod/config/pars/geds/ssd/adl-2016-temp-model.yaml", T = T
+    )
+    sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
+    sim.detector = SolidStateDetector(
+        sim.detector,
+        contact_id = 2,
+        contact_potential = opv_val
+    )
+
+    @info "Calculating electric potential at $(opv_val) V..."
+    calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
+
+    @info "Calculating electric field..."
+    calculate_electric_field!(sim)
+
+    dep = nothing
+    try
+        dep = estimate_depletion_voltage(sim)
+    catch
+        error("Detector is not depleted!")
+    end
+    @info "Simulated depletion voltage is $dep"
+
+    dep_meas = nothing
+    try
+        dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
+        @info "Depletion measured during characterization is $dep_meas"
+    catch
+        @warn "Measured depletion voltage not found in metadata"
+    end
+
+    if dep_meas !== nothing && abs(dep_meas - dep) > threshold * u"V"
+        error("Difference between measured and simulated depletion is larger than 100 V!")
+    end
+
+    @info "Calculating weighting potential..."
+    calculate_weighting_potential!(
+        sim,
+        sim.detector.contacts[1].id,
+        refinement_limits = refinement_limits,
+        verbose = false
+    )
+
+    return sim
+end
+
+
+"""
+    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, handle_nplus, grid_size)
+
+Compute a 2D pulse_shape_library (r, z ideal_waveform) at a specified azimuthal angle.
+
+Simulates charge carrier drift for a grid of positions in cylindrical coordinates,
+generating waveforms that represent the detector response. The grid is constructed
+in the (r, z) plane and then rotated to the specified angle.
+
+# Arguments
+- `sim`: SolidStateDetectors Simulation object
+- `meta`: Detector metadata (PropDict) containing geometry fields
+- `T`: Floating-point precision type (typically Float32)
+- `angle_deg`: Azimuthal angle in degrees for the r-z plane rotation
+- `only_holes`: If true, extract only hole contribution; if false, use full waveform
+- `handle_nplus`: If true, handle positions at n+ contact by finding nearest valid point
+- `grid_size`: Grid spacing in meters
+
+# Returns
+- `NamedTuple`: Contains `:r`, `:z`, `:dt` axes and `:waveform_XXX_deg` 3D array
+  `[time_samples, n_z, n_r]` of normalized waveforms (dimensionless)
+"""
+function compute_ideal_pulse_shape_lib(
+    sim::Simulation,
+    meta,
+    T::Type{<:AbstractFloat},
+    angle_deg::Real,
+    only_holes::Bool,
+    handle_nplus::Bool,
+    grid_size::Real
+)
+    @info "Computing waveform map at angle $angle_deg deg..."
+
+    SSD = SolidStateDetectors
+    angle_rad = deg2rad(angle_deg)
+
+    # Simulation parameters
+    sim_energy = 2039u"keV"
+    max_nsteps = 5000
+    waveform_length = 5000
+    time_step = 1u"ns"
+
+    radius = meta.geometry.radius_in_mm / 1000
+    height = meta.geometry.height_in_mm / 1000
+
+    r_axis = build_simulation_grid_axis(radius, grid_size)
+    z_axis = build_simulation_grid_axis(height, grid_size)
+
+    spawn_positions = CartesianPoint{T}[]
+    idx_spawn_positions = CartesianIndex[]
+
+    for (i, r) in enumerate(r_axis)
+        for (k, z) in enumerate(z_axis)
+            push!(spawn_positions, CartesianPoint{T}(r * cos(angle_rad), r * sin(angle_rad), z))
+            push!(idx_spawn_positions, CartesianIndex(i, k))
+        end
+    end
+
+    if !handle_nplus
+        in_idx = findall(
+            x -> in(x, sim.detector) && !in(x, sim.detector.contacts),
+            spawn_positions
+        )
+    else
+        in_idx = findall(x -> in(x, sim.detector), spawn_positions)
+    end
+
+    n = length(in_idx)
+    wf_signals_threaded = Vector{Vector{Float32}}(undef, n)
+
+    @info "Simulating grid (r, z) at angle $(angle_deg)°..."
+
+    @threads for i in 1:n
+        if i % 1000 == 0
+            pct = round(100 * i / n)
+            @info "...simulating $i out of $n ($pct %)"
+        end
+
+        p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
+        if p === nothing
+            @warn "find_valid_spawn_position did not return a valid spawn position for index $(in_idx[i]); skipping."
+            wf_signals_threaded[i] = Float32[]
+            continue
+        end
+
+        e = SSD.Event([p], [sim_energy])
+        simulate!(e, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
+
+        if only_holes
+            wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
+        else
+            wf = e.waveforms[1]
+        end
+
+        wf_signals_threaded[i] = ustrip(add_baseline_and_extend_tail(wf, 0, waveform_length).signal)
+    end
+
+    # Initialize with NaN; pixels outside the detector will remain NaN
+    wf_padded = fill(NaN32, waveform_length, length(z_axis), length(r_axis))
+
+    for (i, idx) in enumerate(idx_spawn_positions[in_idx])
+        raw_signal = wf_signals_threaded[i]
+        isempty(raw_signal) && continue
+
+        # Normalize charge waveforms so that their amplitude (energy) = 1
+        max_val = maximum(raw_signal)
+        signal = max_val > 0 ? raw_signal ./ max_val : raw_signal
+
+        # Clip to fixed length and pad tail with last value
+        wf_padded[:, idx[2], idx[1]] = signal
+    end
+
+    ang_str = lpad(string(angle_deg), 3, '0')
+    return (;
+        :r => collect(r_axis) * u"m",
+        :z => collect(z_axis) * u"m",
+        :dt => time_step,
+        Symbol("waveform_$(ang_str)_deg") => wf_padded * NoUnits
+    )
+end
+
+
+"""
+    compute_drift_time_map(sim, meta, T, angle_deg, grid_step, padding)
 
 Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 
@@ -268,10 +501,10 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 function compute_drift_time_map(
     sim::Simulation,
     meta,
+    T::Type{<:AbstractFloat},
     angle_deg::Real,
     grid_step::Real,
-    padding::Int,
-    T::Type{<:AbstractFloat}
+    padding::Int
 )
     @info "Computing drift time map at angle $angle_deg deg..."
 
@@ -314,6 +547,11 @@ function compute_drift_time_map(
         end
 
         pos = find_valid_spawn_position(inside_detector_idx[i], spawn_positions, sim.detector; verbose = false)
+        if pos === nothing
+            @warn "find_valid_spawn_position did not return a valid spawn position for index $(inside_detector_idx[i]); skipping."
+            drift_times[i] = -1
+            continue
+        end
         event = SSD.Event([pos], [2039u"keV"])
         simulate!(event, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
 
@@ -322,7 +560,7 @@ function compute_drift_time_map(
     end
 
     # Build drift time matrix (r × z layout)
-    drift_time_matrix = fill(NaN, length(r_axis), length(z_axis))
+    drift_time_matrix = fill(T(NaN), length(r_axis), length(z_axis))
     for (i, idx) in enumerate(idx_spawn_positions[inside_detector_idx])
         drift_time_matrix[idx] = drift_times[i]
     end
