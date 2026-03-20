@@ -489,11 +489,11 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 # Arguments
 - `sim`: SolidStateDetectors Simulation object
 - `meta`: Detector metadata (PropDict)
-- `T`: Numeric type (e.g., Float32)
 - `angle_deg`: Crystal axis angle in degrees
 - `grid_step`: Grid spacing in meters
-- `padding`: pixels used to pad the map and avoid grid edge effects (see
-  `extend_drift_time_map()`).
+- `padding`: Number of pixel layers used to pad the map and avoid grid edge
+  effects (see `extend_drift_time_map()`)
+- `T`: Numeric type (e.g., Float32)
 
 # Returns
 - `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix
