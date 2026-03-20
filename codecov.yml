@@ -11,6 +11,12 @@ coverage:
 github_checks:
   annotations: false
 
+flags:
+  julia:
+    carryforward: true
+    paths:
+      - workflow/src/LegendSimflow.jl/src/
+
 ignore:
   - tests
   - docs
