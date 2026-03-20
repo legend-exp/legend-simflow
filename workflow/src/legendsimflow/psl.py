@@ -203,27 +203,21 @@ def align_waveforms_to_peak(
     # Convert to NumPy for matrix operations
     wfs = ak.to_numpy(wf_input) if isinstance(wf_input, ak.Array) else wf_input
 
-    # Output Array - Indices not covered by the shifted signal are automatically padded with 0.0
     n_wfs, n_samples = wfs.shape
-    shifted_wfs = np.zeros((n_wfs, nsamples_output_current_wfs), dtype=float)
-
-    # Find Amax
     peak_indices = np.argmax(wfs, axis=1)
+    shifts = alignment_idx - peak_indices  # (n_wfs,)
 
-    # Shift each waveform
-    for i in range(n_wfs):
-        peak = peak_indices[i]
-        shift = alignment_idx - peak
+    # For each destination index d, the corresponding source index is d - shift[i].
+    # Build a (n_wfs, n_samples_out) source-index matrix, mask out-of-bounds positions
+    # with 0 (safe to index), then zero out those positions in the result.
+    d = np.arange(nsamples_output_current_wfs)  # (n_samples_out,)
+    src_idx = d[np.newaxis, :] - shifts[:, np.newaxis]  # (n_wfs, n_samples_out)
+    valid = (src_idx >= 0) & (src_idx < n_samples)
+    src_idx_safe = np.clip(src_idx, 0, n_samples - 1)
 
-        # Bounds to prevent IndexErrors
-        start_src = max(0, -shift)
-        end_src = min(n_samples, nsamples_output_current_wfs - shift)
-
-        if start_src < end_src:
-            start_dst = start_src + shift
-            end_dst = end_src + shift
-
-            shifted_wfs[i, start_dst:end_dst] = wfs[i, start_src:end_src]
+    shifted_wfs = np.where(
+        valid, wfs[np.arange(n_wfs)[:, np.newaxis], src_idx_safe], 0.0
+    )
 
     return shifted_wfs, peak_indices
 
