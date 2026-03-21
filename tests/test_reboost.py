@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import awkward as ak
+import lgdo
 import numpy as np
 import pyg4ometry
 import pytest
 import reboost
+import reboost.math.stats
 from lgdo import lh5
 
 from legendsimflow import reboost as rutils
@@ -433,3 +435,159 @@ def test_forced_trigger_library_num_processed_files(legend_testdata):
 
     assert len(r1) == len(r2)
     assert len(r3) == 2 * len(r1)
+
+
+def test_get_remage_detector_uids(legend_testdata):
+    """Test that get_remage_detector_uids returns a dict mapping UIDs to detector names."""
+    f_stp = legend_testdata["remage/th228-full-optional-v0_13.lh5"]
+
+    result = rutils.get_remage_detector_uids(f_stp)
+
+    assert isinstance(result, dict)
+    # all keys should be ints, all values should be strings
+    assert all(isinstance(k, int) for k in result)
+    assert all(isinstance(v, str) for v in result.values())
+    # verify the known mapping from the test file
+    assert result == {
+        1: "scint1",
+        2: "scint2",
+        11: "det1",
+        12: "det2",
+        101: "optdet1",
+        102: "optdet2",
+    }
+
+
+def test_make_output_chunk_scalar_t0():
+    """Test make_output_chunk when chunk already has scalar t0 and evtid arrays."""
+    chunk = lgdo.Table(size=3)
+    chunk.add_field(
+        "t0", lgdo.Array(np.array([100.0, 200.0, 300.0]), attrs={"units": "ns"})
+    )
+    chunk.add_field("evtid", lgdo.Array(np.array([1, 2, 3])))
+
+    result = rutils.make_output_chunk(chunk)
+
+    assert isinstance(result, lgdo.Table)
+    assert len(result) == 3
+    assert "t0" in result
+    assert "evtid" in result
+    np.testing.assert_array_equal(result.t0.nda, [100.0, 200.0, 300.0])
+    np.testing.assert_array_equal(result.evtid.nda, [1, 2, 3])
+
+
+def test_make_output_chunk_vector_time():
+    """Test make_output_chunk when chunk has vector time and evtid (takes firsts)."""
+    chunk = lgdo.Table(size=3)
+    chunk.add_field(
+        "time",
+        lgdo.VectorOfVectors(
+            ak.Array([[100.0, 200.0], [300.0], [400.0, 500.0, 600.0]]),
+            attrs={"units": "ns"},
+        ),
+    )
+    chunk.add_field("evtid", lgdo.VectorOfVectors(ak.Array([[1, 2], [3], [4, 5, 6]])))
+
+    result = rutils.make_output_chunk(chunk)
+
+    assert isinstance(result, lgdo.Table)
+    assert len(result) == 3
+    assert "t0" in result
+    assert "evtid" in result
+    # t0 should be the first time value of each event
+    np.testing.assert_array_equal(result.t0.nda, [100.0, 300.0, 400.0])
+    # evtid should be the first evtid of each event
+    np.testing.assert_array_equal(result.evtid.nda, [1, 3, 4])
+
+
+def test_write_chunk(tmp_path):
+    """Test write_chunk writes data and creates soft links for new detectors."""
+    outfile = tmp_path / "output.lh5"
+    chunk = lgdo.Table(size=3)
+    chunk.add_field(
+        "t0", lgdo.Array(np.array([100.0, 200.0, 300.0]), attrs={"units": "ns"})
+    )
+    chunk.add_field("evtid", lgdo.Array(np.array([1, 2, 3])))
+
+    # First write: creates file and soft link
+    rutils.write_chunk(chunk, "hit/det001", outfile, 1)
+    assert "hit/det001" in lh5.ls(outfile, "hit/")
+    assert "hit/__by_uid__" in lh5.ls(outfile, "hit/")
+    assert "hit/__by_uid__/det001" in lh5.ls(outfile, "hit/__by_uid__/")
+
+    # Second write: appends to existing detector table (no new link)
+    rutils.write_chunk(chunk, "hit/det001", outfile, 1)
+    result = lh5.read("hit/det001", outfile)
+    assert len(result) == 6  # appended 3 more rows
+
+    # Third write: adds a new detector with its own link
+    rutils.write_chunk(chunk, "hit/det002", outfile, 2)
+    assert "hit/__by_uid__/det002" in lh5.ls(outfile, "hit/__by_uid__/")
+
+
+def test_listoffset_chain_1d():
+    """Test _listoffset_chain with a 1D list-of-values array."""
+    arr = ak.Array([[1.0, 2.0], [3.0]])
+    layout = ak.to_layout(arr)
+
+    offsets_chain, content = rutils._listoffset_chain(layout)
+
+    assert len(offsets_chain) == 1
+    np.testing.assert_array_equal(offsets_chain[0], [0, 2, 3])
+    assert isinstance(content, ak.contents.NumpyArray)
+
+
+def test_listoffset_chain_nested():
+    """Test _listoffset_chain with a doubly-nested array (3D)."""
+    arr = ak.Array([[[1.0, 2.0], [3.0]], [[4.0, 5.0, 6.0]]])
+    layout = ak.to_layout(arr)
+
+    offsets_chain, content = rutils._listoffset_chain(layout)
+
+    assert len(offsets_chain) == 2
+    assert isinstance(content, ak.contents.NumpyArray)
+
+
+def test_listoffset_chain_non_numpy_content():
+    """Test _listoffset_chain raises TypeError when content is not NumpyArray."""
+    # A list of records does not end in a NumpyArray
+    arr = ak.Array([{"x": 1}, {"x": 2}])
+    layout = ak.to_layout(arr)
+
+    with pytest.raises(TypeError, match="NumpyArray"):
+        rutils._listoffset_chain(layout)
+
+
+def test_gauss_smear_output_type_and_shape():
+    """Test gauss_smear returns an ak.Array with the same length as input."""
+    arr_true = ak.Array([1.0, 2.0, 3.0, 4.0, 5.0])
+    arr_reso = ak.Array([0.1, 0.1, 0.1, 0.1, 0.1])
+
+    result = rutils.gauss_smear(arr_true, arr_reso)
+
+    assert isinstance(result, ak.Array)
+    assert len(result) == len(arr_true)
+
+
+def test_gauss_smear_non_negative_for_positive_input():
+    """Test gauss_smear does not return negative values for positive inputs."""
+    arr_true = ak.Array(np.ones(1000))
+    arr_reso = ak.Array(np.full(1000, 0.5))
+
+    result = rutils.gauss_smear(arr_true, arr_reso)
+
+    assert ak.all(result >= 0)
+
+
+def test_gauss_smear_zero_replaced_by_tiny():
+    """Test gauss_smear replaces near-zero smeared results with a tiny positive value."""
+    # Input of zero with small resolution: smeared value may go negative and
+    # should be replaced by np.finfo(float).tiny
+    arr_true = ak.Array([0.0])
+    arr_reso = ak.Array([0.0])
+
+    result = rutils.gauss_smear(arr_true, arr_reso)
+
+    assert isinstance(result, ak.Array)
+    assert len(result) == 1
+    assert result[0] >= 0
