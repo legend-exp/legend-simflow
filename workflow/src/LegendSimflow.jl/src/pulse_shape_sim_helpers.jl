@@ -267,7 +267,7 @@ function find_valid_spawn_position(
     spawn_positions::AbstractVector,
     detector::SolidStateDetector;
     verbose::Bool = true
-):::CartesianPoint
+)::CartesianPoint
     pos_candidate = spawn_positions[candidate_idx]
 
     in_contact = in(pos_candidate, detector.contacts)
