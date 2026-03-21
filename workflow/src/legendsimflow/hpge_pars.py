@@ -21,7 +21,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import awkward as ak
 import numpy as np
 from dbetto import AttrsDict, TextDB
 from iminuit import Minuit, cost
@@ -31,7 +30,6 @@ from matplotlib import pyplot as plt
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
-from scipy.optimize import curve_fit
 
 from . import metadata as mutils
 from . import utils
@@ -41,21 +39,23 @@ log = logging.getLogger(__name__)
 
 
 def lookup_currmod_fit_data(
-    hit_files: list[str, Path],
+    hit_files: list[str | Path],
     lh5_group: str,
     ewin_center: float = 1593,
     ewin_width: float = 10,
-) -> tuple[int, int]:
-    """Extract the index of the event to fit.
+    max_waveforms: int = 100,
+) -> list[tuple[int, int]]:
+    """Extract the indices of the events to fit.
 
-    Considers events with ``abs(A/E) < 1.5`` and finds the one that is closest
-    to the median of the distribution.  Returns the index of the event in the
-    file and the index of the file in the input file list.
+    Considers events with ``abs(A/E) < 1.5`` and finds up to ``max_waveforms``
+    events closest to the median drift time.  Returns a list of
+    ``(event_index, file_index)`` pairs, sorted from closest to farthest from
+    the median, with at most ``max_waveforms`` entries.
 
     Parameters
     ----------
     hit_files
-        tier-hit files used to determine the best index.
+        tier-hit files used to determine the best indices.
     lh5_group
         where the tier-hit data is found in the files.
     ewin_center
@@ -64,6 +64,8 @@ def lookup_currmod_fit_data(
     ewin_width
         width of the energy window to use for the event search (same units as
         in data).
+    max_waveforms
+        maximum number of waveforms to return.
     """
     idxs = []
     energies = []
@@ -86,77 +88,91 @@ def lookup_currmod_fit_data(
         energies.append(energy[idx])
         dts.append(dt_eff[idx])
 
-    # now chose the best index (closest to median)
-    if len(dts) == 0:
+    # flatten all events and build file-index array
+    counts = [len(d) for d in dts]
+    flat_dts = np.concatenate(dts) if dts else np.array([])
+    flat_idxs = np.concatenate(idxs) if idxs else np.array([], dtype=int)
+    flat_file_idxs = np.concatenate(
+        [np.full(c, i, dtype=int) for i, c in enumerate(counts)]
+    )
+
+    if len(flat_dts) == 0:
         msg = "no data found in the considered hit files"
         raise ValueError(msg)
 
-    dts = ak.Array(dts)
-    idxs = ak.Array(idxs)
-    energies = ak.Array(energies)
+    med = float(np.median(flat_dts))
+    distances = np.abs(flat_dts - med)
+    sort_order = np.argsort(distances)[:max_waveforms]
 
-    med = np.median(ak.flatten(dts))
-    best = ak.argmin(abs(dts - med))
-    n = ak.num(dts, axis=-1)
-
-    array = np.full(len(ak.flatten(dts)), False)
-    array[best] = True
-
-    sel = ak.unflatten(array, n)
-
-    idx = ak.flatten(idxs[sel])[0]
-    file_idx = ak.where(ak.num(dts[sel], axis=-1) == 1)[0][0]
-
-    return idx, file_idx
+    return [(int(flat_idxs[i]), int(flat_file_idxs[i])) for i in sort_order]
 
 
-def fit_currmod(times: NDArray, current: NDArray) -> tuple:
-    """Fit the model to the raw HPGe current pulse.
+def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple:
+    """Fit the model to multiple raw HPGe current pulses simultaneously.
 
-    Uses :func:`scipy.optimize.curve_fit` to fit
-    :func:`reboost.hpge.psd._current_pulse_model` to the input raw pulse.
+    Normalises each waveform by its peak amplitude and uses
+    :func:`iminuit.Minuit` to minimise the summed RMS residual across all
+    waveforms simultaneously.  Fitting multiple waveforms provides a more
+    robust estimate of the pulse-shape parameters than fitting a single event.
 
     Parameters
     ----------
-    times
-        the timesteps of the pulse.
-    current
-        the values of the pulse.
+    times_list
+        list of timestep arrays, one per waveform.
+    current_list
+        list of current-value arrays, one per waveform.
 
     Returns
     -------
-    Tuple of the best-fit parameters, and arrays of the best-fit model
-    (time and current).
+    Tuple of the best-fit parameters (as a NumPy array), and arrays of the
+    best-fit model (time and current) evaluated around the peak.
     """
-    t = times
-    A = current
+    if len(times_list) == 0:
+        msg = "times_list must not be empty"
+        raise ValueError(msg)
 
-    maxi = np.argmax(A)
-    max_t = t[maxi]
+    # Normalise each waveform by its peak amplitude so that all contribute
+    # equally to the cost regardless of their absolute ADC scale.
+    peak_amplitudes = np.array([float(np.max(A)) for A in current_list])
+    mean_peak = float(np.mean(peak_amplitudes))
+    normed = [A / p for A, p in zip(current_list, peak_amplitudes, strict=True)]
+
+    # Use the first waveform to determine the time window and initial peak location.
+    t_ref = times_list[0]
+    A_ref_norm = normed[0]
+    maxi = int(np.argmax(A_ref_norm))
+    max_t = float(t_ref[maxi])
 
     low = max_t - 1000
     high = max_t + 1000
 
-    height = A[maxi]
+    n_wfs = len(times_list)
 
-    # initial guesses and ranges
-    p0 = [height, max_t, 60, 0.6, 100, 0.2, 60]
+    # Initial parameter guesses: height = 1 (normalised), max_t at detected peak.
+    p0 = [1.0, max_t, 60.0, 0.6, 100.0, 0.2, 60.0]
+    limits_lo = [0.0, max_t - 100.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+    limits_hi = [2.0, max_t + 100.0, 500.0, 1.0, 800.0, 1.0, 800.0]
 
-    ranges = [
-        [0, max_t - 100, 1, 0, 1, 0, 1],
-        [height * 2, max_t + 100, 500, 1, 800, 1, 800],
-    ]
-    x = np.linspace(low, high, 1000)
-    y = current_pulse_model(x, *p0)
+    def total_rms(height, t0, s1, r1, w2, r2, w3):
+        total = 0.0
+        for t, A_norm in zip(times_list, normed, strict=True):
+            mask = (t > low) & (t < high)
+            if not np.any(mask):
+                continue
+            model = current_pulse_model(t[mask], height, t0, s1, r1, w2, r2, w3)
+            total += float(np.sum((A_norm[mask] - model) ** 2))
+        return total / n_wfs
 
-    # do the fit
-    popt, _ = curve_fit(
-        current_pulse_model,
-        t[(t > low) & (t < high)],
-        A[(t > low) & (t < high)],
-        p0=p0,
-        bounds=ranges,
-    )
+    m = Minuit(total_rms, *p0)
+    for i in range(7):
+        m.limits[i] = (limits_lo[i], limits_hi[i])
+    m.migrad()
+
+    popt = np.array(m.values)
+    # The fit was performed on normalised waveforms (each divided by its peak),
+    # so the fitted height is dimensionless (≈ 1).  Multiply by mean_peak to
+    # convert back to the original ADC scale expected by downstream code.
+    popt[0] = popt[0] * mean_peak
 
     x = np.linspace(low, high, int(100 * (high - low)))
     y = current_pulse_model(x, *popt)
@@ -344,6 +360,50 @@ def get_current_pulse(
     return t, A
 
 
+def get_current_pulses(
+    raw_file_idx_pairs: list[tuple[Path | str, int]],
+    lh5_group: str,
+    dsp_config: str,
+    dsp_output: str = "curr_av",
+    align: str = "tp_aoe_max",
+) -> tuple[list[NDArray], list[NDArray]]:
+    """Extract current pulses for multiple events.
+
+    Calls :func:`get_current_pulse` for each ``(raw_file, idx)`` pair and
+    returns the results as two parallel lists.
+
+    Parameters
+    ----------
+    raw_file_idx_pairs
+        list of ``(raw_file, idx)`` pairs.
+    lh5_group
+        where to find the waveform table.
+    dsp_config
+        the :mod:`dspeed` configuration file defining the DSP processing chain
+        to estimate the current pulse.
+    dsp_output
+        the name of the DSP output corresponding to the current pulse.
+    align
+        DSP value around which the pulses are aligned.
+
+    Returns
+    -------
+    times_list
+        list of timestep arrays.
+    current_list
+        list of current-value arrays.
+    """
+    times_list = []
+    current_list = []
+    for raw_file, idx in raw_file_idx_pairs:
+        t, A = get_current_pulse(
+            raw_file, lh5_group, idx, dsp_config, dsp_output, align
+        )
+        times_list.append(t)
+        current_list.append(A)
+    return times_list, current_list
+
+
 def get_noise_waveforms(
     raw_files: list,
     hit_files: list,
@@ -511,8 +571,9 @@ def lookup_currmod_fit_inputs(
     runid: str,
     hpge: str,
     hit_tier_name: str = "hit",
-) -> tuple[Path, int, Path]:
-    """Find the raw file, event index and DSP configuration file.
+    max_waveforms: int = 100,
+) -> tuple[list[tuple[Path, int]], Path]:
+    """Find raw files, event indices and the DSP configuration file.
 
     Parameters
     ----------
@@ -526,6 +587,15 @@ def lookup_currmod_fit_inputs(
         name of the HPGe detector
     hit_tier_name
         name of the hit tier. This is typically "hit" or "pht".
+    max_waveforms
+        maximum number of waveforms to return.
+
+    Returns
+    -------
+    raw_wf_pairs
+        list of ``(raw_file, event_index)`` pairs, up to ``max_waveforms``.
+    dsp_cfg_file
+        path to the DSP configuration file.
     """
     if isinstance(l200data, str):
         l200data = Path(l200data)
@@ -565,20 +635,26 @@ def lookup_currmod_fit_inputs(
 
     lh5_group = mutils._get_lh5_table(metadata, hit_files[0], hpge, "hit", runid)
 
-    msg = "looking for best event to fit"
+    msg = "looking for best events to fit"
     log.debug(msg)
 
-    wf_idx, file_idx = lookup_currmod_fit_data(hit_files, lh5_group)
+    wf_pairs = lookup_currmod_fit_data(
+        hit_files, lh5_group, max_waveforms=max_waveforms
+    )
 
     raw_path = df_cfg.tier_raw
-    hit_file = hit_files[file_idx]
-    raw_file = (
-        raw_path / str(hit_file.relative_to(hit_path)).replace(hit_tier_name, "raw")
-    ).resolve()
-    msg = f"determined raw file: {raw_file} (event index {wf_idx})"
-    log.debug(msg)
+    raw_wf_pairs = []
+    for wf_idx, file_idx in wf_pairs:
+        hit_file = hit_files[file_idx]
+        raw_file = (
+            raw_path / str(hit_file.relative_to(hit_path)).replace(hit_tier_name, "raw")
+        ).resolve()
+        raw_wf_pairs.append((raw_file, wf_idx))
 
-    return raw_file, wf_idx, dsp_cfg_files[0]
+    msg = "determined %d raw file/event pairs for simultaneous fitting"
+    log.debug(msg, len(raw_wf_pairs))
+
+    return raw_wf_pairs, dsp_cfg_files[0]
 
 
 def _lookup_generated_pars_file(

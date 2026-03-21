@@ -52,7 +52,7 @@ msg = f"... determined hit tier name is {hit_tier_name}"
 logger.info(msg)
 logger.info("... looking up the fit inputs")
 
-raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
+raw_wf_pairs, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
     l200data,
     metadata,
     runid,
@@ -62,23 +62,25 @@ raw_file, wf_idx, dsp_cfg_file = hpge_pars.lookup_currmod_fit_inputs(
 
 lh5_group = mutils._get_lh5_table(
     metadata,
-    raw_file,
+    raw_wf_pairs[0][0],
     hpge,
     "raw",
     runid,
 )
 
-logger.info("... fetching the current pulse")
-t, A = hpge_pars.get_current_pulse(raw_file, lh5_group, wf_idx, str(dsp_cfg_file))
+logger.info("... fetching %d current pulse(s)", len(raw_wf_pairs))
+times_list, current_list = hpge_pars.get_current_pulses(
+    raw_wf_pairs, lh5_group, str(dsp_cfg_file)
+)
 
-logger.info("... fitting the current pulse to extract the model")
-popt, x, y = hpge_pars.fit_currmod(t, A)
+logger.info("... fitting the current pulse(s) to extract the model")
+popt, x, y = hpge_pars.fit_currmod(times_list, current_list)
 
 # now plot
 logger.info("... plotting the fit result")
 
 with PdfPages(plot_file) as pdf:
-    fig, _ = hpge_pars.plot_currmod_fit_result(t, A, x, y)
+    fig, _ = hpge_pars.plot_currmod_fit_result(times_list[0], current_list[0], x, y)
 
     fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
     decorate(fig)

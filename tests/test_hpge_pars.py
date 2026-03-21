@@ -19,9 +19,27 @@ def test_fit():
     t = np.linspace(-1000, 2000, 3001)
     A = norm.pdf(t, loc=0, scale=50)
 
-    res = hpge_pars.fit_currmod(t, A)
+    res = hpge_pars.fit_currmod([t], [A])
 
     assert isinstance(res[0], np.ndarray)
+    assert isinstance(res[1], np.ndarray)
+    assert isinstance(res[2], np.ndarray)
+
+
+def test_fit_multi():
+    """Simultaneous fit across several waveforms should converge."""
+    t = np.linspace(-1000, 2000, 3001)
+    rng = np.random.default_rng(42)
+    # Build three waveforms with slightly different amplitudes around a Gaussian
+    waveforms = [
+        norm.pdf(t, loc=0, scale=50) * (1.0 + 0.05 * rng.standard_normal())
+        for _ in range(3)
+    ]
+
+    res = hpge_pars.fit_currmod([t, t, t], waveforms)
+
+    assert isinstance(res[0], np.ndarray)
+    assert len(res[0]) == 7
     assert isinstance(res[1], np.ndarray)
     assert isinstance(res[2], np.ndarray)
 
@@ -53,12 +71,18 @@ def test_get_index(legend_testdata):
     files = [str(p) for p in path.glob("*")]
 
     # we have to be very generous with the (low stats) test file
-    idx, file_idx = hpge_pars.lookup_currmod_fit_data(
+    pairs = hpge_pars.lookup_currmod_fit_data(
         files, "ch1084803/hit", ewin_center=100, ewin_width=20
     )
 
-    assert idx > -1
-    assert file_idx > -1
+    assert isinstance(pairs, list)
+    assert len(pairs) >= 1
+    for idx, file_idx in pairs:
+        assert idx > -1
+        assert file_idx > -1
+
+    # check the first (best) result
+    idx, file_idx = pairs[0]
 
     # now read back in and check
 
@@ -88,6 +112,27 @@ def test_get_waveform(legend_testdata):
     assert isinstance(times, np.ndarray)
     assert isinstance(wf, np.ndarray)
     assert len(times) == len(wf)
+
+
+def test_get_waveforms(legend_testdata):
+    raw_file = legend_testdata.get_path(
+        "lh5/prod-ref-l200/generated/tier/raw/cal/p03/r001/l200-p03-r001-cal-20230318T012144Z-tier_raw.lh5"
+    )
+    pairs = [(raw_file, 0), (raw_file, 1)]
+    times_list, current_list = hpge_pars.get_current_pulses(
+        pairs,
+        "ch1084803/raw",
+        dsp_config=None,
+        dsp_output="waveform",
+        align=None,
+    )
+
+    assert len(times_list) == 2
+    assert len(current_list) == 2
+    for t, A in zip(times_list, current_list, strict=True):
+        assert isinstance(t, np.ndarray)
+        assert isinstance(A, np.ndarray)
+        assert len(t) == len(A)
 
 
 def test_get_waveform_maxima():
