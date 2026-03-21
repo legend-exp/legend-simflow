@@ -65,7 +65,7 @@ end
 
 
 """
-    function extract_drift_time_from_waveform(wf::AbstractVector{<:Real}, convergence_threshold::Real, intersect_op::Intersect)
+    extract_drift_time_from_waveform(wf::AbstractVector{<:Real}, convergence_threshold::Real, intersect_op::Intersect)
 
 Extract the drift time from a charge waveform using intersection-based analysis.
 
@@ -81,7 +81,7 @@ function extract_drift_time_from_waveform(
     wf::AbstractVector{<:Real},
     convergence_threshold::Real,
     intersect_op::Intersect
-)::Real
+)::Int
     collected_charge = wf[argmax(abs.(wf))]
 
     # Handle rare case where electron drift dominates and holes are stuck
@@ -264,15 +264,16 @@ is inside a contact, find the nearest valid position inside the detector.
 """
 function find_valid_spawn_position(
     candidate_idx::Int,
-    spawn_positions::AbstractVector,
-    detector::SolidStateDetector;
+    spawn_positions::AbstractVector{CartesianPoint{T}},
+    detector::SolidStateDetector{T};
     verbose::Bool = true
-)::CartesianPoint
+)::CartesianPoint where {T<:AbstractFloat}
     pos_candidate = spawn_positions[candidate_idx]
 
     in_contact = in(pos_candidate, detector.contacts)
+    in_detector = in(pos_candidate, detector)
 
-    if !in_contact
+    if (!in_contact) && in_detector
         return pos_candidate
     end
 
@@ -289,6 +290,11 @@ function find_valid_spawn_position(
                 min_dist = dist
             end
         end
+    end
+
+    # dont allow returning nothing
+    if (pos_result == nothing)
+        error("No valid spawn position found for candidate index $candidate_idx")
     end
 
     verbose && @debug "Found position $pos_result at distance $min_dist"
@@ -371,7 +377,7 @@ end
 
 
 """
-    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, handle_nplus, grid_size)
+    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, grid_size)
 
 Compute a 2D pulse_shape_library (r, z ideal_waveform) at a specified azimuthal angle.
 
@@ -385,7 +391,6 @@ in the (r, z) plane and then rotated to the specified angle.
 - `T`: Floating-point precision type (typically Float32)
 - `angle_deg`: Azimuthal angle in degrees for the r-z plane rotation
 - `only_holes`: If true, extract only hole contribution; if false, use full waveform
-- `handle_nplus`: If true, handle positions at n+ contact by finding nearest valid point
 - `grid_size`: Grid spacing in meters
 
 # Returns
@@ -398,7 +403,6 @@ function compute_ideal_pulse_shape_lib(
     T::Type{<:AbstractFloat},
     angle_deg::Real,
     only_holes::Bool,
-    handle_nplus::Bool,
     grid_size::Real
 )::NamedTuple
     @info "Computing waveform map at angle $angle_deg deg..."
@@ -428,14 +432,8 @@ function compute_ideal_pulse_shape_lib(
         end
     end
 
-    if !handle_nplus
-        in_idx = findall(
-            x -> in(x, sim.detector) && !in(x, sim.detector.contacts),
-            spawn_positions
-        )
-    else
-        in_idx = findall(x -> in(x, sim.detector), spawn_positions)
-    end
+
+    in_idx = findall(x -> in(x, sim.detector), spawn_positions)
 
     n = length(in_idx)
     wf_signals_threaded = Vector{Vector{Float32}}(undef, n)
@@ -482,7 +480,7 @@ function compute_ideal_pulse_shape_lib(
         wf_padded[:, idx[2], idx[1]] = signal
     end
 
-    ang_str = lpad(string(angle_deg), 3, '0')
+    ang_str = lpad(string(Int(angle_deg)), 3, '0')
     return (;
         :r => collect(r_axis) * u"m",
         :z => collect(z_axis) * u"m",
@@ -507,7 +505,8 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 - `T`: Numeric type (e.g., Float32)
 
 # Returns
-- `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix
+- `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix 2D array
+  `[n_z, n_r]` of normalized waveforms (dimensionless)
 """
 function compute_drift_time_map(
     sim::Simulation,
@@ -586,7 +585,7 @@ function compute_drift_time_map(
     # Note: col_axis (r) won't be extended into negative values
     extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units, layers = padding)
 
-    ang_str = lpad(string(angle_deg), 3, '0')
+    ang_str = lpad(string(Int(angle_deg)), 3, '0')
     return (;
         :r => extended.col_axis,  # column axis of extended map (r)
         :z => extended.row_axis,  # row axis of extended map (z)

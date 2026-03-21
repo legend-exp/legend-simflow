@@ -37,25 +37,6 @@ using LegendDataManagement
     @test isapprox(steps[1], grid_step; rtol = 1e-12)
 end
 
-@testset "find_valid_spawn_position" begin
-
-    meta = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
-
-    det = "V99000A"
-    opv_val = 3000.0
-
-    meta_dict, xtal, opv = load_detector_metadata(meta, det, opv_val)
-
-    sim = Simulation{Float64}(LegendData, meta_dict, xtal)
-
-    # Candidate positions include one valid and one invalid
-    spawn_positions = [CartesianPoint(0.0*u"mm", 0.0*u"mm", 0.0*u"mm"), CartesianPoint(0.5*u"mm", 0.5*u"mm", 0.5*u"mm")]
-
-    # Test that the valid position is returned
-    pos = find_valid_spawn_position(1, spawn_positions, sim.detector; verbose = false)
-    @test pos == spawn_positions[1]
-end
-
 @testset "load_detector_metadata" begin
 
     meta = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
@@ -94,15 +75,27 @@ end
 
     @test isa(sim, Simulation{T})
 
+    # test valid spawn pos
+    # Candidate positions include one valid and one invalid
+    spawn_positions =
+        [CartesianPoint(T(20/1000.0), T(0.0), T(-5/1000.0)), CartesianPoint(T(20/1000.0), T(0.5/1000.0), T(5/1000.0))]
+
+    # Test that the valid position is returned
+    pos = find_valid_spawn_position(2, spawn_positions, sim.detector; verbose = false)
+    @test pos == spawn_positions[2]
+
+    pos = find_valid_spawn_position(1, spawn_positions, sim.detector; verbose = false)
+    @test pos == spawn_positions[2]
+
     dt_map = compute_drift_time_map(sim, meta, T, 0.0, 10/1000.0, 0)
 
     @test hasproperty(dt_map, :drift_time_000_deg)
     @test hasproperty(dt_map, :r)
     @test hasproperty(dt_map, :z)
 
-    @test size(dt_map.drift_time_000_deg) == (length(dt_map.r), length(dt_map.z))
+    @test size(dt_map.drift_time_000_deg) == (length(dt_map.z), length(dt_map.r))
 
-    wf_map = compute_ideal_pulse_shape_lib(sim, meta, T, 0.0, 10/1000.0, only_holes = false)
+    wf_map = compute_ideal_pulse_shape_lib(sim, meta, T, 0.0, false, 10/1000.0)
 
     @test hasproperty(wf_map, :waveform_000_deg)
     @test hasproperty(wf_map, :r)
@@ -110,11 +103,9 @@ end
     @test hasproperty(wf_map, :dt)
     @test wf_map.dt == 1.0 .* u"ns"
 
-    @test size(wf_map.waveform_000_deg) == (length(wf_map.r), length(wf_map.z))
+    @test size(wf_map.waveform_000_deg) == (5000, length(wf_map.z), length(wf_map.r))
 
 end
-
-
 
 @testset "extract_drift_time_from_waveform" begin
     convergence_threshold = 1 - 1e-6
