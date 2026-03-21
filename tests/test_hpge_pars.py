@@ -10,6 +10,7 @@ from iminuit import Minuit
 from lgdo import lh5
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 from scipy.stats import norm
 
 from legendsimflow import hpge_pars
@@ -42,6 +43,42 @@ def test_fit_multi():
     assert len(res[0]) == 7
     assert isinstance(res[1], np.ndarray)
     assert isinstance(res[2], np.ndarray)
+
+
+def test_fit_empty_raises():
+    """fit_currmod must raise ValueError when given an empty list."""
+    with pytest.raises(ValueError, match="must not be empty"):
+        hpge_pars.fit_currmod([], [])
+
+
+def test_fit_with_current_pulse_model():
+    """fit_currmod should recover known parameters when the input is generated
+    from current_pulse_model itself."""
+    t = np.linspace(-1000, 2000, 3001)
+    true_pars = [100.0, 0.0, 60.0, 0.6, 100.0, 0.2, 60.0]
+    y = current_pulse_model(t, *true_pars)
+
+    popt, x, y_fit = hpge_pars.fit_currmod([t], [y])
+
+    assert len(popt) == 7
+    # height and peak location should be recovered to within 20 %
+    assert abs(popt[0] - true_pars[0]) / true_pars[0] < 0.2
+    assert abs(popt[1] - true_pars[1]) < 20  # within 20 ns
+    # model curve shapes must span the fitting window
+    assert len(x) > 0
+    assert len(y_fit) == len(x)
+
+
+def test_fit_amplitude_scaling():
+    """The fitted height parameter should scale linearly with the waveform amplitude."""
+    t = np.linspace(-1000, 2000, 3001)
+    y = current_pulse_model(t, 100.0, 0.0, 60.0, 0.6, 100.0, 0.2, 60.0)
+
+    popt1, _, _ = hpge_pars.fit_currmod([t], [y])
+    popt2, _, _ = hpge_pars.fit_currmod([t], [y * 3.0])
+
+    # height should scale by exactly the same factor (3x) within numerical tolerance
+    assert abs(popt2[0] / popt1[0] - 3.0) < 0.05
 
 
 def test_fit_gauss():
@@ -97,6 +134,57 @@ def test_get_index(legend_testdata):
     assert abs(AoE) < 1.5
 
 
+def test_get_index_max_waveforms(legend_testdata):
+    """max_waveforms should cap the number of returned pairs."""
+    ref_path = legend_testdata.get_path("lh5/prod-ref-l200/")
+    path = ref_path / Path("generated/tier/hit/cal/p03/r001")
+    files = [str(p) for p in path.glob("*")]
+
+    # Wide window to capture several events in the low-stats test file
+    pairs_all = hpge_pars.lookup_currmod_fit_data(
+        files, "ch1084803/hit", ewin_center=500, ewin_width=500
+    )
+    # With a smaller cap the result must be truncated
+    cap = max(1, len(pairs_all) - 1)
+    pairs_capped = hpge_pars.lookup_currmod_fit_data(
+        files, "ch1084803/hit", ewin_center=500, ewin_width=500, max_waveforms=cap
+    )
+
+    assert len(pairs_capped) == cap
+
+
+def test_get_index_sorted_by_proximity(legend_testdata):
+    """Returned pairs must be sorted from closest to farthest from the median drift time."""
+    ref_path = legend_testdata.get_path("lh5/prod-ref-l200/")
+    path = ref_path / Path("generated/tier/hit/cal/p03/r001")
+    files = [str(p) for p in path.glob("*")]
+
+    # Wide energy window to get at least 2 events for a meaningful sort check
+    pairs = hpge_pars.lookup_currmod_fit_data(
+        files, "ch1084803/hit", ewin_center=500, ewin_width=500
+    )
+
+    if len(pairs) < 2:
+        pytest.skip("not enough test events to verify sorting")
+
+    # Collect the dt_eff values for all returned pairs
+    dts = []
+    for idx, file_idx in pairs:
+        group = "ch1084803/hit"
+        f = files[file_idx]
+        if f"{group}/dt_eff" in lh5.ls(f):
+            dt = float(lh5.read(f"{group}/dt_eff", f, idx=[idx]).view_as("np")[0])
+        else:
+            dt = 0.0
+        dts.append(dt)
+
+    med = float(np.median(dts))
+    distances = [abs(d - med) for d in dts]
+    # Each distance should be <= the next one
+    for i in range(len(distances) - 1):
+        assert distances[i] <= distances[i + 1]
+
+
 def test_get_waveform(legend_testdata):
     times, wf = hpge_pars.get_current_pulse(
         legend_testdata.get_path(
@@ -133,6 +221,19 @@ def test_get_waveforms(legend_testdata):
         assert isinstance(t, np.ndarray)
         assert isinstance(A, np.ndarray)
         assert len(t) == len(A)
+
+
+def test_get_waveforms_empty():
+    """get_current_pulses with an empty pair list should return two empty lists."""
+    times_list, current_list = hpge_pars.get_current_pulses(
+        [],
+        "ch1084803/raw",
+        dsp_config=None,
+        dsp_output="waveform",
+        align=None,
+    )
+    assert times_list == []
+    assert current_list == []
 
 
 def test_get_waveform_maxima():
