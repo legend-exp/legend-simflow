@@ -6,6 +6,7 @@ using LinearAlgebra  # for norm
 using PropDicts
 using RadiationDetectorDSP
 using Unitful
+using LegendDataManagement
 
 @testset "build_simulation_grid_axis" begin
     T = Float64
@@ -36,6 +37,24 @@ using Unitful
     @test isapprox(steps[1], grid_step; rtol = 1e-12)
 end
 
+@testset "find_valid_spawn_position" begin
+
+    meta = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
+
+    det = "V99000A"
+    opv_val = 3000.0
+
+    meta_dict, xtal, opv = load_detector_metadata(meta, det, opv_val)
+
+    sim = Simulation{Float64}(LegendData, meta_dict, xtal)
+
+    # Candidate positions include one valid and one invalid
+    spawn_positions = [CartesianPoint(0.0*u"mm", 0.0*u"mm", 0.0*u"mm"), CartesianPoint(0.5*u"mm", 0.5*u"mm", 0.5*u"mm")]
+
+    # Test that the valid position is returned
+    pos = find_valid_spawn_position(1, spawn_positions, sim.detector; verbose = false)
+    @test pos == spawn_positions[1]
+end
 
 @testset "load_detector_metadata" begin
 
@@ -62,19 +81,40 @@ end
 
 end
 
-@testset "setup_hpge_simulation" begin
+@testset "map_generation" begin
     meta_path = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
     det = "V99000A"
     opv_val = 3000.0
     T = Float64
-    refinement_limits = [0.0, 10.0]
+    refinement_limits = [0.2, 0.1, 0.05, 0.02]
 
     meta, xtal, opv = load_detector_metadata(meta_path, det, opv_val)
 
-    sim = setup_hpge_simulation(meta_path, meta, xtal, opv, T, refinement_limits, threshold = 2000)
+    sim = setup_hpge_simulation(meta_path, meta, xtal, opv, T, refinement_limits, threshold = 20000)
 
     @test isa(sim, Simulation{T})
+
+    dt_map = compute_drift_time_map(sim, meta, T, 0.0, 10/1000.0, 0)
+
+    @test hasproperty(dt_map, :drift_time_000_deg)
+    @test hasproperty(dt_map, :r)
+    @test hasproperty(dt_map, :z)
+
+    @test size(dt_map.drift_time_000_deg) == (length(dt_map.r), length(dt_map.z))
+
+    wf_map = compute_ideal_pulse_shape_lib(sim, meta, T, 0.0, 10/1000.0, only_holes = false)
+
+    @test hasproperty(wf_map, :waveform_000_deg)
+    @test hasproperty(wf_map, :r)
+    @test hasproperty(wf_map, :z)
+    @test hasproperty(wf_map, :dt)
+    @test wf_map.dt == 1.0 .* u"ns"
+
+    @test size(wf_map.waveform_000_deg) == (length(wf_map.r), length(wf_map.z))
+
 end
+
+
 
 @testset "extract_drift_time_from_waveform" begin
     convergence_threshold = 1 - 1e-6

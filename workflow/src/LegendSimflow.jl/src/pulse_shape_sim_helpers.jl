@@ -262,10 +262,17 @@ is inside a contact, find the nearest valid position inside the detector.
 # Returns
 - `CartesianPoint`: Valid position for event simulation
 """
-function find_valid_spawn_position(candidate_idx, spawn_positions, detector; verbose = true)
+function find_valid_spawn_position(
+    candidate_idx::Int,
+    spawn_positions::AbstractVector,
+    detector::SolidStateDetector;
+    verbose::Bool = true
+):::CartesianPoint
     pos_candidate = spawn_positions[candidate_idx]
 
-    if !in(pos_candidate, detector.contacts)
+    in_contact = in(pos_candidate, detector.contacts)
+
+    if !in_contact
         return pos_candidate
     end
 
@@ -311,7 +318,7 @@ checks depletion voltage, and calculates weighting potential.
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
-    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 100)
+    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 100)::Simulation
 
     sim = Simulation{T}(LegendData, meta, xtal)
 
@@ -348,7 +355,7 @@ function setup_hpge_simulation(meta_path::String,
     end
 
     if dep_meas !== nothing && abs(dep_meas - dep) > threshold * u"V"
-        error("Difference between measured and simulated depletion is larger than 100 V!")
+        error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
     @info "Calculating weighting potential..."
@@ -387,7 +394,7 @@ in the (r, z) plane and then rotated to the specified angle.
 """
 function compute_ideal_pulse_shape_lib(
     sim::Simulation,
-    meta,
+    meta::PropDict,
     T::Type{<:AbstractFloat},
     angle_deg::Real,
     only_holes::Bool,
@@ -504,12 +511,12 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 """
 function compute_drift_time_map(
     sim::Simulation,
-    meta,
+    meta::PropDict,
     T::Type{<:AbstractFloat},
     angle_deg::Real,
     grid_step::Real,
     padding::Int
-)
+)::NamedTuple
     @info "Computing drift time map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
