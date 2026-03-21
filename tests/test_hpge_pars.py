@@ -108,7 +108,7 @@ def test_get_index(legend_testdata):
     files = [str(p) for p in path.glob("*")]
 
     # we have to be very generous with the (low stats) test file
-    pairs = hpge_pars.lookup_currmod_fit_data(
+    pairs, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
         files, "ch1084803/hit", ewin_center=100, ewin_width=20
     )
 
@@ -117,6 +117,11 @@ def test_get_index(legend_testdata):
     for idx, file_idx in pairs:
         assert idx > -1
         assert file_idx > -1
+
+    assert isinstance(all_dts, np.ndarray)
+    assert isinstance(selected_dts, np.ndarray)
+    assert len(selected_dts) == len(pairs)
+    assert len(all_dts) >= len(selected_dts)
 
     # check the first (best) result
     idx, file_idx = pairs[0]
@@ -141,16 +146,21 @@ def test_get_index_max_waveforms(legend_testdata):
     files = [str(p) for p in path.glob("*")]
 
     # Wide window to capture several events in the low-stats test file
-    pairs_all = hpge_pars.lookup_currmod_fit_data(
+    pairs_all, all_dts, _ = hpge_pars.lookup_currmod_fit_data(
         files, "ch1084803/hit", ewin_center=500, ewin_width=500
     )
     # With a smaller cap the result must be truncated
     cap = max(1, len(pairs_all) - 1)
-    pairs_capped = hpge_pars.lookup_currmod_fit_data(
-        files, "ch1084803/hit", ewin_center=500, ewin_width=500, max_waveforms=cap
+    pairs_capped, all_dts_capped, selected_dts_capped = (
+        hpge_pars.lookup_currmod_fit_data(
+            files, "ch1084803/hit", ewin_center=500, ewin_width=500, max_waveforms=cap
+        )
     )
 
     assert len(pairs_capped) == cap
+    # all_dts is independent of max_waveforms
+    assert len(all_dts_capped) == len(all_dts)
+    assert len(selected_dts_capped) == cap
 
 
 def test_get_index_sorted_by_proximity(legend_testdata):
@@ -160,26 +170,15 @@ def test_get_index_sorted_by_proximity(legend_testdata):
     files = [str(p) for p in path.glob("*")]
 
     # Wide energy window to get at least 2 events for a meaningful sort check
-    pairs = hpge_pars.lookup_currmod_fit_data(
+    pairs, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
         files, "ch1084803/hit", ewin_center=500, ewin_width=500
     )
 
     if len(pairs) < 2:
         pytest.skip("not enough test events to verify sorting")
 
-    # Collect the dt_eff values for all returned pairs
-    dts = []
-    for idx, file_idx in pairs:
-        group = "ch1084803/hit"
-        f = files[file_idx]
-        if f"{group}/dt_eff" in lh5.ls(f):
-            dt = float(lh5.read(f"{group}/dt_eff", f, idx=[idx]).view_as("np")[0])
-        else:
-            dt = 0.0
-        dts.append(dt)
-
-    med = float(np.median(dts))
-    distances = [abs(d - med) for d in dts]
+    med = float(np.median(all_dts))
+    distances = np.abs(selected_dts - med)
     # Each distance should be <= the next one
     for i in range(len(distances) - 1):
         assert distances[i] <= distances[i + 1]
@@ -285,6 +284,29 @@ def test_plot():
 
     assert isinstance(fig, Figure)
     assert isinstance(ax, Axes)
+
+
+def test_plot_dt_selection():
+    rng = np.random.default_rng(0)
+    all_dts = rng.uniform(0, 1000, 200)
+    selected_dts = rng.choice(all_dts, 10, replace=False)
+
+    fig, ax = hpge_pars.plot_dt_selection(all_dts, selected_dts)
+
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, Axes)
+    # The shaded band and the legend entry for selected waveforms must be present
+    assert len(ax.collections) > 0  # axvspan creates a Polygon collection
+    assert ax.get_legend() is not None
+
+
+def test_plot_dt_selection_empty():
+    """plot_dt_selection should not raise with empty arrays."""
+    fig, ax = hpge_pars.plot_dt_selection(np.array([]), np.array([]))
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, Axes)
+    # no legend when there is nothing to show
+    assert ax.get_legend() is None
 
 
 def test_lookup_eres(config, test_l200data):

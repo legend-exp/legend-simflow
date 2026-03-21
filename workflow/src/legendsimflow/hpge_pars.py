@@ -21,6 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import hist
 import numpy as np
 from dbetto import AttrsDict, TextDB
 from iminuit import Minuit, cost
@@ -44,13 +45,14 @@ def lookup_currmod_fit_data(
     ewin_center: float = 1593,
     ewin_width: float = 10,
     max_waveforms: int = 100,
-) -> list[tuple[int, int]]:
+) -> tuple[list[tuple[int, int]], NDArray, NDArray]:
     """Extract the indices of the events to fit.
 
     Considers events with ``abs(A/E) < 1.5`` and finds up to ``max_waveforms``
     events closest to the median drift time.  Returns a list of
     ``(event_index, file_index)`` pairs, sorted from closest to farthest from
-    the median, with at most ``max_waveforms`` entries.
+    the median, with at most ``max_waveforms`` entries, together with the full
+    and selected drift-time arrays for diagnostic purposes.
 
     Parameters
     ----------
@@ -66,6 +68,16 @@ def lookup_currmod_fit_data(
         in data).
     max_waveforms
         maximum number of waveforms to return.
+
+    Returns
+    -------
+    pairs
+        list of ``(event_index, file_index)`` tuples, sorted by proximity to
+        the median drift time.
+    all_dts
+        all drift-time values for events passing the energy and A/E cuts.
+    selected_dts
+        drift-time values for the selected subset of events.
     """
     idxs = []
     energies = []
@@ -104,7 +116,10 @@ def lookup_currmod_fit_data(
     distances = np.abs(flat_dts - med)
     sort_order = np.argsort(distances)[:max_waveforms]
 
-    return [(int(flat_idxs[i]), int(flat_file_idxs[i])) for i in sort_order]
+    pairs = [(int(flat_idxs[i]), int(flat_file_idxs[i])) for i in sort_order]
+    selected_dts = flat_dts[sort_order]
+
+    return pairs, flat_dts, selected_dts
 
 
 def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple:
@@ -496,6 +511,57 @@ def plot_currmod_fit_result(
     return fig, ax
 
 
+def plot_dt_selection(all_dts: NDArray, selected_dts: NDArray) -> tuple:
+    """Plot the drift-time distribution and highlight the selected waveforms.
+
+    Draws a histogram of *all* drift-time values (passing the energy and A/E
+    cuts) using the :mod:`hist` package and overlays a shaded band that spans
+    the range of drift times of the events chosen for the current-pulse fit.
+
+    Parameters
+    ----------
+    all_dts
+        Drift-time values for every event that passes the energy and A/E cuts.
+    selected_dts
+        Drift-time values for the subset of events selected for fitting.
+
+    Returns
+    -------
+    fig
+        The :class:`matplotlib.figure.Figure`.
+    ax
+        The :class:`matplotlib.axes.Axes`.
+    """
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    if len(all_dts) > 0:
+        dt_min = float(np.min(all_dts))
+        dt_max = float(np.max(all_dts))
+        n_bins = max(10, min(100, int(len(all_dts) / 5)))
+        h = hist.new.Reg(n_bins, dt_min, dt_max, name="dt_eff [ns]").Double()
+        h.fill(all_dts)
+        h.plot(ax=ax, yerr=False)
+
+    if len(selected_dts) > 0:
+        sel_min = float(np.min(selected_dts))
+        sel_max = float(np.max(selected_dts))
+        ax.axvspan(
+            sel_min,
+            sel_max,
+            alpha=0.25,
+            color="tab:orange",
+            label=f"selected ({len(selected_dts)} wfs, "
+            f"dt_eff [{sel_min:.0f}, {sel_max:.0f}] ns)",
+        )
+
+    ax.set_xlabel("Drift time [ns]")
+    ax.set_ylabel("Counts")
+    if len(selected_dts) > 0:
+        ax.legend()
+
+    return fig, ax
+
+
 def estimate_mean_aoe(popt: list, energy: float = 1593) -> float:
     """Estimate the maximum aoe from the parameters of the `current_pulse_model` `popt`."""
     # get the maximum of the template
@@ -572,7 +638,7 @@ def lookup_currmod_fit_inputs(
     hpge: str,
     hit_tier_name: str = "hit",
     max_waveforms: int = 100,
-) -> tuple[list[tuple[Path, int]], Path]:
+) -> tuple[list[tuple[Path, int]], Path, NDArray, NDArray]:
     """Find raw files, event indices and the DSP configuration file.
 
     Parameters
@@ -596,6 +662,10 @@ def lookup_currmod_fit_inputs(
         list of ``(raw_file, event_index)`` pairs, up to ``max_waveforms``.
     dsp_cfg_file
         path to the DSP configuration file.
+    all_dts
+        all drift-time values for events passing the energy and A/E cuts.
+    selected_dts
+        drift-time values for the selected subset of events.
     """
     if isinstance(l200data, str):
         l200data = Path(l200data)
@@ -638,7 +708,7 @@ def lookup_currmod_fit_inputs(
     msg = "looking for best events to fit"
     log.debug(msg)
 
-    wf_pairs = lookup_currmod_fit_data(
+    wf_pairs, all_dts, selected_dts = lookup_currmod_fit_data(
         hit_files, lh5_group, max_waveforms=max_waveforms
     )
 
@@ -654,7 +724,7 @@ def lookup_currmod_fit_inputs(
     msg = "determined %d raw file/event pairs for simultaneous fitting"
     log.debug(msg, len(raw_wf_pairs))
 
-    return raw_wf_pairs, dsp_cfg_files[0]
+    return raw_wf_pairs, dsp_cfg_files[0], all_dts, selected_dts
 
 
 def _lookup_generated_pars_file(
