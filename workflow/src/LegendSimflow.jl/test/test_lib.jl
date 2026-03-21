@@ -90,9 +90,9 @@ end
 @testset "extend_drift_time_map" begin
     # 3×3 drift map with NaN at corners; interior values are finite
     drift_map = [
-        NaN  2.0  NaN
-        1.0  3.0  4.0
-        NaN  5.0  NaN
+        NaN 2.0 NaN
+        1.0 3.0 4.0
+        NaN 5.0 NaN
     ]
     row_axis = [0.0, 1.0, 2.0] * u"m"
     col_axis = [0.0, 1.0, 2.0] * u"m"
