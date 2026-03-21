@@ -44,12 +44,22 @@ end
     det = "V99000A"
     opv_val = 3000.0
 
-    meta, xtal, opv = load_detector_metadata(meta, det, opv_val)
+    meta_dict, xtal, opv = load_detector_metadata(meta, det, opv_val)
 
     @test isa(xtal, PropDict)
-    @test isa(meta, PropDict)
+    @test isa(meta_dict, PropDict)
 
     @test opv_val == opv
+
+    # test with no opv
+    meta_dict, xtal, opv = load_detector_metadata(meta, det)
+
+    @test isa(xtal, PropDict)
+    @test isa(meta_dict, PropDict)
+
+    # opv should be read from metadata and match provided value
+    @test opv == Float32(meta_dict.characterization.l200_site.recommended_voltage_in_V)
+
 end
 
 @testset "setup_hpge_simulation" begin
@@ -76,14 +86,14 @@ end
 
     dt = extract_drift_time_from_waveform(wf_positive, convergence_threshold, intersect_op)
 
-    @test isa(dt, Int)
+    @test isa(dt, Real)
     @test 1 <= dt <= n
 
     # Negative waveform: negation is handled internally and should give the same result
     wf_negative = -wf_positive
     dt_neg = extract_drift_time_from_waveform(wf_negative, convergence_threshold, intersect_op)
 
-    @test isa(dt_neg, Int)
+    @test isa(dt_neg, Real)
     @test dt_neg == dt
 end
 

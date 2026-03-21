@@ -44,7 +44,7 @@ Load detector and crystal metadata from legend-metadata, and set the operational
   `xtal` is the crystal metadata (PropDict), and `opv_val` is the operational voltage
   as Float32 (either from metadata or as provided)
 """
-function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing})
+function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing} = nothing)
 
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
 
@@ -65,7 +65,7 @@ end
 
 
 """
-    extract_drift_time_from_waveform(wf, convergence_threshold, intersect_op)
+    function extract_drift_time_from_waveform(wf::AbstractVector{<:Real}, convergence_threshold::Real, intersect_op::Intersect)
 
 Extract the drift time from a charge waveform using intersection-based analysis.
 
@@ -77,7 +77,11 @@ Extract the drift time from a charge waveform using intersection-based analysis.
 # Returns
 - `Int`: Drift time in samples
 """
-function extract_drift_time_from_waveform(wf, convergence_threshold, intersect_op)
+function extract_drift_time_from_waveform(
+    wf::AbstractVector{<:Real},
+    convergence_threshold::Real,
+    intersect_op::Intersect
+)::Real
     collected_charge = wf[argmax(abs.(wf))]
 
     # Handle rare case where electron drift dominates and holes are stuck
@@ -139,7 +143,7 @@ function extend_drift_time_map(
     row_axis::AbstractVector,
     col_axis::AbstractVector;
     layers::Int = 1
-)
+)::NamedTuple
     orig_nrows, orig_ncols = size(drift_map)
 
     # Determine extension on each side
@@ -389,7 +393,7 @@ function compute_ideal_pulse_shape_lib(
     only_holes::Bool,
     handle_nplus::Bool,
     grid_size::Real
-)
+)::NamedTuple
     @info "Computing waveform map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
