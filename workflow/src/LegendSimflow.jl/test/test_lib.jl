@@ -4,6 +4,8 @@ using SolidStateDetectors
 using LegendSimflow
 using LinearAlgebra  # for norm
 using PropDicts
+using RadiationDetectorDSP
+using Unitful
 
 @testset "build_simulation_grid_axis" begin
     T = Float64
@@ -62,4 +64,55 @@ end
     sim = setup_hpge_simulation(meta_path, meta, xtal, opv, T, refinement_limits, threshold = 2000)
 
     @test isa(sim, Simulation{T})
+end
+
+@testset "extract_drift_time_from_waveform" begin
+    convergence_threshold = 1 - 1e-6
+    intersect_op = Intersect(mintot = 0)
+
+    # Waveform that ramps from 0 to 1 then holds at plateau
+    n = 100
+    wf_positive = vcat(collect(1:50) ./ 50.0, ones(50))
+
+    dt = extract_drift_time_from_waveform(wf_positive, convergence_threshold, intersect_op)
+
+    @test isa(dt, Int)
+    @test 1 <= dt <= n
+
+    # Negative waveform: negation is handled internally and should give the same result
+    wf_negative = -wf_positive
+    dt_neg = extract_drift_time_from_waveform(wf_negative, convergence_threshold, intersect_op)
+
+    @test isa(dt_neg, Int)
+    @test dt_neg == dt
+end
+
+@testset "extend_drift_time_map" begin
+    # 3×3 drift map with NaN at corners; interior values are finite
+    drift_map = [
+        NaN  2.0  NaN
+        1.0  3.0  4.0
+        NaN  5.0  NaN
+    ]
+    row_axis = [0.0, 1.0, 2.0] * u"m"
+    col_axis = [0.0, 1.0, 2.0] * u"m"
+
+    result = extend_drift_time_map(drift_map, row_axis, col_axis; layers = 1)
+
+    # Return value is a NamedTuple with the expected fields
+    @test result isa NamedTuple
+    @test hasproperty(result, :drift_map)
+    @test hasproperty(result, :row_axis)
+    @test hasproperty(result, :col_axis)
+
+    # With layers=1: rows extended on both sides (+2 total), cols on high side only (+1)
+    @test size(result.drift_map) == (5, 4)
+    @test length(result.row_axis) == 5
+    @test length(result.col_axis) == 4
+
+    # Original non-NaN values are preserved (original data placed at rows 2:4, cols 1:3)
+    @test result.drift_map[3, 2] ≈ 3.0  # original centre value
+
+    # NaN corner at original [1,1] (work_map[2,1]) has non-NaN neighbours and is filled in
+    @test !isnan(result.drift_map[2, 1])
 end

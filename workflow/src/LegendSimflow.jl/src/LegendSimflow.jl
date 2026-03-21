@@ -9,5 +9,7 @@ export find_valid_spawn_position
 export compute_drift_time_map
 export compute_ideal_pulse_shape_lib
 export setup_hpge_simulation
+export extract_drift_time_from_waveform
+export extend_drift_time_map
 
 end # module legendsimflow
