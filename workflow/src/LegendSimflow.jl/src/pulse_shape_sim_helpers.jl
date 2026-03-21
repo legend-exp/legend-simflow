@@ -44,7 +44,7 @@ Load detector and crystal metadata from legend-metadata, and set the operational
   `xtal` is the crystal metadata (PropDict), and `opv_val` is the operational voltage
   as Float32 (either from metadata or as provided)
 """
-function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing})
+function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing} = nothing)
 
     meta = readprops("$meta_path/hardware/detectors/germanium/diodes/$det.yaml")
 
@@ -65,7 +65,7 @@ end
 
 
 """
-    extract_drift_time_from_waveform(wf, convergence_threshold, intersect_op)
+    extract_drift_time_from_waveform(wf::AbstractVector{<:Real}, convergence_threshold::Real, intersect_op::Intersect)
 
 Extract the drift time from a charge waveform using intersection-based analysis.
 
@@ -77,7 +77,11 @@ Extract the drift time from a charge waveform using intersection-based analysis.
 # Returns
 - `Int`: Drift time in samples
 """
-function extract_drift_time_from_waveform(wf, convergence_threshold, intersect_op)
+function extract_drift_time_from_waveform(
+    wf::AbstractVector{<:Real},
+    convergence_threshold::Real,
+    intersect_op::Intersect
+)::Int
     collected_charge = wf[argmax(abs.(wf))]
 
     # Handle rare case where electron drift dominates and holes are stuck
@@ -139,7 +143,7 @@ function extend_drift_time_map(
     row_axis::AbstractVector,
     col_axis::AbstractVector;
     layers::Int = 1
-)
+)::NamedTuple
     orig_nrows, orig_ncols = size(drift_map)
 
     # Determine extension on each side
@@ -258,10 +262,18 @@ is inside a contact, find the nearest valid position inside the detector.
 # Returns
 - `CartesianPoint`: Valid position for event simulation
 """
-function find_valid_spawn_position(candidate_idx, spawn_positions, detector; verbose = true)
+function find_valid_spawn_position(
+    candidate_idx::Int,
+    spawn_positions::AbstractVector{CartesianPoint{T}},
+    detector::SolidStateDetector{T};
+    verbose::Bool = true
+)::CartesianPoint where {T<:AbstractFloat}
     pos_candidate = spawn_positions[candidate_idx]
 
-    if !in(pos_candidate, detector.contacts)
+    in_contact = in(pos_candidate, detector.contacts)
+    in_detector = in(pos_candidate, detector)
+
+    if (!in_contact) && in_detector
         return pos_candidate
     end
 
@@ -278,6 +290,11 @@ function find_valid_spawn_position(candidate_idx, spawn_positions, detector; ver
                 min_dist = dist
             end
         end
+    end
+
+    # dont allow returning nothing
+    if (pos_result == nothing)
+        error("No valid spawn position found for candidate index $candidate_idx")
     end
 
     verbose && @debug "Found position $pos_result at distance $min_dist"
@@ -307,7 +324,7 @@ checks depletion voltage, and calculates weighting potential.
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
-    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 100)
+    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 100)::Simulation
 
     sim = Simulation{T}(LegendData, meta, xtal)
 
@@ -344,7 +361,7 @@ function setup_hpge_simulation(meta_path::String,
     end
 
     if dep_meas !== nothing && abs(dep_meas - dep) > threshold * u"V"
-        error("Difference between measured and simulated depletion is larger than 100 V!")
+        error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
     @info "Calculating weighting potential..."
@@ -360,7 +377,7 @@ end
 
 
 """
-    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, handle_nplus, grid_size)
+    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, grid_size)
 
 Compute a 2D pulse_shape_library (r, z ideal_waveform) at a specified azimuthal angle.
 
@@ -374,7 +391,6 @@ in the (r, z) plane and then rotated to the specified angle.
 - `T`: Floating-point precision type (typically Float32)
 - `angle_deg`: Azimuthal angle in degrees for the r-z plane rotation
 - `only_holes`: If true, extract only hole contribution; if false, use full waveform
-- `handle_nplus`: If true, handle positions at n+ contact by finding nearest valid point
 - `grid_size`: Grid spacing in meters
 
 # Returns
@@ -383,13 +399,12 @@ in the (r, z) plane and then rotated to the specified angle.
 """
 function compute_ideal_pulse_shape_lib(
     sim::Simulation,
-    meta,
+    meta::PropDict,
     T::Type{<:AbstractFloat},
     angle_deg::Real,
     only_holes::Bool,
-    handle_nplus::Bool,
     grid_size::Real
-)
+)::NamedTuple
     @info "Computing waveform map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
@@ -417,14 +432,8 @@ function compute_ideal_pulse_shape_lib(
         end
     end
 
-    if !handle_nplus
-        in_idx = findall(
-            x -> in(x, sim.detector) && !in(x, sim.detector.contacts),
-            spawn_positions
-        )
-    else
-        in_idx = findall(x -> in(x, sim.detector), spawn_positions)
-    end
+
+    in_idx = findall(x -> in(x, sim.detector), spawn_positions)
 
     n = length(in_idx)
     wf_signals_threaded = Vector{Vector{Float32}}(undef, n)
@@ -471,7 +480,7 @@ function compute_ideal_pulse_shape_lib(
         wf_padded[:, idx[2], idx[1]] = signal
     end
 
-    ang_str = lpad(string(angle_deg), 3, '0')
+    ang_str = lpad(string(Int(angle_deg)), 3, '0')
     return (;
         :r => collect(r_axis) * u"m",
         :z => collect(z_axis) * u"m",
@@ -496,16 +505,17 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 - `T`: Numeric type (e.g., Float32)
 
 # Returns
-- `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix
+- `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix 2D array
+  `[n_z, n_r]` of normalized waveforms (dimensionless)
 """
 function compute_drift_time_map(
     sim::Simulation,
-    meta,
+    meta::PropDict,
     T::Type{<:AbstractFloat},
     angle_deg::Real,
     grid_step::Real,
     padding::Int
-)
+)::NamedTuple
     @info "Computing drift time map at angle $angle_deg deg..."
 
     SSD = SolidStateDetectors
@@ -575,7 +585,7 @@ function compute_drift_time_map(
     # Note: col_axis (r) won't be extended into negative values
     extended = extend_drift_time_map(transposed_map, z_axis_with_units, r_axis_with_units, layers = padding)
 
-    ang_str = lpad(string(angle_deg), 3, '0')
+    ang_str = lpad(string(Int(angle_deg)), 3, '0')
     return (;
         :r => extended.col_axis,  # column axis of extended map (r)
         :z => extended.row_axis,  # row axis of extended map (z)
