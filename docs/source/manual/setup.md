@@ -30,7 +30,9 @@ Here's a basic description of its fields:
   format `<experiment>-<period>-<run>-<type>` (e.g. `l200-p03-r000-phy`)
 - `make_tiers`: list the tiers you would like to populate here. This option is
   useful to speed up the DAG generation and avoid accidentally messing up with
-  other tiers.
+  other tiers. For example, if you do not need liquid argon or SiPM optical
+  simulation post-processing, remove `opt` from this list (and the
+  `paths.optical_maps` entries become unnecessary).
 - `legend_metadata_version`: optionally specify a revision (anything that
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option.
@@ -55,6 +57,16 @@ Here's a basic description of its fields:
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.
     - `lar`: the liquid argon optical map file.
+
+    :::{note}
+
+    The `optical_maps` paths are only required when `opt` is included in
+    `make_tiers`. If you do not need LAr/SiPM optical post-processing, simply
+    remove `opt` from `make_tiers` and the optical map files do not need to be
+    present.
+
+    :::
+
   - `pars` (output): root folder for all generated parameter files (e.g. YAML
     files storing parameters extracted from the LEGEND-200 data, geometry files,
     drift time maps).
@@ -66,6 +78,7 @@ Here's a basic description of its fields:
   - `tier` (dict, output): generated outputs for each tier, keyed by tier name
     (e.g. `tier.stp`, `tier.hit`, ...). Validation plots for each tier are
     stored in a `plots/` subdirectory (e.g. `tier.stp/plots/`).
+
 - `precompile_pkg`: list of Python module names that contain Numba-accelerated
   routines. To avoid Numba precompilation race conditions, the Simflow
   sequentially imports these modules to ensure that the Numba cache is populated

@@ -1,6 +1,9 @@
 # reserved first-level fields:
 #   - metadata
 
+# label identifying the experimental configuration to be simulated. See
+# https://github.com/legend-exp/legend-simflow-config/blob/main/README.md
+# for a list of currently supported values.
 experiment: l200cfg09
 
 # simflow_rng_seed: 0
@@ -15,6 +18,9 @@ experiment: l200cfg09
 
 simlist: all
 
+# list of tiers to build. Remove tiers you don't need to speed things up:
+# - remove 'opt' (and 'fiber', 'pen' from paths.optical_maps below) if you
+#   don't need liquid argon / SiPM optical simulation post-processing
 make_tiers:
   - vtx
   - stp

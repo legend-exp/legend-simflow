@@ -1,5 +1,24 @@
 # Production sites
 
+## Available workflow profiles
+
+The Simflow ships several Snakemake workflow profiles in `workflow/profiles/`.
+Choose the one that best matches your execution environment:
+
+- **`default`**: Suitable for local execution (laptop or interactive server).
+  Uses all available CPU cores. No site-specific resource limits.
+- **`nersc-login`**: Designed for running on NERSC login nodes for lightweight
+  or short test productions. Caps CPU cores at 10 and memory at 56 GB to respect
+  NERSC login-node resource limits.
+- **`nersc-compute`**: Recommended for full productions on a NERSC compute node
+  (interactive or batch allocation). Uses all available cores and respects the
+  512 GB memory limit of a Perlmutter CPU node. Enables local-scratch I/O
+  optimization.
+- **`nersc-compute-slurm`**: Experimental profile that submits each Snakemake
+  job as an individual Slurm job on NERSC. Useful for very large productions
+  that exceed the resources of a single compute node, but note that DAG
+  generation can be slow.
+
 ## NERSC
 
 On NERSC you can use Conda/Mamba and Pixi, but you have to make sure that

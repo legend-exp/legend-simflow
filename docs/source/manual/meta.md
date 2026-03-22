@@ -21,8 +21,9 @@ underscores: `_`). Do not use dashes (`-`) or other characters.
 - `jobid` — stands for "(simulation) job identifier". It's a zero-padded integer
   that labels independent jobs across which the simulation is split.
 
-- `tier` — the three-character label of the tier. At the moment the simflow
-  supports `vtx`, `stp`, `opt` and `hit` tiers.
+- `tier` — the three-character label of the tier. The simflow supports the
+  following tiers (in processing order): `vtx`, `stp`, `opt`, `hit`, `evt`,
+  `cvt`, `pdf`.
 
 - `extension` — file extension. `lh5` for LEGEND HDF5 files, `gdml` for GDML
   geometry files, `yaml` for plain-text YAML configuration files, `log` for log
