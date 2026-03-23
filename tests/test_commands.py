@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shlex
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -199,3 +200,103 @@ def test_remage_cli(fresh_config):
     cmd = commands.remage_run(config, "lar_hpge_shell_K42", tier="stp", jobid="0001")
     cmdline = shlex.split(cmd.partition(" -- ")[0])
     assert "JOBID=0001" in cmdline
+
+
+def test_remage_cli_no_gdml_access(fresh_config):
+    """Verify remage_run (macro_free=False) never reads the GDML file.
+
+    This is the critical property that makes it safe to call remage_run as a
+    Snakemake params function at DAG construction time, even before the GDML
+    file has been built by its own rule.
+    """
+    simid = "lar_inside"
+    with patch(
+        "legendsimflow.commands.pyg4ometry.gdml.Reader"
+    ) as mock_reader:
+        # Call remage_run (macro_free=False is the default) with a fake GDML path
+        cmd = commands.remage_run(
+            fresh_config, simid, tier="stp", geom="/non/existent/geom.gdml"
+        )
+
+    # The GDML Reader must never have been called
+    mock_reader.assert_not_called()
+    # The command should still reference the expected macro file path
+    assert isinstance(cmd, str)
+    assert (
+        patterns.input_simjob_filename(
+            fresh_config, tier="stp", simid=simid
+        ).as_posix()
+        in cmd
+    )
+
+
+@pytest.fixture
+def clear_geom_registry_cache():
+    """Ensure the GDML registry cache is clean before and after each test."""
+    commands._get_geom_registry.cache_clear()
+    yield
+    commands._get_geom_registry.cache_clear()
+
+
+@pytest.mark.usefixtures("clear_geom_registry_cache")
+def test_geom_registry_cached():
+    """Test that _get_geom_registry caches the GDML registry per unique file path."""
+    fake_reg = MagicMock()
+
+    with patch(
+        "legendsimflow.commands.pyg4ometry.gdml.Reader"
+    ) as mock_reader:
+        mock_reader.return_value.getRegistry.return_value = fake_reg
+
+        result1 = commands._get_geom_registry("/fake/geom.gdml")
+        result2 = commands._get_geom_registry("/fake/geom.gdml")
+        # Different path should trigger a new Reader call
+        commands._get_geom_registry("/other/geom.gdml")
+
+    # Reader is called once per unique path, not once per call
+    assert mock_reader.call_count == 2
+    # Same path returns the same cached registry object
+    assert result1 is result2
+    assert result1 is fake_reg
+
+
+@pytest.mark.usefixtures("clear_geom_registry_cache")
+def test_make_macro_function_confinement(fresh_config):
+    """Test make_remage_macro with ~function: confinement and verify the GDML is only loaded once."""
+    expected_confine = [
+        "/RMG/Generator/Confine Volume",
+        "/RMG/Generator/Confinement/Geometrical/AddSolid Cylinder 100 100 100",
+    ]
+
+    with patch(
+        "legendsimflow.commands.pyg4ometry.gdml.Reader"
+    ) as mock_reader, patch(
+        "legendsimflow.commands.get_confinement_from_function",
+        return_value=expected_confine,
+    ) as mock_confine:
+        mock_reader.return_value.getRegistry.return_value = MagicMock()
+
+        # Call make_remage_macro for two simids that use ~function: confinement
+        # with the same geometry file
+        geom_path = "/fake/geom.gdml"
+        text_inside, _ = commands.make_remage_macro(
+            fresh_config, "lar_inside", "stp", geom=geom_path
+        )
+        text_outside, _ = commands.make_remage_macro(
+            fresh_config, "lar_outside", "stp", geom=geom_path
+        )
+
+    # The GDML Reader is only invoked once despite two macro calls
+    assert mock_reader.call_count == 1
+    # get_confinement_from_function is still called once per simid
+    assert mock_confine.call_count == 2
+
+    # Confinement commands appear in both rendered macros
+    assert (
+        "/RMG/Generator/Confinement/Geometrical/AddSolid Cylinder 100 100 100"
+        in text_inside
+    )
+    assert (
+        "/RMG/Generator/Confinement/Geometrical/AddSolid Cylinder 100 100 100"
+        in text_outside
+    )

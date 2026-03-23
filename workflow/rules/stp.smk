@@ -84,6 +84,41 @@ rule build_geom_gdml:
         "legend-pygeom-l200 --verbose --config {input} -- {output} &> {log}"
 
 
+rule gen_tier_stp_macro:
+    """Generate the remage macro file for a `stp` simulation.
+
+    Render the macro template from ``simconfig.yaml``, computing any
+    confinement commands that require parsing the GDML geometry (e.g. the
+    ``~function:`` confinement mode).  The macro is written to the canonical
+    path returned by :func:`legendsimflow.patterns.input_simjob_filename` and
+    consumed by {rule}`build_tier_stp`.
+
+    Placing macro generation in a dedicated rule ensures that the GDML file is
+    only accessed at execution time (when it already exists), never during
+    Snakemake DAG construction.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Generating macro for stp.{wildcards.simid}"
+    input:
+        geom=patterns.geom_gdml_filename(config, tier="stp"),
+    params:
+        _simconfig_hash=lambda wc: mutils.smk_hash_simconfig(
+            config,
+            wc,
+            tier="stp",
+            ignore=["geom_config_extra", "number_of_jobs", "primaries_per_job"],
+        ),
+    output:
+        patterns.input_simjob_filename(config, tier="stp"),
+    run:
+        # make_remage_macro writes the rendered macro to
+        # patterns.input_simjob_filename(config, tier="stp", simid=wildcards.simid),
+        # which matches the `output` declared above.
+        commands.make_remage_macro(config, wildcards.simid, tier="stp", geom=input.geom)
+
+
 def smk_remage_run(wildcards, input, output, threads):
     """Generate the remage command line for use in Snakemake rules."""
     return commands.remage_run(
@@ -94,7 +129,6 @@ def smk_remage_run(wildcards, input, output, threads):
         geom=input.geom,
         output=output,
         procs=threads,
-        macro_free=True,
     )
 
 
@@ -116,6 +150,7 @@ rule build_tier_stp:
     input:
         verfile=lambda wc: patterns.vtx_filename_for_stp(config, wc.simid),
         geom=patterns.geom_gdml_filename(config, tier="stp"),
+        macro=rules.gen_tier_stp_macro.output,
     params:
         cmd=smk_remage_run,
         # make this rule dependent on the actual simconfig block it is very
