@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import ast
+import functools
 import importlib
 import shlex
 from copy import copy
@@ -208,6 +209,26 @@ def _confine_by_volume(
     return lines
 
 
+@functools.lru_cache
+def _get_geom_registry(geom_path: str) -> pyg4ometry.gdml.Registry:
+    """Load and cache the geometry registry from a GDML file.
+
+    This function is cached to avoid re-parsing the same GDML file multiple
+    times, for example when the Snakemake DAG is built with many jobs that all
+    share the same geometry.
+
+    Parameters
+    ----------
+    geom_path
+        Path to the GDML geometry file to load.
+
+    Returns
+    -------
+    The pyg4ometry registry containing the geometry information.
+    """
+    return pyg4ometry.gdml.Reader(geom_path).getRegistry()
+
+
 # Extract function path
 def _get_full_name(node: ast.AST) -> str:
     """Get the name of the function being called, including the module path if it's an attribute access."""
@@ -396,7 +417,7 @@ def make_remage_macro(
                     )
                     raise SimflowConfigError(*msg)
 
-                reg = pyg4ometry.gdml.Reader(str(geom)).getRegistry()
+                reg = _get_geom_registry(str(geom))
 
                 func_name = sim_cfg.confinement.removeprefix("~function:")
                 confinement = get_confinement_from_function(func_name, reg)
