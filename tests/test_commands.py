@@ -202,6 +202,34 @@ def test_remage_cli(fresh_config):
     assert "JOBID=0001" in cmdline
 
 
+def test_remage_cli_no_gdml_access(fresh_config):
+    """Verify remage_run (macro_free=False) never reads the GDML file.
+
+    This is the critical property that makes it safe to call remage_run as a
+    Snakemake params function at DAG construction time, even before the GDML
+    file has been built by its own rule.
+    """
+    simid = "lar_inside"
+    with patch(
+        "legendsimflow.commands.pyg4ometry.gdml.Reader"
+    ) as mock_reader:
+        # Call remage_run (macro_free=False is the default) with a fake GDML path
+        cmd = commands.remage_run(
+            fresh_config, simid, tier="stp", geom="/non/existent/geom.gdml"
+        )
+
+    # The GDML Reader must never have been called
+    mock_reader.assert_not_called()
+    # The command should still reference the expected macro file path
+    assert isinstance(cmd, str)
+    assert (
+        patterns.input_simjob_filename(
+            fresh_config, tier="stp", simid=simid
+        ).as_posix()
+        in cmd
+    )
+
+
 @pytest.fixture
 def clear_geom_registry_cache():
     """Ensure the GDML registry cache is clean before and after each test."""

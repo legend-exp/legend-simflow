@@ -42,18 +42,23 @@ def remage_run(
 ) -> str:
     """Build a remage CLI invocation string for a given simulation.
 
-    This constructs a shell-escaped command line for remage by first rendering
-    the macro via :func:`make_remage_macro` using the simulation configuration
-    (from ``simconfig.yaml``), and then assembling the remage CLI with the
-    appropriate arguments and macro handling.
+    This constructs a shell-escaped command line for remage by assembling the
+    remage CLI with the appropriate arguments and macro handling.
 
     Notes
     -----
     - Compatible with remage >= v0.16.
     - When ``macro_free`` is False (default), the command passes the macro file
       path and supplies macro substitutions via ``--macro-substitutions``.
-    - When ``macro_free`` is True, the rendered macro content is inlined on the
-      CLI (comments and empty lines removed) and values are pre-substituted.
+      The macro file must already exist on disk (e.g. written by a preceding
+      :func:`make_remage_macro` call or a dedicated Snakemake rule).  This mode
+      does **not** open or parse the geometry file, so it is safe to call
+      during Snakemake DAG construction even when the GDML has not been built
+      yet.
+    - When ``macro_free`` is True, :func:`make_remage_macro` is called first to
+      render and write the macro.  This requires the GDML geometry file to exist
+      and is therefore only suitable for use at job execution time (not DAG
+      construction time).
     - Two substitutions are always provided:
       ``N_EVENTS`` (from ``primaries_per_job`` or benchmark override) and
       ``SEED`` (a random 32-bit integer).
@@ -109,9 +114,6 @@ def remage_run(
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig.{simid}"
     sim_cfg = get_simconfig(config, tier, simid=simid)
 
-    # get macro
-    macro_text, _ = make_remage_macro(config, simid, tier=tier, geom=geom)
-
     # need some modifications if this is a benchmark run
     try:
         n_prim_pj = sim_cfg.primaries_per_job
@@ -166,6 +168,10 @@ def remage_run(
     ]
 
     if macro_free:
+        # generate the macro (requires GDML to be present on disk) and
+        # inline all commands directly on the CLI
+        macro_text, _ = make_remage_macro(config, simid, tier=tier, geom=geom)
+
         # actually substitute values in the command line
         for k, v in cli_subs.items():
             macro_text = macro_text.replace(f"{{{k}}}", str(v))
