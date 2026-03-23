@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import logging
-import random
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -125,7 +124,7 @@ def _process_spms_windows(
 
 
 def get_rc_library(
-    evt_files: Iterable[str],
+    evt_files: str | Iterable[str],
     min_num_evts: int,
     time_domain_ns: tuple[float, float] = (-1_000, 5_000),
     min_sep_ns: float = 6_000,
@@ -191,9 +190,7 @@ def get_rc_library(
     if ge_trig_range_ns is None:
         ge_trig_range_ns = [(1_000, 44_000)]
 
-    # shuffle evt_files in case rc change during the run
-    evt_files = list(evt_files)
-    random.shuffle(evt_files)
+    evt_files = [evt_files] if isinstance(evt_files, (str, Path)) else list(evt_files)
 
     files_processed = 0
 
@@ -295,7 +292,9 @@ def get_rc_library(
                 (0, len(rawids) if rawids is not None else 0), dtype=np.int32
             )
         else:
-            rawid = np.vstack([rawids] * len(npe))
+            rawid = np.broadcast_to(
+                np.asarray(rawids)[None, :], (len(npe), len(rawids))
+            )
 
     print_perf()
 
@@ -306,32 +305,6 @@ def get_rc_library(
             "rawid": rawid,
         }
     )
-
-
-def get_rc_library_chunk(
-    rc_library: ak.Array,
-    chunk_len: int,
-    rc_offset: dict,
-) -> ak.Array:
-    """Select a chunk-length slice from a pre-sampled random coincidence library.
-
-    Always returns exactly ``chunk_len`` entries using wrap-around indexing when
-    necessary, and advances ``rc_offset["idx"]`` accordingly.
-    """
-    lib_len = len(rc_library)
-
-    if chunk_len > lib_len:
-        msg = (
-            "forced trigger library smaller than chunk; "
-            "reusing events with wrap-around."
-        )
-        log.warning(msg)
-
-    start_idx = rc_offset.get("idx", 0)
-    idx_array = (np.arange(chunk_len) + start_idx) % lib_len
-    rc_offset["idx"] = int((start_idx + chunk_len) % lib_len)
-
-    return rc_library[idx_array]
 
 
 def get_sipm_rc_data(
