@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
+from copy import deepcopy
 from pathlib import Path
 
 from dbetto import AttrsDict
@@ -115,9 +116,12 @@ def smk_hash_simconfig(
         if not isinstance(ignore, tuple | list):
             ignore = [ignore]
 
-        for f in ignore:
-            if f in scfg:
-                scfg.pop(f)
+        if isinstance(scfg, dict):
+            scfg = deepcopy(scfg)
+
+            for f in ignore:
+                if f in scfg:
+                    scfg.pop(f)
 
     return utils.hash_dict(scfg)
 

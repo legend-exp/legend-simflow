@@ -113,9 +113,6 @@ rule gen_tier_stp_macro:
     output:
         patterns.input_simjob_filename(config, tier="stp"),
     run:
-        # make_remage_macro writes the rendered macro to
-        # patterns.input_simjob_filename(config, tier="stp", simid=wildcards.simid),
-        # which matches the `output` declared above.
         commands.make_remage_macro(config, wildcards.simid, tier="stp", geom=input.geom)
 
 

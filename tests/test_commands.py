@@ -210,9 +210,7 @@ def test_remage_cli_no_gdml_access(fresh_config):
     file has been built by its own rule.
     """
     simid = "lar_inside"
-    with patch(
-        "legendsimflow.commands.pyg4ometry.gdml.Reader"
-    ) as mock_reader:
+    with patch("legendsimflow.commands.pyg4ometry.gdml.Reader") as mock_reader:
         # Call remage_run (macro_free=False is the default) with a fake GDML path
         cmd = commands.remage_run(
             fresh_config, simid, tier="stp", geom="/non/existent/geom.gdml"
@@ -223,9 +221,7 @@ def test_remage_cli_no_gdml_access(fresh_config):
     # The command should still reference the expected macro file path
     assert isinstance(cmd, str)
     assert (
-        patterns.input_simjob_filename(
-            fresh_config, tier="stp", simid=simid
-        ).as_posix()
+        patterns.input_simjob_filename(fresh_config, tier="stp", simid=simid).as_posix()
         in cmd
     )
 
@@ -243,9 +239,7 @@ def test_geom_registry_cached():
     """Test that _get_geom_registry caches the GDML registry per unique file path."""
     fake_reg = MagicMock()
 
-    with patch(
-        "legendsimflow.commands.pyg4ometry.gdml.Reader"
-    ) as mock_reader:
+    with patch("legendsimflow.commands.pyg4ometry.gdml.Reader") as mock_reader:
         mock_reader.return_value.getRegistry.return_value = fake_reg
 
         result1 = commands._get_geom_registry("/fake/geom.gdml")
@@ -268,12 +262,13 @@ def test_make_macro_function_confinement(fresh_config):
         "/RMG/Generator/Confinement/Geometrical/AddSolid Cylinder 100 100 100",
     ]
 
-    with patch(
-        "legendsimflow.commands.pyg4ometry.gdml.Reader"
-    ) as mock_reader, patch(
-        "legendsimflow.commands.get_confinement_from_function",
-        return_value=expected_confine,
-    ) as mock_confine:
+    with (
+        patch("legendsimflow.commands.pyg4ometry.gdml.Reader") as mock_reader,
+        patch(
+            "legendsimflow.commands.get_confinement_from_function",
+            return_value=expected_confine,
+        ) as mock_confine,
+    ):
         mock_reader.return_value.getRegistry.return_value = MagicMock()
 
         # Call make_remage_macro for two simids that use ~function: confinement
