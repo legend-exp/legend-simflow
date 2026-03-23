@@ -94,3 +94,54 @@ Overheads such as application initialization or remage built-in post processing
 are not taken into account.
 
 :::
+
+## Automatically suggesting simulation settings
+
+After completing a benchmarking run, the `make_sim_settings` rule can
+automatically compute suggested values for ``primaries_per_job`` and
+``number_of_jobs`` that satisfy a set of configurable constraints:
+
+```console
+> snakemake make_sim_settings
+simid                                                primaries_per_job  number_of_jobs          total_primaries  est. job time [min]
+-----                                                -----------------  --------------  ---------------  -------------------
+stp.sis1_z8430_slot2_Bi212_to_Pb208                        1,200,000               9           10,800,000                 27.9
+stp.sis1_z8580_slot2_Pb214_to_Po214                        1,000,000              10           10,000,000                 27.9
+...                                                              ...             ...                 ...                  ...
+
+Constraints: max_runtime=30 min, target_total_primaries=1.00E+07, n_sig_figs=2
+Settings written to: generated/sim_settings_suggestion.yaml
+```
+
+The constraints are set via the ``settings_opt`` section in the Simflow
+configuration file (all fields are optional and have sensible defaults):
+
+```yaml
+settings_opt:
+  max_runtime_mins: 30        # max job runtime in minutes (default: 30)
+  target_total_primaries: 1e7 # minimum total primaries per simid (default: 10_000_000)
+  n_sig_figs: 2               # significant figures in the result (default: 2)
+```
+
+The rule produces a YAML file (``{paths.generated}/sim_settings_suggestion.yaml``)
+that can be directly merged into the ``stp`` tier ``simconfig.yaml``:
+
+```yaml
+hpge_bulk_Rn222_to_Po214:
+  primaries_per_job: 1200000
+  number_of_jobs: 9
+sis1_z8430_slot2_Bi212_to_Pb208:
+  primaries_per_job: 1200000
+  number_of_jobs: 9
+...
+```
+
+The algorithm:
+
+1. Sets ``primaries_per_job`` to the maximum number of events that fit within
+   ``max_runtime_mins`` (rounded *down* to ``n_sig_figs`` significant figures
+   to guarantee the time limit is respected).
+2. Sets ``number_of_jobs`` to the minimum number of jobs needed so that
+   ``primaries_per_job × number_of_jobs ≥ target_total_primaries`` (rounded
+   *up* to ``n_sig_figs`` significant figures to guarantee the statistics
+   requirement is met).

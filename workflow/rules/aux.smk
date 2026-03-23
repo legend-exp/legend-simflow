@@ -68,6 +68,48 @@ rule print_benchmark_stats:
         "../src/legendsimflow/scripts/print_benchmark_stats.py"
 
 
+rule make_sim_settings:
+    """Suggest ``primaries_per_job`` and ``number_of_jobs`` from a benchmark run.
+
+    Can be run with ``snakemake make_sim_settings``. Reads the benchmark log
+    files produced by the benchmarking workflow and computes recommended
+    values for ``primaries_per_job`` and ``number_of_jobs`` for each
+    simulation, satisfying the following constraints:
+
+    * No job runs longer than ``max_runtime_mins`` minutes.
+    * The total simulated statistics exceed ``target_total_primaries``.
+    * The total number of jobs is minimised.
+    * Both values have at most ``n_sig_figs`` significant figures.
+
+    The suggested settings are printed as a table and written to a YAML
+    file (``{paths.generated}/sim_settings_suggestion.yaml``) that can be
+    merged directly into the ``stp`` tier ``simconfig.yaml``.
+
+    The constraints are controlled via the ``settings_opt`` section of the
+    Simflow configuration:
+
+    .. code-block:: yaml
+
+        settings_opt:
+          max_runtime_mins: 30          # default: 30
+          target_total_primaries: 1e7   # default: 10_000_000
+          n_sig_figs: 2                 # default: 2
+
+    No wildcards are used.
+    """
+    localrule: True
+    params:
+        max_runtime_mins=config.get("settings_opt", {}).get("max_runtime_mins", 30),
+        target_total_primaries=int(
+            config.get("settings_opt", {}).get("target_total_primaries", 10_000_000)
+        ),
+        n_sig_figs=config.get("settings_opt", {}).get("n_sig_figs", 2),
+    output:
+        config.paths.generated / "sim_settings_suggestion.yaml",
+    script:
+        "../src/legendsimflow/scripts/make_sim_settings.py"
+
+
 # we use a dedicated dummy rule to initialize the Julia environment, in this
 # way it's still possible to use Julia from a rule-specific conda env
 rule _init_julia_env:
