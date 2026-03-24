@@ -42,6 +42,9 @@ metadata = args.config.metadata
 pars_file = args.output.pars_file
 plot_file = args.output.plot_file
 
+# use just a single waveform
+single_waveform = True
+
 log_file = args.log[0]
 
 # setup logging
@@ -52,12 +55,16 @@ msg = f"... determined hit tier name is {hit_tier_name}"
 logger.info(msg)
 logger.info("... looking up the fit inputs")
 
+msg = f"... using a single waveform? {single_waveform}"
+logger.info(msg)
+
 raw_wf_pairs, dsp_cfg_file, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_inputs(
     l200data,
     metadata,
     runid,
     hpge,
     hit_tier_name,
+    max_waveforms=1 if single_waveform else 100,
 )
 
 lh5_group = mutils._get_lh5_table(
@@ -81,12 +88,13 @@ logger.info("... plotting the fit result")
 
 with PdfPages(plot_file) as pdf:
     logger.info("... plotting drift-time selection")
+
     fig, _ = hpge_pars.plot_dt_selection(all_dts, selected_dts)
     fig.suptitle(f"{hpge} in {runid}: drift-time selection for current-pulse fit")
     decorate(fig)
     pdf.savefig()
 
-    fig, _ = hpge_pars.plot_currmod_fit_result(times_list[0], current_list[0], x, y)
+    fig, _ = hpge_pars.plot_currmod_fit_result(times_list, current_list, x, y)
 
     fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
     decorate(fig)

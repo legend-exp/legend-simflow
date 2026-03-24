@@ -87,11 +87,8 @@ def lookup_currmod_fit_data(
         energy = lh5.read(f"{lh5_group}/cuspEmax_ctc_cal", file).view_as("np")
         aoe = lh5.read(f"{lh5_group}/AoE_Classifier", file).view_as("np")
 
-        # get drift time if possible
-        if f"{lh5_group}/dt_eff" in lh5.ls(file):
-            dt_eff = lh5.read(f"{lh5_group}/dt_eff", file).view_as("np")
-        else:
-            dt_eff = np.zeros(len(aoe))
+        # get drift time
+        dt_eff = lh5.read(f"{lh5_group}/dt_eff", file).view_as("np")
 
         idx = np.where((abs(energy - ewin_center) < ewin_width / 2) & (abs(aoe) < 1.5))[
             0
@@ -145,10 +142,43 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
     if len(times_list) == 0:
         msg = "times_list must not be empty"
         raise ValueError(msg)
+    if len(current_list) == 0:
+        msg = "current_list must not be empty"
+        raise ValueError(msg)
+    if len(times_list) != len(current_list):
+        msg = "times_list and current_list must have the same length"
+        raise ValueError(msg)
+
+    # Validate each (t, A) pair and collect peak amplitudes.
+    peak_values: list[float] = []
+    for idx, (t, A) in enumerate(zip(times_list, current_list)):
+        t_arr = np.asarray(t)
+        A_arr = np.asarray(A)
+
+        if t_arr.shape != A_arr.shape:
+            msg = (
+                "times_list and current_list elements must have matching shapes; "
+                f"mismatch at index {idx}: t.shape={t_arr.shape}, A.shape={A_arr.shape}"
+            )
+            raise ValueError(msg)
+
+        if t_arr.size == 0:
+            msg = f"Waveform at index {idx} is empty"
+            raise ValueError(msg)
+
+        peak = float(np.max(A_arr))
+        if not np.isfinite(peak) or peak == 0.0:
+            msg = (
+                "Each waveform must have a finite, non-zero peak amplitude; "
+                f"invalid peak {peak!r} at index {idx}"
+            )
+            raise ValueError(msg)
+
+        peak_values.append(peak)
 
     # Normalise each waveform by its peak amplitude so that all contribute
     # equally to the cost regardless of their absolute ADC scale.
-    peak_amplitudes = np.array([float(np.max(A)) for A in current_list])
+    peak_amplitudes = np.array(peak_values, dtype=float)
     mean_peak = float(np.mean(peak_amplitudes))
     normed = [A / p for A, p in zip(current_list, peak_amplitudes, strict=True)]
 
@@ -490,17 +520,24 @@ def get_noise_waveforms(
 
 
 def plot_currmod_fit_result(
-    t: NDArray, A: NDArray, model_t: NDArray, model_A: NDArray
+    t: list[NDArray], A: list[NDArray], model_t: NDArray, model_A: NDArray
 ) -> tuple:
     """Plot the best fit results."""
     fig, ax = plt.subplots(figsize=(6, 4))
 
-    ax.plot(
-        t,
-        A,
-        linewidth=2,
-        label="Current signal",
-    )
+    for idx, (t_tmp, A_tmp) in enumerate(zip(t, A, strict=True)):
+        if idx > 100:
+            log.warning("Only plotting the first 100 waveforms")
+            break
+
+        ax.plot(
+            t_tmp,
+            A_tmp,
+            linewidth=2,
+            color="grey",
+            alpha=0.4,
+            label="Current signal" if idx == 0 else None,
+        )
     ax.plot(model_t, model_A, label="Model", color="tab:red")
 
     ax.legend()
@@ -548,7 +585,7 @@ def plot_dt_selection(all_dts: NDArray, selected_dts: NDArray) -> tuple:
         ax.axvspan(
             sel_min,
             sel_max,
-            alpha=0.25,
+            alpha=0.4,
             color="tab:orange",
             label=f"selected ({len(selected_dts)} wfs, "
             f"dt_eff [{sel_min:.0f}, {sel_max:.0f}] ns)",
