@@ -163,6 +163,7 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
 
     # Validate each (t, A) pair and collect peak amplitudes.
     peak_values: list[float] = []
+
     for idx, (t, A) in enumerate(zip(times_list, current_list, strict=True)):
         t_arr = np.asarray(t)
         A_arr = np.asarray(A)

@@ -40,7 +40,6 @@ using LegendSimflow
 Generate HPGe drift time maps for specified detector and save to LH5 file.
 """
 function main()
-    SSD = SolidStateDetectors
     T = Float32
 
     s = ArgParseSettings()
