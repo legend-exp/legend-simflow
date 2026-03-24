@@ -44,7 +44,8 @@ def lookup_currmod_fit_data(
     lh5_group: str,
     ewin_center: float = 1593,
     ewin_width: float = 10,
-    max_waveforms: int = 100,
+    max_waveforms: int = 1,
+    get_drift_time: bool = True,
 ) -> tuple[list[tuple[int, int]], NDArray, NDArray]:
     """Extract the indices of the events to fit.
 
@@ -68,7 +69,8 @@ def lookup_currmod_fit_data(
         in data).
     max_waveforms
         maximum number of waveforms to return.
-
+    get_drift_time
+        Read also drift time to select waveforms.
     Returns
     -------
     pairs
@@ -79,22 +81,32 @@ def lookup_currmod_fit_data(
     selected_dts
         drift-time values for the selected subset of events.
     """
+
+    if max_waveforms < 1:
+        msg = f"{max_waveforms} must be strictly greater than 0."
+        raise ValueError(msg)
+
     idxs = []
-    energies = []
     dts = []
+
+    if len(hit_files) == 0:
+        msg = "Cannot proceed without at least one hit data-file!"
+        raise ValueError(msg)
 
     for file in hit_files:
         energy = lh5.read(f"{lh5_group}/cuspEmax_ctc_cal", file).view_as("np")
         aoe = lh5.read(f"{lh5_group}/AoE_Classifier", file).view_as("np")
 
         # get drift time
-        dt_eff = lh5.read(f"{lh5_group}/dt_eff", file).view_as("np")
+        if get_drift_time:
+            dt_eff = lh5.read(f"{lh5_group}/dt_eff", file).view_as("np")
+        else:
+            dt_eff = np.zeros_like(aoe)
 
         idx = np.where((abs(energy - ewin_center) < ewin_width / 2) & (abs(aoe) < 1.5))[
             0
         ]
         idxs.append(idx)
-        energies.append(energy[idx])
         dts.append(dt_eff[idx])
 
     # flatten all events and build file-index array
@@ -151,7 +163,7 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
 
     # Validate each (t, A) pair and collect peak amplitudes.
     peak_values: list[float] = []
-    for idx, (t, A) in enumerate(zip(times_list, current_list)):
+    for idx, (t, A) in enumerate(zip(times_list, current_list, strict = True)):
         t_arr = np.asarray(t)
         A_arr = np.asarray(A)
 
@@ -180,11 +192,11 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
     # equally to the cost regardless of their absolute ADC scale.
     peak_amplitudes = np.array(peak_values, dtype=float)
     mean_peak = float(np.mean(peak_amplitudes))
-    normed = [A / p for A, p in zip(current_list, peak_amplitudes, strict=True)]
+    normalised_wfs = [A / p for A, p in zip(current_list, peak_amplitudes, strict=True)]
 
     # Use the first waveform to determine the time window and initial peak location.
     t_ref = times_list[0]
-    A_ref_norm = normed[0]
+    A_ref_norm = normalised_wfs[0]
     maxi = int(np.argmax(A_ref_norm))
     max_t = float(t_ref[maxi])
 
@@ -193,24 +205,28 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
 
     n_wfs = len(times_list)
 
+    msg = f"Fitting using {n_wfs}"
+    log.info(msg)
+
     # Initial parameter guesses: height = 1 (normalised), max_t at detected peak.
     p0 = [1.0, max_t, 60.0, 0.6, 100.0, 0.2, 60.0]
     limits_lo = [0.0, max_t - 100.0, 1.0, 0.0, 1.0, 0.0, 1.0]
     limits_hi = [2.0, max_t + 100.0, 500.0, 1.0, 800.0, 1.0, 800.0]
 
-    def total_rms(height, t0, s1, r1, w2, r2, w3):
+    def total_mse(height, t0, s1, r1, w2, r2, w3):
         total = 0.0
-        for t, A_norm in zip(times_list, normed, strict=True):
+        for t, A_norm in zip(times_list, normalised_wfs, strict=True):
             mask = (t > low) & (t < high)
             if not np.any(mask):
                 continue
             model = current_pulse_model(t[mask], height, t0, s1, r1, w2, r2, w3)
-            total += float(np.sum((A_norm[mask] - model) ** 2))
-        return total / n_wfs
+            total += float(np.sum((A_norm[mask] - model) ** 2)) / len(mask)
+        return total
 
-    m = Minuit(total_rms, *p0)
+    m = Minuit(total_mse, *p0)
     for i in range(7):
         m.limits[i] = (limits_lo[i], limits_hi[i])
+        
     m.migrad()
 
     popt = np.array(m.values)
@@ -219,7 +235,7 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
     # convert back to the original ADC scale expected by downstream code.
     popt[0] = popt[0] * mean_peak
 
-    x = np.linspace(low, high, int(100 * (high - low)))
+    x = np.linspace(low, high, 2000)
     y = current_pulse_model(x, *popt)
 
     return popt, x, y
@@ -408,9 +424,9 @@ def get_current_pulse(
 def get_current_pulses(
     raw_file_idx_pairs: list[tuple[Path | str, int]],
     lh5_group: str,
-    dsp_config: str,
+    dsp_config: str | None,
     dsp_output: str = "curr_av",
-    align: str = "tp_aoe_max",
+    align: str | None = "tp_aoe_max",
 ) -> tuple[list[NDArray], list[NDArray]]:
     """Extract current pulses for multiple events.
 
@@ -533,9 +549,9 @@ def plot_currmod_fit_result(
         ax.plot(
             t_tmp,
             A_tmp,
-            linewidth=2,
+            linewidth=1.5,
             color="grey",
-            alpha=0.4,
+            alpha=0.3,
             label="Current signal" if idx == 0 else None,
         )
     ax.plot(model_t, model_A, label="Model", color="tab:red")
@@ -575,7 +591,7 @@ def plot_dt_selection(all_dts: NDArray, selected_dts: NDArray) -> tuple:
         dt_min = float(np.min(all_dts))
         dt_max = float(np.max(all_dts))
         n_bins = max(10, min(100, int(len(all_dts) / 5)))
-        h = hist.new.Reg(n_bins, dt_min, dt_max, name="dt_eff [ns]").Double()
+        h = hist.new.Reg(n_bins, dt_min - 1, dt_max + 1, name="dt_eff [ns]").Double()
         h.fill(all_dts)
         h.plot(ax=ax, yerr=False)
 

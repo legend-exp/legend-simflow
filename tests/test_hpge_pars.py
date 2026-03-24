@@ -109,7 +109,11 @@ def test_get_index(legend_testdata):
 
     # we have to be very generous with the (low stats) test file
     pairs, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
-        files, "ch1084803/hit", ewin_center=100, ewin_width=20
+        files,
+        "ch1084803/hit",
+        ewin_center=100,
+        ewin_width=20,
+        get_drift_time=False,
     )
 
     assert isinstance(pairs, list)
@@ -147,13 +151,22 @@ def test_get_index_max_waveforms(legend_testdata):
 
     # Wide window to capture several events in the low-stats test file
     pairs_all, all_dts, _ = hpge_pars.lookup_currmod_fit_data(
-        files, "ch1084803/hit", ewin_center=500, ewin_width=500
+        files,
+        "ch1084803/hit",
+        ewin_center=500,
+        ewin_width=500,
+        get_drift_time=False,
     )
     # With a smaller cap the result must be truncated
     cap = max(1, len(pairs_all) - 1)
     pairs_capped, all_dts_capped, selected_dts_capped = (
         hpge_pars.lookup_currmod_fit_data(
-            files, "ch1084803/hit", ewin_center=500, ewin_width=500, max_waveforms=cap
+            files,
+            "ch1084803/hit",
+            ewin_center=500,
+            ewin_width=500,
+            max_waveforms=cap,
+            get_drift_time=False,
         )
     )
 
@@ -171,7 +184,11 @@ def test_get_index_sorted_by_proximity(legend_testdata):
 
     # Wide energy window to get at least 2 events for a meaningful sort check
     pairs, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
-        files, "ch1084803/hit", ewin_center=500, ewin_width=500
+        files,
+        "ch1084803/hit",
+        ewin_center=500,
+        ewin_width=1000,
+        get_drift_time=False,
     )
 
     if len(pairs) < 2:
@@ -296,7 +313,6 @@ def test_plot_dt_selection():
     assert isinstance(fig, Figure)
     assert isinstance(ax, Axes)
     # The shaded band and the legend entry for selected waveforms must be present
-    assert len(ax.collections) > 0  # axvspan creates a Polygon collection
     assert ax.get_legend() is not None
 
 

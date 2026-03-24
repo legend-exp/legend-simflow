@@ -94,10 +94,15 @@ with PdfPages(plot_file) as pdf:
     decorate(fig)
     pdf.savefig()
 
-    fig, _ = hpge_pars.plot_currmod_fit_result(times_list, current_list, x, y)
+    fig, ax = hpge_pars.plot_currmod_fit_result(times_list, current_list, x, y)
 
+    ax.set_xlim(-1200, 1200)
     fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
     decorate(fig)
+    pdf.savefig()
+
+    # also save with a narrower range
+    ax.set_xlim(-400, 300)
     pdf.savefig()
 
     logger.info("... adding the mean aoe")
