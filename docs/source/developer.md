@@ -53,15 +53,15 @@ To run a specific Python test or test function:
 :::{note}
 
 The Python test suite includes both unit tests (in `tests/`) and integration
-tests that exercise the Snakemake workflow with a dummy production configured
-in `tests/dummyprod`. Test data for LEGEND-200 is stored in `tests/l200data/`.
+tests that exercise the Snakemake workflow with a dummy production configured in
+`tests/dummyprod`. Test data for LEGEND-200 is stored in `tests/l200data/`.
 
 :::
 
 ## Code style and linting
 
-We use [pre-commit](https://pre-commit.com) to enforce consistent code style
-and catch common errors before committing. The hooks are configured in
+We use [pre-commit](https://pre-commit.com) to enforce consistent code style and
+catch common errors before committing. The hooks are configured in
 `.pre-commit-config.yaml` and include:
 
 - [Ruff](https://docs.astral.sh/ruff/) — fast Python linter and formatter
@@ -88,28 +88,27 @@ all files:
 
 :::{important}
 
-Every commit must pass all pre-commit hooks. CI enforces this requirement on
-all pull requests.
+Every commit must pass all pre-commit hooks. CI enforces this requirement on all
+pull requests.
 
 :::
 
 ## Building the documentation
 
-The documentation is built with [Sphinx](https://www.sphinx-doc.org) and
-written in [MyST Markdown](https://myst-parser.readthedocs.io). To build it
-locally:
+The documentation is built with [Sphinx](https://www.sphinx-doc.org) and written
+in [MyST Markdown](https://myst-parser.readthedocs.io). To build it locally:
 
 ```console
 > cd docs
 > make
 ```
 
-The output is placed in `docs/build/`. Open `docs/build/index.html` in a
-browser to view the result.
+The output is placed in `docs/build/`. Open `docs/build/index.html` in a browser
+to view the result.
 
 The `make` target first auto-generates API reference pages from Python
-docstrings and Snakemake rule docstrings (via `make apidoc`), then runs
-Sphinx. To only regenerate the API pages without building the full docs:
+docstrings and Snakemake rule docstrings (via `make apidoc`), then runs Sphinx.
+To only regenerate the API pages without building the full docs:
 
 ```console
 > make apidoc
@@ -123,17 +122,17 @@ To remove all generated files and start fresh:
 
 :::{tip}
 
-The Sphinx build is configured with `-W --keep-going`, which turns warnings
-into errors and reports all of them before stopping. Fix all warnings before
+The Sphinx build is configured with `-W --keep-going`, which turns warnings into
+errors and reports all of them before stopping. Fix all warnings before
 submitting a pull request.
 
 :::
 
 ### Documentation conventions
 
-- Pages are written in Markdown using
-  [MyST](https://myst-parser.readthedocs.io) syntax. Use colon-fence (`:::`)
-  for Sphinx admonitions (e.g. `:::{note}`, `:::{tip}`, `:::{warning}`).
+- Pages are written in Markdown using [MyST](https://myst-parser.readthedocs.io)
+  syntax. Use colon-fence (`:::`) for Sphinx admonitions (e.g. `:::{note}`,
+  `:::{tip}`, `:::{warning}`).
 - Use `console` as the language tag for shell commands (enables copy-button and
   consistent rendering).
 - Python docstrings follow the
