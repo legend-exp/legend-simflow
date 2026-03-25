@@ -348,8 +348,10 @@ def make_remage_macro(
             )
             raise SimflowConfigError(*msg)
 
-        if sim_cfg.generator.strip().startswith("~defines:"):
-            key = sim_cfg.generator.strip().removeprefix("~defines:")
+        gen_query = sim_cfg.generator.strip()
+
+        if gen_query.startswith("~defines:"):
+            key = gen_query.removeprefix("~defines:").strip()
             try:
                 generator_lines = config.metadata.simprod.config.tier[tier][
                     config.experiment
@@ -358,7 +360,7 @@ def make_remage_macro(
                 msg = f"key {e} not found!"
                 raise SimflowConfigError(msg, block) from e
 
-        elif sim_cfg.generator.strip().startswith("~vertices:"):
+        elif gen_query.startswith("~vertices:"):
             vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
             generator_lines = [
                 "/RMG/Generator/Confine FromFile",
@@ -406,11 +408,11 @@ def make_remage_macro(
 
                 reg = pyg4ometry.gdml.Reader(str(geom)).getRegistry()
 
-                func_name = conf_query.removeprefix("~function:")
+                func_name = conf_query.removeprefix("~function:").strip()
                 confinement = get_confinement_from_function(func_name, reg)
 
             elif conf_query.startswith("~defines:"):
-                key = conf_query.removeprefix("~defines:")
+                key = conf_query.removeprefix("~defines:").strip()
                 try:
                     confinement = config.metadata.simprod.config.tier[tier][
                         config.experiment
@@ -423,15 +425,16 @@ def make_remage_macro(
                 confinement = ["/RMG/Generator/Confine Volume"]
                 confinement += _confine_by_volume(
                     is_surface=conf_query.startswith("~volumes.surface:"),
-                    volume=conf_query.partition(":")[2],
+                    volume=conf_query.partition(":")[2].strip(),
                 )
         elif isinstance(sim_cfg.confinement, list | tuple):
             confinement = ["/RMG/Generator/Confine Volume"]
             for val in sim_cfg.confinement:
-                if val.strip().startswith(("~volumes.surface:", "~volumes.bulk:")):
+                val_stripped = val.strip()
+                if val_stripped.startswith(("~volumes.surface:", "~volumes.bulk:")):
                     confinement += _confine_by_volume(
-                        is_surface=val.strip().startswith("~volumes.surface:"),
-                        volume=val.partition(":")[2],
+                        is_surface=val_stripped.startswith("~volumes.surface:"),
+                        volume=val_stripped.partition(":")[2].strip(),
                     )
                 else:
                     confinement = None
