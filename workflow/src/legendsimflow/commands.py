@@ -348,8 +348,8 @@ def make_remage_macro(
             )
             raise SimflowConfigError(*msg)
 
-        if sim_cfg.generator.startswith("~defines:"):
-            key = sim_cfg.generator.removeprefix("~defines:")
+        if sim_cfg.generator.strip().startswith("~defines:"):
+            key = sim_cfg.generator.strip().removeprefix("~defines:")
             try:
                 generator_lines = config.metadata.simprod.config.tier[tier][
                     config.experiment
@@ -358,7 +358,7 @@ def make_remage_macro(
                 msg = f"key {e} not found!"
                 raise SimflowConfigError(msg, block) from e
 
-        elif sim_cfg.generator.startswith("~vertices:"):
+        elif sim_cfg.generator.strip().startswith("~vertices:"):
             vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
             generator_lines = [
                 "/RMG/Generator/Confine FromFile",
@@ -380,8 +380,9 @@ def make_remage_macro(
         confinement = None
 
         if isinstance(sim_cfg.confinement, str):
-            if sim_cfg.confinement.startswith("~vertices:"):
-                if sim_cfg.get("generator", "").startswith("~vertices:"):
+            conf_query = sim_cfg.confinement.strip()
+            if conf_query.startswith("~vertices:"):
+                if sim_cfg.get("generator", "").strip().startswith("~vertices:"):
                     msg = (
                         "no vertices in confinement field allowed if vertices are already specified as the generator",
                         f"{block}.confinement",
@@ -393,7 +394,7 @@ def make_remage_macro(
                     "/RMG/Generator/Confine FromFile",
                     f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
                 ]
-            elif sim_cfg.confinement.startswith("~function:"):
+            elif conf_query.startswith("~function:"):
                 # in this case we need to parse the GDML to get the actual confinement commands
                 if not geom:
                     msg = (
@@ -405,11 +406,11 @@ def make_remage_macro(
 
                 reg = pyg4ometry.gdml.Reader(str(geom)).getRegistry()
 
-                func_name = sim_cfg.confinement.removeprefix("~function:")
+                func_name = conf_query.removeprefix("~function:")
                 confinement = get_confinement_from_function(func_name, reg)
 
-            elif sim_cfg.confinement.startswith("~defines:"):
-                key = sim_cfg.confinement.removeprefix("~defines:")
+            elif conf_query.startswith("~defines:"):
+                key = conf_query.removeprefix("~defines:")
                 try:
                     confinement = config.metadata.simprod.config.tier[tier][
                         config.experiment
@@ -418,20 +419,18 @@ def make_remage_macro(
                     msg = f"key {e} not found!"
                     raise SimflowConfigError(msg, block) from e
 
-            elif sim_cfg.confinement.startswith(
-                ("~volumes.surface:", "~volumes.bulk:")
-            ):
+            elif conf_query.startswith(("~volumes.surface:", "~volumes.bulk:")):
                 confinement = ["/RMG/Generator/Confine Volume"]
                 confinement += _confine_by_volume(
-                    is_surface=sim_cfg.confinement.startswith("~volumes.surface:"),
-                    volume=sim_cfg.confinement.partition(":")[2],
+                    is_surface=conf_query.startswith("~volumes.surface:"),
+                    volume=conf_query.partition(":")[2],
                 )
         elif isinstance(sim_cfg.confinement, list | tuple):
             confinement = ["/RMG/Generator/Confine Volume"]
             for val in sim_cfg.confinement:
-                if val.startswith(("~volumes.surface:", "~volumes.bulk:")):
+                if val.strip().startswith(("~volumes.surface:", "~volumes.bulk:")):
                     confinement += _confine_by_volume(
-                        is_surface=val.startswith("~volumes.surface:"),
+                        is_surface=val.strip().startswith("~volumes.surface:"),
                         volume=val.partition(":")[2],
                     )
                 else:
