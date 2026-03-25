@@ -8,15 +8,19 @@ tests, building the documentation, and contributing code.
 
 Fork the [legend-simflow](https://github.com/legend-exp/legend-simflow)
 repository on GitHub, then follow the instructions in {doc}`/manual/setup` to
-clone and install the software. When installing with a Python-only package
-manager, use the `-e "[all]"` flags to get an editable install with all
-optional dependencies:
+clone and install the software.
+
+**pixi** automatically installs the package in editable mode (configured via
+`pyproject.toml`), so `pixi shell` already gives you a live development
+environment.
+
+When using a Python-only package manager such as
+[uv](https://docs.astral.sh/uv/), install in editable mode with all optional
+dependencies (tests, docs, pre-commit):
 
 ```console
 > uv pip install -e ".[all]"
 ```
-
-This way source changes are immediately effective without reinstalling.
 
 ## Running the test suite
 
