@@ -6,34 +6,17 @@ tests, building the documentation, and contributing code.
 
 ## Setting up a development environment
 
-Start by forking the [legend-simflow](https://github.com/legend-exp/legend-simflow)
-repository on GitHub, then clone your fork locally:
+Fork the [legend-simflow](https://github.com/legend-exp/legend-simflow)
+repository on GitHub, then follow the instructions in {doc}`/manual/setup` to
+clone and install the software. When installing with a Python-only package
+manager, use the `-e "[all]"` flags to get an editable install with all
+optional dependencies:
 
 ```console
-> git clone git@github.com:<your-username>/legend-simflow
-> cd legend-simflow
-```
-
-We recommend using [pixi](https://pixi.sh) as the package manager, as it
-handles both Python and conda-forge dependencies (including
-[_remage_](https://remage.readthedocs.io)) transparently. To set up and enter
-the development environment:
-
-```console
-> pixi shell
-```
-
-Alternatively, you can use a Python-only package manager like
-[uv](https://docs.astral.sh/uv/):
-
-```console
-> uv venv
-> source .venv/bin/activate
 > uv pip install -e ".[all]"
 ```
 
-The `-e` flag installs the package in editable mode so that changes to the
-source are immediately effective without reinstalling.
+This way source changes are immediately effective without reinstalling.
 
 ## Running the test suite
 
