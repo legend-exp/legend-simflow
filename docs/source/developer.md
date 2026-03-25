@@ -103,8 +103,8 @@ in [MyST Markdown](https://myst-parser.readthedocs.io). To build it locally:
 > make
 ```
 
-The output is placed in `docs/build/`. Open `docs/build/index.html` in a browser
-to view the result.
+The output is placed in `build/` (that is, `docs/build/` from the repository
+root). Open `build/index.html` in a browser to view the result.
 
 The `make` target first auto-generates API reference pages from Python
 docstrings and Snakemake rule docstrings (via `make apidoc`), then runs Sphinx.
