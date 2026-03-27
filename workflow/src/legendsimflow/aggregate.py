@@ -56,6 +56,7 @@ def gen_list_of_simid_inputs(
 ) -> list[Path]:
     """Generate the list of input files for a `tier.simid`."""
     n_jobs = get_simid_njobs(config, simid)
+
     return patterns.input_simid_filenames(config, n_jobs, tier=tier, simid=simid)
 
 
@@ -66,6 +67,7 @@ def gen_list_of_simid_outputs(
     n_jobs = get_simid_njobs(config, simid)
     if max_files is not None:
         n_jobs = min(n_jobs, max_files)
+
     return patterns.output_simid_filenames(config, n_jobs, tier=tier, simid=simid)
 
 

@@ -326,7 +326,7 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
     metadata
         LEGEND metadata instance.
     query
-        expression in the form `<tag>.<datatype>.<period>` (see contents of
+        expression in the form `<tag>.<datatype>.<period>` (see contents
         ``runlists.yaml`` in legend-datasets.
 
     """
