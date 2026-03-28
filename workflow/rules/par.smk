@@ -20,6 +20,102 @@ from pathlib import Path
 from legendsimflow import aggregate, hpge_pars, patterns
 
 
+# Separate memos for the two helper functions below.
+#
+# _hpge_cache_loadtime_memo is populated at Snakefile parse time by
+# smk_try_load_hpge_cache() from whatever YAML is on disk — possibly stale.
+# It is only used for static input: blocks whose contents are fixed at parse
+# time and therefore cannot benefit from a fresh checkpoint anyway.
+#
+# _hpge_cache_checkpoint_memo is populated by smk_load_hpge_cache() strictly
+# after checkpoints.cache_modelable_hpges.get() has confirmed the checkpoint
+# output is up-to-date.  Keeping them separate prevents stale load-time data
+# from leaking into rules that depend on the checkpoint.
+_hpge_cache_loadtime_memo: dict | None = None
+_hpge_cache_checkpoint_memo: dict | None = None
+
+
+def smk_load_hpge_cache() -> dict:
+    """Load the modelable HPGe cache, triggering the checkpoint if needed.
+
+    Call this inside a Snakemake input function (lambda) or ``params:``
+    lambda. Calling ``checkpoints.cache_modelable_hpges.get()`` triggers DAG
+    re-evaluation: if the checkpoint has not run yet (or its output is stale),
+    Snakemake will schedule it first and re-evaluate the calling rule's inputs
+    once it completes.
+
+    The result is memoized in ``_hpge_cache_checkpoint_memo`` so subsequent
+    calls in the same Snakemake invocation never re-read the YAML from disk.
+    Falls back to an on-demand metadata query if the checkpoint output does
+    not exist on disk (e.g. touch or dry-run mode).
+    """
+    global _hpge_cache_checkpoint_memo
+
+    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
+    if _hpge_cache_checkpoint_memo is not None:
+        return _hpge_cache_checkpoint_memo
+    import dbetto
+
+    if yaml_path.exists():
+        _hpge_cache_checkpoint_memo = dbetto.utils.load_dict(yaml_path)
+        return _hpge_cache_checkpoint_memo
+    # Touch/dry-run: checkpoint ran but did not create the file.
+    return aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+
+
+def smk_try_load_hpge_cache() -> dict:
+    """Load the modelable HPGe cache, safe to call at Snakefile load time.
+
+    Unlike :func:`smk_load_hpge_cache`, this function does not invoke the
+    checkpoint mechanism and is safe to use in static ``input:`` blocks of
+    aggregate rules whose inputs must be resolved at parse time.
+
+    If the checkpoint YAML already exists it is read from disk. Otherwise
+    the cache is computed on-demand — same cost as the original eager call —
+    so downstream functions never fall back to repeated per-runid metadata
+    queries.
+    """
+    global _hpge_cache_loadtime_memo
+
+    if _hpge_cache_loadtime_memo is not None:
+        return _hpge_cache_loadtime_memo
+    import dbetto
+
+    yaml_path = Path(str(rules.cache_modelable_hpges.output[0]))
+    if yaml_path.exists():
+        _hpge_cache_loadtime_memo = dbetto.utils.load_dict(yaml_path)
+    else:
+        _hpge_cache_loadtime_memo = aggregate.gen_list_of_all_hpges_valid_for_modeling(
+            config
+        )
+    return _hpge_cache_loadtime_memo
+
+
+checkpoint cache_modelable_hpges:
+    """Cache the list of HPGe detectors valid for modeling.
+
+    Computing the list of HPGe detectors that are suitable for drift time map
+    and current pulse model generation requires querying `legend-metadata` for
+    every run in the Simflow. This can be slow, so the result is cached on disk
+    as a YAML file mapping ``runid -> {hpge: voltage}``. Downstream rules that
+    need this information (e.g. `merge_hpge_drift_time_maps`) depend on this
+    checkpoint so that the DAG can be re-evaluated after the cache is built.
+
+    No wildcards are used.
+    """
+    localrule: True
+    message:
+        "Caching modelable HPGe detectors"
+    params:
+        runlist=config.runlist,
+    output:
+        config.paths.pars / "modelable_hpge_detectors.yaml",
+    run:
+        aggregate.gen_list_of_all_hpges_valid_for_modeling(
+            config, write_to_file=output[0]
+        )
+
+
 rule make_simstat_partition_file:
     """Create the simulation event statistics partitioning file.
 
@@ -130,7 +226,7 @@ rule merge_hpge_drift_time_maps:
         "Merging HPGe drift time map files for {wildcards.runid}"
     input:
         lambda wc: aggregate.gen_list_of_dtmaps(
-            config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+            config, wc.runid, cache=smk_load_hpge_cache()
         ),
     output:
         patterns.output_dtmap_merged_filename(config),
@@ -245,15 +341,19 @@ rule merge_current_pulse_model_pars:
         "Merging current model parameters in {wildcards.runid}"
     input:
         lambda wc: aggregate.gen_list_of_currmods(
-            config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+            config, wc.runid, cache=smk_load_hpge_cache()
         ),
+    params:
+        # materialize the HPGe list here so the run: block can map file
+        # indices back to detector names without calling back into the cache
+        hpges=lambda wc: list(smk_load_hpge_cache()[wc.runid]),
     output:
         patterns.output_currmod_merged_filename(config),
     run:
         import dbetto
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = list(SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid])
+        hpges = params.hpges
 
         out_dict = {}
         for i, f in enumerate(input):

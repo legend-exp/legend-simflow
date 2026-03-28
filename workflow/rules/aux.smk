@@ -124,10 +124,7 @@ rule archive_plots:
     """
     localrule: True
     input:
-        aggregate.gen_list_of_all_plots(
-            config,
-            cache=SIMFLOW_CONTEXT.get("modelable_hpges"),
-        ),
+        lambda wc: aggregate.gen_list_of_all_plots(config, cache=smk_load_hpge_cache()),
     output:
         patterns.plots_tarball_filename(config),
     run:

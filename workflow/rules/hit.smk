@@ -6,7 +6,7 @@ rule gen_all_tier_hit:
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
         aggregate.gen_list_of_all_plots_outputs(
-            config, tier="hit", cache=SIMFLOW_CONTEXT.modelable_hpges
+            config, tier="hit", cache=smk_try_load_hpge_cache()
         ),
 
 

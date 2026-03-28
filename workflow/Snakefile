@@ -22,21 +22,12 @@ from snakemake.logging import logger
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
-from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
 
 
 logger.info("Initializing workflow context")
 
 SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
 config = SIMFLOW_CONTEXT.config
-
-# it takes a while to generate the list of good HPGes of all channels, let's do
-# it at the start and cache it for later
-SIMFLOW_CONTEXT |= {
-    "modelable_hpges": gen_list_of_all_hpges_valid_for_modeling(
-        config, write_to_file=config.paths.pars / "modelable_hpge_detectors.yaml"
-    ),
-}
 
 # sanitize the make_steps field
 make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)

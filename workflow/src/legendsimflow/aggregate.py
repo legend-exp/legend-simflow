@@ -232,10 +232,7 @@ def gen_list_of_all_hpges_valid_for_modeling(
 
     if write_to_file is not None:
         Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)
-        # write to disk as well
-        dbetto.utils.write_dict(
-            {runid: list(inner) for runid, inner in out.items()}, write_to_file
-        )
+        dbetto.utils.write_dict(out, write_to_file)
 
     return out
 
