@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from pathlib import Path
+
 from legendsimflow import aggregate, nersc, patterns
 
 
@@ -87,6 +89,106 @@ rule _init_julia_env:
         "> {log} 2>&1 && touch {output}"
 
 
+# Separate memos for the two helper functions below.
+#
+# _hpge_cache_loadtime_memo is populated at Snakefile parse time by
+# smk_try_load_hpge_cache() from whatever YAML is on disk — possibly stale.
+# It is only used for static input: blocks whose contents are fixed at parse
+# time and therefore cannot benefit from a fresh checkpoint anyway.
+#
+# _hpge_cache_checkpoint_memo is populated by smk_load_hpge_cache() strictly
+# after checkpoints.cache_modelable_hpges.get() has confirmed the checkpoint
+# output is up-to-date.  Keeping them separate prevents stale load-time data
+# from leaking into rules that depend on the checkpoint.
+_hpge_cache_loadtime_memo: dict | None = None
+_hpge_cache_checkpoint_memo: dict | None = None
+
+
+def smk_load_hpge_cache() -> dict:
+    """Load the modelable HPGe cache, triggering the checkpoint if needed.
+
+    Call this inside a Snakemake input function (lambda) or ``params:``
+    lambda. Calling ``checkpoints.cache_modelable_hpges.get()`` triggers DAG
+    re-evaluation: if the checkpoint has not run yet (or its output is stale),
+    Snakemake will schedule it first and re-evaluate the calling rule's inputs
+    once it completes.
+
+    The result is memoized in ``_hpge_cache_checkpoint_memo`` so subsequent
+    calls in the same Snakemake invocation never re-read the YAML from disk.
+    Falls back to an on-demand metadata query if the checkpoint output does
+    not exist on disk (e.g. touch or dry-run mode).
+    """
+    global _hpge_cache_checkpoint_memo
+
+    if _hpge_cache_checkpoint_memo is not None:
+        return _hpge_cache_checkpoint_memo
+
+    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
+    import dbetto
+
+    if yaml_path.exists():
+        _hpge_cache_checkpoint_memo = dbetto.utils.load_dict(yaml_path)
+    else:
+        # Touch/dry-run: checkpoint ran but did not create the file.
+        _hpge_cache_checkpoint_memo = (
+            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+        )
+    return _hpge_cache_checkpoint_memo
+
+
+def smk_try_load_hpge_cache() -> dict:
+    """Load the modelable HPGe cache, safe to call at Snakefile load time.
+
+    Unlike :func:`smk_load_hpge_cache`, this function does not invoke the
+    checkpoint mechanism and is safe to use in static ``input:`` blocks of
+    aggregate rules whose inputs must be resolved at parse time.
+
+    If the checkpoint YAML already exists it is read from disk. Otherwise
+    the cache is computed on-demand — same cost as the original eager call —
+    so downstream functions never fall back to repeated per-runid metadata
+    queries.
+    """
+    global _hpge_cache_loadtime_memo
+
+    if _hpge_cache_loadtime_memo is not None:
+        return _hpge_cache_loadtime_memo
+    import dbetto
+
+    yaml_path = Path(config.paths.pars) / "modelable_hpge_detectors.yaml"
+    if yaml_path.exists():
+        _hpge_cache_loadtime_memo = dbetto.utils.load_dict(yaml_path)
+    else:
+        _hpge_cache_loadtime_memo = aggregate.gen_list_of_all_hpges_valid_for_modeling(
+            config
+        )
+    return _hpge_cache_loadtime_memo
+
+
+checkpoint cache_modelable_hpges:
+    """Cache the list of HPGe detectors valid for modeling.
+
+    Computing the list of HPGe detectors that are suitable for drift time map
+    and current pulse model generation requires querying `legend-metadata` for
+    every run in the Simflow. This can be slow, so the result is cached on disk
+    as a YAML file mapping ``runid -> {hpge: voltage}``. Downstream rules that
+    need this information (e.g. `merge_hpge_drift_time_maps`) depend on this
+    checkpoint so that the DAG can be re-evaluated after the cache is built.
+
+    No wildcards are used.
+    """
+    localrule: True
+    message:
+        "Caching modelable HPGe detectors"
+    params:
+        runlist=config.runlist,
+    output:
+        config.paths.pars / "modelable_hpge_detectors.yaml",
+    run:
+        aggregate.gen_list_of_all_hpges_valid_for_modeling(
+            config, write_to_file=output[0]
+        )
+
+
 rule cache_detector_usabilities:
     """Cache detector usabilities.
 
@@ -124,10 +226,7 @@ rule archive_plots:
     """
     localrule: True
     input:
-        lambda wc: aggregate.gen_list_of_all_plots(
-            config,
-            cache=smk_load_hpge_cache() if "par" in make_steps else None,
-        ),
+        lambda wc: aggregate.gen_list_of_all_plots(config, cache=smk_load_hpge_cache()),
     output:
         patterns.plots_tarball_filename(config),
     run:
