@@ -115,21 +115,22 @@ def smk_load_hpge_cache() -> dict:
 
     The result is memoized in ``_hpge_cache_checkpoint_memo`` so subsequent
     calls in the same Snakemake invocation never re-read the YAML from disk.
-    Falls back to an on-demand metadata query if the checkpoint output does
-    not exist on disk (e.g. touch or dry-run mode).
+    Falls back to an on-demand metadata query when running under the touch
+    executor, which marks the checkpoint complete without executing its
+    ``run:`` block.
     """
     global _hpge_cache_checkpoint_memo
 
     if _hpge_cache_checkpoint_memo is not None:
         return _hpge_cache_checkpoint_memo
 
-    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     import dbetto
 
+    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     if yaml_path.exists():
         _hpge_cache_checkpoint_memo = dbetto.utils.load_dict(yaml_path)
     else:
-        # Touch/dry-run: checkpoint ran but did not create the file.
+        # touch executor marks the checkpoint complete without running it
         _hpge_cache_checkpoint_memo = (
             aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
         )
