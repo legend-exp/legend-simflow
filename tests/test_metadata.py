@@ -119,6 +119,14 @@ def test_get_simconfig_validates_keys(config):
     assert all(metadata.is_simid(k) for k in simcfg)
 
 
+def test_get_simconfig_invalid_key_raises(config):
+    # inject an invalid top-level key and ensure full simconfig load validates it
+    config.metadata.simprod.config.tier.stp[config.experiment].simconfig[123] = {}
+
+    with pytest.raises(SimflowConfigError, match=r"123"):
+        metadata.get_simconfig(config, "stp")
+
+
 def test_encode_usability():
     assert metadata.encode_usability("on") == 0
     assert metadata.encode_usability("ac") == 1

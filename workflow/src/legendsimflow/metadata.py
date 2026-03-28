@@ -322,7 +322,7 @@ def is_simid(simid: str) -> bool:
     because they are used as the delimiter in the simlist format
     ``<tier>.<simid>``.
     """
-    return re.fullmatch(r"[-\w]+", simid) is not None
+    return re.fullmatch(r"[-\w]+", simid, flags=re.ASCII) is not None
 
 
 def validate_simconfig_keys(simconfig: Mapping, block: str | None = None) -> None:
@@ -339,10 +339,10 @@ def validate_simconfig_keys(simconfig: Mapping, block: str | None = None) -> Non
     block
         Optional config block label included in the error message for context.
     """
-    invalid_keys = [k for k in simconfig if not is_simid(k)]
+    invalid_keys = [k for k in simconfig if not (isinstance(k, str) and is_simid(k))]
     if invalid_keys:
         msg = (
-            f"invalid simid(s) found: {', '.join(invalid_keys)!r}. "
+            f"invalid simid(s) found: {', '.join(repr(k) for k in invalid_keys)}. "
             r"simids must match the pattern [-\w]+ "
             "(letters, digits, underscores, hyphens only — dots are forbidden)"
         )
