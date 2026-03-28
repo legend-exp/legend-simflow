@@ -89,7 +89,6 @@ def main():
 
     log.info(f"... copying input {args.input_path} to {args.output_path}")
     # create the output
-    new_configuration = Path(args.output_path)
 
     if args.input_path == args.output_path:
         msg = "Input and output path cannot be the same!"
