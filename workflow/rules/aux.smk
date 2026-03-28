@@ -115,9 +115,10 @@ def smk_load_hpge_cache() -> dict:
 
     The result is memoized in ``_hpge_cache_checkpoint_memo`` so subsequent
     calls in the same Snakemake invocation never re-read the YAML from disk.
-    Falls back to an on-demand metadata query when running under the touch
-    executor, which marks the checkpoint complete without executing its
-    ``run:`` block.
+    Falls back to :func:`smk_try_load_hpge_cache` when running under the
+    touch executor, which marks the checkpoint complete without executing
+    its ``run:`` block — reusing the already-memoised load-time cache
+    without an extra metadata query.
     """
     global _hpge_cache_checkpoint_memo
 
@@ -130,10 +131,9 @@ def smk_load_hpge_cache() -> dict:
     if yaml_path.exists():
         _hpge_cache_checkpoint_memo = dbetto.utils.load_dict(yaml_path)
     else:
-        # touch executor marks the checkpoint complete without running it
-        _hpge_cache_checkpoint_memo = (
-            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
-        )
+        # touch executor marks the checkpoint complete without running it;
+        # reuse the load-time cache (already memoised at parse time)
+        _hpge_cache_checkpoint_memo = smk_try_load_hpge_cache()
     return _hpge_cache_checkpoint_memo
 
 
