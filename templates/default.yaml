@@ -24,6 +24,12 @@ make_steps:
   - evt
   - cvt
 
+# options:
+#   skip_lar: false   # if true, skip the LAr optical simulation (opt tier is not run;
+#                     # hit and evt tiers will not include SiPM/LAr data)
+#   skip_psd: false   # if true, skip PSD simulation (hit and evt tiers will not
+#                     # include PSD-related fields such as A/E and is_single_site)
+
 # legend_metadata_version: main
 
 benchmark:

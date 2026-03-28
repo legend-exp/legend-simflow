@@ -1,5 +1,7 @@
 from legendsimflow import aggregate, patterns
 
+_skip_psd = config.options.skip_psd
+
 
 rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
@@ -46,8 +48,12 @@ rule build_tier_hit:
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
-        hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
-        hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),
+        hpge_aoeresmods=lambda wc: (
+            [] if _skip_psd else aggregate.gen_list_of_aoeresmods(config, wc.simid)
+        ),
+        hpge_psdcuts=lambda wc: (
+            [] if _skip_psd else aggregate.gen_list_of_psdcuts(config, wc.simid)
+        ),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),

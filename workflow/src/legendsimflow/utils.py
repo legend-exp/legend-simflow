@@ -133,7 +133,11 @@ def init_simflow_context(raw_config: dict, workflow=None) -> AttrsDict:
 
     raw_config = _merge_defaults(
         raw_config,
-        {"benchmark": {"enabled": False}, "nersc": {"dvs_ro": False, "scratch": False}},
+        {
+            "benchmark": {"enabled": False},
+            "nersc": {"dvs_ro": False, "scratch": False},
+            "options": {"skip_psd": False, "skip_lar": False},
+        },
     )
 
     if workflow is None:

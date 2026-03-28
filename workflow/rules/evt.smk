@@ -1,5 +1,7 @@
 from legendsimflow import patterns, aggregate
 
+_skip_lar = config.options.skip_lar
+
 
 rule gen_all_tier_evt:
     """Aggregate and produce all the `evt` tier files."""
@@ -24,7 +26,13 @@ rule build_tier_evt:
     message:
         "Producing output file for job evt.{wildcards.simid}.{wildcards.jobid}"
     input:
-        opt_file=patterns.output_simjob_filename(config, tier="opt"),
+        opt_file=lambda wc: (
+            []
+            if _skip_lar
+            else patterns.output_simjob_filename(
+                config, tier="opt", simid=wc.simid, jobid=wc.jobid
+            )
+        ),
         hit_file=patterns.output_simjob_filename(config, tier="hit"),
     output:
         patterns.output_simjob_filename(config, tier="evt"),

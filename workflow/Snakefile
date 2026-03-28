@@ -41,6 +41,12 @@ SIMFLOW_CONTEXT |= {
 # sanitize the make_steps field
 make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)
 make_steps = utils.sorted_by(make_steps, aggregate.STEPS_ORDERED)
+
+# when skip_lar is requested, remove the opt step automatically
+if config.options.skip_lar and "opt" in make_steps:
+    logger.info("skip_lar is set: removing 'opt' from make_steps")
+    make_steps = [s for s in make_steps if s != "opt"]
+
 config["make_steps"] = make_steps
 
 logger.info("Done! Handing it over to Snakemake")

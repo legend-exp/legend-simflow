@@ -48,6 +48,8 @@ hit_file = {
 evt_file = args.output[0]
 log_file = args.log[0]
 metadata = args.config.metadata
+skip_lar = args.config.options.skip_lar
+skip_psd = args.config.options.skip_psd
 
 evt_file, move2cfs = nersc.make_on_scratch(args.config, evt_file)
 
@@ -63,24 +65,43 @@ with perf_block("merge_tcms()"):
         if name == "liquid_argon"
     )
 
-    merge_stp_n_opt_tcms_to_lh5(
-        stp_file,
-        hit_file["opt"],
-        evt_file,
-        scintillator_uid=scintillator_uid,
-        buffer_len=BUFFER_LEN,
-    )
+    if skip_lar:
+        # copy the STP TCM to the EVT file, stripping the scintillator placeholder
+        wo_mode = "write_safe"
+        for _chunk in lh5.LH5Iterator(str(stp_file), "tcm", buffer_len=BUFFER_LEN):
+            _tcm = _chunk.view_as("ak")
+            _mask = _tcm.table_key != scintillator_uid
+            _stripped = ak.zip(
+                {
+                    "table_key": _tcm.table_key[_mask],
+                    "row_in_table": _tcm.row_in_table[_mask],
+                },
+                depth_limit=1,
+            )
+            lh5.write(Table(_stripped), "tcm", str(evt_file), wo_mode=wo_mode)
+            wo_mode = "append"
+    else:
+        merge_stp_n_opt_tcms_to_lh5(
+            stp_file,
+            hit_file["opt"],
+            evt_file,
+            scintillator_uid=scintillator_uid,
+            buffer_len=BUFFER_LEN,
+        )
 
 
 # test that the evt tcm has the same amount of rows as the stp tcm
 
 if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
+    _opt_rows = (
+        "N/A (skip_lar)" if skip_lar else lh5.read_n_rows("tcm", hit_file["opt"])
+    )
     msg = (
         "stp and evt tcm should have same number of rows not "
         f"stp={lh5.read_n_rows('tcm', stp_file)}, "
         f"evt={lh5.read_n_rows('tcm', evt_file)}, "
         f"hit={lh5.read_n_rows('tcm', hit_file['hit'])}, "
-        f"opt={lh5.read_n_rows('tcm', hit_file['opt'])}"
+        f"opt={_opt_rows}"
     )
 
     raise ValueError(msg)
@@ -89,7 +110,8 @@ if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
 # NOTE: we check on disk because we are not sure which tables were processed in
 # the hit tiers
 det2uid = {}
-for tier in ("opt", "hit"):
+_tiers_to_process = ["hit"] if skip_lar else ["opt", "hit"]
+for tier in _tiers_to_process:
     det2uid[tier] = {
         name: uid
         for uid, name in reboost_utils.get_remage_detector_uids(
@@ -98,6 +120,8 @@ for tier in ("opt", "hit"):
     }
     msg = f"found mapping name -> uid ({tier} tier): {det2uid[tier]}"
     log.debug(msg)
+if skip_lar:
+    det2uid["opt"] = {}
 
 
 # little helper to simplify the code below
@@ -211,53 +235,18 @@ for chunk in it:
         "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
     )
 
-    # simply forward some fields
-    aoe = _read_hits(tcm, "hit", "aoe")
-    out_table.add_field("geds/aoe", VectorOfVectors(aoe[hitsel]))
-    out_table.add_field("geds/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
+    if not skip_psd:
+        # simply forward some fields
+        aoe = _read_hits(tcm, "hit", "aoe")
+        out_table.add_field("geds/aoe", VectorOfVectors(aoe[hitsel]))
+        out_table.add_field("geds/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
 
-    is_ss = _read_hits(tcm, "hit", "is_single_site")
-    out_table.add_field("geds/is_single_site", VectorOfVectors(is_ss[hitsel]))
+        is_ss = _read_hits(tcm, "hit", "is_single_site")
+        out_table.add_field("geds/is_single_site", VectorOfVectors(is_ss[hitsel]))
 
     # compute multiplicity
     geds_multiplicity = ak.sum(hitsel, axis=-1)
     out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
-
-    # SiPM table
-    # ----------
-    out_table.add_field("spms", Table(size=len(unified_tcm)))
-
-    # also here, we exclude the non usable channels. this is in line with what
-    # done in the evt tier in pygama
-    usability = _read_hits(tcm, "opt", "usability")
-    energy = _read_hits(tcm, "opt", "energy")
-    chansel = usability != OFF
-    # we also discard all pulses with amplitude below threshold
-    pesel = energy > SPMS_ENERGY_THR_PE
-
-    out_table.add_field("spms/energy", VectorOfVectors(energy[pesel][chansel]))
-
-    is_saturated = _read_hits(tcm, "opt", "is_saturated")
-    out_table.add_field("spms/is_saturated", VectorOfVectors(is_saturated[chansel]))
-
-    # fields to identify detectors and lookup stuff in the lower tiers
-    out_table.add_field("spms/rawid", VectorOfVectors(tcm["opt"].table_key[chansel]))
-    out_table.add_field(
-        "spms/hit_idx", VectorOfVectors(tcm["opt"].row_in_table[chansel])
-    )
-
-    time = _read_hits(tcm, "opt", "time")
-    out_table.add_field(
-        "spms/time", VectorOfVectors(time[pesel][chansel], attrs={"units": "ns"})
-    )
-
-    # total amount of light per event
-    energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
-    out_table.add_field("spms/energy_sum", Array(energy_sum))
-
-    # how many channels saw some light
-    spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
-    out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
 
     # coincidences table
     # ------------------
@@ -266,9 +255,48 @@ for chunk in it:
     # is there a signal in the HPGe array?
     out_table.add_field("coincident/geds", Array(geds_multiplicity > 0))
 
-    # is there a signal in the LAr instrumentation?
-    lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
-    out_table.add_field("coincident/spms", Array(lar_veto))
+    if not skip_lar:
+        # SiPM table
+        # ----------
+        out_table.add_field("spms", Table(size=len(unified_tcm)))
+
+        # also here, we exclude the non usable channels. this is in line with what
+        # done in the evt tier in pygama
+        usability = _read_hits(tcm, "opt", "usability")
+        energy = _read_hits(tcm, "opt", "energy")
+        chansel = usability != OFF
+        # we also discard all pulses with amplitude below threshold
+        pesel = energy > SPMS_ENERGY_THR_PE
+
+        out_table.add_field("spms/energy", VectorOfVectors(energy[pesel][chansel]))
+
+        is_saturated = _read_hits(tcm, "opt", "is_saturated")
+        out_table.add_field("spms/is_saturated", VectorOfVectors(is_saturated[chansel]))
+
+        # fields to identify detectors and lookup stuff in the lower tiers
+        out_table.add_field(
+            "spms/rawid", VectorOfVectors(tcm["opt"].table_key[chansel])
+        )
+        out_table.add_field(
+            "spms/hit_idx", VectorOfVectors(tcm["opt"].row_in_table[chansel])
+        )
+
+        time = _read_hits(tcm, "opt", "time")
+        out_table.add_field(
+            "spms/time", VectorOfVectors(time[pesel][chansel], attrs={"units": "ns"})
+        )
+
+        # total amount of light per event
+        energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
+        out_table.add_field("spms/energy_sum", Array(energy_sum))
+
+        # how many channels saw some light
+        spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
+        out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
+
+        # is there a signal in the LAr instrumentation?
+        lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
+        out_table.add_field("coincident/spms", Array(lar_veto))
 
     # now write down
     with perf_block("write_chunk()"):

@@ -57,6 +57,7 @@ hpge_currmods_files = args.input.hpge_currmods
 simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.l200data
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
+skip_psd = args.config.options.skip_psd
 
 hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
@@ -139,17 +140,18 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
     msg = "loading A/E resolution parameters"
     log.debug(msg)
-    aoeresmod_pars_file = patterns.output_aoeresmod_filename(
-        snakemake.config,  # noqa: F821
-        runid=runid,
-    )
-    aoeresmod_pars_all = load_dict(aoeresmod_pars_file)
-    aoe_res_func = hpge_pars.build_aoe_res_func_dict(
-        l200data,
-        metadata,
-        runid,
-        aoe_res_pars=aoeresmod_pars_all,
-    )
+    if not skip_psd:
+        aoeresmod_pars_file = patterns.output_aoeresmod_filename(
+            snakemake.config,  # noqa: F821
+            runid=runid,
+        )
+        aoeresmod_pars_all = load_dict(aoeresmod_pars_file)
+        aoe_res_func = hpge_pars.build_aoe_res_func_dict(
+            l200data,
+            metadata,
+            runid,
+            aoe_res_pars=aoeresmod_pars_all,
+        )
 
     msg = "loading current pulse model parameters"
     log.debug(msg)
@@ -161,11 +163,12 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
     msg = "loading PSD cut values"
     log.debug(msg)
-    psdcuts_file = patterns.output_psdcuts_filename(
-        snakemake.config,  # noqa: F821
-        runid=runid,
-    )
-    psdcuts_all = load_dict(psdcuts_file)
+    if not skip_psd:
+        psdcuts_file = patterns.output_psdcuts_filename(
+            snakemake.config,  # noqa: F821
+            runid=runid,
+        )
+        psdcuts_all = load_dict(psdcuts_file)
 
     # loop over the sensitive volume tables registered in the geometry
     for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
@@ -281,36 +284,37 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 log.warning(msg)
                 energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
 
-            if det_name in aoe_res_func:
-                aoe_res = aoe_res_func[det_name](energy_true)
-                psdcuts = AttrsDict(
-                    utils.sanitize_dict_with_defaults(
-                        psdcuts_all[det_name],
-                        DEFAULT_PSD_CUTS,
+            if not skip_psd:
+                if det_name in aoe_res_func:
+                    aoe_res = aoe_res_func[det_name](energy_true)
+                    psdcuts = AttrsDict(
+                        utils.sanitize_dict_with_defaults(
+                            psdcuts_all[det_name],
+                            DEFAULT_PSD_CUTS,
+                        )
                     )
-                )
-            else:
-                msg = (
-                    f"{det_name} is marked as '{usability}' and no "
-                    "A/E resolution curves are available. using default values"
-                )
-                log.warning(msg)
-                aoe_res = DEFAULT_AoE_RES_FUNC(energy_true)
+                else:
+                    msg = (
+                        f"{det_name} is marked as '{usability}' and no "
+                        "A/E resolution curves are available. using default values"
+                    )
+                    log.warning(msg)
+                    aoe_res = DEFAULT_AoE_RES_FUNC(energy_true)
 
-            if det_name in psdcuts_all:
-                psdcuts = AttrsDict(
-                    utils.sanitize_dict_with_defaults(
-                        psdcuts_all[det_name],
-                        DEFAULT_PSD_CUTS,
+                if det_name in psdcuts_all:
+                    psdcuts = AttrsDict(
+                        utils.sanitize_dict_with_defaults(
+                            psdcuts_all[det_name],
+                            DEFAULT_PSD_CUTS,
+                        )
                     )
-                )
-            else:
-                msg = (
-                    f"{det_name} is marked as '{usability}' and no "
-                    "PSD cut values are available. using default values"
-                )
-                log.warning(msg)
-                psdcuts = DEFAULT_PSD_CUTS
+                else:
+                    msg = (
+                        f"{det_name} is marked as '{usability}' and no "
+                        "PSD cut values are available. using default values"
+                    )
+                    log.warning(msg)
+                    psdcuts = DEFAULT_PSD_CUTS
 
             # smear energy with detector resolution
             energy = reboost_utils.gauss_smear(
@@ -318,69 +322,74 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 energy_res / 2.35482,
             )
 
-            # PSD: if the drift time map is none, it means that we don't
-            # have the detector model to simulate PSD in a more advanced
-            # way
+            if not skip_psd:
+                # PSD: if the drift time map is none, it means that we don't
+                # have the detector model to simulate PSD in a more advanced
+                # way
 
-            # default to NaN
-            _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
-            aoe = np.full(len(chunk), np.nan)
-            aoe_class = np.full(len(chunk), np.nan)
-            is_single_site = np.full(len(chunk), False)
-            t_max = np.full(len(chunk), np.nan)
+                # default to NaN
+                _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
+                aoe = np.full(len(chunk), np.nan)
+                aoe_class = np.full(len(chunk), np.nan)
+                is_single_site = np.full(len(chunk), False)
+                t_max = np.full(len(chunk), np.nan)
 
-            if dt_map is not None and currmod_pars is not None:
-                msg = "computing PSD observables"
-                log.info(msg)
+                if dt_map is not None and currmod_pars is not None:
+                    msg = "computing PSD observables"
+                    log.info(msg)
 
-                with perf_block("hpge_corrected_drift_time()"):
-                    _drift_time = reboost_utils.hpge_corrected_drift_time(
-                        chunk, dt_map, det_loc[det_name]
+                    with perf_block("hpge_corrected_drift_time()"):
+                        _drift_time = reboost_utils.hpge_corrected_drift_time(
+                            chunk, dt_map, det_loc[det_name]
+                        )
+                    utils.check_nans_leq(_drift_time, "_drift_time", 0.01)
+
+                    with perf_block("hpge_max_current()"):
+                        _a_max_true = reboost_utils.hpge_max_current(
+                            edep_active, _drift_time, currmod_pars
+                        )
+                    utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
+
+                    # Apply current resolution smearing based on configured A/E noise parameters
+                    _a_max = reboost_utils.gauss_smear(
+                        _a_max_true, pars.current_reso / pars.mean_aoe
                     )
-                utils.check_nans_leq(_drift_time, "_drift_time", 0.01)
 
-                with perf_block("hpge_max_current()"):
-                    _a_max_true = reboost_utils.hpge_max_current(
-                        edep_active, _drift_time, currmod_pars
+                    # finally calculate A/E, comparable to the A/E in data
+                    # corrected for energy dependence
+                    aoe = _a_max / energy
+
+                    # ...and A/E classifier
+                    # NOTE: we use the resolution determined from data here instead
+                    # of the intrinsic simulated ones due to noise
+                    aoe_class = (aoe - 1) / aoe_res
+
+                    # ...and PSD flag
+                    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
+                        aoe_class < psdcuts.aoe.high_side
                     )
-                utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
 
-                # Apply current resolution smearing based on configured A/E noise parameters
-                _a_max = reboost_utils.gauss_smear(
-                    _a_max_true, pars.current_reso / pars.mean_aoe
-                )
-
-                # finally calculate A/E, comparable to the A/E in data
-                # corrected for energy dependence
-                aoe = _a_max / energy
-
-                # ...and A/E classifier
-                # NOTE: we use the resolution determined from data here instead
-                # of the intrinsic simulated ones due to noise
-                aoe_class = (aoe - 1) / aoe_res
-
-                # ...and PSD flag
-                is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
-                    aoe_class < psdcuts.aoe.high_side
-                )
-
-                # also calculate drift time at A position
-                # FIXME: this is wasting compute resources, max_current should
-                # return (maxA, t_maxA)
-                with perf_block("hpge_max_current()"):
-                    t_max = reboost_utils.hpge_max_current(
-                        edep_active, _drift_time, currmod_pars, return_mode="max_time"
-                    )
+                    # also calculate drift time at A position
+                    # FIXME: this is wasting compute resources, max_current should
+                    # return (maxA, t_maxA)
+                    with perf_block("hpge_max_current()"):
+                        t_max = reboost_utils.hpge_max_current(
+                            edep_active,
+                            _drift_time,
+                            currmod_pars,
+                            return_mode="max_time",
+                        )
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
             out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
-            out_table.add_field(
-                "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
-            )
-            out_table.add_field("aoe_raw", lgdo.Array(aoe))
-            out_table.add_field("aoe", lgdo.Array(aoe_class))
-            out_table.add_field("is_single_site", lgdo.Array(is_single_site))
+            if not skip_psd:
+                out_table.add_field(
+                    "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
+                )
+                out_table.add_field("aoe_raw", lgdo.Array(aoe))
+                out_table.add_field("aoe", lgdo.Array(aoe_class))
+                out_table.add_field("is_single_site", lgdo.Array(is_single_site))
 
             _, period, run, _ = mutils.parse_runid(runid)
             field_vals = [period, run, mutils.encode_usability(usability)]

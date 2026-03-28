@@ -47,6 +47,14 @@ Here's a basic description of its fields:
     outputs cumulatively for all steps up to `hit` that are present in
     `make_steps`. Steps not listed are skipped even in the cumulative pass.
 
+- `options`: optional section to enable simulation simplifications:
+  - `skip_lar`: if `true`, skip the LAr optical simulation. The `opt` tier is
+    automatically removed from `make_steps` (even if explicitly listed), and the
+    `hit` and `evt` tiers will not include SiPM/LAr data. Defaults to `false`.
+  - `skip_psd`: if `true`, skip PSD (pulse shape discrimination) simulation. The
+    `hit` tier will not compute or store PSD-related fields (`aoe`, `aoe_raw`,
+    `is_single_site`, `drift_time_amax`), and the `evt` tier will not include
+    `geds/aoe`, `geds/has_aoe` or `geds/is_single_site`. Defaults to `false`.
 - `legend_metadata_version`: optionally specify a revision (anything that
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option.
