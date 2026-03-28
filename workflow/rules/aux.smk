@@ -124,7 +124,10 @@ rule archive_plots:
     """
     localrule: True
     input:
-        lambda wc: aggregate.gen_list_of_all_plots(config, cache=smk_load_hpge_cache()),
+        lambda wc: aggregate.gen_list_of_all_plots(
+            config,
+            cache=smk_load_hpge_cache() if "par" in make_steps else None,
+        ),
     output:
         patterns.plots_tarball_filename(config),
     run:

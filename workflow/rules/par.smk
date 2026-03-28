@@ -51,16 +51,20 @@ def smk_load_hpge_cache() -> dict:
     """
     global _hpge_cache_checkpoint_memo
 
-    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     if _hpge_cache_checkpoint_memo is not None:
         return _hpge_cache_checkpoint_memo
+
+    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     import dbetto
 
     if yaml_path.exists():
         _hpge_cache_checkpoint_memo = dbetto.utils.load_dict(yaml_path)
-        return _hpge_cache_checkpoint_memo
-    # Touch/dry-run: checkpoint ran but did not create the file.
-    return aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+    else:
+        # Touch/dry-run: checkpoint ran but did not create the file.
+        _hpge_cache_checkpoint_memo = (
+            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+        )
+    return _hpge_cache_checkpoint_memo
 
 
 def smk_try_load_hpge_cache() -> dict:
@@ -81,7 +85,7 @@ def smk_try_load_hpge_cache() -> dict:
         return _hpge_cache_loadtime_memo
     import dbetto
 
-    yaml_path = Path(str(rules.cache_modelable_hpges.output[0]))
+    yaml_path = Path(config.paths.pars) / "modelable_hpge_detectors.yaml"
     if yaml_path.exists():
         _hpge_cache_loadtime_memo = dbetto.utils.load_dict(yaml_path)
     else:
