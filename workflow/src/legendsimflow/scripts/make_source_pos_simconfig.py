@@ -105,13 +105,9 @@ def main():
     z = args.z
     phi = args.phi
 
-    # optional sanity check
-    if len(args.phi) != len(args.z):
-        parser.error("phi and z must have the same length")
-
     configuration = Path(args.input_path)
 
-    log.info(f"... copying input {args.input_path} to {args.output_path}")
+    log.info("... copying input %s to %s", args.input_path, args.output_path)
     # create the output
 
     if args.input_path == args.output_path:
@@ -130,7 +126,7 @@ def main():
 
         shutil.copytree(indir, outdir)
 
-    log.info(f"... editing simconfig based on z: {z} and phi: {phi}")
+    log.info("... editing simconfig based on z: %s and phi: %s", z, phi)
 
     # now edit the simconfig
     input_simconfig = dbetto.utils.load_dict(configuration / "simconfig.yaml")
@@ -156,7 +152,7 @@ def main():
                     f"{name}_z_{int(ztemp)}_mm_phi_{int(phi_temp)}_deg"
                 ] = copy.deepcopy(input_hit_simconfig[name])
 
-    log.info(f"... saving the result in {args.output_path}/simconfig.yaml")
+    log.info("... saving the result in %s/simconfig.yaml", args.output_path)
 
     dbetto.utils.write_dict(output_simconfig, Path(args.output_path) / "simconfig.yaml")
     dbetto.utils.write_dict(output_hit_simconfig, Path(hit_output) / "simconfig.yaml")
