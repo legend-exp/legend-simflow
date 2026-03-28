@@ -101,10 +101,17 @@ This is the main configuration file, which defines the set of _remage_
 simulations to run. It is a mapping from `simid` to a configuration block, which
 configures how to generate the _remage_ macro for that simulation.
 
-:::{note}
+:::{important}
 
-`simid` keys should preferably adopt "snake case" (lowercase letters, digits,
-and underscores only).
+`simid` keys must only contain word characters and hyphens, matching the pattern
+`[-\w]+` (letters `a–z`, `A–Z`, digits `0–9`, underscores `_`, and hyphens `-`).
+In particular, **dots (`.`) are forbidden**: they are the separator between tier
+and simid in the `simlist` format (`<tier>.<simid>`), so a dot inside a `simid`
+would break parsing. Hyphens are technically allowed but **discouraged** because
+they are also used as field separators in output file names (e.g.
+`{experiment}-{simid}-job_{jobid}-tier_{tier}.lh5`), which could lead to
+ambiguity. The recommended convention is to use **snake case** only: lowercase
+letters, digits, and underscores (e.g. `hpge_bulk_Rn222_to_Po214`).
 
 :::
 
