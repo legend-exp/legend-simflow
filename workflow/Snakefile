@@ -82,7 +82,7 @@ def gen_target_all():
         return result
 
     inputs = []
-    print(f"... make steps {make_steps}")
+    logger.info("... make steps %s", make_steps)
     for step in make_steps:
         if step == "cvt":
             inputs.extend(rules.gen_all_tier_cvt.input)
