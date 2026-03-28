@@ -134,10 +134,11 @@ def lookup_currmod_fit_data(
 def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple:
     """Fit the model to multiple raw HPGe current pulses simultaneously.
 
-    Normalises each waveform by its peak amplitude and uses
-    :class:`iminuit.Minuit` to minimise the summed RMS residual across all
-    waveforms simultaneously.  Fitting multiple waveforms provides a more
-    robust estimate of the pulse-shape parameters than fitting a single event.
+    Normalises each waveform by its peak amplitude and performs a *shape-only*
+    fit by also normalising the model by its own peak inside the cost function.
+    This decouples the amplitude parameter from the shape parameters, giving a
+    well-conditioned minimisation.  After the shape fit the physical amplitude
+    (``amax``) is recovered as ``mean(data peaks) / max(model at unit amax)``.
 
     Parameters
     ----------
@@ -209,34 +210,44 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
     msg = f"Fitting using {n_wfs}"
     log.info(msg)
 
-    # Initial parameter guesses: height = 1 (normalised), max_t at detected peak.
-    p0 = [1.0, max_t, 60.0, 0.6, 100.0, 0.2, 60.0]
-    limits_lo = [0.0, max_t - 100.0, 1.0, 0.0, 1.0, 0.0, 1.0]
-    limits_hi = [2.0, max_t + 100.0, 500.0, 1.0, 800.0, 1.0, 800.0]
+    # Shape-only fit: amax is fixed to 1 and the model is normalised by its own
+    # peak before comparing to the data.  This fully decouples the amplitude
+    # from the shape parameters so the optimiser only adjusts the pulse shape.
+    p0 = [max_t, 60.0, 0.6, 100.0, 0.2, 60.0]
+    limits_lo = [max_t - 100.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+    limits_hi = [max_t + 100.0, 500.0, 1.0, 800.0, 1.0, 800.0]
 
-    def total_mse(height, t0, s1, r1, w2, r2, w3):
+    def total_mse(t0, s1, r1, w2, r2, w3):
         total = 0.0
         for t, A_norm in zip(times_list, normalised_wfs, strict=True):
             mask = (t > low) & (t < high)
-            if not np.any(mask):
+            n_pts = int(np.sum(mask))
+            if n_pts == 0:
                 continue
-            model = current_pulse_model(t[mask], height, t0, s1, r1, w2, r2, w3)
-            total += float(np.sum((A_norm[mask] - model) ** 2)) / len(mask)
+            model = current_pulse_model(t[mask], 1.0, t0, s1, r1, w2, r2, w3)
+            model_peak = float(np.max(model))
+            if model_peak <= 0:
+                return np.inf
+            model_norm = model / model_peak
+            total += float(np.sum((A_norm[mask] - model_norm) ** 2)) / n_pts
         return total
 
     m = Minuit(total_mse, *p0)
-    for i in range(7):
+    for i in range(6):
         m.limits[i] = (limits_lo[i], limits_hi[i])
 
     m.migrad()
 
-    popt = np.array(m.values)
-    # The fit was performed on normalised waveforms (each divided by its peak),
-    # so the fitted height is dimensionless (≈ 1).  Multiply by mean_peak to
-    # convert back to the original ADC scale expected by downstream code.
-    popt[0] = popt[0] * mean_peak
+    shape_popt = np.array(m.values)
 
+    # Recover the physical amax: scale such that the model peak matches the
+    # mean data-peak amplitude.
     x = np.linspace(low, high, 2000)
+    model_at_unit_amax = current_pulse_model(x, 1.0, *shape_popt)
+    model_peak = float(np.max(model_at_unit_amax))
+    physical_amax = mean_peak / model_peak if model_peak > 0 else mean_peak
+
+    popt = np.concatenate([[physical_amax], shape_popt])
     y = current_pulse_model(x, *popt)
 
     return popt, x, y
