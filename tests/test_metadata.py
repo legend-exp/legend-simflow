@@ -3,9 +3,11 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
 from dbetto import AttrsDict
 
 from legendsimflow import metadata
+from legendsimflow.exceptions import SimflowConfigError
 
 
 def test_all(config):
@@ -73,6 +75,48 @@ def test_run_stuff(config):
         metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
         == "l200-p16-r007-cal"
     )
+
+
+def test_is_simid():
+    # valid simids
+    assert metadata.is_simid("hpge_bulk_Rn222_to_Po214")
+    assert metadata.is_simid("birds_nest_K40")
+    assert metadata.is_simid("simid123")
+    assert metadata.is_simid("with-hyphen")
+    assert metadata.is_simid("a")
+
+    # invalid simids
+    assert not metadata.is_simid("has.dot")
+    assert not metadata.is_simid("has dot")
+    assert not metadata.is_simid("has@special")
+    assert not metadata.is_simid("")
+    assert not metadata.is_simid("tier.simid")
+
+
+def test_validate_simconfig_keys():
+    # all valid keys — should not raise
+    valid = {
+        "hpge_bulk_Rn222_to_Po214": {},
+        "birds_nest_K40": {},
+        "simid-with-hyphens": {},
+    }
+    metadata.validate_simconfig_keys(valid)
+
+    # one invalid key (contains a dot)
+    invalid = {"valid_key": {}, "bad.key": {}}
+    with pytest.raises(SimflowConfigError, match=r"bad\.key"):
+        metadata.validate_simconfig_keys(invalid)
+
+    # multiple invalid keys, block label included in message
+    multi_invalid = {"ok": {}, "also.bad": {}, "has space": {}}
+    with pytest.raises(SimflowConfigError, match=r"also\.bad"):
+        metadata.validate_simconfig_keys(multi_invalid, block="test.block")
+
+
+def test_get_simconfig_validates_keys(config):
+    # getting the full stp simconfig should succeed (all keys are valid simids)
+    simcfg = metadata.get_simconfig(config, "stp")
+    assert all(metadata.is_simid(k) for k in simcfg)
 
 
 def test_encode_usability():

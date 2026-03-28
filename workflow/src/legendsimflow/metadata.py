@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from dbetto import AttrsDict
@@ -70,7 +70,9 @@ def get_simconfig(
     try:
         if simid is None:
             block = f"simprod.config.tier.{tier}.{config.experiment}"
-            return _m.tier[tier][config.experiment].simconfig
+            simcfg = _m.tier[tier][config.experiment].simconfig
+            validate_simconfig_keys(simcfg, block + ".simconfig")
+            return simcfg
         if field is None:
             return _m.tier[tier][config.experiment].simconfig[simid]
         return _m.tier[tier][config.experiment].simconfig[simid][field]
@@ -309,6 +311,42 @@ def is_runid(runid: str) -> bool:
     ``l200-<period>-<run>-<datatype>``/``l200-pNN-rMMM-AAA``.
     """
     return re.match(r"^l200-p(\d{2})-r(\d{3})-([A-Za-z]+)$", runid) is not None
+
+
+def is_simid(simid: str) -> bool:
+    r"""Whether a simid (simulation identifier) is correctly formatted.
+
+    A valid simid must consist entirely of word characters (letters, digits,
+    underscores) and hyphens, matching the pattern ``[-\w]+``. Dots and other
+    special characters are not allowed; in particular, dots are forbidden
+    because they are used as the delimiter in the simlist format
+    ``<tier>.<simid>``.
+    """
+    return re.fullmatch(r"[-\w]+", simid) is not None
+
+
+def validate_simconfig_keys(simconfig: Mapping, block: str | None = None) -> None:
+    """Validate that all top-level keys of `simconfig` are valid simids.
+
+    Raises :class:`~legendsimflow.exceptions.SimflowConfigError` listing every
+    invalid key if any are found.
+
+    Parameters
+    ----------
+    simconfig
+        Dictionary whose top-level keys are expected to be simids (as loaded
+        from a ``simconfig.yaml`` file).
+    block
+        Optional config block label included in the error message for context.
+    """
+    invalid_keys = [k for k in simconfig if not is_simid(k)]
+    if invalid_keys:
+        msg = (
+            f"invalid simid(s) found: {', '.join(invalid_keys)!r}. "
+            r"simids must match the pattern [-\w]+ "
+            "(letters, digits, underscores, hyphens only — dots are forbidden)"
+        )
+        raise SimflowConfigError(msg, block)
 
 
 def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
