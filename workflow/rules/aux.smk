@@ -113,10 +113,11 @@ rule cache_detector_usabilities:
 rule archive_plots:
     """Archive all validation plots into a single tarball.
 
-    Can be run with ``snakemake archive_plots``. Collects all ``plots/``
-    subdirectories produced by the Simflow under the ``generated/`` directory
-    and packs them into ``tarballs/<cycle>-plots.tar.xz``, preserving the
-    directory tree structure.
+    Must be triggered manually with ``snakemake archive_plots`` — it is not
+    part of the default ``all`` target. Collects all ``plots/`` subdirectories
+    produced by the Simflow under the ``generated/`` directory and packs them
+    into ``tarballs/<cycle>-plots.tar.xz``, preserving the directory tree
+    structure.
 
     No wildcards are used.
     """

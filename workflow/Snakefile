@@ -21,7 +21,7 @@ import time
 from snakemake.logging import logger
 from dbetto import AttrsDict
 
-from legendsimflow import aggregate, nersc, patterns, utils
+from legendsimflow import aggregate, nersc, utils
 from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
 
 
@@ -77,9 +77,7 @@ for step in make_steps:
 # then make the build cumulative by including all tiers up to it.
 def gen_target_all():
     if config.get("simlist", "*") not in ("all", "*"):
-        result = aggregate.process_simlist(config, make_steps=make_steps)
-        result.append(patterns.plots_tarball_filename(config))
-        return result
+        return aggregate.process_simlist(config, make_steps=make_steps)
 
     inputs = []
     logger.info("... make steps %s", make_steps)
@@ -97,7 +95,7 @@ def gen_target_all():
         elif step in ("vtx", "par"):
             pass
 
-    #  inputs.append(patterns.plots_tarball_filename(config))
+    inputs.append(patterns.plots_tarball_filename(config))
     return inputs
 
 

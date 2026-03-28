@@ -59,6 +59,17 @@ stp.fibers_Rn222_to_Po214                                33:20:00    100        
 ...                                                            ...    ...            ...        ...
 ```
 
+To archive the validation plots produced during the run into a single tarball,
+run the `archive_plots` rule manually after the production is complete:
+
+```console
+> snakemake archive_plots
+```
+
+This collects all `plots/` subdirectories under `generated/` and packs them into
+`tarballs/<cycle>-plots.tar.xz`. The rule is not part of the default `all`
+target and must always be triggered explicitly.
+
 Find some useful Snakemake command-line options at the bottom of this page.
 
 ## Selective step execution with `make_steps`
