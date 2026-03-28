@@ -45,18 +45,42 @@ ONLY_TH = True
 
 
 def replace_position(config: dict, dz: float, dphi: float):
+    # validate required geometry/SIS structure
+    geom_extra = config.get("geom_config_extra")
+    if not isinstance(geom_extra, dict):
+        msg = (
+            "Template config must contain a 'geom_config_extra' mapping with a 'sis' "
+            "subtree defining exactly one SIS for the source position analysis."
+        )
+        raise ValueError(msg)
+
+    if "sis" not in geom_extra or not isinstance(geom_extra["sis"], dict):
+        msg = (
+            "Template config must contain 'geom_config_extra[\"sis\"]' as a mapping "
+            "defining exactly one SIS for the source position analysis."
+        )
+        raise ValueError(msg)
+
+    sis_config = geom_extra["sis"]
+    if not sis_config:
+        msg = (
+            "Template config must define at least one SIS under "
+            "'geom_config_extra[\"sis\"]' for the source position analysis."
+        )
+        raise ValueError(msg)
+
     # get the sis
-    if len(list(config["geom_config_extra"]["sis"].keys())) != 1:
+    if len(list(sis_config.keys())) != 1:
         msg = "Can only have source in one SIS!"
         raise ValueError(msg)
 
-    sis = next(iter(config["geom_config_extra"]["sis"]))
+    sis = next(iter(sis_config))
 
     config["primaries_per_job"] = PRIMARIES
     config["number_of_jobs"] = JOBS
 
-    config["geom_config_extra"]["sis"][sis]["offset"] = dz
-    config["geom_config_extra"]["sis"][sis]["phi_offset"] = dphi
+    sis_config[sis]["offset"] = dz
+    sis_config[sis]["phi_offset"] = dphi
 
     return config
 
