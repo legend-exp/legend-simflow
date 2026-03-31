@@ -72,7 +72,9 @@ def gen_target_all():
 
     inputs = []
     for step in make_steps:
-        if step == "cvt":
+        if step == "pdf":
+            inputs.extend(rules.gen_all_tier_pdf.input)
+        elif step == "cvt":
             inputs.extend(rules.gen_all_tier_cvt.input)
         elif step == "evt":
             inputs.extend(rules.gen_all_tier_evt.input)
