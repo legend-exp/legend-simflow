@@ -43,25 +43,12 @@ rule build_tier_pdf:
     message:
         "Producing output file for job pdf.{wildcards.simid}"
     input:
-        evt_files=lambda wildcards: aggregate.gen_list_of_tier_evt_outputs(
-            config, wildcards.simid
-        ),
-        config_file=patterns.pdf_config_path(config),
-    params:
-        stp_files_regex=utils.as_ro(
-            config, patterns.output_simjob_regex(config, tier="stp")
-        ),
-        ro_evt_files=lambda wildcards, input: utils.as_ro(config, input.evt_files),
+        patterns.output_tier_cvt_filename(config),
     output:
-        patterns.output_pdf_filename(config),
+        patterns.output_tier_pdf_filename(config),
     log:
-        patterns.log_pdffile_path(config),
+        patterns.log_tier_pdf_filename(config),
     benchmark:
-        patterns.benchmark_pdffile_path(config)
-    shell:
-        execenv_pyexe(config, "build-pdf") + "--log {log} "
-        "-c {input.config_file} "
-        "-m $_/inputs "
-        "-r {params.stp_files_regex} "
-        "-o {output} "
-        "-- {input.evt_files}"
+        patterns.benchmark_tier_pdf_filename(config)
+    script:
+        "../src/legendsimflow/scripts/tier/pdf.py"

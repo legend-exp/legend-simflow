@@ -308,21 +308,21 @@ def test_plots_tarball_filename(config):
 
 
 def test_pdf_filenames(config):
-    result = p.pdffile_rel_basename(simid=SIMID)
+    result = p.tier_pdf_base_segment(config, simid=SIMID)
     assert isinstance(result, str)
     assert SIMID in result
 
-    result = p.output_pdf_filename(config, simid=SIMID)
-    assert isinstance(result, str)
-    assert SIMID in result
-    assert result.endswith(".lh5")
+    result = p.output_tier_pdf_filename(config, simid=SIMID)
+    assert isinstance(result, Path)
+    assert SIMID in str(result)
+    assert result.suffix == ".lh5"
 
-    result = p.log_pdffile_path(config, simid=SIMID)
-    assert isinstance(result, str)
-    assert SIMID in result
-    assert result.endswith(".log")
+    result = p.log_tier_pdf_filename(config, simid=SIMID)
+    assert isinstance(result, Path)
+    assert SIMID in str(result)
+    assert result.suffix == ".log"
 
-    result = p.benchmark_pdffile_path(config, simid=SIMID)
-    assert isinstance(result, str)
-    assert SIMID in result
-    assert result.endswith(".tsv")
+    result = p.benchmark_tier_pdf_filename(config, simid=SIMID)
+    assert isinstance(result, Path)
+    assert SIMID in str(result)
+    assert result.suffix == ".lh5"

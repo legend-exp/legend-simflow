@@ -29,7 +29,7 @@ from .metadata import encode_psd_usability, get_runlist, get_simconfig, runinfo,
 
 log = logging.getLogger(__name__)
 
-STEPS_ORDERED: list[str] = ["vtx", "stp", "par", "opt", "hit", "evt", "cvt"]
+STEPS_ORDERED: list[str] = ["vtx", "stp", "par", "opt", "hit", "evt", "cvt", "pdf"]
 
 
 def get_simid_njobs(config: SimflowConfig, simid: str) -> int:
@@ -457,6 +457,14 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
     """Generate the list of all ``cvt`` tier files in the Simflow."""
     return [
         patterns.output_tier_cvt_filename(config, simid=simid, **kwargs)
+        for simid in gen_list_of_all_simids(config)
+    ]
+
+
+def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
+    """Generate the list of all ``pdf`` tier files in the Simflow."""
+    return [
+        patterns.output_tier_pdf_filename(config, simid=simid, **kwargs)
         for simid in gen_list_of_all_simids(config)
     ]
 
