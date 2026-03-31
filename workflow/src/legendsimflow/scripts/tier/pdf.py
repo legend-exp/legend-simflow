@@ -49,6 +49,7 @@ histograms = {
     "mul_surv": hist.new.Reg(6000, 0, 6000).Double(),
     "hit": hist.new.Reg(6000, 0, 6000).Double(),
     "mul2": hist.new.Reg(6000, 0, 6000).new.Reg(6000, 0, 6000).Double(),
+    "mul_lar_surv": hist.new.Reg(6000, 0, 6000).Double(),
 }
 log.info("... beginning iteration over cvt file")
 
@@ -64,6 +65,10 @@ for chunk in iterator:
     data_m1 = data[(data.geds.multiplicity == 1) & (ak.all(data.geds.is_good, axis=-1))]
 
     histograms["mul_surv"].fill(data_m1.geds.energy)
+
+    # get m1 data with lar cut
+    data_m1_lar = data_m1[(~data_m1.coincident.spms)]
+    histograms["mul_lar_surv"].fill(data_m1_lar.geds.energy)
 
     # get m2 data
     data_m2 = data[(data.geds.multiplicity == 2) & (ak.all(data.geds.is_good, axis=-1))]
