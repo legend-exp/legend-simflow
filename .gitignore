@@ -180,3 +180,4 @@ Manifest.toml
 .pixi/*
 !.pixi/config.toml
 pixi.lock
+__auto__
