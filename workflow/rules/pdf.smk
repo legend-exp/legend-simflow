@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from legendsimflow import aggregate, patterns, utils
 
 
 rule gen_all_tier_pdf:
@@ -35,7 +38,7 @@ rule gen_pdf_release:
 rule build_tier_pdf:
     """Produce a `pdf` tier file.
 
-    Run the `build-pdf` command, which reads `evt` tier data and bins it into
+    Run the `build-pdf` command, which reads `cvt` tier data and bins it into
     histograms (the PDFs) according to the PDF configuration file.
 
     Uses wildcard `simid`.

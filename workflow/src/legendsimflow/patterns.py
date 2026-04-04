@@ -410,5 +410,5 @@ def log_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
 
 def benchmark_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
     """The benchmark file path for the `pdf` tier build for a `simid`."""
-    pat = config.paths.benchmarks / "pdf" / (tier_pdf_base_segment(config) + ".lh5")
+    pat = config.paths.benchmarks / "pdf" / (tier_pdf_base_segment(config) + ".tsv")
     return _expand(pat, **kwargs)

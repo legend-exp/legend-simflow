@@ -1,5 +1,3 @@
-# ruff: noqa: I002
-
 # Copyright (C) 2025 Luigi Pertoldi <gipert@pm.me>,
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -15,91 +13,124 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
+import argparse
 
 import awkward as ak
 import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 from lgdo import Histogram, Scalar, Struct, lh5
+from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import nersc
-
-args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
-
-cvt_file = args.input.cvt_file
-simid = args.wildcards.simid
-pdf_file = args.output[0]
-log_file = args.log[0]
-metadata = args.config.metadata
-experiment = args.config.experiment
-
-pdf_file, move2cfs = nersc.make_on_scratch(args.config, pdf_file)
-
-BUFFER_LEN = "500*MB"
-
-# setup logging
-log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+from legendsimflow import nersc, utils
+from legendsimflow.scripts import log_script_invocation
 
 
-msg = f"... reading data from {cvt_file}"
-log.info(msg)
-
-# a single cvt file might be large, need to iterate
-iterator = lh5.LH5Iterator(
-    str(cvt_file),
-    "evt",
-    buffer_len=BUFFER_LEN,
+@snakemake_compatible(
+    mapping={
+        "cvt_file": "input.cvt_file",
+        "pdf_file": "output[0]",
+        "log_file": "log[0]",
+        "simid": "wildcards.simid",
+        "simflow_config": "config",
+    }
 )
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the pdf tier.")
+    parser.add_argument("--cvt-file", required=True, help="input cvt tier file")
+    parser.add_argument("--pdf-file", required=True, help="output pdf tier file")
+    parser.add_argument("--simid", required=True, help="simulation ID wildcard")
+    parser.add_argument("--log-file", default=None, help="log file")
+    parser.add_argument(
+        "--simflow-config",
+        "--config",
+        dest="simflow_config",
+        required=True,
+        help="simflow config YAML path",
+    )
+    args = parser.parse_args()
 
-# get the simconfig
+    config = utils.init_simflow_context(args.simflow_config, workflow=None).config
 
-simconfig_block = metadata.simprod.config.tier.stp[experiment].simconfig[simid]
+    cvt_file = nersc.dvs_ro(config, args.cvt_file)
+    pdf_file, move2cfs = nersc.make_on_scratch(config, args.pdf_file)
+    log_file = args.log_file
+    simid = args.simid
+    experiment = config.experiment
 
-number_of_primaries = simconfig_block.primaries_per_job * simconfig_block.number_of_jobs
+    BUFFER_LEN = "500*MB"
 
-msg = f"... extracted number of primaries from simconfig {number_of_primaries}"
-log.info(msg)
+    log = ldfs.utils.build_log(config.metadata.simprod.config.logging, log_file)
+    log_script_invocation(log, "tier-pdf", parser, args)
 
-histograms = {
-    "mul_surv": hist.new.Reg(6000, 0, 6000).Double(),
-    "hit": hist.new.Reg(6000, 0, 6000).Double(),
-    "mul2": hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double(),
-    "mul_lar_surv": hist.new.Reg(6000, 0, 6000).Double(),
-}
-log.info("... beginning iteration over cvt file")
+    msg = f"... reading data from {cvt_file}"
+    log.info(msg)
 
-for chunk in iterator:
-    data = chunk.view_as("ak")
-
-    # get hit data (no m1 cut)
-    data_hit = data[(ak.all(data.geds.is_good_channel, axis=-1))]
-
-    histograms["hit"].fill(ak.flatten(data_hit.geds.energy))
-
-    # get m1 data
-    data_m1 = data[
-        (data.geds.multiplicity == 1) & (ak.all(data.geds.is_good_channel, axis=-1))
-    ]
-
-    histograms["mul_surv"].fill(ak.flatten(data_m1.geds.energy))
-
-    # get m1 data with lar cut
-    data_m1_lar = data_m1[(~data_m1.coincident.spms)]
-    histograms["mul_lar_surv"].fill(ak.flatten(data_m1_lar.geds.energy))
-
-    # get m2 data
-    data_m2 = data[
-        (data.geds.multiplicity == 2) & (ak.all(data.geds.is_good_channel, axis=-1))
-    ]
-
-    histograms["mul2"].fill(
-        ak.min(data_m2.geds.energy, axis=-1), ak.max(data_m2.geds.energy, axis=-1)
+    # a single cvt file might be large, need to iterate
+    iterator = lh5.LH5Iterator(
+        str(cvt_file),
+        "evt",
+        buffer_len=BUFFER_LEN,
     )
 
-log.info("... convert histograms to lgdo")
-histograms_lgdo = Struct({name: Histogram(h) for name, h in histograms.items()})
+    simconfig_block = config.metadata.simprod.config.tier.stp[experiment].simconfig[
+        simid
+    ]
+    number_of_primaries = (
+        simconfig_block.primaries_per_job * simconfig_block.number_of_jobs
+    )
 
-output = Struct({"pdfs": histograms_lgdo, "n_prim": Scalar(number_of_primaries)})
-lh5.write(output, "pdf", pdf_file, wo_mode="w")
+    msg = f"... extracted number of primaries from simconfig {number_of_primaries}"
+    log.info(msg)
 
-move2cfs()
+    # 1D histograms: 6000 bins, 1 keV/bin (0-6000 keV)
+    # 2D mul2 histogram: 600 x 600 bins (10 keV/bin) to keep memory usage manageable
+    histograms = {
+        "mul_surv": hist.new.Reg(6000, 0, 6000).Double(),
+        "hit": hist.new.Reg(6000, 0, 6000).Double(),
+        "mul2": hist.new.Reg(600, 0, 6000).Reg(600, 0, 6000).Double(),
+        "mul_lar_surv": hist.new.Reg(6000, 0, 6000).Double(),
+    }
+    log.info("... beginning iteration over cvt file")
+
+    for chunk in iterator:
+        data = chunk.view_as("ak")
+
+        # get hit data (no m1 cut)
+        data_hit = data[(ak.all(data.geds.is_good_channel, axis=-1))]
+
+        histograms["hit"].fill(ak.flatten(data_hit.geds.energy))
+
+        # get m1 data
+        data_m1 = data[
+            (data.geds.multiplicity == 1) & (ak.all(data.geds.is_good_channel, axis=-1))
+        ]
+
+        histograms["mul_surv"].fill(ak.flatten(data_m1.geds.energy))
+
+        # get m1 data with lar cut
+        data_m1_lar = data_m1[(~data_m1.coincident.spms)]
+        histograms["mul_lar_surv"].fill(ak.flatten(data_m1_lar.geds.energy))
+
+        # get m2 data
+        data_m2 = data[
+            (data.geds.multiplicity == 2) & (ak.all(data.geds.is_good_channel, axis=-1))
+        ]
+
+        histograms["mul2"].fill(
+            ak.min(data_m2.geds.energy, axis=-1), ak.max(data_m2.geds.energy, axis=-1)
+        )
+
+    log.info("... convert histograms to lgdo")
+    histograms_lgdo = Struct({name: Histogram(h) for name, h in histograms.items()})
+
+    output = Struct({"pdfs": histograms_lgdo, "n_prim": Scalar(number_of_primaries)})
+    lh5.write(output, "pdf", pdf_file, wo_mode="w")
+
+    move2cfs()
+
+
+if __name__ == "__main__":
+    main()
