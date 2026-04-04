@@ -43,7 +43,7 @@ rule build_tier_pdf:
     message:
         "Producing output file for job pdf.{wildcards.simid}"
     input:
-        patterns.output_tier_cvt_filename(config),
+        cvt_file=patterns.output_tier_cvt_filename(config),
     output:
         patterns.output_tier_pdf_filename(config),
     log:
