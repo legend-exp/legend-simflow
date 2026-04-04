@@ -325,4 +325,6 @@ def test_pdf_filenames(config):
     result = p.benchmark_tier_pdf_filename(config, simid=SIMID)
     assert isinstance(result, Path)
     assert SIMID in str(result)
-    assert result.suffix == ".lh5"
+    assert result.suffix == ".tsv"
+    assert result.parent.name == "pdf"
+    assert result.parent.parent.name == "benchmarks"
