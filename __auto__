@@ -5010,3 +5010,11 @@ total                                319
 2026-04-04 17:58:36|INFO|snakemake.logging >>> Finished jobid: 0 (Rule: all)
 2026-04-04 17:58:36|INFO|snakemake.logging >>> None
 2026-04-04 17:58:36|INFO|snakemake.logging >>> Complete log(s): /home/runner/work/legend-simflow/legend-simflow/tests/dummyprod/.snakemake/log/2026-04-04T175834.226499.snakemake.log
+2026-04-04 17:59:14|INFO|prod >>> CLI invocation: pixi run tier-pdf --cvt-file /tmp/pytest-of-runner/pytest-4/test_pdf_script_cli0/cvt.lh5 --pdf-file /tmp/pytest-of-runner/pytest-4/test_pdf_script_cli0/pdf.lh5 --simid birds_nest_K40 --simflow-config /tmp/pytest-of-runner/pytest-4/test_pdf_script_cli0/simflow-config.yaml
+2026-04-04 17:59:14|INFO|prod >>> ... reading data from /tmp/pytest-of-runner/pytest-4/test_pdf_script_cli0/cvt.lh5
+2026-04-04 17:59:14|INFO|prod >>> ... extracted number of primaries from simconfig 20000
+2026-04-04 17:59:50|INFO|prod >>> CLI invocation: pixi run tier-pdf --cvt-file /tmp/pytest-of-runner/pytest-5/test_pdf_script_cli0/cvt.lh5 --pdf-file /tmp/pytest-of-runner/pytest-5/test_pdf_script_cli0/pdf.lh5 --simid birds_nest_K40 --simflow-config /tmp/pytest-of-runner/pytest-5/test_pdf_script_cli0/simflow-config.yaml
+2026-04-04 17:59:50|INFO|prod >>> ... reading data from /tmp/pytest-of-runner/pytest-5/test_pdf_script_cli0/cvt.lh5
+2026-04-04 17:59:50|INFO|prod >>> ... extracted number of primaries from simconfig 20000
+2026-04-04 17:59:50|INFO|prod >>> ... beginning iteration over cvt file
+2026-04-04 17:59:50|INFO|prod >>> ... convert histograms to lgdo

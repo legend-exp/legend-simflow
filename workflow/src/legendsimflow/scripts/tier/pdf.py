@@ -85,12 +85,11 @@ def main() -> None:
     msg = f"... extracted number of primaries from simconfig {number_of_primaries}"
     log.info(msg)
 
-    # 1D histograms: 6000 bins, 1 keV/bin (0-6000 keV)
-    # 2D mul2 histogram: 600 x 600 bins (10 keV/bin) to keep memory usage manageable
+    # 1 keV/bin over 0-6000 keV; boost-histogram only provides Double (float64) storage
     histograms = {
         "mul_surv": hist.new.Reg(6000, 0, 6000).Double(),
         "hit": hist.new.Reg(6000, 0, 6000).Double(),
-        "mul2": hist.new.Reg(600, 0, 6000).Reg(600, 0, 6000).Double(),
+        "mul2": hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double(),
         "mul_lar_surv": hist.new.Reg(6000, 0, 6000).Double(),
     }
     log.info("... beginning iteration over cvt file")
