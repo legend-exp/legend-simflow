@@ -15,6 +15,7 @@
 
 from pathlib import Path
 
+import dbetto
 from legendsimflow import aggregate, nersc, patterns
 
 
@@ -92,7 +93,7 @@ rule _init_julia_env:
 # Memoize the on-demand fallback result to avoid re-running the expensive
 # gen_list_of_all_hpges_valid_for_modeling() more than once per Snakemake
 # invocation (touch executor / no YAML on disk).
-_hpge_cache_fallback_memo: dict | None = None
+MODELABLE_HPGES: dict | None = None
 
 
 def smk_load_hpge_cache() -> dict:
@@ -108,19 +109,15 @@ def smk_load_hpge_cache() -> dict:
     executor, which marks the checkpoint complete without executing its
     ``run:`` block (so the YAML may not exist on disk).
     """
-    global _hpge_cache_fallback_memo
-
-    import dbetto
+    global MODELABLE_HPGES
 
     yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     if yaml_path.exists():
         return dbetto.utils.load_dict(yaml_path)
     # touch executor marks the checkpoint complete without running it
-    if _hpge_cache_fallback_memo is None:
-        _hpge_cache_fallback_memo = aggregate.gen_list_of_all_hpges_valid_for_modeling(
-            config
-        )
-    return _hpge_cache_fallback_memo
+    if MODELABLE_HPGES is None:
+        MODELABLE_HPGES = aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+    return MODELABLE_HPGES
 
 
 checkpoint cache_modelable_hpges:
