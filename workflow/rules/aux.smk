@@ -89,19 +89,10 @@ rule _init_julia_env:
         "> {log} 2>&1 && touch {output}"
 
 
-# Separate memos for the two helper functions below.
-#
-# _hpge_cache_loadtime_memo is populated at Snakefile parse time by
-# smk_try_load_hpge_cache() from whatever YAML is on disk — possibly stale.
-# It is only used for static input: blocks whose contents are fixed at parse
-# time and therefore cannot benefit from a fresh checkpoint anyway.
-#
-# _hpge_cache_checkpoint_memo is populated by smk_load_hpge_cache() strictly
-# after checkpoints.cache_modelable_hpges.get() has confirmed the checkpoint
-# output is up-to-date.  Keeping them separate prevents stale load-time data
-# from leaking into rules that depend on the checkpoint.
+# Memoize the load-time cache to avoid re-running the expensive
+# gen_list_of_all_hpges_valid_for_modeling() fallback (when no YAML is on disk)
+# more than once per Snakemake invocation.
 _hpge_cache_loadtime_memo: dict | None = None
-_hpge_cache_checkpoint_memo: dict | None = None
 
 
 def smk_load_hpge_cache() -> dict:
@@ -113,28 +104,17 @@ def smk_load_hpge_cache() -> dict:
     Snakemake will schedule it first and re-evaluate the calling rule's inputs
     once it completes.
 
-    The result is memoized in ``_hpge_cache_checkpoint_memo`` so subsequent
-    calls in the same Snakemake invocation never re-read the YAML from disk.
     Falls back to :func:`smk_try_load_hpge_cache` when running under the
     touch executor, which marks the checkpoint complete without executing
-    its ``run:`` block — reusing the already-memoised load-time cache
-    without an extra metadata query.
+    its ``run:`` block.
     """
-    global _hpge_cache_checkpoint_memo
-
-    if _hpge_cache_checkpoint_memo is not None:
-        return _hpge_cache_checkpoint_memo
-
     import dbetto
 
     yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     if yaml_path.exists():
-        _hpge_cache_checkpoint_memo = dbetto.utils.load_dict(yaml_path)
-    else:
-        # touch executor marks the checkpoint complete without running it;
-        # reuse the load-time cache (already memoised at parse time)
-        _hpge_cache_checkpoint_memo = smk_try_load_hpge_cache()
-    return _hpge_cache_checkpoint_memo
+        return dbetto.utils.load_dict(yaml_path)
+    # touch executor marks the checkpoint complete without running it
+    return smk_try_load_hpge_cache()
 
 
 def smk_try_load_hpge_cache() -> dict:
