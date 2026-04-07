@@ -1,5 +1,10 @@
 # AGENTS.md — Testing
 
+**NEVER skip tests, linting, or docs building** unless the changes are
+completely unrelated (e.g. a pure comment or markdown-only change that does not
+affect code, tests, or documentation build). Always run the full validation
+suite before committing.
+
 Python tests are stored in `tests/` and managed with Pytest. Julia tests are in
 `workflow/src/LegendSimflow.jl/test/`. Run all tests with `pixi run test`.
 

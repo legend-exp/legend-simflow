@@ -4,9 +4,19 @@
 
 On NERSC you can use Conda/Mamba and Pixi, but you have to make sure that
 software is installed on a performant filesystem like `$SCRATCH` or in
-`/global/common/software/...`. In case you are running the production on CFS
-(slower filesystem), these environment variables are a good starting point
-(customize paths if needed):
+`/global/common/software/...`.
+
+:::{warning}
+
+Pixi cannot install software to `/global/common/software`, because this
+filesystem is **read-only on compute nodes** and Pixi needs to modify its
+environment at runtime. Use `$SCRATCH` for Pixi environments instead (see the
+`detached-environments` setting below).
+
+:::
+
+In case you are running the production on CFS (slower filesystem), these
+environment variables are a good starting point (customize paths if needed):
 
 ```bash
 export SWPREFIX="$SCRATCH/software"
@@ -90,6 +100,22 @@ nersc:
 ```
 
 Both features can be disabled by setting the corresponding fields to false.
+
+:::{note}
+
+The NERSC profiles already set the Snakemake option `local-storage-prefix` to
+stage intermediate files on scratch. This is a Snakemake-native mechanism and is
+**independent** of the Simflow's own `nersc.scratch` setting described above. If
+you pass `--default-storage-provider fs` to Snakemake (or add
+`default-storage-provider: fs` to a profile), Snakemake will use the
+`local-storage-prefix` path as the default storage location for all intermediate
+files, copying them to the final output path on completion. This can conflict
+with the Simflow's `nersc.scratch` setting — the two mechanisms should not
+target the same files. In practice, you should **not** need to set
+`--default-storage-provider fs` yourself: the provided profiles already
+configure `local-storage-prefix` appropriately.
+
+:::
 
 :::{warning}
 

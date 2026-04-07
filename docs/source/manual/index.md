@@ -6,6 +6,7 @@
 setup
 meta
 prod
+output
 sites
 tips
 ```

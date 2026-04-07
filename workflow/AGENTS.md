@@ -16,6 +16,13 @@
   time; consider caching strategies instead
 - Other conventions are enforced by pre-commit
 
+## Resource constraints
+
+- Jobs run by Snakemake should not use more than **2 GB of memory** each. The
+  workflow is designed to run many jobs in parallel on a single node, so
+  individual jobs must stay within this budget. If a script needs more memory,
+  set explicit `mem_mb` resources for its rule in the Snakemake profile.
+
 ## Snakemake scripts
 
 Every script under `workflow/src/legendsimflow/scripts/` must be runnable both
