@@ -89,10 +89,10 @@ rule _init_julia_env:
         "> {log} 2>&1 && touch {output}"
 
 
-# Memoize the load-time cache to avoid re-running the expensive
-# gen_list_of_all_hpges_valid_for_modeling() fallback (when no YAML is on disk)
-# more than once per Snakemake invocation.
-_hpge_cache_loadtime_memo: dict | None = None
+# Memoize the on-demand fallback result to avoid re-running the expensive
+# gen_list_of_all_hpges_valid_for_modeling() more than once per Snakemake
+# invocation (touch executor / no YAML on disk).
+_hpge_cache_fallback_memo: dict | None = None
 
 
 def smk_load_hpge_cache() -> dict:
@@ -104,45 +104,23 @@ def smk_load_hpge_cache() -> dict:
     Snakemake will schedule it first and re-evaluate the calling rule's inputs
     once it completes.
 
-    Falls back to :func:`smk_try_load_hpge_cache` when running under the
-    touch executor, which marks the checkpoint complete without executing
-    its ``run:`` block.
+    Falls back to computing the cache on-demand when running under the touch
+    executor, which marks the checkpoint complete without executing its
+    ``run:`` block (so the YAML may not exist on disk).
     """
+    global _hpge_cache_fallback_memo
+
     import dbetto
 
     yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     if yaml_path.exists():
         return dbetto.utils.load_dict(yaml_path)
     # touch executor marks the checkpoint complete without running it
-    return smk_try_load_hpge_cache()
-
-
-def smk_try_load_hpge_cache() -> dict:
-    """Load the modelable HPGe cache, safe to call at Snakefile load time.
-
-    Unlike :func:`smk_load_hpge_cache`, this function does not invoke the
-    checkpoint mechanism and is safe to use in static ``input:`` blocks of
-    aggregate rules whose inputs must be resolved at parse time.
-
-    If the checkpoint YAML already exists it is read from disk. Otherwise
-    the cache is computed on-demand — same cost as the original eager call —
-    so downstream functions never fall back to repeated per-runid metadata
-    queries.
-    """
-    global _hpge_cache_loadtime_memo
-
-    if _hpge_cache_loadtime_memo is not None:
-        return _hpge_cache_loadtime_memo
-    import dbetto
-
-    yaml_path = Path(config.paths.pars) / "modelable_hpge_detectors.yaml"
-    if yaml_path.exists():
-        _hpge_cache_loadtime_memo = dbetto.utils.load_dict(yaml_path)
-    else:
-        _hpge_cache_loadtime_memo = aggregate.gen_list_of_all_hpges_valid_for_modeling(
+    if _hpge_cache_fallback_memo is None:
+        _hpge_cache_fallback_memo = aggregate.gen_list_of_all_hpges_valid_for_modeling(
             config
         )
-    return _hpge_cache_loadtime_memo
+    return _hpge_cache_fallback_memo
 
 
 checkpoint cache_modelable_hpges:
