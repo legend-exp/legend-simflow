@@ -1,7 +1,7 @@
 name: B99000A
 type: bege
 production:
-  manufacturer: Dummy
+  manufacturer: Dummy Manufacturer
   order: 99
   crystal: "000"
   slice: A

@@ -1,7 +1,7 @@
 name: C99000A
 type: coax
 production:
-  manufacturer: Dummy
+  manufacturer: Dummy Manufacturer
   order: 0
   crystal: "000"
   slice: A

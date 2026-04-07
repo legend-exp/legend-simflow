@@ -1,7 +1,7 @@
 name: P99000A
 type: ppc
 production:
-  manufacturer: Dummy
+  manufacturer: Dummy Manufacturer
   order: 0
   crystal: "000"
   slice: A
