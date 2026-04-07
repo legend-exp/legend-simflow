@@ -94,5 +94,5 @@ See [`workflow/AGENTS.md`](workflow/AGENTS.md).
 
 - ALWAYS: make sure linting, testing and docs building succeed **before**
   committing. NEVER skip tests, linting, or docs building unless the changes are
-  completely unrelated (e.g. a pure comment or markdown-only change that does
-  not affect code, tests, or documentation build)
+  completely unrelated (e.g. a pure comment or a markdown-only change outside
+  `docs/source/`)

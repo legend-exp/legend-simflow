@@ -109,11 +109,9 @@ stage intermediate files on scratch. This is a Snakemake-native mechanism and is
 you pass `--default-storage-provider fs` to Snakemake (or add
 `default-storage-provider: fs` to a profile), Snakemake will use the
 `local-storage-prefix` path as the default storage location for all intermediate
-files, copying them to the final output path on completion. This can conflict
-with the Simflow's `nersc.scratch` setting — the two mechanisms should not
-target the same files. In practice, you should **not** need to set
-`--default-storage-provider fs` yourself: the provided profiles already
-configure `local-storage-prefix` appropriately.
+files, copying them to the final output path on completion.
+`--default-storage-provider fs` and `nersc.scratch` are **mutually exclusive**
+and should not be used together.
 
 :::
 
