@@ -12,7 +12,7 @@ discrimination) to the raw
 output. Each HPGe detector is processed independently; output tables are stored
 under `/hit/{detector_name}/` in the LH5 file. Each row corresponds to a single
 _remage_ hit in one detector — use the `evtid` column and the
-[`evt` tier](#evt-tier-event-level-output) to group hits into physics events.
+[`evt` tier](evt-tier) to group hits into physics events.
 
 ### Inherited fields
 
@@ -65,6 +65,8 @@ single `/hit/spms/` table. Each row corresponds to an `stp`-tier hit entry
 | `period`       | `Array`           | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                         |
 | `run`          | `Array`           | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                            |
 | `usability`    | `Array`           | —     | Encoded SiPM channel usability status for this run. Decode with {func}`legendsimflow.metadata.decode_usability`.                                        |
+
+(evt-tier)=
 
 ## `evt` tier — event-level output
 
