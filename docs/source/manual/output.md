@@ -8,21 +8,21 @@ of the Simflow. All output files use the
 
 The `hit` tier applies detector response models (energy resolution, pulse-shape
 discrimination) to the raw
-[`stp`-tier](https://remage.readthedocs.io/en/stable/output.html) simulation
-output. Each HPGe detector is processed independently; output tables are stored
-under `/hit/{detector_name}/` in the LH5 file. Each row corresponds to a single
-_remage_ hit in one detector — use the `evtid` column and the
+[`stp`-tier](https://remage.readthedocs.io/en/stable/manual/output.html)
+simulation output. Each HPGe detector is processed independently; output tables
+are stored under `/hit/{detector_name}/` in the LH5 file. Each row corresponds
+to a single _remage_ hit in one detector — use the `evtid` column and the
 [`evt` tier](evt-tier) to group hits into physics events.
 
 ### Inherited fields
 
 These fields are carried over from the
-[`stp` tier](https://remage.readthedocs.io/en/stable/output.html):
+[`stp` tier](https://remage.readthedocs.io/en/stable/manual/output.html):
 
-| Field   | Type    | Units | Description                                                              |
-| ------- | ------- | ----- | ------------------------------------------------------------------------ |
-| `evtid` | `Array` | —     | Event identifier, shared across all detectors hit in the same event.     |
-| `t0`    | `Array` | ns    | Time of the first energy deposition in the detector (earliest hit time). |
+| Field   | Type    | Units | Description                                                                                    |
+| ------- | ------- | ----- | ---------------------------------------------------------------------------------------------- |
+| `evtid` | `Array` | —     | Event identifier, shared across all detectors hit in the same event.                           |
+| `t0`    | `Array` | ns    | Time of the first energy deposition in the detector relative to the start of the Geant4 event. |
 
 ### Added fields
 
@@ -135,3 +135,23 @@ argon.
 | ------ | ------- | ----- | ------------------------------------------------------------------------------------ |
 | `geds` | `Array` | —     | Boolean. `True` if the HPGe multiplicity is greater than zero.                       |
 | `spms` | `Array` | —     | Boolean LAr veto flag. `True` if `spms/multiplicity >= 4` or `spms/energy_sum >= 4`. |
+
+## Time-coincidence map (TCM)
+
+Every `hit`, `opt`, and `evt` tier file contains a `/tcm` table
+(time-coincidence map) that maps physics events to the individual detector-level
+table rows that belong to them. The TCM is built by grouping hits that share the
+same `evtid` and whose `t0` values fall within a 10 µs coincidence window
+(matching the _remage_ built-in TCM settings).
+
+The TCM table has two fields, both `VectorOfVectors` (one inner list per event):
+
+| Field          | Type              | Description                                                                                                  |
+| -------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `table_key`    | `VectorOfVectors` | Detector UID for each hit in the event. Identifies which `/hit/{detector}/` table the hit belongs to.        |
+| `row_in_table` | `VectorOfVectors` | Row index into the corresponding detector table. Together with `table_key`, uniquely locates each hit entry. |
+
+In the `hit` and `opt` tiers, the TCM indexes into the detector tables within
+the same file. In the `evt` tier, the TCM is a _unified_ version that merges the
+`hit` and `opt` TCMs, so that a single TCM entry references hits across both
+HPGe and SiPM detector tables.
