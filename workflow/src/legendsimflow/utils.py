@@ -410,7 +410,12 @@ def add_field_string(name: str, chunk: lgdo.Table, data: str) -> None:
     chunk.add_field(name, lgdo.Array(data_array))
 
 
-def check_nans_leq(array: ArrayLike, name: str, less_than_frac: float = 0.1) -> None:
+def check_nans_leq(
+    array: ArrayLike,
+    name: str,
+    less_than_frac: float = 0.1,
+    min_entries: int = 100,
+) -> None:
     """Raise an exception if the fraction of NaN values in `array` is above threshold.
 
     Parameters
@@ -421,11 +426,19 @@ def check_nans_leq(array: ArrayLike, name: str, less_than_frac: float = 0.1) -> 
         array name for exception message.
     less_than_frac
         raise exception if fraction of NaNs is above this threshold.
+    min_entries
+        minimum number of entries required to apply the fraction check. With
+        fewer entries, a warning is logged instead of raising an exception.
 
     """
     flat = ak.ravel(array)
     n_el = len(flat)
     n_nans = ak.sum(ak.is_none(ak.nan_to_none(flat)))
+    if n_el < min_entries:
+        if n_nans > 0:
+            msg = f"{n_nans}/{n_el} NaNs in {name}, but too few entries to apply fraction check"
+            log.warning(msg)
+        return
     if (n_nans / n_el) > less_than_frac:
         msg = f"more than {100 * less_than_frac}% of NaNs detected in array {name}!"
         raise RuntimeError(msg)

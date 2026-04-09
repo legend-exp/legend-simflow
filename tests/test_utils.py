@@ -45,12 +45,15 @@ def test_get_dataflow_config(test_l200data):
 
 
 def test_check_nans_leq():
-    utils.check_nans_leq([1, 2, 3, 4], "boh", 0.1)
-    utils.check_nans_leq([[1], [2, 3], 4], "boh", 0.1)
-    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.5)
+    utils.check_nans_leq([1, 2, 3, 4], "boh", 0.1, min_entries=1)
+    utils.check_nans_leq([[1], [2, 3], 4], "boh", 0.1, min_entries=1)
+    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.5, min_entries=1)
 
     with pytest.raises(RuntimeError):
-        utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1)
+        utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1, min_entries=1)
+
+    # below min_entries: warns instead of raising
+    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1, min_entries=100)
 
 
 def test_merge_defaults():
