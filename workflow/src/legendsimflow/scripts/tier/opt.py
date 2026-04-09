@@ -222,7 +222,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 sipm_uid = sens_tables[sipm].uid
 
                 # get the usability
-                det_info = usabilities[runid][sipm]
+                det_info = usabilities[runid].get(sipm, None)
                 if det_info is None:
                     msg = f"usability not found for {sipm} in {runid}, defaulting to on"
                     log.warning(msg)
