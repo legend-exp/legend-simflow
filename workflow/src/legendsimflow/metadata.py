@@ -313,7 +313,12 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
         Detector name.
 
     """
-    det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+    try:
+        det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+    except (FileNotFoundError, KeyError):
+        msg = f"{det_name} diode metadata not found, setting FCCD to 1 mm"
+        log.warning(msg)
+        return 1
 
     has_fccd_meta = validate_dict_schema(
         det_meta.characterization,
@@ -489,7 +494,7 @@ def _get_lh5_table(
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
 
-    chmap = metadata.channelmap(timestamp)
+    chmap = metadata.hardware.configuration.channelmaps.on(timestamp)
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"
