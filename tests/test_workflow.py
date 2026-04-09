@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 from snakemake import api as smkapi
 
 dummyprod = Path(__file__).parent / "dummyprod"
+all_cores = os.cpu_count() or 1
 
 
 def test_dag():
@@ -21,7 +23,7 @@ def test_dag():
                 configfiles=(dummyprod / "simflow-config.yaml",)
             ),
             storage_settings=smkapi.StorageSettings(),
-            resource_settings=smkapi.ResourceSettings(cores=1),
+            resource_settings=smkapi.ResourceSettings(cores=all_cores),
         )
         dag = wf_api.dag()
         dag.execute_workflow(executor="touch")
@@ -46,7 +48,29 @@ def test_stp_workflow():
                 },
             ),
             storage_settings=smkapi.StorageSettings(),
-            resource_settings=smkapi.ResourceSettings(cores=1),
+            resource_settings=smkapi.ResourceSettings(cores=all_cores),
         )
         dag = wf_api.dag(smkapi.DAGSettings(forceall=True))
         dag.execute_workflow()
+
+
+@pytest.mark.needs_nersc
+@pytest.mark.needs_remage
+@pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
+def test_full_workflow():
+    output = smkapi.OutputSettings(show_failed_logs=True)
+
+    with smkapi.SnakemakeApi(output) as api:
+        wf_api = api.workflow(
+            snakefile=dummyprod / "workflow/Snakefile",
+            workdir=dummyprod,
+            config_settings=smkapi.ConfigSettings(
+                configfiles=(dummyprod / "simflow-config-nersc.yaml",),
+            ),
+            storage_settings=smkapi.StorageSettings(),
+            resource_settings=smkapi.ResourceSettings(cores=all_cores),
+        )
+        dag = wf_api.dag()
+        dag.execute_workflow(
+            execution_settings=smkapi.ExecutionSettings(keep_going=True),
+        )

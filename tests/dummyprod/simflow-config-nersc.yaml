@@ -1,0 +1,39 @@
+experiment: l200p03
+
+runlist:
+  - l200-p03-r000-phy
+  - l200-p03-r001-phy
+
+benchmark:
+  enabled: true
+  n_primaries:
+    stp: 1000
+
+paths:
+  generated: $_/generated-nersc
+  l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/v2.1.5
+  benchmarks: $_/generated-nersc/benchmarks
+  log: $_/generated-nersc/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    fiber: $_/inputs/simprod/l200a-optical-map-fiber.lh5
+    lar: /dvs_ro/cfs/cdirs/m2676/sims/optmap/l200cfg01/l200cfg01-optmap-v3.lh5
+    pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
+
+  pars: $_/generated-nersc/pars
+  macros: $_/generated-nersc/macros
+  tier:
+    vtx: $_/generated-nersc/tier/vtx
+    stp: $_/generated-nersc/tier/stp
+    opt: $_/generated-nersc/tier/opt
+    hit: $_/generated-nersc/tier/hit
+    evt: $_/generated-nersc/tier/evt
+    cvt: $_/generated-nersc/tier/cvt
+    pdf: $_/generated-nersc/tier/pdf
+  pdf_releases: $_/generated-nersc/releases
+
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow
