@@ -1,13 +1,13 @@
-birds_nest_K40:
+ultem_insulators_Pb214_to_Po214:
   template: $_/template.mac
-  generator: ~defines:K40
-  confinement: ~defines:birds_nest
-  primaries_per_job: 10_000
+  generator: ~defines:Pb214_to_Po214
+  confinement: ~volumes.bulk:hpge_assembly_insulator_ultem_.*
+  primaries_per_job: 100_000
   number_of_jobs: 1
 
-hpge_bulk_Rn222_to_Po214:
+pen_plates_Pb212_to_Pb208:
   template: $_/template.mac
-  generator: ~defines:Rn222_to_Po214
-  confinement: ~defines:hpge_bulk
-  primaries_per_job: 10_000
+  generator: ~defines:Pb212_to_Pb208
+  confinement: ~volumes.bulk:hpge_assembly_.*_pen.*
+  primaries_per_job: 100_000
   number_of_jobs: 1

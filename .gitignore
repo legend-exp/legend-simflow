@@ -6,6 +6,7 @@ workflow/src/legendsimflow/_version.py
 /simflow-config.yaml
 /generated
 tests/dummyprod/generated
+tests/dummyprod/generated-nersc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

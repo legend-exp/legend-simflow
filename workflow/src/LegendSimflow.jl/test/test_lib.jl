@@ -42,7 +42,7 @@ end
     meta = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
 
     det = "V99000A"
-    opv_val = 3000.0
+    opv_val = 4200.0
 
     meta_dict, xtal, opv = load_detector_metadata(meta, det, opv_val)
 
@@ -65,7 +65,7 @@ end
 @testset "map_generation" begin
     meta_path = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
     det = "V99000A"
-    opv_val = 3000.0
+    opv_val = 4200.0
     T = Float32
     refinement_limits = [0.2, 0.1, 0.05, 0.02]
 

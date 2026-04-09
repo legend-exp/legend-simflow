@@ -24,7 +24,9 @@ The dummy production uses two experiments:
   intended to run an actual production
 - `l200p03`: used by the `test_stp_workflow` integration test, which exercises
   the full vtx→stp pipeline with remage using the public `legend-pygeom-l200`
-  geometry
+  geometry; also used by `test_full_workflow` (`needs_nersc` marker), which runs
+  the full vtx→cvt pipeline requiring access to `l200data` — run manually at
+  NERSC with `pixi run test-full-workflow`
 
 `legend_testdata` (from `legendtestdata`) is still available as a pytest fixture
 for tests that require LH5 data files or other binary assets from the testdata

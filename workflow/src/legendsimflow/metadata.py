@@ -318,7 +318,7 @@ def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
     except (FileNotFoundError, KeyError):
         msg = f"{det_name} diode metadata not found, setting FCCD to 1 mm"
         log.warning(msg)
-        return 1
+        return 1.0
 
     has_fccd_meta = validate_dict_schema(
         det_meta.characterization,
