@@ -140,9 +140,14 @@ def process_sipm(
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
             out_table.add_field(
-                "time", VectorOfVectors(pe_times, attrs={"units": "ns"})
+                "time",
+                VectorOfVectors(
+                    ak.values_astype(pe_times, np.float32), attrs={"units": "ns"}
+                ),
             )
-            out_table.add_field("energy", VectorOfVectors(pe_amps))
+            out_table.add_field(
+                "energy", VectorOfVectors(ak.values_astype(pe_amps, np.float32))
+            )
             out_table.add_field("is_saturated", Array(is_saturated))
 
             _, period, run, _ = mutils.parse_runid(runid)

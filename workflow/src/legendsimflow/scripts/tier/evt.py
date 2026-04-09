@@ -247,7 +247,8 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         timestamp = _read_hits(tcm, "hit", "t0")
         timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
         out_table.add_field(
-            "trigger/timestamp", Array(timestamp, attrs={"units": "ns"})
+            "trigger/timestamp",
+            Array(np.asarray(timestamp, dtype=np.float32), attrs={"units": "ns"}),
         )
 
         # HPGe table
@@ -268,13 +269,19 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
         )
         out_table.add_field(
-            "geds/energy", VectorOfVectors(energy[hitsel], attrs={"units": "keV"})
+            "geds/energy",
+            VectorOfVectors(
+                ak.values_astype(energy[hitsel], np.float32), attrs={"units": "keV"}
+            ),
         )
         # NOTE: the energy sum does not include AC detectors
         out_table.add_field(
             "geds/energy_sum",
             Array(
-                ak.sum(energy[hitsel & (usability == ON)], axis=-1),
+                np.asarray(
+                    ak.sum(energy[hitsel & (usability == ON)], axis=-1),
+                    dtype=np.float32,
+                ),
                 attrs={"units": "keV"},
             ),
         )
@@ -292,7 +299,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         )
 
         aoe = _read_hits(tcm, "hit", "aoe")
-        out_table.add_field("geds/psd/aoe", VectorOfVectors(aoe[hitsel]))
+        out_table.add_field(
+            "geds/psd/aoe", VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32))
+        )
         out_table.add_field("geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
 
         is_ss = _read_hits(tcm, "hit", "is_single_site")
@@ -334,7 +343,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         # fill in empty arrays for events with no LAr edep
         empty_energy = ak.Array([[[] for _ in on_spms_uids]] * n_events)
         energy_sel = ak.where(is_empty_opt, empty_energy, energy_sel)
-        out_table.add_field("spms/energy", VectorOfVectors(energy_sel))
+        out_table.add_field(
+            "spms/energy", VectorOfVectors(ak.values_astype(energy_sel, np.float32))
+        )
 
         is_saturated = _read_hits(tcm, "opt", "is_saturated")
         is_saturated_sel = is_saturated[chansel]
@@ -355,7 +366,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         empty_time = ak.Array([[[] for _ in on_spms_uids]] * n_events)
         time_sel = ak.where(is_empty_opt, empty_time, time_sel)
         out_table.add_field(
-            "spms/time", VectorOfVectors(time_sel, attrs={"units": "ns"})
+            "spms/time",
+            VectorOfVectors(
+                ak.values_astype(time_sel, np.float32), attrs={"units": "ns"}
+            ),
         )
 
         if add_random_coincidences:
@@ -376,14 +390,22 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             #     "RC rawid does not match simulation spms/rawid: "
             #     f"{rc_chunk.rawid[0].to_list()} != {on_spms_uids}"
             # )
-            out_table.add_field("spms/rc_energy", VectorOfVectors(rc_chunk.npe))
             out_table.add_field(
-                "spms/rc_time", VectorOfVectors(rc_chunk.t0, attrs={"units": "ns"})
+                "spms/rc_energy",
+                VectorOfVectors(ak.values_astype(rc_chunk.npe, np.float32)),
+            )
+            out_table.add_field(
+                "spms/rc_time",
+                VectorOfVectors(
+                    ak.values_astype(rc_chunk.t0, np.float32), attrs={"units": "ns"}
+                ),
             )
 
         # total amount of light per event
         energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
-        out_table.add_field("spms/energy_sum", Array(energy_sum))
+        out_table.add_field(
+            "spms/energy_sum", Array(np.asarray(energy_sum, dtype=np.float32))
+        )
 
         # how many channels saw some light
         spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
