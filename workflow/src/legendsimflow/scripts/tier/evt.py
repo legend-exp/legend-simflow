@@ -285,18 +285,18 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
         )
 
-        # simply forward some fields
-        aoe = _read_hits(tcm, "hit", "aoe")
-        out_table.add_field("geds/aoe", VectorOfVectors(aoe[hitsel]))
-        out_table.add_field("geds/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
-
-        is_ss = _read_hits(tcm, "hit", "is_single_site")
-        out_table.add_field("geds/is_single_site", VectorOfVectors(is_ss[hitsel]))
-
+        # PSD subtable
         out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
         out_table.add_field(
             "geds/psd/is_good", VectorOfVectors(psd_usability[hitsel] == VALID_PSD)
         )
+
+        aoe = _read_hits(tcm, "hit", "aoe")
+        out_table.add_field("geds/psd/aoe", VectorOfVectors(aoe[hitsel]))
+        out_table.add_field("geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel])))
+
+        is_ss = _read_hits(tcm, "hit", "is_single_site")
+        out_table.add_field("geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel]))
 
         # compute multiplicity
         geds_multiplicity = ak.sum(hitsel, axis=-1)

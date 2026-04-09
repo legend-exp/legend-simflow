@@ -100,16 +100,16 @@ and are from non-OFF detectors.
 | `rawid`           | `VectorOfVectors` | —     | Detector channel UID for each hit, matching the channel identifiers used in LEGEND-200 data. Variable-length per event. |
 | `hit_idx`         | `VectorOfVectors` | —     | Row index in the `hit`-tier table, for looking up additional hit-level fields. Variable-length per event.               |
 | `is_good_channel` | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                             |
-| `aoe`             | `VectorOfVectors` | —     | A/E classifier values forwarded from the `hit` tier. Variable-length per event.                                         |
-| `has_aoe`         | `VectorOfVectors` | —     | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed). Variable-length per event.                       |
-| `is_single_site`  | `VectorOfVectors` | —     | Boolean PSD flag forwarded from the `hit` tier. Variable-length per event.                                              |
 | `multiplicity`    | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                        |
 
 #### `geds/psd/` — PSD quality
 
-| Field     | Type              | Units | Description                                                                                       |
-| --------- | ----------------- | ----- | ------------------------------------------------------------------------------------------------- |
-| `is_good` | `VectorOfVectors` | —     | Boolean. `True` if the PSD usability flag is valid in LEGEND-200 data. Variable-length per event. |
+| Field            | Type              | Units | Description                                                                                       |
+| ---------------- | ----------------- | ----- | ------------------------------------------------------------------------------------------------- |
+| `is_good`        | `VectorOfVectors` | —     | Boolean. `True` if the PSD usability flag is valid in LEGEND-200 data. Variable-length per event. |
+| `aoe`            | `VectorOfVectors` | —     | A/E classifier values forwarded from the `hit` tier. Variable-length per event.                   |
+| `has_aoe`        | `VectorOfVectors` | —     | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed). Variable-length per event. |
+| `is_single_site` | `VectorOfVectors` | —     | Boolean PSD flag forwarded from the `hit` tier. Variable-length per event.                        |
 
 ### `spms/` — SiPM (LAr scintillation) array
 
