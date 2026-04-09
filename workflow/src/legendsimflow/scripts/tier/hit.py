@@ -380,12 +380,22 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
-            out_table.add_field("energy", lgdo.Array(energy, attrs={"units": "keV"}))
             out_table.add_field(
-                "drift_time_amax", lgdo.Array(t_max, attrs={"units": "ns"})
+                "energy",
+                lgdo.Array(
+                    np.asarray(energy, dtype=np.float32), attrs={"units": "keV"}
+                ),
             )
-            out_table.add_field("aoe_raw", lgdo.Array(aoe))
-            out_table.add_field("aoe", lgdo.Array(aoe_class))
+            out_table.add_field(
+                "drift_time_amax",
+                lgdo.Array(np.asarray(t_max, dtype=np.float32), attrs={"units": "ns"}),
+            )
+            out_table.add_field(
+                "aoe_raw", lgdo.Array(np.asarray(aoe, dtype=np.float32))
+            )
+            out_table.add_field(
+                "aoe", lgdo.Array(np.asarray(aoe_class, dtype=np.float32))
+            )
             out_table.add_field("is_single_site", lgdo.Array(is_single_site))
 
             _, period, run, _ = mutils.parse_runid(runid)
