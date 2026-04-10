@@ -155,3 +155,70 @@ In the `hit` and `opt` tiers, the TCM indexes into the detector tables within
 the same file. In the `evt` tier, the TCM is a _unified_ version that merges the
 `hit` and `opt` TCMs, so that a single TCM entry references hits across both
 HPGe and SiPM detector tables.
+
+## `pdf` tier — probability density functions
+
+The `pdf` tier reads the event-level data from the `cvt` tier and bins it into
+energy histograms. These histograms represent the probability density functions
+(PDFs) used as inputs to spectral fitting analyses. The output is a single LH5
+file containing a set of histograms, each corresponding to a different event
+selection, and a scalar recording the total number of simulated primary events.
+
+The histograms apply a sequence of analysis cuts — multiplicity, LAr
+anti-coincidence, and pulse-shape discrimination — to produce PDFs for the most
+common LEGEND-200 analysis channels. All histograms carry a `description`
+attribute in the LH5 attrs.
+
+### Root-level fields
+
+| Field           | Type     | Units | Description                                                                                                                        |
+| --------------- | -------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `nr_sim_events` | `Scalar` | —     | Total number of simulated primary events (`primaries_per_job` × `number_of_jobs`). Used to normalise PDFs to physical event rates. |
+
+### `pdf/` — histogram struct
+
+All histograms are stored under the `pdf/` key as an LH5 `Struct`. Each entry is
+an lgdo `Histogram` with a `description` attribute.
+
+#### 1D histograms
+
+Each of the following is a 1D histogram of HPGe energy deposits. The
+`good_channel_mask` applied before all cuts requires every channel in the event
+to be an ON detector (not AC or OFF).
+
+| Key           | Description                                                                                                                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                        |
+| `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                   |
+| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon).                               |
+| `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires both `psd.is_good` and `psd.is_single_site` for all hits. Events where PSD is not valid are classified as background and excluded. |
+| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`).                                                                     |
+
+:::{warning}
+
+When a detector is ON with valid PSD in the data but its PSD response could not
+be simulated (e.g. because it is not included in the simulation model), the
+corresponding events will have `psd.is_good = False` in the `cvt` tier. Such
+events are treated as background and excluded from `mul_psd` and `mul_lar_psd`.
+This is a conservative choice: rather than keeping events we cannot
+characterise, we cut them. The `fail/psd` histogram does **not** include these
+events either, since it is restricted to events where `psd.is_good = True`.
+
+:::
+
+#### 2D histograms
+
+| Key    | Description                                                                                                                                                                   |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mul2` | Multiplicity-2 events with exactly two ON detectors fired. A 2D histogram with axes (E_low, E_high), where E_low ≤ E_high are the two hit energies sorted in ascending order. |
+
+### `pdf/fail/` — cut-failure histograms
+
+The `fail/` sub-struct contains histograms for multiplicity-1 events that are
+explicitly rejected by a cut, providing a way to characterise the vetoed
+background.
+
+| Key   | Description                                                                                                                                                                 |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lar` | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`).                                                                                                     |
+| `psd` | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.is_single_site == False`). Events without valid PSD are not included here. |
