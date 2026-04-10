@@ -195,10 +195,11 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             msg = f"usability not found for {det_name} in {runid}, defaulting to on"
             log.warning(msg)
             usability = "on"
-            psd_usability = mutils.encode_psd_usability("valid")
+            psd_usability = "valid"
         else:
             usability = det_info.usability
-            psd_usability = mutils.encode_psd_usability(det_info.psd_usability)
+            psd_usability = det_info.psd_usability
+        psd_usability_code = mutils.encode_psd_usability(psd_usability)
 
         msg = "looking for indices of hit table rows to read..."
         log.debug(msg)
@@ -238,6 +239,17 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
         currmod_pars = (
             pars.get("current_pulse_pars", None) if pars is not None else None
         )
+
+        if (
+            (dt_map is None or currmod_pars is None)
+            and usability == "on"
+            and psd_usability == "valid"
+        ):
+            msg = (
+                f"{det_name} is ON with valid PSD in data but its PSD response "
+                "could not be simulated (drift-time map or current model missing)."
+            )
+            log.warning(msg)
 
         # iterate over input data
         for lgdo_chunk in iterator:
@@ -407,7 +419,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 )
             out_table.add_field(
                 "psd_usability",
-                lgdo.Array(np.full(shape=len(chunk), fill_value=psd_usability)),
+                lgdo.Array(np.full(shape=len(chunk), fill_value=psd_usability_code)),
             )
 
             with perf_block("write_chunk()"):
