@@ -175,17 +175,14 @@ def test_get_index_sorted_by_proximity(legend_testdata):
     path = ref_path / Path("generated/tier/hit/cal/p03/r001")
     files = [str(p) for p in path.glob("*")]
 
-    # Wide energy window to get at least 2 events for a meaningful sort check
-    pairs, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
+    _, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
         files,
         "ch1084803/hit",
         ewin_center=500,
         ewin_width=1000,
+        max_waveforms=2,
         get_drift_time=False,
     )
-
-    if len(pairs) < 2:
-        pytest.skip("not enough test events to verify sorting")
 
     med = float(np.median(all_dts))
     distances = np.abs(selected_dts - med)
