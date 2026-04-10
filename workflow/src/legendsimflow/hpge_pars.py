@@ -860,7 +860,7 @@ def _lookup_generated_pars_file(
 
     # get the pars file at the correct timestamp
     tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
+    chmap = metadata.channelmap(tstamp, skip_version_check=True)
     pars_file = pars_db.on(tstamp)
 
     return pars_file, chmap

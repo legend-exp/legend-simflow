@@ -148,7 +148,7 @@ def usability(
     to a non-None value, it will be returned.
     """
     rinfo = runinfo(metadata, runid)
-    chmap = metadata.channelmap(rinfo.start_key)
+    chmap = metadata.channelmap(rinfo.start_key, skip_version_check=True)
     if det_name in chmap and "analysis" in chmap[det_name]:
         return chmap[det_name].analysis.usability
 
@@ -494,7 +494,7 @@ def _get_lh5_table(
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
 
-    chmap = metadata.hardware.configuration.channelmaps.on(timestamp)
+    chmap = metadata.channelmap(timestamp, skip_version_check=True)
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"
