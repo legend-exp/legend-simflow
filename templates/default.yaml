@@ -23,6 +23,7 @@ make_steps:
   - hit
   - evt
   - cvt
+  - pdf
 
 # legend_metadata_version: main
 

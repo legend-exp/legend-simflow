@@ -4,7 +4,10 @@ from legendsimflow import aggregate, patterns, utils
 
 
 rule gen_all_tier_pdf:
-    """Aggregate and produce all the pdf tier files."""
+    """Aggregate and produce all the `pdf` tier files.
+
+    No wildcards are used.
+    """
     input:
         aggregate.gen_list_of_all_tier_pdf_outputs(config),
 
@@ -38,8 +41,8 @@ rule gen_pdf_release:
 rule build_tier_pdf:
     """Produce a `pdf` tier file.
 
-    Run the `build-pdf` command, which reads `cvt` tier data and bins it into
-    histograms (the PDFs) according to the PDF configuration file.
+    Reads `cvt` tier data and bins it into histograms (the PDFs) according to
+    the PDF configuration file.
 
     Uses wildcard `simid`.
     """
