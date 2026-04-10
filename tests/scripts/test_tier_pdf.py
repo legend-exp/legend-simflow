@@ -13,19 +13,35 @@ dummyprod = Path(__file__).parent.parent / "dummyprod"
 
 
 def _make_cvt_file(path: Path) -> None:
-    """Write a minimal cvt LH5 file with the fields expected by the pdf script."""
-    # 3 events: multiplicities 1, 1, 2
-    multiplicity = Array(np.array([1, 1, 2], dtype=np.int32))
-    # per-event energy lists (VectorOfVectors): one or two detectors
-    energy = VectorOfVectors(data=[[500.0], [1000.0], [200.0, 300.0]])
-    is_good_channel = VectorOfVectors(data=[[True], [True], [True, True]])
-    spms = Array(np.array([False, False, False]))
+    """Write a minimal cvt LH5 file with the fields expected by the pdf script.
 
+    5 events:
+    - event 0: m1, 500 keV,      spms=False, PSD valid+single-site → passes all cuts
+    - event 1: m1, 1000 keV,     spms=False, PSD valid+multi-site  → fail/psd
+    - event 2: m1, 1500 keV,     spms=False, PSD not valid         → cut (no observable)
+    - event 3: m1, 2000 keV,     spms=True,  PSD valid+single-site → fail/lar
+    - event 4: m2, 200+300 keV,  spms=False
+    """
+    multiplicity = Array(np.array([1, 1, 1, 1, 2], dtype=np.int32))
+    energy = VectorOfVectors(
+        data=[[500.0], [1000.0], [1500.0], [2000.0], [200.0, 300.0]]
+    )
+    is_good_channel = VectorOfVectors(
+        data=[[True], [True], [True], [True], [True, True]]
+    )
+    is_good = VectorOfVectors(data=[[True], [True], [False], [True], [True, True]])
+    is_single_site = VectorOfVectors(
+        data=[[True], [False], [False], [True], [True, True]]
+    )
+    spms = Array(np.array([False, False, False, True, False]))
+
+    psd = Table(col_dict={"is_good": is_good, "is_single_site": is_single_site})
     geds = Table(
         col_dict={
             "energy": energy,
             "is_good_channel": is_good_channel,
             "multiplicity": multiplicity,
+            "psd": psd,
         }
     )
     coincident = Table(col_dict={"spms": spms})
@@ -62,7 +78,50 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     pdf.main()
 
     assert pdf_file.exists()
-    assert "pdf" in lh5.ls(pdf_file)
+    root_keys = lh5.ls(pdf_file)
+    assert "pdf" in root_keys
+    assert "nr_sim_events" in root_keys
+    nr_sim_events = lh5.read("nr_sim_events", pdf_file)
+    assert np.issubdtype(type(nr_sim_events.value), np.integer)
+
     inner_keys = lh5.ls(pdf_file, "pdf/")
-    assert "pdf/n_prim" in inner_keys
-    assert "pdf/pdfs" in inner_keys
+    for name in (
+        "pdf/hit",
+        "pdf/mul",
+        "pdf/mul_lar",
+        "pdf/mul_psd",
+        "pdf/mul_lar_psd",
+        "pdf/mul2",
+        "pdf/fail",
+    ):
+        assert name in inner_keys
+    fail_keys = lh5.ls(pdf_file, "pdf/fail/")
+    for name in ("pdf/fail/lar", "pdf/fail/psd"):
+        assert name in fail_keys
+
+    def _sum(path):
+        return lh5.read_as(path, pdf_file, "hist").sum()
+
+    # 6 per-detector deposits: 4 m1 + 2 m2
+    assert _sum("pdf/hit") == 6
+
+    # 4 m1 events
+    assert _sum("pdf/mul") == 4
+
+    # event 3 (spms=True) is vetoed: 3 survive
+    assert _sum("pdf/mul_lar") == 3
+
+    # events 0 and 3 pass PSD (valid+SS); event 1 (valid+MS) and event 2 (invalid) cut
+    assert _sum("pdf/mul_psd") == 2
+
+    # event 3 also fails LAr, so only event 0 survives both
+    assert _sum("pdf/mul_lar_psd") == 1
+
+    # 1 m2 event
+    assert _sum("pdf/mul2") == 1
+
+    # event 3 fails LAr
+    assert _sum("pdf/fail/lar") == 1
+
+    # event 1 (valid PSD, multi-site) fails PSD
+    assert _sum("pdf/fail/psd") == 1

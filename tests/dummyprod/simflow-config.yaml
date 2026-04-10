@@ -8,16 +8,6 @@ benchmark:
   n_primaries:
     stp: 999
 
-make_steps:
-  - vtx
-  - stp
-  - opt
-  - hit
-  - evt
-  - cvt
-  - par
-  - pdf
-
 paths:
   generated: $_/generated
   benchmarks: $_/generated/benchmarks

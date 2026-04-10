@@ -461,6 +461,9 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
     ]
 
 
+# tier pdf
+
+
 def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
     """Generate the list of all ``pdf`` tier files in the Simflow."""
     return [
@@ -528,5 +531,7 @@ def process_simlist(
                 mlist += gen_list_of_simid_outputs(config, t, simid)
             elif t == "cvt":
                 mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
+            elif t == "pdf":
+                mlist.append(patterns.output_tier_pdf_filename(config, simid=simid))
 
     return mlist

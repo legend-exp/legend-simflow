@@ -159,6 +159,7 @@ dry = { cmd = "snakemake --dry-run" }
 touch = { cmd = "snakemake --touch" }
 
 tier-cvt = { cmd = "python -m legendsimflow.scripts.tier.cvt" }
+tier-pdf = { cmd = "python -m legendsimflow.scripts.tier.pdf" }
 
 [tool.pixi.tasks.prod]
 cmd = "snakemake --verbose --logger {{ logger }} --workflow-profile workflow/profiles/{{ profile }}"
