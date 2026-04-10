@@ -121,20 +121,24 @@ def main() -> None:
             ak.flatten(data_m1[data_m1.coincident.spms].geds.energy)
         )
 
-        # PSD cut: require both valid PSD (is_good, from l200data usability) and
-        # single-site topology (is_single_site). Events where PSD is not valid are
-        # classified as background and cut — this is conservative but avoids keeping
-        # events we cannot characterise.
+        # PSD cut: require valid PSD in data (is_good), simulated A/E observable
+        # (has_aoe), and single-site topology (is_single_site). Events where PSD is
+        # not valid or not simulated are classified as background and cut.
         def _psd_mask(d):
-            return ak.all(d.geds.psd.is_good & d.geds.psd.is_single_site, axis=-1)
+            return ak.all(
+                d.geds.psd.is_good & d.geds.psd.has_aoe & d.geds.psd.is_single_site,
+                axis=-1,
+            )
 
         histograms["mul_psd"].fill(ak.flatten(data_m1[_psd_mask(data_m1)].geds.energy))
         histograms["mul_lar_psd"].fill(
             ak.flatten(data_m1_lar[_psd_mask(data_m1_lar)].geds.energy)
         )
 
-        # fail/psd: m1 events with valid PSD but failing single-site (excludes is_good=False)
-        psd_fail_mask = ak.all(data_m1.geds.psd.is_good, axis=-1) & ~_psd_mask(data_m1)
+        # fail/psd: m1 events with valid and simulated PSD but failing single-site
+        psd_fail_mask = ak.all(
+            data_m1.geds.psd.is_good & data_m1.geds.psd.has_aoe, axis=-1
+        ) & ~_psd_mask(data_m1)
         fail_histograms["psd"].fill(ak.flatten(data_m1[psd_fail_mask].geds.energy))
 
         # m2: events with exactly two detectors fired — fill 2D histogram with (E_low, E_high)

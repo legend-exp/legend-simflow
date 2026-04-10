@@ -186,23 +186,24 @@ Each of the following is a 1D histogram of HPGe energy deposits. The
 `good_channel_mask` applied before all cuts requires every channel in the event
 to be an ON detector (not AC or OFF).
 
-| Key           | Description                                                                                                                                                                                        |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                        |
-| `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                   |
-| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon).                               |
-| `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires both `psd.is_good` and `psd.is_single_site` for all hits. Events where PSD is not valid are classified as background and excluded. |
-| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`).                                                                     |
+| Key           | Description                                                                                                                                                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                                                    |
+| `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                                               |
+| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon).                                                           |
+| `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires `psd.is_good`, `psd.has_aoe`, and `psd.is_single_site` for all hits. Events where PSD is not valid or not simulated are classified as background and excluded. |
+| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`).                                                                                                 |
 
 :::{warning}
 
 When a detector is ON with valid PSD in the data but its PSD response could not
 be simulated (e.g. because it is not included in the simulation model), the
-corresponding events will have `psd.is_good = False` in the `cvt` tier. Such
+corresponding events will have `psd.has_aoe = False` in the `cvt` tier. Such
 events are treated as background and excluded from `mul_psd` and `mul_lar_psd`.
 This is a conservative choice: rather than keeping events we cannot
 characterise, we cut them. The `fail/psd` histogram does **not** include these
-events either, since it is restricted to events where `psd.is_good = True`.
+events either, since it is restricted to events where both `psd.is_good = True`
+and `psd.has_aoe = True`.
 
 :::
 
