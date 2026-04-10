@@ -41,7 +41,7 @@ def test_stp_workflow():
             config_settings=smkapi.ConfigSettings(
                 configfiles=(dummyprod / "simflow-config.yaml",),
                 config={
-                    "experiment": "l200p03",
+                    "experiment": "l200cfg01",
                     "runlist": ["l200-p03-r000-phy"],
                     "make_steps": ["vtx", "stp"],
                     "benchmark": {"enabled": True, "n_primaries": {"stp": 1000}},
