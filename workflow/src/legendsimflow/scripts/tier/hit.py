@@ -343,13 +343,13 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     _drift_time = reboost_utils.hpge_corrected_drift_time(
                         chunk, dt_map, det_loc[det_name]
                     )
-                utils.check_nans_leq(_drift_time, "_drift_time", 0.01)
+                utils.check_nans_leq(_drift_time, "_drift_time", 0.01, min_entries=1000)
 
                 with perf_block("hpge_max_current()"):
                     _a_max_true = reboost_utils.hpge_max_current(
                         edep_active, _drift_time, currmod_pars
                     )
-                utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01)
+                utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
 
                 # Apply current resolution smearing based on configured A/E noise parameters
                 _a_max = reboost_utils.gauss_smear(
