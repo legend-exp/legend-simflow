@@ -172,13 +172,12 @@ def gen_list_of_hpges_valid_for_modeling(
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
-    chmap = metadata.hardware.configuration.channelmaps.on(timestamp)
-    statuses = metadata.datasets.statuses.on(timestamp)
+    chmap = metadata.channelmap(timestamp, skip_version_check=True)
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
         # we don't model detectors that are OFF or AC
-        if statuses[hpge.name].usability != "on":
+        if chmap[hpge.name].analysis.usability != "on":
             continue
 
         m = crystal_meta(
@@ -275,17 +274,16 @@ def gen_list_of_all_usabilities(
     for runid in all_runids:
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
-        chmap = config.metadata.hardware.configuration.channelmaps.on(rinfo.start_key)
-        statuses = config.metadata.datasets.statuses.on(rinfo.start_key)
+        chmap = config.metadata.channelmap(rinfo.start_key, skip_version_check=True)
         for chname in chmap:
-            if chname in statuses:
-                usability = statuses[chname].usability
+            if "analysis" in chmap[chname]:
+                usability = chmap[chname].analysis.usability
 
                 entry = {"usability": usability}
                 if chmap[chname].system == "geds":
                     psd_usability = "valid"
                     try:
-                        psd_status = statuses[chname].psd.status.low_aoe
+                        psd_status = chmap[chname].analysis.psd.status.low_aoe
                         try:
                             encode_psd_usability(psd_status)  # validate
                             psd_usability = psd_status

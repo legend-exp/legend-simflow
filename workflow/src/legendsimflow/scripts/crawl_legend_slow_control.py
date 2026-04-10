@@ -66,7 +66,11 @@ log.info(msg)
 # add 30 minutes to avoid any slow control time lag
 timestamp = str_to_datetime(timestamp) + timedelta(minutes=30)
 
-chmap = lmeta.channelmap(timestamp).group("system").geds.map("name")
+chmap = (
+    lmeta.channelmap(timestamp, skip_version_check=True)
+    .group("system")
+    .geds.map("name")
+)
 
 log.info("querying the LEGEND Slow Control...")
 
