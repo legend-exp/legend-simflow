@@ -40,4 +40,4 @@ loggers:
 
 root:
   level: INFO
-  handlers: [dataflow, console]
+  handlers: [dataflow]
