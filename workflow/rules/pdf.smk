@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from legendsimflow import aggregate, patterns, utils
+from legendsimflow import aggregate, patterns
 
 
 rule gen_all_tier_pdf:
@@ -12,30 +12,30 @@ rule gen_all_tier_pdf:
         aggregate.gen_list_of_all_tier_pdf_outputs(config),
 
 
-rule gen_pdf_release:
-    """Generate a compressed archive with all the PDF files.
+rule archive_pdfs:
+    """Archive all pdf tier files into a single tarball.
 
-    Pack all PDF files into a `.tar.xz` archive using `tar --create --xz`,
-    renaming them to a flat `{experiment}-pdfs/` directory structure.
+    Must be triggered manually with ``snakemake archive_pdfs`` — it is not
+    part of the default ``all`` target. Collects all LH5 files produced under
+    ``tier/pdf/`` and packs them into ``tarballs/<cycle>-pdfs.tar.xz``,
+    preserving the directory tree structure.
 
     No wildcards are used.
     """
-    message:
-        "Generating pdf release"
+    localrule: True
     input:
         aggregate.gen_list_of_all_tier_pdf_outputs(config),
-    params:
-        exp=config["experiment"],
-        ro_input=lambda wildcards, input: utils.as_ro(config, input),
     output:
-        Path(config["paths"]["pdf_releases"]) / (config["experiment"] + "-pdfs.tar.xz"),
-    shell:
-        r"""
-        tar --create --xz \
-            --file {output} \
-            --transform 's|.*/\({params.exp}-.*-tier_pdf\..*\)|{params.exp}-pdfs/\1|g' \
-            {params.ro_input}
-        """
+        patterns.pdf_tarball_filename(config),
+    run:
+        from pathlib import Path
+        from legendsimflow.archive import create_pdfs_tarball
+
+        create_pdfs_tarball(
+            pdf_dir=config.paths.tier.pdf,
+            output=Path(output[0]),
+            prefix=Path(output[0]).name.removesuffix(".tar.xz"),
+        )
 
 
 rule build_tier_pdf:
