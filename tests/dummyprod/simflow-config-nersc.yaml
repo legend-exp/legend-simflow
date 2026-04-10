@@ -1,4 +1,4 @@
-experiment: l200p03
+experiment: l200cfg01
 
 runlist:
   - l200-p03-r000-phy

@@ -22,7 +22,7 @@ The dummy production uses two experiments:
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist uses real p02 run IDs from the metadata but is **not**
   intended to run an actual production
-- `l200p03`: used by the `test_stp_workflow` integration test, which exercises
+- `l200cfg01`: used by the `test_stp_workflow` integration test, which exercises
   the full vtx→stp pipeline with remage using the public `legend-pygeom-l200`
   geometry; also used by `test_full_workflow` (`needs_nersc` marker), which runs
   the full vtx→cvt pipeline requiring access to `l200data` — run manually at

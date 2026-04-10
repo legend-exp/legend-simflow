@@ -66,7 +66,7 @@ tests that exercise the Snakemake workflow with a dummy production configured in
 - `legend`: a generic experiment used for unit tests and DAG-building tests; its
   runlist contains real p02 run IDs but is not intended to run an actual
   production
-- `l200p03`: used by the `test_stp_workflow` integration test, which exercises
+- `l200cfg01`: used by the `test_stp_workflow` integration test, which exercises
   the full vtx→stp pipeline with remage using the public `legend-pygeom-l200`
   geometry
 
