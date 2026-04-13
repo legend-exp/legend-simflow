@@ -187,10 +187,12 @@ outputs = [".pixi/precompile.stamp"]
 
 [tool.pixi.feature.test.tasks]
 test-python = { cmd = "pytest -vvv" }
-test-julia = { cmd = "julia ../legendsimflow/scripts/init-julia-env.jl && julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "workflow/src/LegendSimflow.jl" }
+init-julia-env = { cmd = "julia --project=workflow/src/LegendSimflow.jl workflow/src/legendsimflow/scripts/init-julia-env.jl && touch .pixi/julia-env.stamp", outputs = [".pixi/julia-env.stamp"] }
+test-julia = { cmd = "julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
+test-python-julia = { cmd = "pytest -vvv -m needs_julia", depends-on = ["init-julia-env"] }
 test-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' --runxfail", depends-on = ["precompile"] }
 test-full-workflow = { cmd = "pytest -s -m needs_nersc --runxfail", depends-on = ["precompile"] }
-test = { depends-on = ["test-python", "test-julia"] }
+test = { depends-on = ["test-python", "test-julia", "test-python-julia"] }
 
 [tool.uv.workspace]
 exclude = ["generated", "inputs", "software", "workflow"]
@@ -200,7 +202,7 @@ default-groups = []
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "-m", "not needs_remage and not needs_nersc"]
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "-m", "not needs_remage and not needs_nersc and not needs_julia"]
 xfail_strict = true
 filterwarnings = [
   "error",
@@ -212,6 +214,7 @@ testpaths = [
 markers = [
     "needs_remage: tests that require a remage installation",
     "needs_nersc: tests that can only run at NERSC (or sites with l200data access)",
+    "needs_julia: tests that require a Julia installation with LegendSimflow.jl compiled",
 ]
 
 [tool.ruff]
