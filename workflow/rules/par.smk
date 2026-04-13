@@ -80,6 +80,7 @@ def smk_hpge_drift_time_map_inputs(wildcards):
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
+        "dtmap_settings": _m / "simprod/config/pars/geds/dtmap/settings.yaml",
         "_dummy": rules._init_julia_env.output,
     }
 
