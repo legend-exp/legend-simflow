@@ -155,6 +155,7 @@ test = { features = ["test"], solve-group = "default" }
 
 [tool.pixi.tasks]
 snakemake = { cmd = "snakemake", depends-on = ["precompile"] }
+snakemake-nersc = { cmd = "snakemake-nersc", depends-on = ["precompile"] }
 dry = { cmd = "snakemake --dry-run" }
 touch = { cmd = "snakemake --touch" }
 
@@ -176,12 +177,9 @@ args = ["n_nodes"]
 depends-on = ["precompile"]
 
 [tool.pixi.tasks.prodsubmit]
-cmd = "snakemake-nersc-batch --time {{ time }} --nodes {{ nodes }}"
-args = [
-  {arg = "time"},
-  {arg = "nodes", default = "1"},
-]
-depends-on = ["precompile"]
+# NOTE: no need to depend on precompile since this command calls `pixi run
+# snakemake[-nersc]` internally
+cmd = "snakemake-nersc-batch"
 
 [tool.pixi.tasks.precompile]
 cmd = "python -c 'from dspeed.processors import *; from lgdo.compression import *; import matplotlib; import pygama; import pygeomhpges; import pygeomoptics; import pygeomtools; import reboost; import remage; import revertex' && touch .pixi/precompile.stamp"
