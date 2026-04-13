@@ -15,15 +15,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# grid spacing in meters
-const GRID_SIZE = 0.0005
+# grid spacing in meters (default; can be overridden via metadata settings file)
+const DEFAULT_GRID_SIZE = 0.0005
 # crystal axis angles in degrees (<001> and <110>)
 const CRYSTAL_AXIS_ANGLES = [0, 45]
-# SSD adaptive-mesh refinement thresholds as fractions of the crystal radius
-# matches current SSD behaviour
-const REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
-# nr of pixels for padding around the map to avoid grid edge effects
-const PADDING = 3
+# SSD adaptive-mesh refinement thresholds (default; can be overridden via metadata settings file)
+const DEFAULT_REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
+# nr of pixels for padding around the map to avoid grid edge effects (default; can be overridden via metadata settings file)
+const DEFAULT_PADDING = 3
 
 # Imports for main script
 using LegendDataManagement
@@ -78,12 +77,21 @@ function main()
 
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
-    sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, REFINEMENT_LIMITS)
+    # Load optional simulation settings from metadata, falling back to built-in defaults.
+    # The settings file lives at <metadata>/simprod/config/pars/geds/dtmap/settings.yaml
+    # and applies globally to all detectors and voltages.
+    settings_path = joinpath(meta_path, "simprod", "config", "pars", "geds", "dtmap", "settings.yaml")
+    sim_cfg = isfile(settings_path) ? readprops(settings_path) : PropDict()
+    grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000
+    ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
+    padding = get(sim_cfg, :padding, DEFAULT_PADDING)
+
+    sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
 
     # Compute drift time maps for each crystal axis angle
     output = nothing
     for angle in CRYSTAL_AXIS_ANGLES
-        result = compute_drift_time_map(sim, meta, T, angle, GRID_SIZE, PADDING)
+        result = compute_drift_time_map(sim, meta, T, angle, grid_size, padding)
 
         key = Symbol("drift_time_$(lpad(string(angle), 3, '0'))_deg")
         if output === nothing
