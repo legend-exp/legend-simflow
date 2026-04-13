@@ -1,6 +1,9 @@
 """
-This module implements the dataset preparation and superpulse construction
-for SSC data.
+This module implements the dataset preparation and average ("superpulse") 
+construction to characterize the pulse shape response of HPGe detectors.
+
+This is an important step in tuning the pulse shape discrimination (PSD) simulations
+
 
 Conventions
 -----------
@@ -14,47 +17,40 @@ Conventions
 
 Pipeline order (per file, inside the orchestrator loop)
 --------------------------------------------------------
-Steps 1-7 are called once per file inside ``build_superpulse_for_pixel``,
+Steps 1-7 are called once per file inside ``build_superpulse_for_slice``,
 which accumulates results across files until enough waveforms are available.
 
 1. ``read_evt_data``               - read EVT tier for one file (no DSP fields)
 2. ``perform_data_selection``      - quality + PSD cuts on EVT fields only
 3. ``select_detector_events``      - filter to one detector
 4. ``add_dsp_pars_to_evt``         - attach DSP fields for one detector only
-5. ``select_data_in_pixel``        - filter to one energy-drift-time pixel
-6. ``read_wfs_for_pixel``          - read raw waveforms for pixel events only
-7. ``merge_wfs_into_evt``          - attach waveforms to event array
+5. ``select_data_in_slice``        - filter to one energy-drift-time slice
+6. ``get_charge_and_current_wfs_for_slice`` - run production DSP chain via
+                                      WaveformBrowser, return aligned charge
+                                      and current waveforms for all slice events
 
-Steps 8-12 run once, after enough waveforms have been accumulated:
+Steps 7-11 run once, after enough waveforms have been accumulated:
 
-8.  ``preprocess_waveforms``        - normalize, upsample, differentiate, MWA,
-                                      recalculate tp_aoe_max, align, trim
-9.  ``compute_superpulse``          - preliminary average (charge + current)
-10. ``compute_chi2_vs_superpulse``  - reduced chi2 of each wf vs superpulse
-11. ``apply_chi2_cut``              - retain golden waveforms only
-12. ``compute_superpulse``          - final average on golden waveforms
+7.  ``compute_superpulse``          - preliminary average (charge + current)
+8.  ``compute_chi2_vs_superpulse``  - reduced chi2 of each wf vs superpulse
+9.  ``apply_chi2_cut``              - retain golden waveforms only
+10. ``compute_superpulse``          - final average on golden waveforms
 
-If after step 11 the number of golden waveforms is below ``n_target_wfs``,
+If after step 9 the number of golden waveforms is below ``n_target_wfs``,
 the orchestrator returns to step 1 and continues reading files from where
-it left off, re-running steps 8-12 on the enlarged accumulated set, until
+it left off, re-running steps 7-10 on the enlarged accumulated set, until
 either the target is reached or all files are exhausted.
 
-Step 13 runs once per detector, after all pixels are done:
+Step 11 runs once per detector, after all slices are done:
 
-13. ``write_superpulses_to_lh5``   - write all pixels for one detector to LH5
-
-Dependencies
-------------
-- lgdo  
-- awkward
-- numpy 
-- legendmeta
+11. ``write_superpulses_to_lh5``   - write all slices for one detector to LH5
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import awkward as ak
 import numpy as np
@@ -67,9 +63,8 @@ log = logging.getLogger(__name__)
 # Data structures
 # ---------------------------------------------------------------------------
 
-
 @dataclass(frozen=True)
-class Pixel:
+class Slice:
     """
     Defines a 2D slice in the energy-drift-time space.
 
@@ -99,18 +94,18 @@ class Pixel:
 
     def __str__(self) -> str:
         return (
-            f"Pixel(E=[{self.energy_range[0]}, {self.energy_range[1]}] keV, "
+            f"Slice(E=[{self.energy_range[0]}, {self.energy_range[1]}] keV, "
             f"dt=[{self.drift_time_range[0]}, {self.drift_time_range[1]}] ns)"
         )
 
 
 class Superpulse:
     """
-    Holds the average charge and current waveforms for one pixel.
+    Holds the average charge and current waveforms for one slice.
 
-    One ``Superpulse`` instance is produced per pixel per detector, after the
+    One ``Superpulse`` instance is produced per slice per detector, after the
     full preprocessing and chi2 self-similarity cut. It carries both waveforms
-    together with the metadata needed to identify the pixel, write to LH5, and
+    together with the metadata needed to identify the slice, write to LH5, and
     perform the subsequent electronics parameter optimisation.
 
     Parameters
@@ -126,8 +121,8 @@ class Superpulse:
     time_axis : np.ndarray
         Common time axis in ns, shape ``(n_samples,)``, aligned so that
         ``tp_aoe_max = 0``.
-    pixel : Pixel
-        The energy-drift-time pixel this superpulse represents.
+    slice : Slice
+        The energy-drift-time slice this superpulse represents.
     detector : str
         Detector name, e.g. ``"V03422A"``.
     n_events_preliminary : int
@@ -145,19 +140,19 @@ class Superpulse:
             charge_wf=avg_charge,
             current_wf=avg_current,
             time_axis=t,
-            pixel=Pixel((1500., 2000.), (900., 1100.)),
+            slice=Slice((1500., 2000.), (900., 1100.)),
             detector="V03422A",
             n_events_preliminary=120,
             n_events_final=98,
         )
         sp.charge_wf            # np.ndarray
         sp.current_wf           # np.ndarray
-        sp.pixel.drift_time_center  # 1000.0 ns
+        sp.slice.drift_time_center  # 1000.0 ns
 
-    Use as dict value (Pixel is hashable)::
+    Use as dict value (Slice is hashable)::
 
-        superpulses: dict[Pixel, Superpulse] = {}
-        superpulses[sp.pixel] = sp
+        superpulses: dict[Slice, Superpulse] = {}
+        superpulses[sp.slice] = sp
     """
 
     def __init__(
@@ -165,7 +160,7 @@ class Superpulse:
         charge_wf: np.ndarray,
         current_wf: np.ndarray,
         time_axis: np.ndarray,
-        pixel: Pixel,
+        slice: Slice,
         detector: str,
         n_events_preliminary: int,
         n_events_final: int,
@@ -186,7 +181,7 @@ class Superpulse:
         self.charge_wf = charge_wf
         self.current_wf = current_wf
         self.time_axis = time_axis
-        self.pixel = pixel
+        self.slice = slice
         self.detector = detector
         self.n_events_preliminary = n_events_preliminary
         self.n_events_final = n_events_final
@@ -195,7 +190,7 @@ class Superpulse:
         return (
             f"Superpulse("
             f"detector={self.detector!r}, "
-            f"pixel={self.pixel}, "
+            f"slice={self.slice}, "
             f"n_events={self.n_events_final}/{self.n_events_preliminary}, "
             f"n_samples={len(self.time_axis)})"
         )
@@ -241,7 +236,7 @@ def read_evt_data(
     can reduce the array size before the DSP read in ``add_dsp_pars_to_evt``.
 
     In normal use this is called with a single-element list by the orchestrator
-    ``build_superpulse_for_pixel``, which manages the file loop externally.
+    ``build_superpulse_for_slice``, which manages the file loop externally.
     Passing a multi-file list is supported for testing or interactive use.
 
     Parameters
@@ -370,7 +365,7 @@ def add_dsp_pars_to_evt(
         Mapping from detector name to rawid. Only the entry for ``detector``
         is used.
     fields : list[str]
-        DSP fields to attach, e.g. ``["tp_aoe_max", "cuspEmax", "tp_0_est"]``.
+        DSP fields to attach, e.g. ``["tp_aoe_max", "tp_0_est"]``.
         ``tp_aoe_max`` must be included for ``drift_time`` to be computed.
 
     Returns
@@ -384,12 +379,21 @@ def add_dsp_pars_to_evt(
     -----
     The TCM mapping uses ``det_evt_data.geds.rawid`` and
     ``det_evt_data.geds.hit_idx`` to identify which DSP rows correspond to
-    each event, via ``_read_dsp_field_for_channel``.
+    each event. For each channel in ``tab_map``, it identifies the corresponding
+    TCM rows, reads only those rows from the DSP file via 
+    ``lgdo.lh5.read(..., idx=sorted_idx)``, and then re-orders results to match 
+    the original event ordering.
+
+    ``lh5.read()`` requires a sorted ``idx`` array. The default behavior
+    (``use_h5idx=False``) reads the full column and then indexes in memory. This 
+    is faster than random HDF5 row access for most sizes, but uses more memory. 
+    For very sparse reads, this trade-off should be re-evaluated.
 
     Raises
     ------
     ValueError
-        If ``tp_aoe_max`` is not in ``fields`` (required for drift_time).
+        If ``tp_aoe_max`` is not in ``fields`` (required for drift_time), or if 
+        any rawid in the event channels is absent from ``tab_map``.
     """
     raise NotImplementedError
 
@@ -401,60 +405,19 @@ def _read_dsp_field_for_channel(
     field: str,
     tab_map: dict[str, int],
 ) -> ak.Array:
-    """
-    Read one DSP field for all channels in a set of events, using TCM indices.
-
-    Low-level helper for ``add_dsp_pars_to_evt``. For each channel in
-    ``tab_map``, identifies the corresponding TCM rows, reads only those rows
-    from the DSP file via ``lgdo.lh5.read(..., idx=sorted_idx)``, then
-    re-orders results to match the original event ordering.
-
-    When called from a single-detector context (as intended in this pipeline),
-    ``tab_map`` has one entry and the channel loop executes exactly once.
-
-    Parameters
-    ----------
-    channels : ak.Array
-        Shape ``(n_events, n_hits_per_event)``. ``evt_data.geds.rawid``.
-    rows : ak.Array
-        Shape ``(n_events, n_hits_per_event)``. ``evt_data.geds.hit_idx``.
-    dsp_file : str
-        Path to the DSP-tier LH5 file.
-    field : str
-        DSP field name, e.g. ``"tp_aoe_max"``.
-    tab_map : dict[str, int]
-        Mapping from detector name to rawid.
-
-    Returns
-    -------
-    ak.Array
-        Shape ``(n_events, n_hits_per_event)``, values of ``field`` in
-        original event order.
-
-    Notes
-    -----
-    ``lh5.read()`` requires a sorted ``idx`` array. The default
-    ``use_h5idx=False`` reads the full column and then indexes in memory:
-    faster than random HDF5 row access for most sizes, but uses more memory.
-    For very sparse reads this trade-off should be re-evaluated.
-
-    Raises
-    ------
-    ValueError
-        If any rawid in ``channels`` is absent from ``tab_map``.
-    """
+    """Read one DSP field for all channels in a set of events using TCM indices."""
     raise NotImplementedError
 
 
-def select_data_in_pixel(
+def select_data_in_slice(
     det_evt_data: ak.Array,
-    pixel: Pixel,
+    slice: Slice,
 ) -> ak.Array:
     """
-    Filter single-detector event data to one energy-drift-time pixel.
+    Filter single-detector event data to one energy-drift-time slice.
 
     Called after ``add_dsp_pars_to_evt``, which provides the ``drift_time``
-    and energy (``geds.energy``) fields required for the pixel cuts.
+    and energy (``geds.energy``) fields required for the slice cuts.
 
     The detector filter has already been applied in ``select_detector_events``,
     so this function applies only the energy and drift time bounds.
@@ -464,434 +427,110 @@ def select_data_in_pixel(
     det_evt_data : ak.Array
         Single-detector event data with DSP fields attached, as returned by
         ``add_dsp_pars_to_evt``, shape ``(n_det_events,)``.
-    pixel : Pixel
-        The energy-drift-time pixel to select.
+    slice : Slice
+        The energy-drift-time slice to select.
 
     Returns
     -------
     ak.Array
-        Events within the pixel, shape ``(n_pixel_events,)``.
-    """
-    raise NotImplementedError
-
-
-def read_wfs_for_pixel(
-    raw_files: list[str],
-    pixel_evt_data: ak.Array,
-    rawid: int,
-) -> tuple[ak.Array, np.ndarray]:
-    """
-    Read raw waveforms for only the events in a given pixel.
-
-    Uses ``trigger.timestamp`` values from ``pixel_evt_data`` to locate
-    matching entries in the raw tier, then reads only those rows via
-    ``lgdo.lh5.read(..., idx=sorted_idx, field_mask=[...])``.
-
-    In normal use ``raw_files`` is a single-element list corresponding to the
-    same run segment as the EVT file being processed in the current iteration
-    of the orchestrator loop.
-
-    Parameters
-    ----------
-    raw_files : list[str]
-        Raw-tier LH5 file path(s) to search.
-    pixel_evt_data : ak.Array
-        Pixel event data as returned by ``select_data_in_pixel``,
-        shape ``(n_pixel_events,)``.
-    rawid : int
-        Raw channel ID, e.g. ``1084803``. Used to build ``ch{rawid}/raw/``.
-
-    Returns
-    -------
-    waveforms : ak.Array
-        Shape ``(n_matched_events,)`` with fields:
-
-        - ``timestamp`` : int64 [ns]
-        - ``waveform_windowed`` : struct with ``t0`` (float [ns]),
-          ``dt`` (float [ns/sample]), ``values`` (float32[n_samples])
-
-        ``n_matched_events <= n_pixel_events`` if raw files are missing.
-    valid_mask : np.ndarray
-        Boolean array of shape ``(n_pixel_events,)``. Entry ``i`` is ``True``
-        if ``pixel_evt_data[i]`` has a matching waveform. Use as:
-        ``pixel_evt_data[valid_mask]`` aligns row-for-row with ``waveforms``.
-
-    Notes
-    -----
-    Timestamp matching is the only reliable link between EVT-tier events and
-    raw-tier waveforms, as the TCM does not index into the raw tier directly.
-
-    Per file: timestamps are read first (cheap scalar read), matching row
-    indices are computed, then waveform data for those rows only is read.
-
-    The digitizer ``baseline`` field is not returned: it is imprecise and
-    recomputed from waveform samples in preprocessing.
-
-    Missing raw files are logged as warnings and skipped gracefully.
-
-    Raises
-    ------
-    ValueError
-        If no waveforms are found across all files.
-    """
-    raise NotImplementedError
-
-
-def merge_wfs_into_evt(
-    pixel_evt_data: ak.Array,
-    waveforms: ak.Array,
-    valid_mask: np.ndarray,
-) -> ak.Array:
-    """
-    Attach waveforms to the pixel event array, retaining only matched events.
-
-    Parameters
-    ----------
-    pixel_evt_data : ak.Array
-        Pixel event data, shape ``(n_pixel_events,)``.
-    waveforms : ak.Array
-        Waveform data from ``read_wfs_for_pixel``, shape ``(n_matched,)``.
-    valid_mask : np.ndarray
-        Boolean mask of shape ``(n_pixel_events,)`` from ``read_wfs_for_pixel``.
-
-    Returns
-    -------
-    ak.Array
-        Shape ``(n_matched,)``. All fields from ``pixel_evt_data[valid_mask]``
-        plus ``waveform_windowed`` (struct with ``t0``, ``dt``, ``values``).
-
-        The digitizer ``baseline`` is not included; baseline subtraction is
-        recomputed from waveform samples in preprocessing.
-
-    Notes
-    -----
-    Both sides are sorted by ``trigger.timestamp`` before merging to guarantee
-    row-for-row correspondence. With O(100) events per pixel this is negligible.
-
-    Raises
-    ------
-    ValueError
-        If ``np.sum(valid_mask) != len(waveforms)``.
+        Events within the slice, shape ``(n_slice_events,)``.
     """
     raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
-# Waveform preprocessing (one pixel)
+# Waveform extraction (one slice)
 # ---------------------------------------------------------------------------
 
 
-def preprocess_waveforms(
-    pixel_data_with_wfs: ak.Array,
-    bl_window: tuple[float, float],
-    upsample_factor: int = 16,
-    upsample_mode: str = "l",
-    mwa_length: int = 48,
-    mwa_num: int = 3,
-    mwa_type: int = 0,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def get_charge_and_current_wfs_for_slice(
+    raw_file: Path | str,
+    lh5_group: str,
+    indices: list[int],
+    dsp_config: Path | str,
+    charge_output: str = "wf_blsub",
+    current_output: str = "curr_av",
+    align: str = "tp_aoe_max",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Full preprocessing pipeline for one pixel: normalize, upsample,
-    differentiate, MWA, recalculate tp_aoe_max, align, trim.
+    Extract aligned charge and current waveforms for a set of slice events,
+    using the production DSP processing chain via ``WaveformBrowser``.
 
-    The order of steps is physically fixed and must not be changed:
+    A single ``WaveformBrowser`` instance is created for the file, with both
+    ``charge_output`` and ``current_output`` requested as ``lines``. Events
+    are iterated with ``find_entry`` and the processed waveforms are extracted
+    from the browser's internal ``Line2D`` objects and stacked into arrays.
 
-    1. Baseline subtraction and normalisation by ``cuspEmax``
-    2. Upsample to 1 ns (factor 16 for 16 ns data)
-    3. Compute derivative (current)
-    4. Apply MWA to current
-    5. Recalculate ``tp_aoe_max`` from MWA'd current at 1 ns resolution
-    6. Align charge and current waveforms to recalculated ``tp_aoe_max``
-    7. Trim all waveforms to the common overlapping time window
+    The ``dsp_config`` and ``lh5_group`` required by this function can be
+    obtained from ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``, which
+    resolves both from the L200 data production directory given a run ID and
+    detector name. The ``indices`` correspond to the raw-tier row indices for
+    the slice events, which can be derived from the ``raw_wf_pairs`` it
+    returns.
 
     Parameters
     ----------
-    pixel_data_with_wfs : ak.Array
-        Per-pixel event data with waveforms attached, as returned by
-        ``merge_wfs_into_evt``. Each event must have:
-
-        - ``waveform_windowed``: struct with ``t0`` (float), ``dt`` (float),
-          ``values`` (float32[])
-        - ``cuspEmax``: float, uncalibrated energy in ADC. Used for
-          normalisation so that the charge waveform plateau equals 1.
-        - ``tp_aoe_max``: float, DSP-computed current maximum time in ns.
-          Used only for validation; the actual alignment uses the value
-          recalculated at 1 ns resolution in step 5.
-
-    bl_window : tuple[float, float]
-        Time window ``(t_start, t_end)`` in ns in the original, non-aligned
-        time axis, used to compute the per-event baseline as the mean of
-        samples within the window.
-    upsample_factor : int, optional
-        Upsampling factor. Default 16 (16 ns raw sampling to 1 ns).
-    upsample_mode : str, optional
-        Interpolation mode for ``dspeed.processors.interpolating_upsampler``.
-        ``'l'`` = linear, ``'h'`` = Hermite, ``'s'`` = spline. Default ``'l'``.
-    mwa_length : int, optional
-        Moving window length in samples at 1 ns resolution. Default 48.
-        Must match the value used in ``psl.py:make_realistic_pulse_shape_lib``.
-    mwa_num : int, optional
-        Number of moving windows. Default 3.
-        Must match the value used in ``psl.py:make_realistic_pulse_shape_lib``.
-    mwa_type : int, optional
-        Moving window type for ``dspeed.processors.moving_window_multi``.
-        Default 0 (alternating left/right). Must match ``psl.py``.
+    raw_file : Path or str
+        Path to the raw-tier LH5 file containing the waveforms.
+    lh5_group : str
+        HDF5 group containing the waveform table, e.g. ``"ch1084803/raw"``.
+    indices : list[int]
+        Raw-tier row indices of the slice events to extract. These must all
+        belong to ``raw_file``. Derived from the ``raw_wf_pairs`` returned by
+        ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``.
+    dsp_config : Path or str
+        Path to the production DSP configuration JSON file defining the
+        processing chain. Returned as ``dsp_cfg_file`` by
+        ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``.
+    charge_output : str, optional
+        Name of the DSP output corresponding to the baseline-subtracted charge
+        waveform. Default ``"wf_blsub"``.
+    current_output : str, optional
+        Name of the DSP output corresponding to the MWA'd current waveform.
+        Default ``"curr_av"``.
+    align : str, optional
+        Name of the DSP parameter used to align waveforms on the time axis.
+        Default ``"tp_aoe_max"``.
 
     Returns
     -------
-    common_times : np.ndarray
-        1D array of shape ``(n_samples,)`` in ns. Zero corresponds to
-        ``tp_aoe_max``.
+    times : np.ndarray
+        1D array of shape ``(n_samples,)`` in ns. Common time axis, aligned
+        so that ``tp_aoe_max = 0``. Taken from the first valid event; all
+        events share the same axis after alignment.
     charge_wfs : np.ndarray
-        2D array of shape ``(n_valid_events, n_samples)``. Normalised charge
-        waveforms aligned to ``tp_aoe_max``.
+        2D array of shape ``(n_valid_events, n_samples)``. Baseline-subtracted
+        charge waveforms, normalised by ``cuspEmax`` so the plateau equals 1,
+        aligned to ``tp_aoe_max``.
     current_wfs : np.ndarray
         2D array of shape ``(n_valid_events, n_samples)``. MWA'd current
         waveforms aligned to ``tp_aoe_max``.
-    valid_mask : np.ndarray
-        Boolean array of shape ``(len(pixel_data_with_wfs),)``. ``True`` for
-        events that survived all preprocessing sub-steps (valid ``cuspEmax``,
-        successful upsampling, finite waveform values).
 
     Notes
     -----
-    The ``geds.energy`` field (calibrated, in keV) is used for pixel selection
-    upstream. Normalisation here uses ``cuspEmax`` (uncalibrated, in ADC) so
-    that the charge waveform amplitude equals 1 at the plateau, independent of
-    gain calibration.
+    A single ``WaveformBrowser`` instance is reused across all events in
+    ``indices`` to avoid reconstructing the ``dspeed`` ``ProcessingChain``
+    on every call. ``find_entry`` is called once per event in a loop;
+    waveform data is extracted via ``browser.lines[output][0].get_xdata()``
+    and ``.get_ydata()``.
+
+    The normalization parameter ``cuspEmax`` is evaluated on the fly by the 
+    DSP chain alongside the requested waveforms.
+    Events for which the browser returns NaN-valued waveforms are dropped. 
+    The returned arrays contain only valid events.
+
+    Raises
+    ------
+    ValueError
+        If no valid waveforms are found across all ``indices``.
     """
+    # HACK: deferred import to avoid pint unit registry conflict at module level
+    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
+
     raise NotImplementedError
-
-
-def _subtract_baseline_and_normalise(
-    wf_values: np.ndarray,
-    time_axis: np.ndarray,
-    cuspEmax: float,
-    bl_window: tuple[float, float],
-) -> tuple[np.ndarray, bool]:
-    """
-    Subtract baseline and normalise a single waveform by ``cuspEmax``.
-
-    Parameters
-    ----------
-    wf_values : np.ndarray
-        Raw waveform samples.
-    time_axis : np.ndarray
-        Time axis in ns corresponding to ``wf_values``, using the original
-        (non-aligned) time values from ``waveform_windowed.t0`` and ``dt``.
-    cuspEmax : float
-        Uncalibrated energy in ADC. The waveform is divided by this value
-        so that the plateau amplitude equals 1.
-    bl_window : tuple[float, float]
-        ``(t_start, t_end)`` in ns. Baseline is computed as the mean of
-        samples with time in ``[t_start, t_end]``.
-
-    Returns
-    -------
-    wf_normalised : np.ndarray
-        Baseline-subtracted and energy-normalised waveform.
-    valid : bool
-        ``False`` if ``cuspEmax <= 0`` (invalid event, must be excluded).
-    """
-    raise NotImplementedError
-
-
-def _upsample_waveform(
-    waveform: np.ndarray,
-    upsample_factor: int = 16,
-    mode: str = "l",
-) -> np.ndarray:
-    """
-    Upsample a single waveform using ``dspeed.processors.interpolating_upsampler``.
-
-    Parameters
-    ----------
-    waveform : np.ndarray
-        Input waveform, dtype float32.
-    upsample_factor : int, optional
-        Upsampling factor. Default 16.
-    mode : str, optional
-        Interpolation mode: ``'l'`` (linear), ``'h'`` (Hermite), ``'s'``
-        (spline). Default ``'l'``.
-
-    Returns
-    -------
-    np.ndarray
-        Upsampled waveform of length ``len(waveform) * upsample_factor``.
-    """
-    raise NotImplementedError
-
-
-def _compute_current(
-    waveform: np.ndarray,
-    dt_upsampled: float,
-    dt_data: float,
-) -> np.ndarray:
-    """
-    Compute the current waveform as a scaled discrete derivative.
-
-    Uses ``np.diff`` with ``prepend=0``, scaled by ``dt_data / dt_upsampled``
-    to preserve physical units. This mirrors the inline expression in
-    ``psl.py:make_realistic_pulse_shape_lib``::
-
-        np.diff(wfs, axis=-1, prepend=0) * (dt_data / dt)
-
-    Parameters
-    ----------
-    waveform : np.ndarray
-        Normalised, upsampled charge waveform.
-    dt_upsampled : float
-        Time step of the upsampled waveform in ns. Typically 1.0 ns.
-    dt_data : float
-        Original data sampling period in ns. Typically 16.0 ns.
-
-    Returns
-    -------
-    np.ndarray
-        Current waveform, same length as input.
-
-    Notes
-    -----
-    The scaling convention here must match that used in ``psl.py``.
-    If either ``dt`` value is changed, both modules must be updated
-    consistently.
-    """
-    raise NotImplementedError
-
-
-def _apply_mwa(
-    current: np.ndarray,
-    mwa_length: int = 48,
-    mwa_num: int = 3,
-    mwa_type: int = 0,
-) -> np.ndarray:
-    """
-    Apply a multi-pass moving window average to a single current waveform,
-    using ``dspeed.processors.moving_window_multi``.
-
-    Parameters
-    ----------
-    current : np.ndarray
-        Current waveform at 1 ns sampling, dtype float32.
-    mwa_length : int, optional
-        Moving window length in samples. Default 48.
-    mwa_num : int, optional
-        Number of passes. Default 3.
-    mwa_type : int, optional
-        Window type passed to ``dspeed.processors.moving_window_multi``.
-        Default 0 (alternating left/right).
-
-    Returns
-    -------
-    np.ndarray
-        MWA-smoothed current waveform, same length as input.
-
-    Warnings
-    --------
-    ``mwa_length``, ``mwa_num``, and ``mwa_type`` must be identical to the
-    values in ``mw_pars`` passed to ``psl.py:make_realistic_pulse_shape_lib``.
-    A mismatch will cause a systematic bias in the electronics parameter
-    optimisation.
-
-    Notes
-    -----
-    The ``dspeed`` import is deferred to the function body to avoid a known
-    pint unit registry conflict at module level (see ``psl.py`` for the same
-    pattern).
-    """
-    raise NotImplementedError
-
-
-def _recalculate_tp_aoe_max(
-    mwa_current: np.ndarray,
-    time_axis: np.ndarray,
-    dsp_tp_aoe_max: float,
-) -> float:
-    """
-    Find the time of the current maximum at 1 ns resolution.
-
-    Replaces the DSP-stored ``tp_aoe_max`` (computed at 16 ns resolution)
-    with a value computed on the upsampled, MWA'd current.
-
-    Parameters
-    ----------
-    mwa_current : np.ndarray
-        MWA'd current waveform at 1 ns sampling.
-    time_axis : np.ndarray
-        Corresponding time axis in ns (not yet aligned).
-    dsp_tp_aoe_max : float
-        DSP-stored ``tp_aoe_max`` in ns, used only for validation logging.
-
-    Returns
-    -------
-    float
-        Recalculated ``tp_aoe_max`` in ns.
-
-    Notes
-    -----
-    The difference ``|recalculated - dsp_tp_aoe_max|`` is logged at DEBUG
-    level for validation. A large systematic difference (>> 16 ns) would
-    indicate a problem in the preprocessing chain.
-    """
-    raise NotImplementedError
-
-
-def _align_and_trim(
-    charge_wfs: list[np.ndarray],
-    current_wfs: list[np.ndarray],
-    time_axes: list[np.ndarray],
-    tp_aoe_max_values: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Align waveforms to ``tp_aoe_max`` and trim to the common overlapping window.
-
-    For each waveform, the time axis is shifted by subtracting its
-    ``tp_aoe_max``, so that zero corresponds to the current maximum. The
-    common overlapping window is then::
-
-        t_min = max(t.min() for t in shifted_time_axes)
-        t_max = min(t.max() for t in shifted_time_axes)
-
-    and all waveforms are trimmed to this window.
-
-    This function differs from ``psl.py:align_waveforms_to_peak`` in three
-    ways:
-
-    - Uses pre-computed ``tp_aoe_max_values`` rather than finding the argmax
-      internally (the argmax was already computed on the MWA'd current in
-      ``_recalculate_tp_aoe_max``; recomputing it here on the charge waveform
-      would give a different result).
-    - Works in physical time units (ns) rather than sample indices.
-    - Determines the output window dynamically from the data rather than
-      requiring a fixed output length.
-
-    Parameters
-    ----------
-    charge_wfs : list[np.ndarray]
-        List of normalised, upsampled charge waveforms.
-    current_wfs : list[np.ndarray]
-        List of MWA'd current waveforms. Must correspond element-wise to
-        ``charge_wfs`` and share the same time axes.
-    time_axes : list[np.ndarray]
-        List of time axes in ns (one per waveform, not yet aligned).
-    tp_aoe_max_values : np.ndarray
-        1D array of recalculated ``tp_aoe_max`` values in ns, one per
-        waveform, as returned by ``_recalculate_tp_aoe_max``.
-
-    Returns
-    -------
-    common_times : np.ndarray
-        1D array of shape ``(n_samples,)`` in ns. Zero = ``tp_aoe_max``.
-    aligned_charge_wfs : np.ndarray
-        2D array of shape ``(n_events, n_samples)``.
-    aligned_current_wfs : np.ndarray
-        2D array of shape ``(n_events, n_samples)``.
-    """
-    raise NotImplementedError
-
 
 # ---------------------------------------------------------------------------
-# Superpulse computation (one pixel)
+# Superpulse computation (one slice)
 # ---------------------------------------------------------------------------
 
 
@@ -899,14 +538,14 @@ def compute_superpulse(
     common_times: np.ndarray,
     charge_wfs: np.ndarray,
     current_wfs: np.ndarray,
-    pixel: Pixel,
+    slice: Slice,
     detector: str,
     n_events_preliminary: int,
 ) -> Superpulse:
     """
-    Compute the average charge and current waveforms for one pixel.
+    Compute the average charge and current waveforms for one slice.
 
-    Called twice per pixel: once on all preprocessed waveforms (preliminary
+    Called twice per slice: once on all preprocessed waveforms (preliminary
     superpulse), and once on the golden subset after ``apply_chi2_cut``
     (final superpulse).
 
@@ -918,8 +557,8 @@ def compute_superpulse(
         2D array of shape ``(n_events, n_samples)``.
     current_wfs : np.ndarray
         2D array of shape ``(n_events, n_samples)``.
-    pixel : Pixel
-        The pixel this superpulse belongs to.
+    slice : Slice
+        The slice this superpulse belongs to.
     detector : str
         Detector name.
     n_events_preliminary : int
@@ -946,8 +585,7 @@ def compute_chi2_vs_superpulse(
     Compute the reduced chi-squared of each charge waveform vs the superpulse.
 
     The noise sigma is estimated from the standard deviation of each waveform
-    in the baseline region (``superpulse.time_axis < 0``, i.e. before
-    ``tp_aoe_max``). A separate sigma is estimated for the superpulse from
+    in the baseline region. A separate sigma is estimated for the superpulse from
     the same region and added in quadrature.
 
     Parameters
@@ -958,7 +596,7 @@ def compute_chi2_vs_superpulse(
         Preliminary superpulse from ``compute_superpulse``.
     baseline_region_mask : np.ndarray or None, optional
         Boolean mask of shape ``(n_samples,)`` selecting the baseline region.
-        If ``None``, derived from ``superpulse.time_axis < 0``.
+        If ``None``, derived from ``superpulse.time_axis < (0 - drift_time)``. 
 
     Returns
     -------
@@ -975,7 +613,7 @@ def compute_chi2_vs_superpulse(
 
     where ``n_dof = n_samples``. The use of the baseline region for sigma
     estimation is a practical approximation; a more principled approach would
-    use an independent noise measurement. This is a known limitation.
+    use an independent noise measurement. 
     """
     raise NotImplementedError
 
@@ -1010,7 +648,7 @@ def apply_chi2_cut(
     golden_indices : np.ndarray
         1D integer array of shape ``(n_golden,)`` with the indices of
         surviving events in the input arrays. Retained for traceability
-        back to the original ``pixel_data_with_wfs``.
+        back to the original ``slice_data_with_wfs``.
     """
     raise NotImplementedError
 
@@ -1020,36 +658,34 @@ def apply_chi2_cut(
 # ---------------------------------------------------------------------------
 
 
-def build_superpulse_for_pixel(
-    pixel: Pixel,
+def build_superpulse_for_slice(
+    slice: Slice,
     detector: str,
     tab_map: dict[str, int],
     evt_files: list[str],
     dsp_files: list[str],
     raw_files: list[str],
+    dsp_config: Path | str,
     dsp_fields: list[str],
-    bl_window: tuple[float, float],
     n_target_wfs: int = 100,
     chi2_threshold: float = 3.0,
-    upsample_factor: int = 16,
-    upsample_mode: str = "l",
-    mwa_length: int = 48,
-    mwa_num: int = 3,
-    mwa_type: int = 0,
+    charge_output: str = "wf_blsub",
+    current_output: str = "curr_av",
+    align: str = "tp_aoe_max",
 ) -> Superpulse:
     """
-    Build the final superpulse for one pixel using an adaptive two-phase loop.
+    Build the final superpulse for one slice using an adaptive two-phase loop.
 
     This is the main entry point for superpulse construction. It manages the
     file loop and the two-phase adaptive strategy:
 
     **Phase 1 - accumulate:** read files one at a time, running the full
-    dataset preparation pipeline (steps 1-7) on each. Accumulate the
-    resulting ``pixel_data_with_wfs`` arrays. Continue until the accumulated
-    event count reaches ``n_target_wfs``.
+    dataset preparation pipeline (steps 1-6) on each. Accumulate the
+    resulting charge and current waveform arrays. Continue until the
+    accumulated event count reaches ``n_target_wfs``.
 
     **Phase 2 - build and check:** run the full superpulse construction
-    pipeline (steps 8-12) on the accumulated data. If the number of golden
+    pipeline (steps 7-10) on the accumulated data. If the number of golden
     waveforms after the chi2 cut is below ``n_target_wfs``, return to
     Phase 1 and continue reading from the next unread file, adding to the
     existing accumulation. Repeat until either:
@@ -1058,14 +694,16 @@ def build_superpulse_for_pixel(
     - All files are exhausted: log a warning and return the best superpulse
       available, or raise if no waveforms were found at all.
 
-    The preprocessing (upsampling, MWA, alignment) is re-run on the full
-    accumulated set each time Phase 2 is entered, not just on the new events.
-    This ensures the common time window and alignment are globally consistent.
+    The ``lh5_group`` (HDF5 group containing the waveform table, e.g. ``"ch1084803/raw"``)
+    and ``dsp_config`` parameters are most conveniently
+    obtained from ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``,
+    which resolves both from the L200 data production directory given a
+    run ID and detector name.
 
     Parameters
     ----------
-    pixel : Pixel
-        The energy-drift-time pixel to process.
+    slice : Slice
+        The energy-drift-time slice to process.
     detector : str
         Name of the target detector, e.g. ``"V03422A"``.
     tab_map : dict[str, int]
@@ -1078,30 +716,27 @@ def build_superpulse_for_pixel(
     raw_files : list[str]
         Sorted list of all available raw-tier LH5 file paths, same order as
         ``evt_files``.
+    dsp_config : Path or str
+        Path to the production DSP configuration JSON file. Returned as
+        ``dsp_cfg_file`` by
+        ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``.
     dsp_fields : list[str]
-        DSP fields to attach to events, e.g.
-        ``["tp_aoe_max", "cuspEmax", "tp_0_est"]``.
+        DSP fields to attach to events via ``add_dsp_pars_to_evt``.
         ``tp_aoe_max`` must be included.
-    bl_window : tuple[float, float]
-        Baseline window ``(t_start, t_end)`` in ns, in the original
-        non-aligned time axis.
     n_target_wfs : int, optional
         Target number of golden waveforms (after chi2 cut) for the final
         superpulse. Default 100.
     chi2_threshold : float, optional
         Reduced chi-squared threshold for the self-similarity cut. Default 3.0.
-    upsample_factor : int, optional
-        Upsampling factor. Default 16.
-    upsample_mode : str, optional
-        Interpolation mode for upsampling. Default ``'l'`` (linear).
-    mwa_length : int, optional
-        Moving window length in samples. Default 48.
-        Must match ``psl.py:make_realistic_pulse_shape_lib``.
-    mwa_num : int, optional
-        Number of moving window passes. Default 3.
-        Must match ``psl.py:make_realistic_pulse_shape_lib``.
-    mwa_type : int, optional
-        Moving window type. Default 0. Must match ``psl.py``.
+    charge_output : str, optional
+        DSP output name for the charge waveform. Default ``"wf_blsub"``.
+        Passed to ``get_charge_and_current_wfs_for_slice``.
+    current_output : str, optional
+        DSP output name for the current waveform. Default ``"curr_av"``.
+        Passed to ``get_charge_and_current_wfs_for_slice``.
+    align : str, optional
+        DSP parameter used for waveform alignment. Default ``"tp_aoe_max"``.
+        Passed to ``get_charge_and_current_wfs_for_slice``.
 
     Returns
     -------
@@ -1113,7 +748,7 @@ def build_superpulse_for_pixel(
     Raises
     ------
     ValueError
-        If no waveforms are found in the pixel across all files.
+        If no waveforms are found in the slice across all files.
     RuntimeError
         If ``evt_files``, ``dsp_files``, and ``raw_files`` have different
         lengths.
@@ -1125,25 +760,25 @@ def build_superpulse_for_pixel(
     ensuring this ordering.
 
     Memory usage is proportional to the number of accumulated events times
-    the waveform length times the upsampling factor. For typical pixel sizes
-    (O(200) events, O(4000) samples at 16 ns, upsampled to O(64000) samples
-    at 1 ns) this is of order a few hundred MB, which is acceptable.
+    the waveform length. Since waveforms are extracted already upsampled and
+    processed by the DSP chain, no further upsampling is performed in this
+    function.
     """
     raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
-# Output: all pixels, one detector
+# Output: all slices, one detector
 # ---------------------------------------------------------------------------
 
 
 def write_superpulses_to_lh5(
-    superpulses: dict[Pixel, Superpulse],
+    superpulses: dict[Slice, Superpulse],
     output_path: str,
     detector: str,
 ) -> None:
     """
-    Write all per-pixel superpulses for one detector to a single LH5 file.
+    Write all per-slice superpulses for one detector to a single LH5 file.
 
     Iterates over ``superpulses``, calls ``Superpulse.to_lgdo()`` for each,
     and writes the result as a named group inside the file.
@@ -1166,9 +801,9 @@ def write_superpulses_to_lh5(
 
     Parameters
     ----------
-    superpulses : dict[Pixel, Superpulse]
-        Dictionary mapping each pixel to its final superpulse, as accumulated
-        in the per-pixel processing loop.
+    superpulses : dict[Slice, Superpulse]
+        Dictionary mapping each slice to its final superpulse, as accumulated
+        in the per-slice processing loop.
     output_path : str
         Path to the output LH5 file, e.g.
         ``"output/V03422A_superpulses.lh5"``.
