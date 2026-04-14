@@ -147,8 +147,8 @@ submitting a pull request.
 ### Documentation conventions
 
 - Pages are written in Markdown using [MyST](https://myst-parser.readthedocs.io)
-  syntax. Use colon-fence (`:::`) for Sphinx admonitions (e.g. `:::{note}`,
-  `:::{tip}`, `:::{warning}`).
+  syntax. Use colon-fence directives for Sphinx admonitions (`:::` + `{note}`,
+  `{tip}`, `{warning}`, etc.).
 - Use `console` as the language tag for shell commands (enables copy-button and
   consistent rendering).
 - Python docstrings follow the

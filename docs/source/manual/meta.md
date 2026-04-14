@@ -127,15 +127,9 @@ Supported fields per `simid`:
   - formatted as `~defines:NAME`, where `NAME` is defined in
     {ref}`generators.yaml`.
   - formatted as `~vertices:NAME`, where `NAME` references a vertices simulation
-    from the `vtx` tier (see {ref}`vtx-tier-meta`).
-
-    :::{note}
-
-    If vertices are selected as generator, it means that they include vertex
-    position _and_ kinematics. In this situation, the `confinement` key (see
-    below) is forbidden.
-
-    :::
+    from the `vtx` tier (see {ref}`vtx-tier-meta`). When vertices are used as
+    the generator they carry vertex position _and_ kinematics, so the
+    `confinement` key (see below) is forbidden.
 
 - `confinement` — one of:
   - `~defines:NAME` to reference a confinement block in {ref}`confinement.yaml`
@@ -386,7 +380,7 @@ psdcuts_default:
 
 ## `pars/` — simulation parameters
 
-### `simprod/config/pars/geds/dtmap/settings.yaml` — drift time map simulation parameters
+### HPGe drift time map simulation parameters
 
 A single shared YAML file (applies to all detectors and voltages) that overrides
 simulation control parameters for the
@@ -407,13 +401,13 @@ padding: 3
 | `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.** |
 | `padding`               | int           | `3`                      | Number of pixel layers padded around the drift time map boundary to avoid grid edge effects.                                                                                                                                        |
 
-::::{tip}
+:::{tip}
 
 In test or CI environments, setting `grid_size_in_mm: 10.0` reduces the number
 of grid points by a factor of ~400 compared to the 0.5 mm production default,
 cutting script runtime from many minutes to seconds.
 
-::::
+:::
 
 (eresmod-metadata-dir)=
 

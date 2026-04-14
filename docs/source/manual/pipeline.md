@@ -5,11 +5,19 @@ the metadata and configuration described in [](meta.md).
 
 ## `vtx` — event vertex generation
 
-:::{todo} Document the vertex generation step. :::
+:::{todo}
+
+Document the vertex generation step.
+
+:::
 
 ## `stp` — particle simulation
 
-:::{todo} Document the remage simulation step. :::
+:::{todo}
+
+Document the remage simulation step.
+
+:::
 
 ## `par` — parameter extraction
 
@@ -63,7 +71,11 @@ metadata directory is described in {ref}`psdcuts-metadata-dir`.
 
 ## `opt` — optical hit building
 
-:::{todo} Document the optical hit building step. :::
+:::{todo}
+
+Document the optical hit building step.
+
+:::
 
 ## `hit` — hit tier building
 
@@ -86,19 +98,35 @@ triggered when a `default` key is present in the corresponding metadata (cases 3
 and 4 of the extraction steps above), because all detectors are already covered
 in that case.
 
-:::{note} An ON detector with `psd_usability = "missing"` explicitly signals
-that PSD data are unavailable for that detector (e.g. a known hardware issue).
-It is therefore acceptable to fall back to the default A/E resolution and PSD
-cuts for such detectors rather than raising a hard error. :::
+:::{note}
+
+An ON detector with `psd_usability = "missing"` explicitly signals that PSD data
+are unavailable for that detector (e.g. a known hardware issue). It is therefore
+acceptable to fall back to the default A/E resolution and PSD cuts for such
+detectors rather than raising a hard error.
+
+:::
 
 ## `evt` — event building
 
-:::{todo} Document the event building step. :::
+:::{todo}
+
+Document the event building step.
+
+:::
 
 ## `cvt` — event concatenation
 
-:::{todo} Document the event concatenation step. :::
+:::{todo}
+
+Document the event concatenation step.
+
+:::
 
 ## `pdf` — PDF generation
 
-:::{todo} Document the PDF generation step. :::
+:::{todo}
+
+Document the PDF generation step.
+
+:::
