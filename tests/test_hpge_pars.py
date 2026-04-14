@@ -401,7 +401,7 @@ def test_lookup_aoeres(config, test_l200data):
     for k, v in meta.items():
         assert isinstance(k, str)
         assert "expression" in v
-        assert "pars" in v
+        assert "parameters" in v
 
     meta = hpge_pars.lookup_aoe_res_metadata(
         test_l200data / "v3.0.0",
@@ -414,12 +414,21 @@ def test_lookup_aoeres(config, test_l200data):
     for k, v in meta.items():
         assert isinstance(k, str)
         assert "expression" in v
-        assert "pars" in v
+        assert "parameters" in v
 
 
 def test_aoeres_func():
     f = hpge_pars.build_aoe_res_func("SigmaFit")
     assert isinstance(f, Callable)
+
+
+def test_build_aoe_res_func_from_entry():
+    entry = {"expression": "SigmaFit", "parameters": {"a": 0.0001, "b": 0, "c": 1}}
+    f = hpge_pars.build_aoe_res_func_from_entry(entry)
+    assert isinstance(f, Callable)
+    # SigmaFit with b=0: sigma = sqrt(a) = sqrt(0.0001) = 0.01, constant across E
+    assert f(2039) == pytest.approx(0.01, abs=1e-6)
+    assert f(500) == pytest.approx(0.01, abs=1e-6)
 
 
 def test_build_aoeres_funcs(config, test_l200data):

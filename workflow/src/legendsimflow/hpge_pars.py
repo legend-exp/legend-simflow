@@ -17,6 +17,7 @@ from __future__ import annotations
 import functools
 import itertools
 import logging
+import math
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -984,7 +985,12 @@ def lookup_aoe_res_metadata(
         )
         par = _getpar(detmeta, "results.aoe.correction_fit_results.SigmaFits")
         if par is not None:
-            out_dict[hpge] = par
+            # normalise to "parameters"/"uncertainties" for consistency with eresmod
+            out_dict[hpge] = {
+                "expression": par["expression"],
+                "parameters": par["pars"],
+                "uncertainties": par.get("errs", {}),
+            }
 
     return AttrsDict(out_dict)
 
@@ -1154,16 +1160,12 @@ def build_aoe_res_func_dict(
 
     aoe_res_sigma_func = {}
     for hpge, meta in aoe_res_pars.items():
-        # support both "parameters" (output file format) and "pars" (l200data format)
-        pars = meta.get("parameters", None) or meta.get("pars", None)
-        if not isinstance(pars, AttrsDict):
-            pars = AttrsDict(pars)
         # use functools.partial correctly freeze the parameters into the function
         base = functools.partial(
             _func_full,
-            a=pars.a,
-            b=pars.b,
-            c=pars.c,
+            a=meta.parameters.a,
+            b=meta.parameters.b,
+            c=meta.parameters.c,
         )
 
         def _aoeres(E, base=base):
@@ -1220,11 +1222,14 @@ def lookup_psd_cut_values(
         hpge = (
             chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
         )
-        out_dict[hpge] = {
-            "aoe": {
-                "low_side": _getpar(detmeta, "results.aoe.low_cut"),
-                "high_side": _getpar(detmeta, "results.aoe.high_cut"),
-            }
-        }
+        low = _getpar(detmeta, "results.aoe.low_cut")
+        high = _getpar(detmeta, "results.aoe.high_cut")
+        # l200data may store NaN for missing cuts; treat as absent so that
+        # sanitize_dict_with_defaults (called in hit.py) can substitute the default
+        if low is not None and math.isnan(low):
+            low = None
+        if high is not None and math.isnan(high):
+            high = None
+        out_dict[hpge] = {"aoe": {"low_side": low, "high_side": high}}
 
     return AttrsDict(out_dict)

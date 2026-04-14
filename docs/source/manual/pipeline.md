@@ -26,7 +26,7 @@ The `extract_hpge_observables_models` rule produces a per-detector YAML file
 mapping each HPGe detector to its energy resolution model. It is a _collection_
 step: it gathers what it can from the available sources and writes the result to
 disk. Completeness is validated downstream in `build_tier_hit` (see
-{ref}`build-tier-hit-energy-resolution`).
+{ref}`build-tier-hit-hpge`).
 
 The exact sources used depend on what is configured:
 
@@ -50,30 +50,16 @@ The exact sources used depend on what is configured:
 ### HPGe A/E resolution (`extract_hpge_observables_models`)
 
 The same rule produces a per-detector YAML file for the A/E resolution model,
-following the same three-case logic as {ref}`hpge-eresmod-extraction`:
-
-1. **`l200data` only, no HPGe-specific overrides** — everything available in
-   `l200data` is collected, independent of detector status.
-
-2. **`l200data` + HPGe-specific overrides in {ref}`aoeresmod-metadata-dir`, no
-   `default` key** — everything available in `l200data` is collected as in case
-   1; the explicitly listed detectors are then overridden.
-
-3. **`l200data` + HPGe-specific overrides with a `default` key** — the metadata
-   takes over entirely: every HPGe detector in the channel map is expanded from
-   the `default` (with optional per-detector overrides). `l200data` is not
-   consulted.
-
-4. **HPGe-specific overrides with a `default` key, no `l200data`** — same as
-   case 3. `l200data` is not required.
+following the same four-case logic as {ref}`hpge-eresmod-extraction`. The
+metadata directory is described in {ref}`aoeresmod-metadata-dir`.
 
 (hpge-psdcuts-extraction)=
 
 ### HPGe PSD cuts (`extract_hpge_observables_models`)
 
 The same rule produces a per-detector YAML file for the PSD cut values,
-following the same three-case logic. See {ref}`aoeresmod-metadata-dir` and
-{ref}`psdcuts-metadata-dir` for the metadata format.
+following the same four-case logic as {ref}`hpge-eresmod-extraction`. The
+metadata directory is described in {ref}`psdcuts-metadata-dir`.
 
 ## `opt` — optical hit building
 
@@ -81,31 +67,29 @@ following the same three-case logic. See {ref}`aoeresmod-metadata-dir` and
 
 ## `hit` — hit tier building
 
-(build-tier-hit-energy-resolution)=
+(build-tier-hit-hpge)=
 
-### Energy resolution (`build_tier_hit`)
+### HPGe observable validation (`build_tier_hit`)
 
-`build_tier_hit` applies energy resolution smearing to each simulated detector.
-It reads the per-detector file produced in the `par` step and validates that all
-needed detectors are covered:
+`build_tier_hit` reads the per-detector YAML files produced in the `par` step
+and validates that every simulated detector has the parameters it needs. The
+hard-error vs. fallback policy differs slightly per observable:
 
-- **ON detectors** must always have a curve — a missing entry raises a hard
-  error.
-- **`off` and `ac` detectors** fall back to `eresmod_default` from
-  {ref}`hit-tier-settings` with a warning. This fallback is never triggered when
-  a `default` key is present in the eresmod metadata (cases 3 and 4 above),
-  because all detectors are already covered.
+| Observable        | Hard error                                                 | Fallback (+ warning) | Fallback key        |
+| ----------------- | ---------------------------------------------------------- | -------------------- | ------------------- |
+| Energy resolution | ON detector missing entry                                  | `off`/`ac` detector  | `eresmod_default`   |
+| A/E resolution    | ON detector with `psd_usability ≠ "missing"` missing entry | all other cases      | `aoeresmod_default` |
+| PSD cuts          | ON detector with `psd_usability ≠ "missing"` missing entry | all other cases      | `psdcuts_default`   |
 
-(build-tier-hit-psd)=
+The fallback keys are read from {ref}`hit-tier-settings`. They are never
+triggered when a `default` key is present in the corresponding metadata (cases 3
+and 4 of the extraction steps above), because all detectors are already covered
+in that case.
 
-### A/E resolution and PSD cuts (`build_tier_hit`)
-
-`build_tier_hit` applies A/E smearing and evaluates PSD classifiers using the
-per-run YAML files produced in the `par` step. Missing entries fall back to
-`aoeresmod_default` and `psdcuts_default` from {ref}`hit-tier-settings` with a
-warning. As with energy resolution, these fallbacks are never triggered when a
-`default` key is present in the corresponding metadata (cases 3 and 4 in
-{ref}`hpge-aoeresmod-extraction`).
+:::{note} An ON detector with `psd_usability = "missing"` explicitly signals
+that PSD data are unavailable for that detector (e.g. a known hardware issue).
+It is therefore acceptable to fall back to the default A/E resolution and PSD
+cuts for such detectors rather than raising a hard error. :::
 
 ## `evt` — event building
 
