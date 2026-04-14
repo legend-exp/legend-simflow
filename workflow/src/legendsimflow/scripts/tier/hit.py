@@ -278,10 +278,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 energy_res = energy_res_func[det_name](energy_true)
 
             elif usability == "on":
-                msg = (
-                    f"{det_name} is marked as ON but no energy resolution"
-                    "curves are available. this is unacceptable!"
-                )
+                msg = f"{det_name} is ON but no energy resolution curves are available"
                 raise RuntimeError(msg)
             else:
                 msg = (
@@ -315,10 +312,13 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                         psdcuts_default,
                     )
                 )
+            elif usability == "on" and psd_usability != "missing":
+                msg = f"{det_name} is ON with valid PSD but no PSD cut values are available"
+                raise RuntimeError(msg)
             else:
                 msg = (
-                    f"{det_name} is marked as '{usability}' and no "
-                    "PSD cut values are available. using default values"
+                    f"{det_name} is marked as '{usability}' (psd_usability='{psd_usability}') "
+                    "and no PSD cut values are available. using psdcuts_default"
                 )
                 log.warning(msg)
                 psdcuts = AttrsDict(psdcuts_default)
