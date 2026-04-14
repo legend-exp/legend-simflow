@@ -18,6 +18,15 @@
 from legendsimflow import aggregate, hpge_pars, patterns
 
 
+rule gen_all_tier_par:
+    """Produce all `par` step outputs."""
+    input:
+        aggregate.gen_list_of_all_par_outputs(config),
+        lambda wc: aggregate.gen_list_of_all_plots_outputs(
+            config, tier="par", cache=smk_load_hpge_cache()
+        ),
+
+
 rule make_simstat_partition_file:
     """Create the simulation event statistics partitioning file.
 
