@@ -29,6 +29,24 @@ def test_all(config):
         in metadata.simpars(config.metadata, "geds.opv", "l200-p02-r002-phy").V99000A
     )
 
+    # default= returns the default when the par directory does not exist
+    assert (
+        metadata.simpars(
+            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", default=None
+        )
+        is None
+    )
+    assert (
+        metadata.simpars(
+            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", default=42
+        )
+        == 42
+    )
+
+    # without default=, a missing par raises
+    with pytest.raises((KeyError, LookupError, FileNotFoundError)):
+        metadata.simpars(config.metadata, "geds.nonexistent", "l200-p02-r002-phy")
+
     assert isinstance(
         metadata.get_vtx_simconfig(config, "lar_hpge_shell_K42"), AttrsDict
     )

@@ -999,6 +999,27 @@ def build_energy_res_func(function: str) -> Callable:
     raise NotImplementedError
 
 
+def build_energy_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
+    """Build a bound energy resolution callable from a single metadata entry.
+
+    Parameters
+    ----------
+    meta
+        A single detector's energy resolution metadata, with keys ``expression``
+        and ``parameters``. Same format as one value from
+        :func:`lookup_energy_res_metadata`.
+
+    Returns
+    -------
+    Callable that takes energy in keV and returns FWHM in keV.
+    """
+    if not isinstance(meta, AttrsDict):
+        meta = AttrsDict(meta)
+    func = build_energy_res_func(meta.expression)
+    base = functools.partial(func, **meta.parameters.to_dict())
+    return lambda E, base=base: base(E)
+
+
 def build_aoe_res_func(function: str) -> Callable:
     """A/E resolution function builder."""
     if function == "SigmaFit":

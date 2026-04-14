@@ -55,18 +55,20 @@ hpge_currmods_files = args.input.hpge_currmods
 # hpge_aoeresmods_files = args.input.hpge_aoeresmods
 # hpge_psdcuts_files = args.input.hpge_psdcuts
 simstat_part_file = args.input.simstat_part_file
-l200data = args.config.paths.l200data
+l200data = args.config.paths.get("l200data", None)
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
+
+# default energy resolution for non-ON detectors, sourced from hit tier settings
+tier_hit_settings = metadata.simprod.config.tier.hit[args.config.experiment].settings
+eresmod_default = hpge_pars.build_energy_res_func_from_entry(
+    tier_hit_settings.eresmod_default
+)
 
 hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
 BUFFER_LEN = "500*MB"
 
 u = pint.UnitRegistry()
-
-
-def DEFAULT_ENERGY_RES_FUNC(energy):
-    return 2.5 * np.sqrt(energy / 2039)  # FWHM
 
 
 def DEFAULT_AoE_RES_FUNC(energy):
@@ -277,8 +279,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             edep_active = chunk.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
 
-            # pars strategy: complain if detector is ON and there are no pars
-            # otherwise use defaults and warn
+            # Validation counterpart to the collection in
+            # extract_hpge_observables_models: ON detectors must have curves
+            # (hard error); others fall back to eresmod_default (soft warning).
             # TODO: move to a separate function to clean up
 
             if det_name in energy_res_func:
@@ -294,10 +297,10 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                 msg = (
                     f"{det_name} is marked as '{usability}' and no "
                     "energy resolution curves are available. "
-                    "using default values"
+                    "using eresmod_default from hit tier settings"
                 )
                 log.warning(msg)
-                energy_res = DEFAULT_ENERGY_RES_FUNC(energy_true)
+                energy_res = eresmod_default(energy_true)
 
             if det_name in aoe_res_func:
                 aoe_res = aoe_res_func[det_name](energy_true)

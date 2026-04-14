@@ -1,0 +1,5 @@
+eresmod_default:
+  expression: FWHMLinear
+  parameters:
+    a: 0.5
+    b: 0.001

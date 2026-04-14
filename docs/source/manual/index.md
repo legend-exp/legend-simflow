@@ -5,6 +5,7 @@
 
 setup
 meta
+pipeline
 prod
 output
 sites
