@@ -457,7 +457,10 @@ def gen_list_of_psdcuts(config: SimflowConfig, simid: str) -> list[Path]:
 
 def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
     """Generate the list of all (non-plot) ``par`` step output files in the Simflow."""
-    files: list[Path] = []
+    files: list[Path] = [
+        config.paths.pars / "modelable_hpge_detectors.yaml",
+        config.paths.pars / "detector_usabilities.yaml",
+    ]
     for simid in gen_list_of_all_simids(config):
         files.append(patterns.simstat_part_filename(config, simid=simid))
         files.extend(gen_list_of_merged_dtmaps(config, simid))
