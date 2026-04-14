@@ -377,12 +377,12 @@ psdcuts_default:
 ```
 
 - `eresmod_default` — energy resolution model applied to non-ON detectors. See
-  {ref}`build-tier-hit-energy-resolution` for when this fallback is triggered.
+  {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 - `aoeresmod_default` — A/E resolution model applied to detectors without a
-  per-detector entry. See {ref}`build-tier-hit-psd` for when this fallback is
+  per-detector entry. See {ref}`build-tier-hit-hpge` for when this fallback is
   triggered.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
-  entry. See {ref}`build-tier-hit-psd` for when this fallback is triggered.
+  entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 
 ## `pars/` — simulation parameters
 
@@ -460,7 +460,7 @@ at runtime.
 ### HPGe A/E resolution model defaults
 
 An optional validity-based metadata directory providing HPGe-specific A/E
-resolution parameters. Follows the same structure and three-case logic as
+resolution parameters. Follows the same structure and four-case logic as
 {ref}`eresmod-metadata-dir`.
 
 ```{code-block} yaml
@@ -499,7 +499,7 @@ used at runtime.
 ### HPGe PSD cut value defaults
 
 An optional validity-based metadata directory providing HPGe-specific PSD cut
-values. Follows the same structure and three-case logic as
+values. Follows the same structure and four-case logic as
 {ref}`eresmod-metadata-dir`.
 
 ```{code-block} yaml

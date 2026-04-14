@@ -110,6 +110,15 @@ def main() -> None:
         tstamp = mutils.runinfo(metadata, runid).start_key
         chmap = metadata.channelmap(tstamp, skip_version_check=True)
 
+    # pre-compute l200data helpers once if any observable needs the l200data path
+    hit_tier_name = None
+    pars_db = None
+    if (
+        eresmod_default is None or aoeresmod_default is None or psdcuts_default is None
+    ) and l200data is not None:
+        hit_tier_name = utils.get_hit_tier_name(l200data)
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
     # --- energy resolution model ---
     if eresmod_default is not None:
         # metadata with default: expand all channelmap geds detectors
@@ -131,9 +140,6 @@ def main() -> None:
             raise RuntimeError(msg)
         msg = f"extracting eresmod from l200data for {runid}"
         log.info(msg)
-        hit_tier_name = utils.get_hit_tier_name(l200data)
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
         eres_pars_dict = hpge_pars.lookup_energy_res_metadata(
             l200data,
             metadata,
@@ -174,9 +180,6 @@ def main() -> None:
             raise RuntimeError(msg)
         msg = f"extracting aoeresmod from l200data for {runid}"
         log.info(msg)
-        hit_tier_name = utils.get_hit_tier_name(l200data)
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
         aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
             l200data,
             metadata,
@@ -186,12 +189,9 @@ def main() -> None:
         )
 
         out_dict = dbetto.AttrsDict({})
+        fields = ["expression", "parameters", "uncertainties"]
         for hpge, meta in aoeres_pars_dict.items():
-            out_dict[hpge] = {
-                "expression": meta["expression"],
-                "parameters": meta["pars"],
-                "errs": meta["errs"],
-            }
+            out_dict[hpge] = {f: meta[f] for f in fields}
 
         if raw_aoeresmod is not None:
             msg = "applying per-detector aoeresmod overrides from simprod/config/pars"
@@ -220,10 +220,7 @@ def main() -> None:
             raise RuntimeError(msg)
         msg = f"extracting PSD cut values from l200data for {runid}"
         log.info(msg)
-        hit_tier_name = utils.get_hit_tier_name(l200data)
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-        aoecuts_pars_dict = hpge_pars.lookup_psd_cut_values(
+        psdcuts_pars_dict = hpge_pars.lookup_psd_cut_values(
             l200data,
             metadata,
             runid,
@@ -231,7 +228,7 @@ def main() -> None:
             pars_db=pars_db,
         )
 
-        out_dict = dbetto.AttrsDict(aoecuts_pars_dict)
+        out_dict = dbetto.AttrsDict(psdcuts_pars_dict)
 
         if raw_psdcuts is not None:
             msg = "applying per-detector psdcuts overrides from simprod/config/pars"

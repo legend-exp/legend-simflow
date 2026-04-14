@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from dbetto import AttrsDict
 
 from legendsimflow.scripts.pars import extract_hpge_observables_models
 
@@ -40,13 +41,13 @@ RUNID = RUNID_P03
 _FAKE_L200DATA_AOERESMOD = {
     "V05261A": {
         "expression": "SigmaFit",
-        "pars": {"a": 0.0003, "b": 0, "c": 1},
-        "errs": {},
+        "parameters": {"a": 0.0003, "b": 0, "c": 1},
+        "uncertainties": {},
     },
     "V02160A": {
         "expression": "SigmaFit",
-        "pars": {"a": 0.0004, "b": 0, "c": 1},
-        "errs": {},
+        "parameters": {"a": 0.0004, "b": 0, "c": 1},
+        "uncertainties": {},
     },
 }
 
@@ -384,3 +385,72 @@ def test_extract_psdcuts_l200data_with_overrides(tmp_path, monkeypatch):
     # V02160A: in metadata overrides — must be replaced by metadata values (low_side=-1.4)
     assert "V02160A" in result, "V02160A must be present (overridden by metadata)"
     assert result["V02160A"]["aoe"]["low_side"] == pytest.approx(-1.4)
+
+
+# ---------------------------------------------------------------------------
+# Error-path tests: no l200data and no metadata default
+# ---------------------------------------------------------------------------
+
+
+def _make_eresmod_default():
+    return AttrsDict(
+        {
+            "default": AttrsDict(
+                {
+                    "expression": "FWHMLinear",
+                    "parameters": AttrsDict({"a": 0.5, "b": 0.001}),
+                }
+            )
+        }
+    )
+
+
+def _make_aoeresmod_default():
+    return AttrsDict(
+        {
+            "default": AttrsDict(
+                {
+                    "expression": "SigmaFit",
+                    "parameters": AttrsDict({"a": 0.0001, "b": 0, "c": 1}),
+                }
+            )
+        }
+    )
+
+
+def test_extract_aoeresmod_raises_without_l200data_and_default(tmp_path, monkeypatch):
+    """RuntimeError when l200data is absent and no aoeresmod 'default' key exists."""
+    monkeypatch.setattr(
+        sys, "argv", _build_argv(tmp_path, runid=RUNID_P03, l200data=None)
+    )
+
+    def _simpars(_metadata, par, _runid, **_kw):
+        if par == "geds.eresmod":
+            return _make_eresmod_default()
+        return None
+
+    with (
+        patch("legendsimflow.metadata.simpars", side_effect=_simpars),
+        pytest.raises(RuntimeError, match="aoeresmod"),
+    ):
+        extract_hpge_observables_models.main()
+
+
+def test_extract_psdcuts_raises_without_l200data_and_default(tmp_path, monkeypatch):
+    """RuntimeError when l200data is absent and no psdcuts 'default' key exists."""
+    monkeypatch.setattr(
+        sys, "argv", _build_argv(tmp_path, runid=RUNID_P03, l200data=None)
+    )
+
+    def _simpars(_metadata, par, _runid, **_kw):
+        if par == "geds.eresmod":
+            return _make_eresmod_default()
+        if par == "geds.aoeresmod":
+            return _make_aoeresmod_default()
+        return None
+
+    with (
+        patch("legendsimflow.metadata.simpars", side_effect=_simpars),
+        pytest.raises(RuntimeError, match="psdcuts"),
+    ):
+        extract_hpge_observables_models.main()

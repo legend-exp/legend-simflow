@@ -294,10 +294,16 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             if det_name in aoe_res_func:
                 aoe_res = aoe_res_func[det_name](energy_true)
+            elif usability == "on" and psd_usability != "missing":
+                msg = (
+                    f"{det_name} is ON with valid PSD but no A/E resolution "
+                    "curves are available"
+                )
+                raise RuntimeError(msg)
             else:
                 msg = (
-                    f"{det_name} is marked as '{usability}' and no "
-                    "A/E resolution curves are available. using default values"
+                    f"{det_name} is marked as '{usability}' (psd_usability='{psd_usability}') "
+                    "and no A/E resolution curves are available. using aoeresmod_default"
                 )
                 log.warning(msg)
                 aoe_res = aoeresmod_default(energy_true)
