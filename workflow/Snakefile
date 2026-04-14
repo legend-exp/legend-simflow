@@ -84,8 +84,10 @@ def gen_target_all():
             inputs.extend(rules.gen_all_tier_opt.input)
         elif step == "stp":
             inputs.extend(rules.gen_all_tier_stp.input)
-        elif step in ("vtx", "par"):
+        elif step == "vtx":
             pass
+        elif step == "par":
+            inputs.extend(rules.gen_all_tier_par.input)
 
     return inputs
 

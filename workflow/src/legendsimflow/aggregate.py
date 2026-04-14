@@ -85,6 +85,11 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
         ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
+    if tier == "par":
+        return [
+            *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
+            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
+        ]
     return []
 
 
@@ -448,6 +453,19 @@ def gen_list_of_psdcuts(config: SimflowConfig, simid: str) -> list[Path]:
         patterns.output_psdcuts_filename(config, runid=runid)
         for runid in get_runlist(config, simid)
     ]
+
+
+def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
+    """Generate the list of all (non-plot) ``par`` step output files in the Simflow."""
+    files: list[Path] = []
+    for simid in gen_list_of_all_simids(config):
+        files.append(patterns.simstat_part_filename(config, simid=simid))
+        files.extend(gen_list_of_merged_dtmaps(config, simid))
+        files.extend(gen_list_of_merged_currmods(config, simid))
+        files.extend(gen_list_of_eresmods(config, simid))
+        files.extend(gen_list_of_aoeresmods(config, simid))
+        files.extend(gen_list_of_psdcuts(config, simid))
+    return files
 
 
 # tier cvt
