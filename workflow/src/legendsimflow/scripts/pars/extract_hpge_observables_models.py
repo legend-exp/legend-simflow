@@ -80,24 +80,43 @@ def main() -> None:
     runid = args.runid
     l200data = config.paths.get("l200data", None)
 
-    # --- energy resolution model ---
     # Collection step: gather what is available; completeness checked in hit.py.
-    # Behaviour depends on simprod/config/pars/geds/eresmod/:
+    # For each observable, behaviour depends on simprod/config/pars/geds/<obs>/:
     #  - absent: use l200data only
     #  - present, no "default": l200data base + per-detector overrides
     #  - present, with "default": expand all channelmap geds detectors;
     #    l200data not consulted
-    raw = mutils.simpars(metadata, "geds.eresmod", runid, default=None)
-    default_entry = raw.get("default", None) if raw is not None else None
+    raw_eresmod = mutils.simpars(metadata, "geds.eresmod", runid, default=None)
+    raw_aoeresmod = mutils.simpars(metadata, "geds.aoeresmod", runid, default=None)
+    raw_psdcuts = mutils.simpars(metadata, "geds.psdcuts", runid, default=None)
 
-    if default_entry is not None:
+    eresmod_default = (
+        raw_eresmod.get("default", None) if raw_eresmod is not None else None
+    )
+    aoeresmod_default = (
+        raw_aoeresmod.get("default", None) if raw_aoeresmod is not None else None
+    )
+    psdcuts_default = (
+        raw_psdcuts.get("default", None) if raw_psdcuts is not None else None
+    )
+
+    # resolve the channelmap once if any observable needs to expand all geds detectors
+    chmap = None
+    if (
+        eresmod_default is not None
+        or aoeresmod_default is not None
+        or psdcuts_default is not None
+    ):
+        tstamp = mutils.runinfo(metadata, runid).start_key
+        chmap = metadata.channelmap(tstamp, skip_version_check=True)
+
+    # --- energy resolution model ---
+    if eresmod_default is not None:
         # metadata with default: expand all channelmap geds detectors
         msg = f"using eresmod defaults from simprod/config/pars for {runid}"
         log.info(msg)
-        tstamp = mutils.runinfo(metadata, runid).start_key
-        chmap = metadata.channelmap(tstamp, skip_version_check=True)
         eresmod_dict = {
-            name: raw.get(name, default_entry).to_dict()
+            name: raw_eresmod.get(name, eresmod_default).to_dict()
             for name, info in chmap.items()
             if getattr(info, "system", None) == "geds"
         }
@@ -128,46 +147,99 @@ def main() -> None:
         for hpge, meta in eres_pars_dict.items():
             out_dict[hpge] = {f: meta[f] for f in fields}
 
-        if raw is not None:
+        if raw_eresmod is not None:
             msg = "applying per-detector eresmod overrides from simprod/config/pars"
             log.info(msg)
-            for hpge, meta in raw.items():
+            for hpge, meta in raw_eresmod.items():
                 out_dict[hpge] = meta.to_dict()
 
         dbetto.utils.write_dict(out_dict.to_dict(), args.eresmod_file)
 
-    # --- A/E resolution model and PSD cuts (l200data only for now) ---
-    hit_tier_name = utils.get_hit_tier_name(l200data)
-    pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+    # --- A/E resolution model ---
+    if aoeresmod_default is not None:
+        msg = f"using aoeresmod defaults from simprod/config/pars for {runid}"
+        log.info(msg)
+        aoeresmod_dict = {
+            name: raw_aoeresmod.get(name, aoeresmod_default).to_dict()
+            for name, info in chmap.items()
+            if getattr(info, "system", None) == "geds"
+        }
+        dbetto.utils.write_dict(aoeresmod_dict, args.aoeresmod_file)
+    else:
+        if l200data is None:
+            msg = (
+                "l200data is not configured and no aoeresmod metadata with a 'default' "
+                "key was found — cannot extract A/E resolution model"
+            )
+            raise RuntimeError(msg)
+        msg = f"extracting aoeresmod from l200data for {runid}"
+        log.info(msg)
+        hit_tier_name = utils.get_hit_tier_name(l200data)
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
 
-    msg = f"extracting aoeresmod from l200data for {runid}"
-    log.info(msg)
-    aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
-        l200data,
-        metadata,
-        runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
-    )
+        aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
+            l200data,
+            metadata,
+            runid,
+            hit_tier_name=hit_tier_name,
+            pars_db=pars_db,
+        )
 
-    out_dict = dbetto.AttrsDict({})
-    fields = ["expression", "pars", "errs"]
-    for hpge, meta in aoeres_pars_dict.items():
-        out_dict[hpge] = {f: meta[f] for f in fields}
+        out_dict = dbetto.AttrsDict({})
+        for hpge, meta in aoeres_pars_dict.items():
+            out_dict[hpge] = {
+                "expression": meta["expression"],
+                "parameters": meta["pars"],
+                "errs": meta["errs"],
+            }
 
-    dbetto.utils.write_dict(out_dict.to_dict(), args.aoeresmod_file)
+        if raw_aoeresmod is not None:
+            msg = "applying per-detector aoeresmod overrides from simprod/config/pars"
+            log.info(msg)
+            for hpge, meta in raw_aoeresmod.items():
+                out_dict[hpge] = meta.to_dict()
 
-    msg = f"extracting PSD cut values from l200data for {runid}"
-    log.info(msg)
-    aoecuts_pars_dict = hpge_pars.lookup_psd_cut_values(
-        l200data,
-        metadata,
-        runid,
-        hit_tier_name=hit_tier_name,
-        pars_db=pars_db,
-    )
+        dbetto.utils.write_dict(out_dict.to_dict(), args.aoeresmod_file)
 
-    dbetto.utils.write_dict(aoecuts_pars_dict, args.psdcuts_file)
+    # --- PSD cut values ---
+    if psdcuts_default is not None:
+        msg = f"using psdcuts defaults from simprod/config/pars for {runid}"
+        log.info(msg)
+        psdcuts_dict = {
+            name: raw_psdcuts.get(name, psdcuts_default).to_dict()
+            for name, info in chmap.items()
+            if getattr(info, "system", None) == "geds"
+        }
+        dbetto.utils.write_dict(psdcuts_dict, args.psdcuts_file)
+    else:
+        if l200data is None:
+            msg = (
+                "l200data is not configured and no psdcuts metadata with a 'default' "
+                "key was found — cannot extract PSD cut values"
+            )
+            raise RuntimeError(msg)
+        msg = f"extracting PSD cut values from l200data for {runid}"
+        log.info(msg)
+        hit_tier_name = utils.get_hit_tier_name(l200data)
+        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
+
+        aoecuts_pars_dict = hpge_pars.lookup_psd_cut_values(
+            l200data,
+            metadata,
+            runid,
+            hit_tier_name=hit_tier_name,
+            pars_db=pars_db,
+        )
+
+        out_dict = dbetto.AttrsDict(aoecuts_pars_dict)
+
+        if raw_psdcuts is not None:
+            msg = "applying per-detector psdcuts overrides from simprod/config/pars"
+            log.info(msg)
+            for hpge, meta in raw_psdcuts.items():
+                out_dict[hpge] = meta.to_dict()
+
+        dbetto.utils.write_dict(out_dict.to_dict(), args.psdcuts_file)
 
 
 if __name__ == "__main__":

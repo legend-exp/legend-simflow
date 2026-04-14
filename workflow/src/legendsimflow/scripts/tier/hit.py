@@ -58,31 +58,21 @@ simstat_part_file = args.input.simstat_part_file
 l200data = args.config.paths.get("l200data", None)
 usabilities = AttrsDict(load_dict(args.input.detector_usabilities[0]))
 
-# default energy resolution for non-ON detectors, sourced from hit tier settings
+# default resolutions/cuts for non-ON detectors, sourced from hit tier settings
 tier_hit_settings = metadata.simprod.config.tier.hit[args.config.experiment].settings
 eresmod_default = hpge_pars.build_energy_res_func_from_entry(
     tier_hit_settings.eresmod_default
 )
+aoeresmod_default = hpge_pars.build_aoe_res_func_from_entry(
+    tier_hit_settings.aoeresmod_default
+)
+psdcuts_default = tier_hit_settings.psdcuts_default.to_dict()
 
 hit_file, move2cfs = nersc.make_on_scratch(args.config, hit_file)
 
 BUFFER_LEN = "500*MB"
 
 u = pint.UnitRegistry()
-
-
-def DEFAULT_AoE_RES_FUNC(energy):
-    return 0.01 * np.sqrt(energy / 2039)
-
-
-DEFAULT_PSD_CUTS = AttrsDict(
-    {
-        "aoe": {
-            "low_side": -1.5,
-            "high_side": 3,
-        }
-    }
-)
 
 
 # setup logging
@@ -304,25 +294,19 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             if det_name in aoe_res_func:
                 aoe_res = aoe_res_func[det_name](energy_true)
-                psdcuts = AttrsDict(
-                    utils.sanitize_dict_with_defaults(
-                        psdcuts_all[det_name],
-                        DEFAULT_PSD_CUTS,
-                    )
-                )
             else:
                 msg = (
                     f"{det_name} is marked as '{usability}' and no "
                     "A/E resolution curves are available. using default values"
                 )
                 log.warning(msg)
-                aoe_res = DEFAULT_AoE_RES_FUNC(energy_true)
+                aoe_res = aoeresmod_default(energy_true)
 
             if det_name in psdcuts_all:
                 psdcuts = AttrsDict(
                     utils.sanitize_dict_with_defaults(
                         psdcuts_all[det_name],
-                        DEFAULT_PSD_CUTS,
+                        psdcuts_default,
                     )
                 )
             else:
@@ -331,7 +315,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                     "PSD cut values are available. using default values"
                 )
                 log.warning(msg)
-                psdcuts = DEFAULT_PSD_CUTS
+                psdcuts = AttrsDict(psdcuts_default)
 
             # smear energy with detector resolution
             energy = reboost_utils.gauss_smear(

@@ -1028,6 +1028,26 @@ def build_aoe_res_func(function: str) -> Callable:
     raise NotImplementedError
 
 
+def build_aoe_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
+    """Build a bound A/E resolution callable from a single metadata entry.
+
+    Parameters
+    ----------
+    meta
+        A single detector's A/E resolution metadata, with keys ``expression``
+        and ``parameters``.
+
+    Returns
+    -------
+    Callable that takes energy in keV and returns the A/E resolution (sigma).
+    """
+    if not isinstance(meta, AttrsDict):
+        meta = AttrsDict(meta)
+    func = build_aoe_res_func(meta.expression)
+    base = functools.partial(func, **meta.parameters.to_dict())
+    return lambda E, base=base: base(E)
+
+
 def build_energy_res_func_dict(
     l200data: str | Path,
     metadata: LegendMetadata,
@@ -1134,12 +1154,16 @@ def build_aoe_res_func_dict(
 
     aoe_res_sigma_func = {}
     for hpge, meta in aoe_res_pars.items():
+        # support both "parameters" (output file format) and "pars" (l200data format)
+        pars = meta.get("parameters", None) or meta.get("pars", None)
+        if not isinstance(pars, AttrsDict):
+            pars = AttrsDict(pars)
         # use functools.partial correctly freeze the parameters into the function
         base = functools.partial(
             _func_full,
-            a=meta.pars.a,
-            b=meta.pars.b,
-            c=meta.pars.c,
+            a=pars.a,
+            b=pars.b,
+            c=pars.c,
         )
 
         def _aoeres(E, base=base):
