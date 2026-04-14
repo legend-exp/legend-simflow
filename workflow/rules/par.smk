@@ -275,7 +275,7 @@ rule merge_current_pulse_model_pars:
 
 
 rule extract_hpge_observables_models:
-    """Extract from the LEGEND-200 data and store on disk models of the HPGe observables.
+    """Extract and store on disk models of the HPGe observables for a run.
 
     Stores YAML files with a mapping between HPGe detectors and respective
     information to reconstruct:
@@ -287,6 +287,11 @@ rule extract_hpge_observables_models:
     because the data production parameter database is large and we don't want
     to use a lot of memory in the `build_tier_hit` rule.
 
+    **Design:** this rule is a *collection* step, not a *validation* step. It
+    gathers what it can from l200data and ``simprod/config/pars/geds/eresmod/``;
+    the output may be incomplete. Completeness is validated downstream in
+    ``build_tier_hit``.
+
     Uses wildcard `runid`.
     """
     message:
@@ -297,51 +302,7 @@ rule extract_hpge_observables_models:
         eresmod_file=patterns.output_eresmod_filename(config),
         aoeresmod_file=patterns.output_aoeresmod_filename(config),
         psdcuts_file=patterns.output_psdcuts_filename(config),
-    run:
-        import dbetto
-        from legendsimflow import hpge_pars, utils
-
-        l200data = config.paths.l200data
-
-        hit_tier_name = utils.get_hit_tier_name(l200data)
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-        eres_pars_dict = hpge_pars.lookup_energy_res_metadata(
-            l200data,
-            config.metadata,
-            wildcards.runid,
-            hit_tier_name=hit_tier_name,
-            pars_db=pars_db,
-        )
-
-        out_dict = dbetto.AttrsDict({})
-        fields = ["expression", "parameters", "uncertainties"]
-        for hpge, meta in eres_pars_dict.items():
-            out_dict[hpge] = {f: meta[f] for f in fields}
-
-        dbetto.utils.write_dict(out_dict.to_dict(), output.eresmod_file)
-
-        aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
-            l200data,
-            config.metadata,
-            wildcards.runid,
-            hit_tier_name=hit_tier_name,
-            pars_db=pars_db,
-        )
-
-        out_dict = dbetto.AttrsDict({})
-        fields = ["expression", "pars", "errs"]
-        for hpge, meta in aoeres_pars_dict.items():
-            out_dict[hpge] = {f: meta[f] for f in fields}
-
-        dbetto.utils.write_dict(out_dict.to_dict(), output.aoeresmod_file)
-
-        aoecuts_pars_dict = hpge_pars.lookup_psd_cut_values(
-            l200data,
-            config.metadata,
-            wildcards.runid,
-            hit_tier_name=hit_tier_name,
-            pars_db=pars_db,
-        )
-
-        dbetto.utils.write_dict(aoecuts_pars_dict, output.psdcuts_file)
+    log:
+        patterns.log_eresmod_filename(config),
+    script:
+        "../src/legendsimflow/scripts/pars/extract_hpge_observables_models.py"

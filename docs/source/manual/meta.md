@@ -346,7 +346,28 @@ hpge_bulk_Rn222_to_Po214:
     - l200-p03-r004-phy
 ```
 
-## `pars/` simulation parameter overrides
+(hit-tier-settings)=
+
+#### `simprod/config/tier/hit/{experiment}/settings.yaml` — hit tier settings
+
+A static YAML file with hit-tier-specific settings that apply to all simulations
+for a given experiment configuration. When absent, accessing any field from it
+will raise an error.
+
+```{code-block} yaml
+:caption: simprod/config/tier/hit/{experiment}/settings.yaml
+
+eresmod_default:
+  expression: FWHMLinear
+  parameters:
+    a: 0.5
+    b: 0.001
+```
+
+- `eresmod_default` — energy resolution model applied to non-ON detectors. See
+  {ref}`build-tier-hit-energy-resolution` for when this fallback is triggered.
+
+## `pars/` — simulation parameters
 
 ### `simprod/config/pars/geds/dtmap/settings.yaml` — drift time map simulation parameters
 
@@ -376,3 +397,43 @@ of grid points by a factor of ~400 compared to the 0.5 mm production default,
 cutting script runtime from many minutes to seconds.
 
 ::::
+
+(eresmod-metadata-dir)=
+
+### HPGe energy resolution model defaults
+
+An optional validity-based metadata directory providing HPGe-specific energy
+resolution parameters. When present, it can supplement or fully replace
+`l200data` as the source of energy resolution parameters — enabling simulations
+for experiments that have not yet collected data (e.g. LEGEND-1000). The
+structure follows the same validity-based format as `pars/geds/opv/`.
+
+```{code-block} yaml
+:caption: simprod/config/pars/geds/eresmod/l200-p03-r%-T%-all-eresmod.yaml
+
+default:
+  expression: FWHMLinear
+  parameters:
+    a: 0.5
+    b: 0.001
+
+# optional per-detector override
+V02160A:
+  expression: FWHMLinear
+  parameters:
+    a: 0.3
+    b: 0.0009
+```
+
+- `default` _(optional)_ — energy resolution model applied to all HPGe detectors
+  not listed explicitly.
+- `<detector>` _(optional)_ — per-detector override; key is the detector name as
+  it appears in the channel map (e.g. `V02160A`).
+
+Each entry must contain:
+
+- `expression` — name of the energy resolution function (e.g. `FWHMLinear`)
+- `parameters` — mapping of parameter names to their values
+
+See {ref}`hpge-eresmod-extraction` for a description of how these files are used
+at runtime.

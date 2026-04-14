@@ -331,6 +331,12 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 # hpge energy resolution
 
 
+def log_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for HPGe observables model extraction for a `runid`."""
+    pat = log_dirname(config) / "hpge/eresmod/{runid}-model.log"
+    return _expand(pat, **kwargs)
+
+
 def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the HPGe energy resolution model parameter file for a `runid`."""
     return _expand(

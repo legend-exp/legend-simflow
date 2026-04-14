@@ -247,7 +247,15 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
             return f"{exp}-{period}-{prev_r}-cal"
 
 
-def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
+_MISSING = object()
+
+
+def simpars(
+    metadata: LegendMetadata,
+    par: str,
+    runid: str,
+    default: object = _MISSING,
+) -> AttrsDict:
     """Extract simflow parameters for a certain LEGEND run.
 
     Queries the simflow parameters database stored under
@@ -264,12 +272,22 @@ def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
         allowed separators.
     runid
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
+    default
+        value to return when the parameter directory is not found in the
+        database or no validity entry matches `runid`. If not provided, such
+        cases raise ``KeyError`` or ``LookupError``. Other errors (e.g.
+        malformed YAML) are always re-raised regardless of this argument.
 
     """
     par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
-    directory = metadata["simprod/config/pars"][par]
-    return directory.on(runinfo(metadata, runid).start_key, system=datatype)
+    try:
+        directory = metadata["simprod/config/pars"][par]
+        return directory.on(runinfo(metadata, runid).start_key, system=datatype)
+    except (KeyError, LookupError, FileNotFoundError):
+        if default is _MISSING:
+            raise
+        return default
 
 
 def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
