@@ -45,6 +45,36 @@ The exact sources used depend on what is configured:
 4. **HPGe-specific overrides with a `default` key, no `l200data`** — same as
    case 3. `l200data` is not required.
 
+(hpge-aoeresmod-extraction)=
+
+### HPGe A/E resolution (`extract_hpge_observables_models`)
+
+The same rule produces a per-detector YAML file for the A/E resolution model,
+following the same three-case logic as {ref}`hpge-eresmod-extraction`:
+
+1. **`l200data` only, no HPGe-specific overrides** — everything available in
+   `l200data` is collected, independent of detector status.
+
+2. **`l200data` + HPGe-specific overrides in {ref}`aoeresmod-metadata-dir`, no
+   `default` key** — everything available in `l200data` is collected as in case
+   1; the explicitly listed detectors are then overridden.
+
+3. **`l200data` + HPGe-specific overrides with a `default` key** — the metadata
+   takes over entirely: every HPGe detector in the channel map is expanded from
+   the `default` (with optional per-detector overrides). `l200data` is not
+   consulted.
+
+4. **HPGe-specific overrides with a `default` key, no `l200data`** — same as
+   case 3. `l200data` is not required.
+
+(hpge-psdcuts-extraction)=
+
+### HPGe PSD cuts (`extract_hpge_observables_models`)
+
+The same rule produces a per-detector YAML file for the PSD cut values,
+following the same three-case logic. See {ref}`aoeresmod-metadata-dir` and
+{ref}`psdcuts-metadata-dir` for the metadata format.
+
 ## `opt` — optical hit building
 
 :::{todo} Document the optical hit building step. :::
@@ -65,6 +95,17 @@ needed detectors are covered:
   {ref}`hit-tier-settings` with a warning. This fallback is never triggered when
   a `default` key is present in the eresmod metadata (cases 3 and 4 above),
   because all detectors are already covered.
+
+(build-tier-hit-psd)=
+
+### A/E resolution and PSD cuts (`build_tier_hit`)
+
+`build_tier_hit` applies A/E smearing and evaluates PSD classifiers using the
+per-run YAML files produced in the `par` step. Missing entries fall back to
+`aoeresmod_default` and `psdcuts_default` from {ref}`hit-tier-settings` with a
+warning. As with energy resolution, these fallbacks are never triggered when a
+`default` key is present in the corresponding metadata (cases 3 and 4 in
+{ref}`hpge-aoeresmod-extraction`).
 
 ## `evt` — event building
 

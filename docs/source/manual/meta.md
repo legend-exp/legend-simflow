@@ -362,10 +362,27 @@ eresmod_default:
   parameters:
     a: 0.5
     b: 0.001
+
+aoeresmod_default:
+  expression: SigmaFit
+  parameters:
+    a: 0.0001
+    b: 0
+    c: 1
+
+psdcuts_default:
+  aoe:
+    low_side: -1.5
+    high_side: 3
 ```
 
 - `eresmod_default` — energy resolution model applied to non-ON detectors. See
   {ref}`build-tier-hit-energy-resolution` for when this fallback is triggered.
+- `aoeresmod_default` — A/E resolution model applied to detectors without a
+  per-detector entry. See {ref}`build-tier-hit-psd` for when this fallback is
+  triggered.
+- `psdcuts_default` — PSD cut values applied to detectors without a per-detector
+  entry. See {ref}`build-tier-hit-psd` for when this fallback is triggered.
 
 ## `pars/` — simulation parameters
 
@@ -436,4 +453,78 @@ Each entry must contain:
 - `parameters` — mapping of parameter names to their values
 
 See {ref}`hpge-eresmod-extraction` for a description of how these files are used
+at runtime.
+
+(aoeresmod-metadata-dir)=
+
+### HPGe A/E resolution model defaults
+
+An optional validity-based metadata directory providing HPGe-specific A/E
+resolution parameters. Follows the same structure and three-case logic as
+{ref}`eresmod-metadata-dir`.
+
+```{code-block} yaml
+:caption: simprod/config/pars/geds/aoeresmod/l200-p03-r%-T%-all-aoeresmod.yaml
+
+default:
+  expression: SigmaFit
+  parameters:
+    a: 0.0001
+    b: 0
+    c: 1
+
+# optional per-detector override
+V02160A:
+  expression: SigmaFit
+  parameters:
+    a: 0.0002
+    b: 0
+    c: 1
+```
+
+- `default` _(optional)_ — A/E resolution model applied to all HPGe detectors
+  not listed explicitly.
+- `<detector>` _(optional)_ — per-detector override.
+
+Each entry must contain:
+
+- `expression` — name of the A/E resolution function (e.g. `SigmaFit`)
+- `parameters` — mapping of parameter names to their values
+
+See {ref}`hpge-aoeresmod-extraction` for a description of how these files are
+used at runtime.
+
+(psdcuts-metadata-dir)=
+
+### HPGe PSD cut value defaults
+
+An optional validity-based metadata directory providing HPGe-specific PSD cut
+values. Follows the same structure and three-case logic as
+{ref}`eresmod-metadata-dir`.
+
+```{code-block} yaml
+:caption: simprod/config/pars/geds/psdcuts/l200-p03-r%-T%-all-psdcuts.yaml
+
+default:
+  aoe:
+    low_side: -1.5
+    high_side: 3.0
+
+# optional per-detector override
+V02160A:
+  aoe:
+    low_side: -1.4
+    high_side: 2.9
+```
+
+- `default` _(optional)_ — PSD cut values applied to all HPGe detectors not
+  listed explicitly.
+- `<detector>` _(optional)_ — per-detector override.
+
+Each entry must contain:
+
+- `aoe.low_side` — lower A/E classifier cut (in units of A/E σ)
+- `aoe.high_side` — upper A/E classifier cut (in units of A/E σ)
+
+See {ref}`hpge-psdcuts-extraction` for a description of how these files are used
 at runtime.
