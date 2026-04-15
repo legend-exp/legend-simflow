@@ -1,0 +1,19 @@
+default:
+  current_pulse_pars:
+    amax: 1.0
+    mu: 0.0
+    sigma: 0.1
+    tail_fraction: 0.5
+    tau: 0.02
+  mean_aoe: 1.0
+  current_reso: 0.01
+
+V02160A:
+  current_pulse_pars:
+    amax: 1.0
+    mu: 0.0
+    sigma: 0.12
+    tail_fraction: 0.55
+    tau: 0.025
+  mean_aoe: 0.98
+  current_reso: 0.012

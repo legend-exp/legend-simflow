@@ -1,0 +1,10 @@
+# no "default" key — used to test case 2: l200data base + per-detector overrides
+V02160A:
+  current_pulse_pars:
+    amax: 1.0
+    mu: 0.0
+    sigma: 0.12
+    tail_fraction: 0.55
+    tau: 0.025
+  mean_aoe: 0.98
+  current_reso: 0.012

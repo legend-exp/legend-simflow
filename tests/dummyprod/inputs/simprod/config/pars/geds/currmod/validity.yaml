@@ -1,0 +1,7 @@
+- valid_from: 20220102T000000Z
+  apply:
+    - l200-p02-r%-T%-all-currmod.yaml
+
+- valid_from: 20230312T000000Z
+  apply:
+    - l200-p03-r%-T%-all-currmod.yaml

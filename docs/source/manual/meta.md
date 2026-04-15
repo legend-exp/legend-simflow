@@ -522,3 +522,51 @@ Each entry must contain:
 
 See {ref}`hpge-psdcuts-extraction` for a description of how these files are used
 at runtime.
+
+(currmod-metadata-dir)=
+
+### HPGe current pulse model defaults
+
+An optional validity-based metadata directory providing HPGe-specific current
+pulse model parameters. Follows the same structure and four-case logic as
+{ref}`eresmod-metadata-dir`, but applied per-detector rather than per-run (one
+output file per `(runid, hpge_detector)` pair).
+
+```{code-block} yaml
+:caption: simprod/config/pars/geds/currmod/l200-p03-r%-T%-all-currmod.yaml
+
+default:
+  current_pulse_pars:
+    amax: 1.0
+    mu: 0.0
+    sigma: 0.1
+    tail_fraction: 0.5
+    tau: 0.02
+  mean_aoe: 1.0
+  current_reso: 0.01
+
+# optional per-detector override
+V02160A:
+  current_pulse_pars:
+    amax: 1.0
+    mu: 0.0
+    sigma: 0.12
+    tail_fraction: 0.55
+    tau: 0.025
+  mean_aoe: 0.98
+  current_reso: 0.012
+```
+
+- `default` _(optional)_ — current pulse model applied to all HPGe detectors not
+  listed explicitly.
+- `<detector>` _(optional)_ — per-detector override.
+
+Each entry must contain:
+
+- `current_pulse_pars` — mapping of parameter names to their values for the
+  current pulse model (`amax`, `mu`, `sigma`, `tail_fraction`, `tau`)
+- `mean_aoe` — mean A/E value
+- `current_reso` — current resolution (σ) from the noise-fit
+
+See {ref}`hpge-currmod-extraction` for a description of how these files are used
+at runtime.

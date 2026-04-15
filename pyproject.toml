@@ -163,6 +163,7 @@ tier-cvt = { cmd = "python -m legendsimflow.scripts.tier.cvt" }
 tier-pdf = { cmd = "python -m legendsimflow.scripts.tier.pdf" }
 
 extract-hpge-obs-models = { cmd = "python -m legendsimflow.scripts.pars.extract_hpge_observables_models" }
+extract-hpge-currmod = { cmd = "python -m legendsimflow.scripts.extract_hpge_current_pulse_model" }
 
 [tool.pixi.tasks.prod]
 cmd = "snakemake --verbose --logger {{ logger }} --workflow-profile workflow/profiles/{{ profile }}"

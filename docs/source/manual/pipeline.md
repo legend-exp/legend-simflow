@@ -69,6 +69,18 @@ The same rule produces a per-detector YAML file for the PSD cut values,
 following the same four-case logic as {ref}`hpge-eresmod-extraction`. The
 metadata directory is described in {ref}`psdcuts-metadata-dir`.
 
+(hpge-currmod-extraction)=
+
+### HPGe current pulse model (`extract_current_pulse_model`)
+
+The `extract_current_pulse_model` rule produces one YAML file per
+`(runid, hpge_detector)` pair holding the current pulse model parameters for
+that detector in that run. Unlike the eresmod/aoeresmod/psdcuts extractions
+(which are per-run), this step has per-detector granularity. It follows the same
+four-case logic as {ref}`hpge-eresmod-extraction`, but cases 3 and 4 bypass
+waveform fitting entirely and do not need `l200data`. The metadata directory is
+described in {ref}`currmod-metadata-dir`.
+
 ## `opt` — optical hit building
 
 :::{todo}
