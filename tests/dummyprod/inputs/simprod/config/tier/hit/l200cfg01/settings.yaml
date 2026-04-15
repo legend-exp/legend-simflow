@@ -1,0 +1,17 @@
+eresmod_default:
+  expression: FWHMLinear
+  parameters:
+    a: 0.5
+    b: 0.001
+
+aoeresmod_default:
+  expression: SigmaFit
+  parameters:
+    a: 0.0001
+    b: 0
+    c: 1
+
+psdcuts_default:
+  aoe:
+    low_side: -1.5
+    high_side: 3
