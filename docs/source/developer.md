@@ -61,18 +61,36 @@ To run a specific Python test or test function:
 
 The Python test suite includes both unit tests (in `tests/`) and integration
 tests that exercise the Snakemake workflow with a dummy production configured in
-`tests/dummyprod`. The dummy production defines two experiments:
+`tests/dummyprod`. The dummy production defines three experiments:
 
 - `legend`: a generic experiment used for unit tests and DAG-building tests; its
   runlist contains real p02 run IDs but is not intended to run an actual
   production
-- `l200cfg01`: used by the `test_stp_workflow` integration test, which exercises
-  the full vtx→stp pipeline with remage using the public `legend-pygeom-l200`
-  geometry
+- `l1000dsg01`: used by the `test_l1000_workflow` integration test, which
+  exercises the vtx→par pipeline; runs in CI without requiring `l200data`.
+  Currently uses l200-p03 runs because l1000 hardware metadata is not yet in
+  `dummyprod`
+- `l200cfg01`: used by the `test_l200_workflow` integration test (`needs_nersc`
+  marker), which runs the full vtx→cvt pipeline and requires access to
+  `l200data`; run manually at NERSC
 
 Test data for LEGEND-200 is stored in `tests/l200data/`.
 
 :::
+
+Some integration tests require **remage**, which is only available inside the
+pixi `test` environment. The table below summarises what each test needs:
+
+| Test                  | Command                                   | Needs pixi | Needs NERSC/l200data |
+| --------------------- | ----------------------------------------- | ---------- | -------------------- |
+| `test_dag`            | `pytest tests/test_workflow.py::test_dag` | no         | no                   |
+| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow`    | **yes**    | no                   |
+| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`     | **yes**    | **yes**              |
+| unit / script tests   | `pytest tests/`                           | no         | no                   |
+
+**Always run `pixi run -e test test-l1000-workflow` before committing changes
+that touch the workflow, scripts, or metadata.** The `test_dag` dry-run alone is
+not sufficient to catch runtime failures.
 
 ## Code style and linting
 

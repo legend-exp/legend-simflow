@@ -31,7 +31,7 @@ def test_dag():
 
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
-def test_stp_workflow():
+def test_l1000_workflow():
     output = smkapi.OutputSettings(verbose=False)
 
     with smkapi.SnakemakeApi(output) as api:
@@ -39,13 +39,7 @@ def test_stp_workflow():
             snakefile=dummyprod / "workflow/Snakefile",
             workdir=dummyprod,
             config_settings=smkapi.ConfigSettings(
-                configfiles=(dummyprod / "simflow-config.yaml",),
-                config={
-                    "experiment": "l200cfg01",
-                    "runlist": ["l200-p03-r000-phy"],
-                    "make_steps": ["vtx", "stp"],
-                    "benchmark": {"enabled": True, "n_primaries": {"stp": 1000}},
-                },
+                configfiles=(dummyprod / "simflow-config-l1000.yaml",),
             ),
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),
@@ -57,7 +51,7 @@ def test_stp_workflow():
 @pytest.mark.needs_nersc
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
-def test_full_workflow():
+def test_l200_workflow():
     output = smkapi.OutputSettings(show_failed_logs=True)
 
     with smkapi.SnakemakeApi(output) as api:
@@ -65,7 +59,7 @@ def test_full_workflow():
             snakefile=dummyprod / "workflow/Snakefile",
             workdir=dummyprod,
             config_settings=smkapi.ConfigSettings(
-                configfiles=(dummyprod / "simflow-config-nersc.yaml",),
+                configfiles=(dummyprod / "simflow-config-l200.yaml",),
             ),
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),

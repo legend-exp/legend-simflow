@@ -542,6 +542,8 @@ default:
     sigma: 0.1
     tail_fraction: 0.5
     tau: 0.02
+    high_tail_fraction: 0.0
+    high_tau: 0.0
   mean_aoe: 1.0
   current_reso: 0.01
 
@@ -553,6 +555,8 @@ V02160A:
     sigma: 0.12
     tail_fraction: 0.55
     tau: 0.025
+    high_tail_fraction: 0.0
+    high_tau: 0.0
   mean_aoe: 0.98
   current_reso: 0.012
 ```
@@ -564,7 +568,8 @@ V02160A:
 Each entry must contain:
 
 - `current_pulse_pars` — mapping of parameter names to their values for the
-  current pulse model (`amax`, `mu`, `sigma`, `tail_fraction`, `tau`)
+  current pulse model (`amax`, `mu`, `sigma`, `tail_fraction`, `tau`,
+  `high_tail_fraction`, `high_tau`; the last two default to `0` if omitted)
 - `mean_aoe` — mean A/E value
 - `current_reso` — current resolution (σ) from the noise-fit
 

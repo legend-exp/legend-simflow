@@ -17,16 +17,18 @@ Python tests are stored in `tests/` and managed with Pytest. Julia tests are in
 `tests/dummyprod/inputs/` contains a standalone metadata instance (hardware
 detector specs, channelmaps, datasets) committed directly to the repository.
 
-The dummy production uses two experiments:
+The dummy production uses three experiments:
 
 - `legend`: a generic experiment name used for unit tests and DAG-building
-  tests; its runlist uses real p02 run IDs from the metadata but is **not**
-  intended to run an actual production
-- `l200cfg01`: used by the `test_stp_workflow` integration test, which exercises
-  the full vtx→stp pipeline with remage using the public `legend-pygeom-l200`
-  geometry; also used by `test_full_workflow` (`needs_nersc` marker), which runs
+  tests; its runlist contains real p02 run IDs but is not intended to run an
+  actual production
+- `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→par
+  pipeline; runs in CI without requiring `l200data`. Currently uses l200-p03
+  runs (`l200-p03-r000-phy`, `l200-p03-r001-phy`) because l1000 hardware and
+  crystal metadata are not yet in `dummyprod`
+- `l200cfg01`: used by `test_l200_workflow` (`needs_nersc` marker), which runs
   the full vtx→cvt pipeline requiring access to `l200data` — run manually at
-  NERSC with `pixi run test-full-workflow`
+  NERSC with `pixi run -e test test-l200-workflow`
 
 `legend_testdata` (from `legendtestdata`) is still available as a pytest fixture
 for tests that require LH5 data files or other binary assets from the testdata
@@ -34,12 +36,16 @@ repository (e.g. `test_reboost.py`, `test_hpge_pars.py`).
 
 ## Integration tests (`test_workflow.py`)
 
-The three workflow tests form a progression:
+The workflow tests form a progression:
 
-1. **`test_dag`** — touch executor, no remage; verifies DAG resolution
-2. **`test_stp_workflow`** (`needs_remage`) — runs vtx→stp with real remage
-3. **`test_full_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
-   pipeline, requires `l200data`, NERSC-only
+1. **`test_dag`** — touch executor, no remage needed; verifies DAG resolution
+   only. Run directly: `pytest tests/test_workflow.py::test_dag`
+2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→par with real remage,
+   experiment `l1000dsg01`; runs in CI. **Requires pixi** (remage is only in the
+   pixi environment): `pixi run -e test test-l1000-workflow`
+3. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
+   pipeline, experiment `l200cfg01`, requires `l200data`, NERSC-only. Run with:
+   `pixi run -e test test-l200-workflow`
 
 Each test uses a separate output directory to avoid Snakemake cache
 cross-contamination.

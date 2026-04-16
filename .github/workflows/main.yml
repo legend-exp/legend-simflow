@@ -65,7 +65,7 @@ jobs:
           python -m pytest -m "not needs_remage and not needs_julia"
 
   test-workflow:
-    name: Test workflow with remage
+    name: Test LEGEND-1000 workflow
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

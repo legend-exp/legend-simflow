@@ -56,10 +56,11 @@ def test_run_stuff(config):
     assert metadata.parse_runid("l200-p42-r999-ant") == ("l200", 42, 999, "ant")
 
     assert metadata.is_runid("l200-p00-r000-phy")
+    assert metadata.is_runid("l1000-p00-r000-phy")
     assert not metadata.is_runid("l200-p00-r00-phy")
     assert not metadata.is_runid("l200-p00-r000-ph0")
     assert not metadata.is_runid("l200-k00-r000-phy")
-    assert not metadata.is_runid("l1000-p00-r000-phy")
+    assert not metadata.is_runid("l200.p00.r000.phy")
 
     assert metadata.query_runlist_db(config.metadata, "valid.phy.p02") == [
         f"l200-p02-r00{r}-phy" for r in range(8)
