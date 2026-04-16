@@ -6,5 +6,7 @@ V02160A:
     sigma: 0.12
     tail_fraction: 0.55
     tau: 0.025
+    high_tail_fraction: 0.0
+    high_tau: 0.0
   mean_aoe: 0.98
   current_reso: 0.012

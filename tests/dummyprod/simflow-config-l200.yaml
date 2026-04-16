@@ -10,10 +10,10 @@ benchmark:
     stp: 1000
 
 paths:
-  generated: $_/generated-nersc
+  generated: $_/generated-l200
   l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/v2.1.5
-  benchmarks: $_/generated-nersc/benchmarks
-  log: $_/generated-nersc/log
+  benchmarks: $_/generated-l200/benchmarks
+  log: $_/generated-l200/log
 
   metadata: $_/inputs
   config: $_/inputs/simprod/config
@@ -22,17 +22,17 @@ paths:
     lar: /dvs_ro/cfs/cdirs/m2676/sims/optmap/l200cfg01/l200cfg01-optmap-v3.lh5
     pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
 
-  pars: $_/generated-nersc/pars
-  macros: $_/generated-nersc/macros
+  pars: $_/generated-l200/pars
+  macros: $_/generated-l200/macros
   tier:
-    vtx: $_/generated-nersc/tier/vtx
-    stp: $_/generated-nersc/tier/stp
-    opt: $_/generated-nersc/tier/opt
-    hit: $_/generated-nersc/tier/hit
-    evt: $_/generated-nersc/tier/evt
-    cvt: $_/generated-nersc/tier/cvt
-    pdf: $_/generated-nersc/tier/pdf
-  pdf_releases: $_/generated-nersc/releases
+    vtx: $_/generated-l200/tier/vtx
+    stp: $_/generated-l200/tier/stp
+    opt: $_/generated-l200/tier/opt
+    hit: $_/generated-l200/tier/hit
+    evt: $_/generated-l200/tier/evt
+    cvt: $_/generated-l200/tier/cvt
+    pdf: $_/generated-l200/tier/pdf
+  pdf_releases: $_/generated-l200/releases
 
 nersc:
   dvs_ro: true

@@ -194,7 +194,8 @@ init-julia-env = { cmd = "julia --project=workflow/src/LegendSimflow.jl workflow
 test-julia = { cmd = "julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
 test-python-julia = { cmd = "pytest -vvv -m needs_julia", depends-on = ["init-julia-env"] }
 test-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' --runxfail", depends-on = ["precompile"] }
-test-full-workflow = { cmd = "pytest -s -m needs_nersc --runxfail", depends-on = ["precompile"] }
+test-l1000-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' --runxfail tests/test_workflow.py::test_l1000_workflow", depends-on = ["precompile"] }
+test-l200-workflow = { cmd = "pytest -s -m needs_nersc --runxfail", depends-on = ["precompile"] }
 test = { depends-on = ["test-python", "test-julia", "test-python-julia"] }
 
 [tool.uv.workspace]

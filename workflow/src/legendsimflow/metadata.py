@@ -359,9 +359,10 @@ def is_runid(runid: str) -> bool:
     """Whether a runid (run identifier) is correctly formatted.
 
     It should be in the form
-    ``l200-<period>-<run>-<datatype>``/``l200-pNN-rMMM-AAA``.
+    ``<experiment>-<period>-<run>-<datatype>``/``XXX-pNN-rMMM-AAA``
+    where ``XXX`` is any alphanumeric experiment identifier.
     """
-    return re.match(r"^l200-p(\d{2})-r(\d{3})-([A-Za-z]+)$", runid) is not None
+    return re.match(r"^[A-Za-z0-9]+-p(\d{2})-r(\d{3})-([A-Za-z]+)$", runid) is not None
 
 
 def is_simid(simid: str) -> bool:
