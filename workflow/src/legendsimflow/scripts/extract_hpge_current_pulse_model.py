@@ -40,6 +40,7 @@ def _plot_currmod_from_metadata(
     y = current_pulse_model(t, **pars)
     fig, ax = plt.subplots()
     ax.plot(t, y)
+    ax.set_xlim(-500, 1500)
     ax.set_xlabel("time [ns]")
     ax.set_ylabel("current [a.u.]")
     ax.set_title(f"{hpge} in {runid}: current pulse model (from metadata)")

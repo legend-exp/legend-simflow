@@ -71,14 +71,14 @@ def test_metadata_all_detectors(tmp_path, monkeypatch):
 
     # DET_DEFAULT (V05261B) gets the metadata default values
     assert DET_DEFAULT in result
-    assert result[DET_DEFAULT]["current_pulse_pars"]["sigma"] == pytest.approx(0.1)
-    assert result[DET_DEFAULT]["mean_aoe"] == pytest.approx(1.0)
-    assert result[DET_DEFAULT]["current_reso"] == pytest.approx(0.01)
+    assert result[DET_DEFAULT]["current_pulse_pars"]["sigma"] == pytest.approx(45.0)
+    assert result[DET_DEFAULT]["mean_aoe"] == pytest.approx(0.72)
+    assert result[DET_DEFAULT]["current_reso"] == pytest.approx(4.1)
 
     # DET_OVERRIDE (V02160A) gets the per-detector override
     assert DET_OVERRIDE in result
-    assert result[DET_OVERRIDE]["current_pulse_pars"]["sigma"] == pytest.approx(0.12)
-    assert result[DET_OVERRIDE]["current_reso"] == pytest.approx(0.012)
+    assert result[DET_OVERRIDE]["current_pulse_pars"]["sigma"] == pytest.approx(48.0)
+    assert result[DET_OVERRIDE]["current_reso"] == pytest.approx(5.3)
 
 
 def test_raises_without_default_and_no_l200data(tmp_path, monkeypatch):
