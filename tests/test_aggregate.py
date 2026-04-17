@@ -163,10 +163,8 @@ def test_hpge_voltage_functions(config):
 
 
 def test_currmod_stuff(config):
-    runid = "l200-p02-r000-phy"
     simid = "stp.pen_plates_Ra224_to_Pb208"
 
-    assert len(agg.gen_list_of_currmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
 

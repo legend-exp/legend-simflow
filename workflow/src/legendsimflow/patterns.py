@@ -292,20 +292,6 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 # hpge current model
 
 
-def input_currmod_evt_idx_file(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the event index file used to extract current pulse waveforms."""
-    pat = config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-best-evt-idx.txt"
-    return _expand(pat, **kwargs)
-
-
-def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the per-detector HPGe current pulse model parameter file."""
-    return _expand(
-        config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
-        **kwargs,
-    )
-
-
 def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the merged HPGe current pulse model parameter file for a `runid`."""
     return _expand(
@@ -315,16 +301,14 @@ def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The log file path for current pulse model extraction for a detector and `runid`."""
-    pat = log_dirname(config) / "hpge/currmod/{runid}-{hpge_detector}-model.log"
+    """The log file path for current pulse model extraction for a `runid`."""
+    pat = log_dirname(config) / "hpge/currmod/{runid}-model.log"
     return _expand(pat, **kwargs)
 
 
 def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the current pulse model fit validation plot for a detector and `runid`."""
-    pat = (
-        config.paths.pars / "hpge/currmod/plots/{runid}-{hpge_detector}-fit-result.pdf"
-    )
+    """The path to the current pulse model fit validation plots for a `runid`."""
+    pat = config.paths.pars / "hpge/currmod/plots/{runid}-fit-results.pdf"
     return _expand(pat, **kwargs)
 
 

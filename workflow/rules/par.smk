@@ -187,91 +187,35 @@ rule plot_hpge_drift_time_maps:
         "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 
 
-def smk_extract_current_pulse_model_inputs(wildcards):
-    """Prepare inputs for the HPGe current model extraction rule."""
-    raw_file, wf_idx, dsp_cfg_file = hpge_pars.find_current_pulse_model_inputs(
-        config,
-        wildcards.runid,
-        wildcards.hpge_detector,
-        hit_tier_name="hit",
-        use_hpge_name="true",
-    )
+rule extract_hpge_current_pulse_model:
+    """Extract the HPGe current signal model for all detectors in a run.
 
-    evt_idx_file = patterns.input_currmod_evt_idx_file(
-        config, runid=wildcards.runid, hpge_detector=wildcards.hpge_detector
-    )
+    For each HPGe detector valid for modeling in the given run, either reads
+    parameters from ``simprod/config/pars/geds/currmod/`` metadata (fast path,
+    no l200data required) or fits current pulse waveforms from LEGEND-200 data.
+    Results are written to a single YAML file keyed by detector name, and all
+    fit validation plots are collected into one PDF.
 
-    with evt_idx_file.open("w") as f:
-        f.write(wf_idx)
+    Uses wildcard ``runid``.
 
-    return {
-        "raw_file": raw_file,
-        "raw_wf_idx_file": evt_idx_file,
-        "dsp_cfg_file": dsp_cfg_file,
-    }
-
-
-rule extract_current_pulse_model:
-    """Extract the HPGe current signal model.
-
-    Perform a fit of current signals recorded in LEGEND-200 and stores the
-    best-fit model parameters in a YAML file.
-
-    :::{warning}
-    This rule does not have the relevant LEGEND-200 data files as input, since
-    they are dynamically discovered and this would therefore slow down the DAG
-    generation. Therefore, remember to force-rerun if the input data is
-    updated!
-    :::
-
-    Uses wildcards `runid` and `hpge_detector`.
+    Warning:
+        when the script falls back to LEGEND-200 data, it discovers the
+        underlying ``l200data`` input files dynamically at runtime. These files
+        are therefore not tracked by Snakemake as rule inputs, so changes to
+        them will not automatically trigger a rerun unless this rule is forced
+        or those inputs are declared explicitly.
     """
     message:
-        "Extracting current model for detector {wildcards.hpge_detector} in {wildcards.runid}"
-    # NOTE: we don't list the file dependencies here because they are
-    # dynamically generated, and that would slow down the DAG generation
-    # input:
-    #     unpack(smk_extract_current_pulse_model_inputs),
+        "Extracting current pulse model for all detectors in {wildcards.runid}"
+    input:
+        modelable_hpges=rules.cache_modelable_hpges.output[0],
     output:
-        pars_file=temp(patterns.output_currmod_filename(config)),
+        pars_file=patterns.output_currmod_merged_filename(config),
         plot_file=patterns.plot_currmod_filename(config),
     log:
         patterns.log_currmod_filename(config),
     script:
         "../src/legendsimflow/scripts/extract_hpge_current_pulse_model.py"
-
-
-rule merge_current_pulse_model_pars:
-    """Merge the HPGe current signal model parameters in a single file per `runid`.
-
-    Collect the individual best-fit parameter files (one per detector) and
-    write them into a single YAML file keyed by detector name.
-
-    Uses wildcard `runid`.
-    """
-    message:
-        "Merging current model parameters in {wildcards.runid}"
-    input:
-        lambda wc: aggregate.gen_list_of_currmods(
-            config, wc.runid, cache=smk_load_hpge_cache()
-        ),
-    params:
-        # materialize the HPGe list here so the run: block can map file
-        # indices back to detector names without calling back into the cache
-        hpges=lambda wc: list(smk_load_hpge_cache()[wc.runid]),
-    output:
-        patterns.output_currmod_merged_filename(config),
-    run:
-        import dbetto
-
-        # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = params.hpges
-
-        out_dict = {}
-        for i, f in enumerate(input):
-            out_dict[hpges[i]] = dbetto.utils.load_dict(f)
-
-        dbetto.utils.write_dict(out_dict, output[0])
 
 
 rule extract_hpge_observables_models:

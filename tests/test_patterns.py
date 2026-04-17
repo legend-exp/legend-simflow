@@ -214,32 +214,19 @@ def test_dtmap_filenames(config):
 
 
 def test_currmod_filenames(config):
-    result = p.input_currmod_evt_idx_file(config, runid=RUNID, hpge_detector=DET)
-    assert isinstance(result, Path)
-    assert RUNID in str(result)
-    assert DET in str(result)
-
-    result = p.output_currmod_filename(config, runid=RUNID, hpge_detector=DET)
-    assert isinstance(result, Path)
-    assert RUNID in str(result)
-    assert DET in str(result)
-    assert result.suffix == ".yaml"
-
     result = p.output_currmod_merged_filename(config, runid=RUNID)
     assert isinstance(result, Path)
     assert RUNID in str(result)
     assert result.suffix == ".yaml"
 
-    result = p.log_currmod_filename(config, runid=RUNID, hpge_detector=DET)
+    result = p.log_currmod_filename(config, runid=RUNID)
     assert isinstance(result, Path)
     assert RUNID in str(result)
-    assert DET in str(result)
     assert result.suffix == ".log"
 
-    result = p.plot_currmod_filename(config, runid=RUNID, hpge_detector=DET)
+    result = p.plot_currmod_filename(config, runid=RUNID)
     assert isinstance(result, Path)
     assert RUNID in str(result)
-    assert DET in str(result)
     assert result.suffix == ".pdf"
     assert result.parent.name == "plots"
 

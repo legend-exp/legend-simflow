@@ -77,7 +77,7 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
         return [
             patterns.plot_tier_hit_observables_filename(config, simid=simid),
             *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
-            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
+            *gen_list_of_currmod_plots_outputs(config, simid),
         ]
     if tier == "opt":
         return [
@@ -88,7 +88,7 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
     if tier == "par":
         return [
             *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
-            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
+            *gen_list_of_currmod_plots_outputs(config, simid),
         ]
     return []
 
@@ -389,21 +389,6 @@ def gen_list_of_dtmap_plots_outputs(
     return list(files)
 
 
-def gen_list_of_currmods(
-    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
-) -> list[str]:
-    """Generate the list of HPGe current model parameter files for a `runid`."""
-    hpges = (
-        gen_list_of_hpges_valid_for_modeling(config, runid)
-        if cache is None
-        else cache[runid].keys()
-    )
-    return [
-        patterns.output_currmod_filename(config, hpge_detector=hpge, runid=runid)
-        for hpge in hpges
-    ]
-
-
 def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]:
     r"""Generate the list of (merged) HPGe current model parameter files for all requested `runid`\ s."""
     return [
@@ -412,23 +397,12 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
-def gen_list_of_currmod_plots_outputs(
-    config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
-) -> list[Path]:
-    """Generate the list of HPGe drift time map plot outputs."""
-    files = []
-    for runid in get_runlist(config, simid):
-        hpges = (
-            gen_list_of_hpges_valid_for_modeling(config, runid)
-            if cache is None
-            else cache[runid].keys()
-        )
-        for hpge in hpges:
-            files.append(
-                patterns.plot_currmod_filename(config, hpge_detector=hpge, runid=runid)
-            )
-
-    return files
+def gen_list_of_currmod_plots_outputs(config: SimflowConfig, simid: str) -> list[Path]:
+    r"""Generate the list of HPGe current pulse model plot files for all requested `runid`\ s."""
+    return [
+        patterns.plot_currmod_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
 
 
 def gen_list_of_eresmods(config: SimflowConfig, simid: str) -> list[Path]:
