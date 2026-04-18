@@ -1,6 +1,0 @@
-# no "default" key — used to test case 2: l200data base + per-detector overrides
-V02160A:
-  expression: FWHMLinear
-  parameters:
-    a: 0.3
-    b: 0.0009
