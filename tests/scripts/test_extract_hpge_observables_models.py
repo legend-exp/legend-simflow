@@ -424,7 +424,7 @@ def test_extract_aoeresmod_raises_without_l200data_and_default(tmp_path, monkeyp
         sys, "argv", _build_argv(tmp_path, runid=RUNID_P03, l200data=None)
     )
 
-    def _simpars(_metadata, par, _runid, **_kw):
+    def _simpars(_metadata, par, _runid, _experiment, **_kw):
         if par == "geds.eresmod":
             return _make_eresmod_default()
         return None
@@ -442,7 +442,7 @@ def test_extract_psdcuts_raises_without_l200data_and_default(tmp_path, monkeypat
         sys, "argv", _build_argv(tmp_path, runid=RUNID_P03, l200data=None)
     )
 
-    def _simpars(_metadata, par, _runid, **_kw):
+    def _simpars(_metadata, par, _runid, _experiment, **_kw):
         if par == "geds.eresmod":
             return _make_eresmod_default()
         if par == "geds.aoeresmod":

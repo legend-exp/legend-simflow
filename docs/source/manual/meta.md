@@ -380,6 +380,9 @@ psdcuts_default:
 
 ## `pars/` — simulation parameters
 
+Metadata is organized in this directory by experimental configuration (first
+level) and detector type (second level), mirroring the `tier/` structure.
+
 ### HPGe drift time map simulation parameters
 
 A single shared YAML file (applies to all detectors and voltages) that overrides
@@ -388,7 +391,7 @@ simulation control parameters for the
 script uses built-in production defaults.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/geds/dtmap/settings.yaml
+:caption: simprod/config/pars/{experiment}/geds/dtmap/settings.yaml
 
 grid_size_in_mm: 0.5
 ssd_refinement_limits: [0.2, 0.1, 0.05, 0.02]
@@ -417,10 +420,11 @@ An optional validity-based metadata directory providing HPGe-specific energy
 resolution parameters. When present, it can supplement or fully replace
 `l200data` as the source of energy resolution parameters — enabling simulations
 for experiments that have not yet collected data (e.g. LEGEND-1000). The
-structure follows the same validity-based format as `pars/geds/opv/`.
+structure follows the same validity-based format as
+`pars/{experiment}/geds/opv/`.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/geds/eresmod/l200-p03-r%-T%-all-eresmod.yaml
+:caption: simprod/config/pars/{experiment}/geds/eresmod/l200-p03-r%-T%-all-eresmod.yaml
 
 default:
   expression: FWHMLinear
@@ -458,7 +462,7 @@ resolution parameters. Follows the same structure and four-case logic as
 {ref}`eresmod-metadata-dir`.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/geds/aoeresmod/l200-p03-r%-T%-all-aoeresmod.yaml
+:caption: simprod/config/pars/{experiment}/geds/aoeresmod/l200-p03-r%-T%-all-aoeresmod.yaml
 
 default:
   expression: SigmaFit
@@ -497,7 +501,7 @@ values. Follows the same structure and four-case logic as
 {ref}`eresmod-metadata-dir`.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/geds/psdcuts/l200-p03-r%-T%-all-psdcuts.yaml
+:caption: simprod/config/pars/{experiment}/geds/psdcuts/l200-p03-r%-T%-all-psdcuts.yaml
 
 default:
   aoe:
@@ -533,7 +537,7 @@ pulse model parameters. Follows the same structure and four-case logic as
 output file per `(runid, hpge_detector)` pair).
 
 ```{code-block} yaml
-:caption: simprod/config/pars/geds/currmod/l200-p03-r%-T%-all-currmod.yaml
+:caption: simprod/config/pars/{experiment}/geds/currmod/l200-p03-r%-T%-all-currmod.yaml
 
 default:
   current_pulse_pars:

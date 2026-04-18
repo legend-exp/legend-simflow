@@ -89,7 +89,8 @@ def smk_hpge_drift_time_map_inputs(wildcards):
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
-        "dtmap_settings": _m / "simprod/config/pars/geds/dtmap/settings.yaml",
+        "dtmap_settings": _m
+        / f"simprod/config/pars/{config.experiment}/geds/dtmap/settings.yaml",
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -122,6 +123,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
+        "    --dtmap-settings {input.dtmap_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 

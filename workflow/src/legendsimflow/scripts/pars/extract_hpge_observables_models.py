@@ -81,14 +81,20 @@ def main() -> None:
     l200data = config.paths.get("l200data", None)
 
     # Collection step: gather what is available; completeness checked in hit.py.
-    # For each observable, behaviour depends on simprod/config/pars/geds/<obs>/:
+    # For each observable, behaviour depends on simprod/config/pars/<experiment>/geds/<obs>/:
     #  - absent: use l200data only
     #  - present, no "default": l200data base + per-detector overrides
     #  - present, with "default": expand all channelmap geds detectors;
     #    l200data not consulted
-    raw_eresmod = mutils.simpars(metadata, "geds.eresmod", runid, default=None)
-    raw_aoeresmod = mutils.simpars(metadata, "geds.aoeresmod", runid, default=None)
-    raw_psdcuts = mutils.simpars(metadata, "geds.psdcuts", runid, default=None)
+    raw_eresmod = mutils.simpars(
+        metadata, "geds.eresmod", runid, config.experiment, default=None
+    )
+    raw_aoeresmod = mutils.simpars(
+        metadata, "geds.aoeresmod", runid, config.experiment, default=None
+    )
+    raw_psdcuts = mutils.simpars(
+        metadata, "geds.psdcuts", runid, config.experiment, default=None
+    )
 
     eresmod_default = (
         raw_eresmod.get("default", None) if raw_eresmod is not None else None
