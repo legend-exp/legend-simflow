@@ -99,11 +99,11 @@ Document the optical hit building step.
 and validates that every simulated detector has the parameters it needs. The
 hard-error vs. fallback policy differs slightly per observable:
 
-| Observable        | Hard error                                                 | Fallback (+ warning) | Fallback key        |
-| ----------------- | ---------------------------------------------------------- | -------------------- | ------------------- |
-| Energy resolution | ON detector missing entry                                  | `off`/`ac` detector  | `eresmod_default`   |
-| A/E resolution    | ON detector with `psd_usability ≠ "missing"` missing entry | all other cases      | `aoeresmod_default` |
-| PSD cuts          | ON detector with `psd_usability ≠ "missing"` missing entry | all other cases      | `psdcuts_default`   |
+| Observable        | Hard error                                                                                    | Fallback (+ warning) | Fallback key        |
+| ----------------- | --------------------------------------------------------------------------------------------- | -------------------- | ------------------- |
+| Energy resolution | ON detector missing entry                                                                     | `off`/`ac` detector  | `eresmod_default`   |
+| A/E resolution    | ON detector with `psd_usability ≠ "missing"` and PSD modelable (dtmap + currmod present) missing entry | all other cases      | `aoeresmod_default` |
+| PSD cuts          | ON detector with `psd_usability ≠ "missing"` and PSD modelable (dtmap + currmod present) missing entry | all other cases      | `psdcuts_default`   |
 
 The fallback keys are read from {ref}`hit-tier-settings`. They are never
 triggered when a `default` key is present in the corresponding metadata (cases 3
@@ -113,9 +113,11 @@ in that case.
 :::{note}
 
 An ON detector with `psd_usability = "missing"` explicitly signals that PSD data
-are unavailable for that detector (e.g. a known hardware issue). It is therefore
-acceptable to fall back to the default A/E resolution and PSD cuts for such
-detectors rather than raising a hard error.
+are unavailable for that detector (e.g. a known hardware issue). Similarly, a
+detector missing a drift-time map or current pulse model cannot have its PSD
+response simulated at all — the PSD output columns are filled with NaN in that
+case. Both situations fall back to the default A/E resolution and PSD cuts rather
+than raising a hard error.
 
 :::
 

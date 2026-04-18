@@ -232,11 +232,9 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
             pars.get("current_pulse_pars", None) if pars is not None else None
         )
 
-        if (
-            (dt_map is None or currmod_pars is None)
-            and usability == "on"
-            and psd_usability == "valid"
-        ):
+        can_model_psd = dt_map is not None and currmod_pars is not None
+
+        if not can_model_psd and usability == "on" and psd_usability == "valid":
             msg = (
                 f"{det_name} is ON with valid PSD in data but its PSD response "
                 "could not be simulated (drift-time map or current model missing)."
@@ -291,7 +289,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
 
             if det_name in aoe_res_func:
                 aoe_res = aoe_res_func[det_name](energy_true)
-            elif usability == "on" and psd_usability != "missing":
+            elif usability == "on" and psd_usability != "missing" and can_model_psd:
                 msg = (
                     f"{det_name} is ON with valid PSD but no A/E resolution "
                     "curves are available"
@@ -312,7 +310,7 @@ for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
                         psdcuts_default,
                     )
                 )
-            elif usability == "on" and psd_usability != "missing":
+            elif usability == "on" and psd_usability != "missing" and can_model_psd:
                 msg = f"{det_name} is ON with valid PSD but no PSD cut values are available"
                 raise RuntimeError(msg)
             else:
