@@ -118,7 +118,9 @@ def main() -> None:
     # check for metadata-driven defaults first; if present, bypass the
     # waveform fitting entirely (enables LEGEND-1000 simulations without
     # l200data)
-    raw_currmod = mutils.simpars(metadata, "geds.currmod", runid, default=None)
+    raw_currmod = mutils.simpars(
+        metadata, "geds.currmod", runid, config.experiment, default=None
+    )
     currmod_default = (
         raw_currmod.get("default", None) if raw_currmod is not None else None
     )

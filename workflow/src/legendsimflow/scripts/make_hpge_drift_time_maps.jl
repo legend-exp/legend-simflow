@@ -62,6 +62,11 @@ function main()
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
     end
+    @add_arg_table s begin
+        "--dtmap-settings"
+        help = "Path to dtmap settings YAML file (optional; built-in defaults used if absent or missing)"
+        default = nothing
+    end
 
     parsed_args = parse_args(s)
 
@@ -77,11 +82,11 @@ function main()
 
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
-    # Load optional simulation settings from metadata, falling back to built-in defaults.
-    # The settings file lives at <metadata>/simprod/config/pars/geds/dtmap/settings.yaml
-    # and applies globally to all detectors and voltages.
-    settings_path = joinpath(meta_path, "simprod", "config", "pars", "geds", "dtmap", "settings.yaml")
-    sim_cfg = isfile(settings_path) ? readprops(settings_path) : PropDict()
+    # Load optional simulation settings, falling back to built-in defaults.
+    # The settings file path is passed via --dtmap-settings and applies globally
+    # to all detectors and voltages.
+    dtmap_settings = parsed_args["dtmap-settings"]
+    sim_cfg = (!isnothing(dtmap_settings) && isfile(dtmap_settings)) ? readprops(dtmap_settings) : PropDict()
     grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)

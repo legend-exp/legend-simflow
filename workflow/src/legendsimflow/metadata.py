@@ -254,24 +254,28 @@ def simpars(
     metadata: LegendMetadata,
     par: str,
     runid: str,
+    experiment: str,
     default: object = _MISSING,
 ) -> AttrsDict:
     """Extract simflow parameters for a certain LEGEND run.
 
     Queries the simflow parameters database stored under
-    ``simprod.config.pars`` by parameter name `par` and LEGEND run identifier
-    `runid`.
+    ``simprod.config.pars`` by experiment name `experiment`, parameter name
+    `par` and LEGEND run identifier `runid`.
 
     Parameters
     ----------
     metadata
         LEGEND metadata database.
     par
-        name of directory under ``metadata.simprod.config.pars``. Can be a
-        nested property, as in e.g. ``geds.opv.value``. ``.`` and ``/`` are
-        allowed separators.
+        name of directory under ``metadata.simprod.config.pars.{experiment}``.
+        Can be a nested property, as in e.g. ``geds.opv.value``. ``.`` and
+        ``/`` are allowed separators.
     runid
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
+    experiment
+        experiment identifier (e.g. ``l200cfg01``, ``l1000dsg01``). Selects
+        the experiment-level subdirectory under ``simprod/config/pars/``.
     default
         value to return when the parameter directory is not found in the
         database or no validity entry matches `runid`. If not provided, such
@@ -282,7 +286,7 @@ def simpars(
     par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
     try:
-        directory = metadata["simprod/config/pars"][par]
+        directory = metadata["simprod/config/pars"][experiment][par]
         return directory.on(runinfo(metadata, runid).start_key, system=datatype)
     except (KeyError, LookupError, FileNotFoundError):
         if default is _MISSING:

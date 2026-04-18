@@ -1,0 +1,11 @@
+default:
+  expression: FWHMLinear
+  parameters:
+    a: 0.5
+    b: 0.001
+
+V02160A:
+  expression: FWHMLinear
+  parameters:
+    a: 0.3
+    b: 0.0009

@@ -26,26 +26,38 @@ def test_all(config):
 
     assert (
         "operational_voltage_in_V"
-        in metadata.simpars(config.metadata, "geds.opv", "l200-p02-r002-phy").V99000A
+        in metadata.simpars(
+            config.metadata, "geds.opv", "l200-p02-r002-phy", config.experiment
+        ).V99000A
     )
 
     # default= returns the default when the par directory does not exist
     assert (
         metadata.simpars(
-            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", default=None
+            config.metadata,
+            "geds.nonexistent",
+            "l200-p02-r002-phy",
+            config.experiment,
+            default=None,
         )
         is None
     )
     assert (
         metadata.simpars(
-            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", default=42
+            config.metadata,
+            "geds.nonexistent",
+            "l200-p02-r002-phy",
+            config.experiment,
+            default=42,
         )
         == 42
     )
 
     # without default=, a missing par raises
     with pytest.raises((KeyError, LookupError, FileNotFoundError)):
-        metadata.simpars(config.metadata, "geds.nonexistent", "l200-p02-r002-phy")
+        metadata.simpars(
+            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", config.experiment
+        )
 
     assert isinstance(
         metadata.get_vtx_simconfig(config, "lar_hpge_shell_K42"), AttrsDict

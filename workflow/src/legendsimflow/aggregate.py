@@ -319,7 +319,9 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
     Returns the voltage as an integer.
     """
     try:
-        opv = simpars(config.metadata, "geds.opv", runid)[hpge].operational_voltage_in_V
+        opv = simpars(config.metadata, "geds.opv", runid, config.experiment)[
+            hpge
+        ].operational_voltage_in_V
     except KeyError as e:
         msg = f"operational voltage for hpge {hpge} not found in run {runid}"
         raise KeyError(msg) from e
