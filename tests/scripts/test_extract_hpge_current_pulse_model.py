@@ -55,7 +55,6 @@ def _build_argv(tmp_path: Path, runid: str) -> list[str]:
 
 
 def test_metadata_all_detectors(tmp_path, monkeypatch):
-    """p03 with metadata defaults: output is keyed by detector name."""
     monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P03))
 
     extract_hpge_current_pulse_model.main()
@@ -82,7 +81,6 @@ def test_metadata_all_detectors(tmp_path, monkeypatch):
 
 
 def test_raises_without_default_and_no_l200data(tmp_path, monkeypatch):
-    """p02 has no 'default' key and no l200data is configured → RuntimeError."""
     monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P02))
 
     with pytest.raises(RuntimeError, match=r"l200data|currmod"):

@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 from pathlib import Path
 
 import legenddataflowscripts
@@ -33,87 +30,6 @@ def test_generate_gdml(config):
     return core.construct(
         use_detailed_fiber_model=False, config=geom_config, public_geometry=True
     )
-
-
-@pytest.fixture(scope="session")
-def legend_gdml_path(tmp_path_factory):
-    """Generate the legend GDML file using legend-pygeom-l200.
-
-    Calls the ``legend-pygeom-l200`` CLI with the dummyprod geometry config and
-    metadata, writing a pygeomtools-compatible GDML to a session-scoped
-    temporary directory. The result is cached for the full test session (~5 s
-    one-time cost).
-    """
-    out_dir = tmp_path_factory.mktemp("legend_gdml")
-    gdml_path = out_dir / "legend.gdml"
-    geom_config = testprod / "inputs/simprod/config/geom/legend-geom-config.yaml"
-    env = os.environ.copy()
-    env["LEGEND_METADATA"] = str(testprod / "inputs")
-    subprocess.run(
-        [
-            "legend-pygeom-l200",
-            "--config",
-            str(geom_config),
-            "--",
-            str(gdml_path),
-        ],
-        check=True,
-        env=env,
-    )
-    return gdml_path
-
-
-@pytest.fixture(scope="session")
-def legend_stp_path(tmp_path_factory, legend_gdml_path):
-    """Generate a legend stp LH5 file by running remage with the public geometry.
-
-    Skips if remage is not installed (requires the pixi test environment).  The
-    simulation is a minimal 2 MeV gamma source confined to all V-type detectors,
-    producing hits in several germanium detectors.  The result is cached for the
-    full test session.
-    """
-    if shutil.which("remage") is None:
-        pytest.skip("remage not installed")
-
-    out_dir = tmp_path_factory.mktemp("legend_stp")
-    stp_file = out_dir / "legend-test_hit_sim-job_0000-tier_stp.lh5"
-
-    commands = (
-        "/RMG/Manager/Randomization/Seed 42 "
-        "/RMG/Geometry/RegisterDetectorsFromGDML Germanium "
-        "/RMG/Geometry/RegisterDetectorsFromGDML Scintillator "
-        "/RMG/Geometry/GDMLDisableOverlapCheck "
-        "/RMG/Output/NtupleUseVolumeName true "
-        "/run/initialize "
-        "/RMG/Output/Germanium/StoreSinglePrecisionPosition "
-        "/RMG/Output/Germanium/StoreSinglePrecisionEnergy "
-        "/RMG/Output/Vertex/StoreSinglePrecisionPosition "
-        "/RMG/Output/Germanium/StoreTrackID true "
-        "/RMG/Output/Germanium/EdepCutLow 1 eV "
-        "/RMG/Generator/Select GPS "
-        "/gps/particle gamma "
-        "/gps/energy 2 MeV "
-        "/gps/ang/type iso "
-        "/RMG/Generator/Confine Volume "
-        "/RMG/Generator/Confinement/Physical/AddVolume V.* "
-        "/RMG/Generator/Confinement/MaxSamplingTrials 100000 "
-        "/run/beamOn 10000"
-    )
-
-    subprocess.run(
-        [
-            "remage",
-            "--gdml-files",
-            str(legend_gdml_path),
-            "--output-file",
-            str(stp_file),
-            "--",
-            commands,
-        ],
-        check=True,
-    )
-
-    return stp_file
 
 
 def make_config():
