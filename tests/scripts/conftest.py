@@ -118,7 +118,7 @@ def legend_stp_path(tmp_path_factory, legend_gdml_path):
 
 @pytest.fixture(scope="session")
 def legend_dtmap_path(tmp_path_factory):
-    """Generate a drift time map LH5 file for V02160A using l1000dsg01 metadata.
+    """Generate a drift time map LH5 file for V05261B using l1000dsg01 metadata.
 
     Calls the ``make_hpge_drift_time_maps.jl`` Julia script with the l1000dsg01
     dtmap settings (coarse 10 mm grid for speed).  Skips if Julia is not
@@ -129,7 +129,7 @@ def legend_dtmap_path(tmp_path_factory):
         pytest.skip("julia not installed")
 
     out_dir = tmp_path_factory.mktemp("legend_dtmap")
-    dtmap_file = out_dir / "V02160A-4200V-hpge-drift-time-map.lh5"
+    dtmap_file = out_dir / "V05261B-4200V-hpge-drift-time-map.lh5"
 
     julia_script = (
         repo_root / "workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
@@ -147,7 +147,7 @@ def legend_dtmap_path(tmp_path_factory):
             "1",
             str(julia_script),
             "--detector",
-            "V02160A",
+            "V05261B",
             "--metadata",
             str(testprod / "inputs"),
             "--opv",
