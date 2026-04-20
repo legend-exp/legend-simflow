@@ -22,7 +22,7 @@ The dummy production uses three experiments:
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist contains real p02 run IDs but is not intended to run an
   actual production
-- `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→par
+- `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→hit
   pipeline; runs in CI without requiring `l200data`. Currently uses l200-p03
   runs (`l200-p03-r000-phy`, `l200-p03-r001-phy`) because l1000 hardware and
   crystal metadata are not yet in `dummyprod`
@@ -40,7 +40,7 @@ The workflow tests form a progression:
 
 1. **`test_dag`** — touch executor, no remage needed; verifies DAG resolution
    only. Run directly: `pytest tests/test_workflow.py::test_dag`
-2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→par with real remage,
+2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→hit with real remage,
    experiment `l1000dsg01`; runs in CI. **Requires pixi** (remage is only in the
    pixi environment): `pixi run -e test test-l1000-workflow`
 3. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt

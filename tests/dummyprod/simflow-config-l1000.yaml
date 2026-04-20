@@ -13,6 +13,7 @@ make_steps:
   - vtx
   - stp
   - par
+  - hit
 
 paths:
   generated: $_/generated-l1000
