@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import legenddataflowscripts
@@ -30,6 +32,34 @@ def test_generate_gdml(config):
     return core.construct(
         use_detailed_fiber_model=False, config=geom_config, public_geometry=True
     )
+
+
+@pytest.fixture(scope="session")
+def legend_gdml_path(tmp_path_factory):
+    """Generate the legend GDML file using legend-pygeom-l200.
+
+    Calls the ``legend-pygeom-l200`` CLI with the dummyprod geometry config and
+    metadata, writing a pygeomtools-compatible GDML to a session-scoped
+    temporary directory. The result is cached for the full test session (~5 s
+    one-time cost).
+    """
+    out_dir = tmp_path_factory.mktemp("legend_gdml")
+    gdml_path = out_dir / "legend.gdml"
+    geom_config = testprod / "inputs/simprod/config/geom/legend-geom-config.yaml"
+    env = os.environ.copy()
+    env["LEGEND_METADATA"] = str(testprod / "inputs")
+    subprocess.run(
+        [
+            "legend-pygeom-l200",
+            "--config",
+            str(geom_config),
+            "--",
+            str(gdml_path),
+        ],
+        check=True,
+        env=env,
+    )
+    return gdml_path
 
 
 def make_config():
