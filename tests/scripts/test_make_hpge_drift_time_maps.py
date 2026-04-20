@@ -29,12 +29,12 @@ def test_make_hpge_drift_time_maps_l1000(legend_dtmap_path):
     assert legend_dtmap_path.exists(), "Drift time map LH5 file was not created"
 
     top_keys = lh5.ls(legend_dtmap_path)
-    assert "V02160A" in top_keys, f"Expected group 'V02160A' in LH5, got: {top_keys}"
+    assert "V05261B" in top_keys, f"Expected group 'V05261B' in LH5, got: {top_keys}"
 
-    inner_keys = lh5.ls(legend_dtmap_path, "V02160A/")
+    inner_keys = lh5.ls(legend_dtmap_path, "V05261B/")
     for expected in ("drift_time_000_deg", "drift_time_045_deg", "r", "z"):
-        assert f"V02160A/{expected}" in inner_keys, (
-            f"Expected dataset 'V02160A/{expected}' in LH5, found: {inner_keys}"
+        assert f"V05261B/{expected}" in inner_keys, (
+            f"Expected dataset 'V05261B/{expected}' in LH5, found: {inner_keys}"
         )
 
 

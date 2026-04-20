@@ -18,17 +18,18 @@ _RUNIDS = ("l200-p03-r000-phy", "l200-p03-r001-phy")
 
 
 @pytest.mark.needs_remage
+@pytest.mark.needs_julia
 def test_hit_script_cli(
     tmp_path,
     monkeypatch,
     legend_stp_path,
     legend_gdml_path,
+    legend_dtmap_path,
     legend_currmod_paths,
     legend_hpge_obs_paths,
     legend_simstat_part_path,
     legend_detector_usabilities_path,
 ):
-    # ------------------------------------------------------------------ pars
     pars_dir = tmp_path / "pars"
 
     for runid in _RUNIDS:
@@ -43,21 +44,20 @@ def test_hit_script_cli(
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(src, dest_dir / dest_name)
 
-    # empty dtmap files — file must exist; no valid maps → dt_map = None (no crash)
     dtmap_dir = pars_dir / "hpge/dtmaps"
     dtmap_dir.mkdir(parents=True)
-    for runid in _RUNIDS:
-        with h5py.File(dtmap_dir / f"{runid}-hpge-drift-time-maps.lh5", "w"):
-            pass
+    # r000: real dtmap for V05261B → PSD will be computed
+    shutil.copy(legend_dtmap_path, dtmap_dir / f"{_RUNIDS[0]}-hpge-drift-time-maps.lh5")
+    # r001: empty dtmap → dt_map = None → PSD will be NaN
+    with h5py.File(dtmap_dir / f"{_RUNIDS[1]}-hpge-drift-time-maps.lh5", "w"):
+        pass
 
-    # --------------------------------------------------------- simflow config
     raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
     raw["paths"]["pars"] = str(pars_dir)
     config_path = tmp_path / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))
 
-    # ---------------------------------------------------------------- run hit
     hit_file = tmp_path / "hit.lh5"
     monkeypatch.setattr(
         sys,
@@ -82,7 +82,6 @@ def test_hit_script_cli(
     )
     hit.main()
 
-    # -------------------------------------------------------------- assertions
     assert hit_file.exists(), "hit output file was not created"
 
     root_keys = lh5.ls(hit_file)
@@ -114,44 +113,46 @@ def test_hit_script_cli(
         f"fields {missing} missing from detector table {first_det}; got {det_fields}"
     )
 
-    # helper: read a single field from the first detector table as a numpy array
-    def _field(name: str) -> np.ndarray:
-        return lh5.read_as(f"{first_det}/{name}", hit_file, library="np")
+    # helper: read a single field from a detector table as a numpy array
+    def _field(det: str, name: str) -> np.ndarray:
+        return lh5.read_as(f"{det}/{name}", hit_file, library="np")
 
-    # empty dtmap files → dt_map is None → PSD observables are all NaN
-    assert np.all(np.isnan(_field("drift_time_amax"))), (
-        "drift_time_amax should be all NaN (no dtmap)"
+    # r000 has a dtmap for V05261B → finite PSD; r001 has none → NaN
+    # both partitions land in the same hit/V05261B table, distinguishable by run
+    assert "hit/V05261B" in det_tables, "V05261B not found in hit output"
+    v_drift = _field("hit/V05261B", "drift_time_amax")
+    v_run = _field("hit/V05261B", "run")
+    assert not np.all(np.isnan(v_drift[v_run == 0])), (
+        "r000 V05261B drift_time_amax is all NaN despite having a dtmap"
     )
-    assert np.all(np.isnan(_field("aoe_raw"))), "aoe_raw should be all NaN (no dtmap)"
-    assert np.all(np.isnan(_field("aoe"))), "aoe should be all NaN (no dtmap)"
-    assert not np.any(_field("is_single_site")), (
-        "is_single_site should be all False (no dtmap)"
+    assert np.all(np.isnan(v_drift[v_run == 1])), (
+        "r001 V05261B drift_time_amax should be all NaN (no dtmap)"
     )
 
     # energy is always smeared — must be finite and positive
-    energy = _field("energy")
+    energy = _field(first_det, "energy")
     assert np.all(np.isfinite(energy)), "energy contains non-finite values"
     assert np.all(energy >= 0), "energy contains negative values"
 
     # both runs are in period p03 → period == 3 throughout
-    period_vals = _field("period")
+    period_vals = _field(first_det, "period")
     assert np.all(period_vals == 3), (
         f"expected period=3 (p03), got unique={np.unique(period_vals)}"
     )
 
     # run values must come from the two configured runs (r000=0, r001=1)
-    run_vals = _field("run")
+    run_vals = _field(first_det, "run")
     assert np.all(np.isin(run_vals, [0, 1])), (
         f"unexpected run values: {np.unique(run_vals)}"
     )
 
     # usability and psd_usability must be valid encoded integers
-    usability_vals = _field("usability")
+    usability_vals = _field(first_det, "usability")
     assert np.all(np.isin(usability_vals, [0, 1, 2])), (
         f"invalid usability codes: {np.unique(usability_vals)}"
     )
 
-    psd_usability_vals = _field("psd_usability")
+    psd_usability_vals = _field(first_det, "psd_usability")
     assert np.all(np.isin(psd_usability_vals, [0, 1, 2])), (
         f"invalid psd_usability codes: {np.unique(psd_usability_vals)}"
     )
