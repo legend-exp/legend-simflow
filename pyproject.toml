@@ -159,6 +159,7 @@ snakemake-nersc = { cmd = "snakemake-nersc", depends-on = ["precompile"] }
 dry = { cmd = "snakemake --dry-run" }
 touch = { cmd = "snakemake --touch" }
 
+tier-hit = { cmd = "python -m legendsimflow.scripts.tier.hit" }
 tier-cvt = { cmd = "python -m legendsimflow.scripts.tier.cvt" }
 tier-pdf = { cmd = "python -m legendsimflow.scripts.tier.pdf" }
 
