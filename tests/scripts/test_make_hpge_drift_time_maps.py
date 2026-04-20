@@ -25,14 +25,22 @@ julia_project = repo_root / "workflow" / "src" / "LegendSimflow.jl"
 
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
-def test_make_hpge_drift_time_maps_produces_valid_lh5(tmp_path):
-    """Invoke make_hpge_drift_time_maps.jl for V99000A and verify the output LH5.
+def test_make_hpge_drift_time_maps_l1000(legend_dtmap_path):
+    assert legend_dtmap_path.exists(), "Drift time map LH5 file was not created"
 
-    The settings.yaml fixture at dummyprod/inputs/simprod/config/pars/legend/geds/dtmap/
-    uses grid_size_in_mm=10.0 so the SSD field calculation finishes quickly.
-    Expected output structure: top-level group V99000A with sub-datasets
-    drift_time_000_deg, drift_time_045_deg, r, and z.
-    """
+    top_keys = lh5.ls(legend_dtmap_path)
+    assert "V02160A" in top_keys, f"Expected group 'V02160A' in LH5, got: {top_keys}"
+
+    inner_keys = lh5.ls(legend_dtmap_path, "V02160A/")
+    for expected in ("drift_time_000_deg", "drift_time_045_deg", "r", "z"):
+        assert f"V02160A/{expected}" in inner_keys, (
+            f"Expected dataset 'V02160A/{expected}' in LH5, found: {inner_keys}"
+        )
+
+
+@pytest.mark.needs_julia
+@pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
+def test_make_hpge_drift_time_maps_produces_valid_lh5(tmp_path):
     output_file = tmp_path / "dtmap_V99000A.lh5"
 
     cmd = [

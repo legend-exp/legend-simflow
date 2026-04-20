@@ -143,7 +143,6 @@ def _run_with_mocks(
 
 
 def test_extract_eresmod_from_metadata(tmp_path, monkeypatch):
-    """Metadata-driven path: eresmod.yaml must be expanded to per-detector entries."""
     eresmod_file, _aoe, _psd = _run_with_mocks(tmp_path, monkeypatch)
 
     assert eresmod_file.exists(), "eresmod output file was not created"
@@ -182,7 +181,6 @@ def test_extract_eresmod_from_metadata(tmp_path, monkeypatch):
 
 
 def test_extract_eresmod_per_detector_count(tmp_path, monkeypatch):
-    """Metadata-driven path: one output entry per geds detector in the p03 channelmap."""
     eresmod_file, _aoe, _psd = _run_with_mocks(tmp_path, monkeypatch)
 
     with eresmod_file.open() as f:
@@ -194,12 +192,6 @@ def test_extract_eresmod_per_detector_count(tmp_path, monkeypatch):
 
 
 def test_extract_eresmod_l200data_with_overrides(tmp_path, monkeypatch):
-    """Case 2: l200data base + per-detector overrides from metadata (no 'default' key).
-
-    The p02 eresmod file has only a V02160A override. The l200data base is
-    mocked to return V05261A and V02160A. The output must contain both detectors,
-    with V02160A replaced by the metadata value and V05261A kept from l200data.
-    """
     eresmod_file, _aoe, _psd = _run_with_mocks(
         tmp_path, monkeypatch, runid=RUNID_P02, l200data="/fake/l200data"
     )
@@ -227,7 +219,6 @@ def test_extract_eresmod_l200data_with_overrides(tmp_path, monkeypatch):
 
 
 def test_extract_aoeresmod_from_metadata(tmp_path, monkeypatch):
-    """Metadata-driven path: aoeresmod.yaml must be expanded to per-detector entries."""
     _eres, aoeresmod_file, _psd = _run_with_mocks(tmp_path, monkeypatch)
 
     assert aoeresmod_file.exists(), "aoeresmod output file was not created"
@@ -262,7 +253,6 @@ def test_extract_aoeresmod_from_metadata(tmp_path, monkeypatch):
 
 
 def test_extract_aoeresmod_per_detector_count(tmp_path, monkeypatch):
-    """Metadata-driven path: one output entry per geds detector in the p03 channelmap."""
     _eres, aoeresmod_file, _psd = _run_with_mocks(tmp_path, monkeypatch)
 
     with aoeresmod_file.open() as f:
@@ -274,13 +264,6 @@ def test_extract_aoeresmod_per_detector_count(tmp_path, monkeypatch):
 
 
 def test_extract_aoeresmod_l200data_with_overrides(tmp_path, monkeypatch):
-    """Case 2: l200data base + per-detector overrides from metadata (no 'default' key).
-
-    The p02 aoeresmod file has only a V02160A override. The l200data base is
-    mocked to return V05261A and V02160A. The output must contain both detectors,
-    with V02160A replaced by the metadata value (a=0.0002) and V05261A kept
-    from l200data (a=0.0003).
-    """
     _, aoeresmod_file, _ = _run_with_mocks(
         tmp_path,
         monkeypatch,
@@ -310,7 +293,6 @@ def test_extract_aoeresmod_l200data_with_overrides(tmp_path, monkeypatch):
 
 
 def test_extract_psdcuts_from_metadata(tmp_path, monkeypatch):
-    """Metadata-driven path: psdcuts.yaml must be expanded to per-detector entries."""
     _eres, _aoe, psdcuts_file = _run_with_mocks(tmp_path, monkeypatch)
 
     assert psdcuts_file.exists(), "psdcuts output file was not created"
@@ -345,7 +327,6 @@ def test_extract_psdcuts_from_metadata(tmp_path, monkeypatch):
 
 
 def test_extract_psdcuts_per_detector_count(tmp_path, monkeypatch):
-    """Metadata-driven path: one output entry per geds detector in the p03 channelmap."""
     _eres, _aoe, psdcuts_file = _run_with_mocks(tmp_path, monkeypatch)
 
     with psdcuts_file.open() as f:
@@ -357,13 +338,6 @@ def test_extract_psdcuts_per_detector_count(tmp_path, monkeypatch):
 
 
 def test_extract_psdcuts_l200data_with_overrides(tmp_path, monkeypatch):
-    """Case 2: l200data base + per-detector overrides from metadata (no 'default' key).
-
-    The p02 psdcuts file has only a V02160A override. The l200data base is
-    mocked to return V05261A and V02160A. The output must contain both detectors,
-    with V02160A replaced by the metadata value (low_side=-1.4) and V05261A kept
-    from l200data (low_side=-2.0).
-    """
     _, _, psdcuts_file = _run_with_mocks(
         tmp_path,
         monkeypatch,
@@ -419,7 +393,6 @@ def _make_aoeresmod_default():
 
 
 def test_extract_aoeresmod_raises_without_l200data_and_default(tmp_path, monkeypatch):
-    """RuntimeError when l200data is absent and no aoeresmod 'default' key exists."""
     monkeypatch.setattr(
         sys, "argv", _build_argv(tmp_path, runid=RUNID_P03, l200data=None)
     )
@@ -437,7 +410,6 @@ def test_extract_aoeresmod_raises_without_l200data_and_default(tmp_path, monkeyp
 
 
 def test_extract_psdcuts_raises_without_l200data_and_default(tmp_path, monkeypatch):
-    """RuntimeError when l200data is absent and no psdcuts 'default' key exists."""
     monkeypatch.setattr(
         sys, "argv", _build_argv(tmp_path, runid=RUNID_P03, l200data=None)
     )
