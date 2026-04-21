@@ -108,3 +108,7 @@ def main() -> None:
     dbetto.utils.write_dict(
         partition_simstat(n_events, n_events_part, runlist), output_file
     )
+
+
+if __name__ == "__main__":
+    main()
