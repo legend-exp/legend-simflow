@@ -22,7 +22,7 @@ The dummy production uses three experiments:
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist contains real p02 run IDs but is not intended to run an
   actual production
-- `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→hit
+- `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→pdf
   pipeline; runs in CI without requiring `l200data`. Currently uses l200-p03
   runs (`l200-p03-r000-phy`, `l200-p03-r001-phy`) because l1000 hardware and
   crystal metadata are not yet in `dummyprod`
@@ -34,13 +34,26 @@ The dummy production uses three experiments:
 for tests that require LH5 data files or other binary assets from the testdata
 repository (e.g. `test_reboost.py`, `test_hpge_pars.py`).
 
+`tests/scripts/conftest.py` is distinct from `tests/conftest.py`. It contains
+session-scoped integration fixtures that build the full vtx→cvt pipeline step by
+step and cache the outputs for the duration of the test session. The fixtures
+are shared across all tests under `tests/scripts/`: `legend_gdml_path`,
+`legend_stp_path`, `legend_dtmap_path`, `legend_opt_path`, `legend_hit_path`,
+`legend_evt_path`, `legend_cvt_path`.
+
+A pre-built static drift-time map is committed at
+`tests/dummyprod/inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5`. It
+contains constant 1000 ns drift times on a 1 mm grid for detector V05261B at
+4200 V. The `legend_dtmap_path` fixture uses this file directly so that the
+Julia drift-time map script does not need to run during unit tests.
+
 ## Integration tests (`test_workflow.py`)
 
 The workflow tests form a progression:
 
 1. **`test_dag`** — touch executor, no remage needed; verifies DAG resolution
    only. Run directly: `pytest tests/test_workflow.py::test_dag`
-2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→hit with real remage,
+2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage,
    experiment `l1000dsg01`; runs in CI. **Requires pixi** (remage is only in the
    pixi environment): `pixi run -e test test-l1000-workflow`
 3. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt

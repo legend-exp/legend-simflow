@@ -1,6 +1,12 @@
 from legendsimflow import patterns, aggregate
 
 
+def _tier_setting(tier, key):
+    return lambda wc: config.metadata.simprod.config.tier[tier][
+        config.experiment
+    ].settings[key]
+
+
 rule gen_all_tier_evt:
     """Aggregate and produce all the `evt` tier files."""
     input:
@@ -35,9 +41,9 @@ rule build_tier_evt:
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
-        add_random_coincidences=lambda wc: config.metadata.simprod.config.tier.evt[
-            config.experiment
-        ].settings.add_random_coincidences,
+        add_random_coincidences=_tier_setting("evt", "add_random_coincidences"),
+        geds_energy_thr_kev=_tier_setting("evt", "geds_energy_thr_kev"),
+        spms_energy_thr_pe=_tier_setting("evt", "spms_energy_thr_pe"),
     output:
         patterns.output_simjob_filename(config, tier="evt"),
     log:

@@ -188,3 +188,27 @@ def test_extract_integer():
         # Test negative integer
         test_file.write_text("-999")
         assert metadata.extract_integer(test_file) == -999
+
+
+def test_get_tier_settings_hit(config):
+    """get_tier_settings returns the settings object for the hit tier."""
+    settings = metadata.get_tier_settings(config, "hit")
+
+    assert "dead_layer_fraction" in settings
+    assert "buffer_len" in settings
+
+    assert settings.dead_layer_fraction == 0.5
+    assert settings.buffer_len == "500*MB"
+
+
+def test_get_tier_settings_evt(config):
+    """get_tier_settings returns the settings object for the evt tier."""
+    settings = metadata.get_tier_settings(config, "evt")
+
+    assert "geds_energy_thr_kev" in settings
+    assert "spms_energy_thr_pe" in settings
+    assert "buffer_len" in settings
+
+    assert settings.geds_energy_thr_kev == 25
+    assert settings.spms_energy_thr_pe == 0
+    assert settings.buffer_len == "50*MB"
