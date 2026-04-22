@@ -25,10 +25,8 @@ from lgdo import Histogram, Scalar, Struct, lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils
-from legendsimflow.metadata import get_simconfig
+from legendsimflow.metadata import get_simconfig, get_tier_settings
 from legendsimflow.scripts import log_script_invocation
-
-BUFFER_LEN = "500*MB"
 
 
 @snakemake_compatible(
@@ -57,6 +55,9 @@ def main() -> None:
 
     config = utils.init_simflow_context(args.simflow_config, workflow=None).config
 
+    tier_pdf_settings = get_tier_settings(config, "pdf")
+    buffer_len = tier_pdf_settings.buffer_len
+
     cvt_file = nersc.dvs_ro(config, args.cvt_file)
     pdf_file = args.pdf_file
     log_file = args.log_file
@@ -71,7 +72,7 @@ def main() -> None:
     iterator = lh5.LH5Iterator(
         str(cvt_file),
         "evt",
-        buffer_len=BUFFER_LEN,
+        buffer_len=buffer_len,
     )
 
     # TODO: in future, read number_of_primaries directly from the stp file

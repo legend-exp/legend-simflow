@@ -23,7 +23,7 @@ unless explicitly supported for that specific field.
   that labels independent jobs across which the simulation is split.
 
 - `tier` — the three-character label of the tier. At the moment the simflow
-  supports `vtx`, `stp`, `opt` and `hit` tiers.
+  supports `vtx`, `stp`, `opt`, `hit`, `evt`, `cvt` and `pdf` tiers.
 
 - `extension` — file extension. `lh5` for LEGEND HDF5 files, `gdml` for GDML
   geometry files, `yaml` for plain-text YAML configuration files, `log` for log
@@ -377,6 +377,31 @@ psdcuts_default:
   triggered.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
+
+(evt-tier-settings-meta)=
+
+#### `simprod/config/tier/evt/{experiment}/settings.yaml` — evt tier settings
+
+A static YAML file with evt-tier-specific settings that apply to all simulations
+for a given experiment configuration.
+
+```{code-block} yaml
+:caption: simprod/config/tier/evt/{experiment}/settings.yaml
+
+add_random_coincidences: false
+geds_energy_thr_kev: 25
+spms_energy_thr_pe: 0
+buffer_len: "50*MB"
+```
+
+- `add_random_coincidences` (bool) — when `true`, random-coincidence (RC) SiPM
+  data is mixed in during event building.
+- `geds_energy_thr_kev` (int) — HPGe hit energy threshold in keV; hits below
+  this value are discarded.
+- `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
+  this value are discarded.
+- `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
+  usage during processing; does not affect the output.
 
 ## `pars/` — simulation parameters
 

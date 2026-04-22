@@ -129,6 +129,31 @@ Document the event building step.
 
 :::
 
+(evt-tier-settings)=
+
+### `simprod/config/tier/evt/{experiment}/settings.yaml` — evt tier settings
+
+A static YAML file with evt-tier-specific settings that apply to all simulations
+for a given experiment configuration.
+
+```{code-block} yaml
+:caption: simprod/config/tier/evt/{experiment}/settings.yaml
+
+add_random_coincidences: false
+geds_energy_thr_kev: 25
+spms_energy_thr_pe: 0
+buffer_len: "50*MB"
+```
+
+- `add_random_coincidences` (bool) — when `true`, random-coincidence (RC) SiPM
+  data is mixed in during event building.
+- `geds_energy_thr_kev` (int) — HPGe hit energy threshold in keV; hits below
+  this value are discarded.
+- `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
+  this value are discarded.
+- `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
+  usage during processing; does not affect the output.
+
 ## `cvt` — event concatenation
 
 :::{todo}

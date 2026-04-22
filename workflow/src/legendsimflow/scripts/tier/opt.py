@@ -39,6 +39,7 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, utils
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.metadata import get_tier_settings
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.tcm import build_tcm
@@ -113,13 +114,16 @@ def main() -> None:
 
     hit_file, move2cfs = nersc.make_on_scratch(config, hit_file)
 
-    # for some sims like Th228 loading a 100MB chunk of the TCM can result in a lot
-    # of photons, i.e. high memory usage
-    BUFFER_LEN = "10*MB"
-    MAP_SCALING = 1  # FIXME: guess
-    DEFAULT_PHOTOELECTRON_RES = 0.3  # FWHM FIXME: guess
-    TIME_RESOLUTION_NS = 16  # FIXME: guess
-    MAX_PES_PER_HIT = 5 if optmap_per_sipm else 100
+    tier_opt_settings = get_tier_settings(config, "opt")
+    map_scaling = tier_opt_settings.map_scaling
+    photoelectron_res = tier_opt_settings.photoelectron_res
+    time_resolution_ns = tier_opt_settings.time_resolution_ns
+    max_pes_per_hit = (
+        tier_opt_settings.max_pes_per_hit_per_sipm
+        if optmap_per_sipm
+        else tier_opt_settings.max_pes_per_hit_combined
+    )
+    buffer_len = tier_opt_settings.buffer_len
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -159,10 +163,10 @@ def main() -> None:
                     scint_ph,
                     optmap_lar,
                     sipm,
-                    map_scaling=MAP_SCALING,
-                    max_pes_per_hit=MAX_PES_PER_HIT,
+                    map_scaling=map_scaling,
+                    max_pes_per_hit=max_pes_per_hit,
                 )
-            if MAX_PES_PER_HIT > 0:
+            if max_pes_per_hit > 0:
                 nr_pe, is_saturated = _output
             else:
                 nr_pe = _output
@@ -179,15 +183,15 @@ def main() -> None:
 
             with perf_block("photoelectron_resolution()"):
                 pe_amps_micro = reboost_utils.smear_photoelectrons(
-                    pe_times_micro, DEFAULT_PHOTOELECTRON_RES
+                    pe_times_micro, photoelectron_res
                 )
 
-            if TIME_RESOLUTION_NS > 0:
+            if time_resolution_ns > 0:
                 with perf_block("cluster_photoelectrons()"):
                     pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
                         pe_times_micro,
                         pe_amps_micro,
-                        TIME_RESOLUTION_NS,
+                        time_resolution_ns,
                     )
             else:
                 pe_times = pe_times_micro
@@ -275,7 +279,7 @@ def main() -> None:
                     f"stp/{det_name}",
                     i_start=i_start,
                     n_entries=n_entries,
-                    buffer_len=BUFFER_LEN,
+                    buffer_len=buffer_len,
                 )
 
             if optmap_per_sipm:

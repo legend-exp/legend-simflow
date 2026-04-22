@@ -31,6 +31,10 @@ from Snakemake and directly from the command line. Follow the pattern in
 
 - Must accept `--simflow-config` (alias `--config`) and `--log-file` (optional)
 - Call `log_script_invocation` right after setting up logging
+- Decorate `main()` with `@snakemake_compatible` (from
+  `snakemake_argparse_bridge`) and supply a `mapping` dict mapping CLI argument
+  names to Snakemake object paths (e.g. `"stp_file": "input.stp_file"`); see
+  `scripts/tier/cvt.py` for the canonical example
 - Large output files: write to scratch first via `make_on_scratch()`
   (`nersc.py`)
 - Add a `tier-<name>` pixi task and a test in

@@ -41,6 +41,7 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.metadata import get_tier_settings
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.tcm import build_tcm
@@ -108,7 +109,9 @@ def main() -> None:
     usabilities = AttrsDict(load_dict(args.detector_usabilities_file))
 
     # default resolutions/cuts for non-ON detectors, sourced from hit tier settings
-    tier_hit_settings = metadata.simprod.config.tier.hit[config.experiment].settings
+    tier_hit_settings = get_tier_settings(config, "hit")
+    dead_layer_fraction = tier_hit_settings.dead_layer_fraction
+    buffer_len = tier_hit_settings.buffer_len
     eresmod_default = hpge_pars.build_energy_res_func_from_entry(
         tier_hit_settings.eresmod_default
     )
@@ -118,8 +121,6 @@ def main() -> None:
     psdcuts_default = tier_hit_settings.psdcuts_default.to_dict()
 
     hit_file, move2cfs = nersc.make_on_scratch(config, hit_file)
-
-    BUFFER_LEN = "500*MB"
 
     u = pint.UnitRegistry()
 
@@ -249,7 +250,7 @@ def main() -> None:
                 stp_table_name,
                 i_start=i_start,
                 n_entries=n_entries,
-                buffer_len=BUFFER_LEN,
+                buffer_len=buffer_len,
             )
 
             log.info(
@@ -304,7 +305,7 @@ def main() -> None:
                     _activeness = reboost.math.functions.piecewise_linear_activeness(
                         _distance_to_nplus,
                         fccd_in_mm=fccd,
-                        dlf=0.5,
+                        dlf=dead_layer_fraction,
                     )
 
                 edep_active = chunk.edep * _activeness

@@ -24,6 +24,7 @@ from lgdo import lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils
+from legendsimflow.metadata import get_tier_settings
 from legendsimflow.scripts import log_script_invocation
 
 
@@ -57,7 +58,8 @@ def main() -> None:
     cvt_file, move2cfs = nersc.make_on_scratch(config, args.cvt_file)
     log_file = args.log_file
 
-    BUFFER_LEN = "500*MB"
+    tier_cvt_settings = get_tier_settings(config, "cvt")
+    buffer_len = tier_cvt_settings.buffer_len
 
     log = ldfs.utils.build_log(config.metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "tier-cvt", parser, args)
@@ -67,7 +69,7 @@ def main() -> None:
         shutil.copy(evt_files[0], cvt_file)
     else:
         for table in lh5.ls(evt_files[0]):
-            for chunk in lh5.LH5Iterator(evt_files, table, buffer_len=BUFFER_LEN):
+            for chunk in lh5.LH5Iterator(evt_files, table, buffer_len=buffer_len):
                 lh5.write(chunk, table, cvt_file, wo_mode="append")
 
     move2cfs()

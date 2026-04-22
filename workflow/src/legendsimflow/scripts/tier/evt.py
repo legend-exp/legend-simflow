@@ -30,14 +30,15 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import nersc, spms_pars, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
-from legendsimflow.metadata import encode_psd_usability, encode_usability
+from legendsimflow.metadata import (
+    encode_psd_usability,
+    encode_usability,
+    get_tier_settings,
+)
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.tcm import merge_stp_n_opt_tcms_to_lh5
 
-GEDS_ENERGY_THR_KEV = 25
-SPMS_ENERGY_THR_PE = 0
-BUFFER_LEN = "50*MB"
 OFF = encode_usability("off")
 ON = encode_usability("on")
 VALID_PSD = encode_psd_usability("valid")
@@ -100,6 +101,10 @@ def main() -> None:
     evt_file = args.evt_file
     log_file = args.log_file
     metadata = config.metadata
+    tier_evt_settings = get_tier_settings(config, "evt")
+    geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
+    spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
+    buffer_len = tier_evt_settings.buffer_len
     simstat_part_file = args.simstat_part_file
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
@@ -125,7 +130,7 @@ def main() -> None:
             hit_file["opt"],
             evt_file,
             scintillator_uid=scintillator_uid,
-            buffer_len=BUFFER_LEN,
+            buffer_len=buffer_len,
         )
 
     # test that the evt tcm has the same amount of rows as the stp tcm
@@ -260,7 +265,7 @@ def main() -> None:
             "tcm",
             i_start=evt_start,
             n_entries=n_entries,
-            buffer_len=BUFFER_LEN,
+            buffer_len=buffer_len,
             h5py_open_mode="a",
         )
         for chunk in it:
@@ -308,7 +313,7 @@ def main() -> None:
 
             # we want to only store hits from events in ON and AC detectors and above
             # our energy threshold
-            hitsel = (usability != OFF) & (energy > GEDS_ENERGY_THR_KEV)
+            hitsel = (usability != OFF) & (energy > geds_energy_thr_kev)
 
             # we want to still be able to know which detectors are ON (and not AC)
             out_table.add_field(
@@ -374,7 +379,7 @@ def main() -> None:
             energy = _read_hits(tcm, "opt", "energy")
             chansel = usability != OFF
             # we also discard all pulses with amplitude below threshold
-            pesel = energy > SPMS_ENERGY_THR_PE
+            pesel = energy > spms_energy_thr_pe
 
             # in simulation the opt TCM does not record events for which there is
             # no energy in LAr. This means that in the unified TCM these events

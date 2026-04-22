@@ -1,6 +1,12 @@
 from legendsimflow import aggregate, patterns
 
 
+def _tier_setting(tier, key):
+    return lambda wc: config.metadata.simprod.config.tier[tier][
+        config.experiment
+    ].settings[key]
+
+
 rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
@@ -52,6 +58,8 @@ rule build_tier_hit:
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
+    params:
+        dead_layer_fraction=_tier_setting("hit", "dead_layer_fraction"),
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
