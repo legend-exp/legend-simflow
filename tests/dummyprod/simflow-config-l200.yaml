@@ -18,9 +18,7 @@ paths:
   metadata: $_/inputs
   config: $_/inputs/simprod/config
   optical_maps:
-    fiber: $_/inputs/simprod/l200a-optical-map-fiber.lh5
-    lar: /dvs_ro/cfs/cdirs/m2676/sims/optmap/l200cfg01/l200cfg01-optmap-v3.lh5
-    pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
+    lar: $_/inputs/simprod/l200cfg01-optmap-dummy.lh5
 
   pars: $_/generated-l200/pars
   macros: $_/generated-l200/macros

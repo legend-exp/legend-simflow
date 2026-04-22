@@ -21,8 +21,8 @@ rule build_tier_evt:
     - fields from lower tiers are restructured into events;
     - new event-level fields are computed and stored in the output file;
     - optionally, random-coincidence (RC) SiPM data from real evt files is
-      added as `spms/rc_energy` and `spms/rc_time` (controlled by the
-      `add_random_coincidences` parameter, default `False`).
+      added as `spms/rc_energy` and `spms/rc_time` (controlled by
+      ``add_random_coincidences`` in ``tier/evt/{experiment}/settings.yaml``).
 
     Note: the corresponding `stp` tier file is also accessed at runtime for
     TCM merging and consistency checks, even though it is not a declared
@@ -38,7 +38,9 @@ rule build_tier_evt:
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
-        add_random_coincidences=True,
+        add_random_coincidences=lambda wc: config.metadata.simprod.config.tier.evt[
+            config.experiment
+        ].settings.add_random_coincidences,
     output:
         patterns.output_simjob_filename(config, tier="evt"),
     log:
