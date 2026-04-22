@@ -16,7 +16,7 @@ from legendsimflow import aggregate, utils
 from legendsimflow.scripts import extract_hpge_current_pulse_model
 from legendsimflow.scripts.make_simstat_partition_file import main as simstat_main
 from legendsimflow.scripts.pars import extract_hpge_observables_models
-from legendsimflow.scripts.tier import hit, opt
+from legendsimflow.scripts.tier import cvt, evt, hit, opt
 
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
@@ -386,3 +386,68 @@ def legend_hit_path(
         hit.main()
 
     return hit_file
+
+
+@pytest.fixture(scope="session")
+def legend_evt_path(
+    tmp_path_factory,
+    legend_stp_path,
+    legend_opt_path,
+    legend_hit_path,
+    legend_simstat_part_path,
+    legend_detector_usabilities_path,
+):
+    """Run ``evt.main()`` and return the path to the output evt LH5 file.
+
+    Skips if remage is not installed (the stp fixture already enforces this).
+    """
+    out_dir = tmp_path_factory.mktemp("legend_evt")
+    config_path = _l1000_config(out_dir)
+    evt_file = out_dir / "evt.lh5"
+
+    with _override_argv(
+        "evt",
+        "--stp-file",
+        str(legend_stp_path),
+        "--opt-file",
+        str(legend_opt_path),
+        "--hit-file",
+        str(legend_hit_path),
+        "--simstat-part-file",
+        str(legend_simstat_part_path),
+        "--detector-usabilities-file",
+        str(legend_detector_usabilities_path),
+        "--jobid",
+        "0000",
+        "--evt-file",
+        str(evt_file),
+        "--simflow-config",
+        str(config_path),
+    ):
+        evt.main()
+
+    return evt_file
+
+
+@pytest.fixture(scope="session")
+def legend_cvt_path(tmp_path_factory, legend_evt_path):
+    """Run ``cvt.main()`` and return the path to the output cvt LH5 file.
+
+    Skips if remage is not installed (the evt fixture already enforces this).
+    """
+    out_dir = tmp_path_factory.mktemp("legend_cvt")
+    config_path = _l1000_config(out_dir)
+    cvt_file = out_dir / "cvt.lh5"
+
+    with _override_argv(
+        "cvt",
+        "--evt-files",
+        str(legend_evt_path),
+        "--cvt-file",
+        str(cvt_file),
+        "--simflow-config",
+        str(config_path),
+    ):
+        cvt.main()
+
+    return cvt_file
