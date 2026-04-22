@@ -206,3 +206,10 @@ V09374A:
   usability: "off"
 V09724A:
   usability: "off"
+
+S002:
+  usability: "on"
+S003:
+  usability: "ac"
+S007:
+  usability: "off"

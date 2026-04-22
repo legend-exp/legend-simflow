@@ -31,7 +31,11 @@ def test_dag():
 
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
-def test_l1000_workflow():
+def test_l1000_workflow(legend_testdata):
+    # override just the optmap path via the config dict so that '$_' in the
+    # config file continues to resolve relative to dummyprod
+    optmap_path = legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5")
+
     output = smkapi.OutputSettings(verbose=False)
 
     with smkapi.SnakemakeApi(output) as api:
@@ -40,6 +44,7 @@ def test_l1000_workflow():
             workdir=dummyprod,
             config_settings=smkapi.ConfigSettings(
                 configfiles=(dummyprod / "simflow-config-l1000.yaml",),
+                config={"paths": {"optical_maps": {"lar": optmap_path}}},  # type: ignore[arg-type]
             ),
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),
