@@ -4,12 +4,16 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 import yaml
 from lgdo import Array, Table, VectorOfVectors, lh5
 
 from legendsimflow.scripts.tier import pdf
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
+
+_SIMID_LEGEND = "birds_nest_K40"
+_SIMID_L1000 = "ultem_insulators_Pb214_to_Po214"
 
 
 def _make_cvt_file(path: Path) -> None:
@@ -73,7 +77,7 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     pdf_file = tmp_path / "pdf.lh5"
 
     # use a simid that exists in the dummyprod stp simconfig
-    simid = "birds_nest_K40"
+    simid = _SIMID_LEGEND
 
     argv = [
         "pdf",
@@ -137,3 +141,64 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
 
     # event 1 (valid+simulated PSD, multi-site) fails PSD; event 5 (not simulated) excluded
     assert _sum("pdf/fail/psd") == 1
+
+
+@pytest.mark.needs_remage
+def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
+    """Run the pdf script on a real cvt file produced by the full test pipeline."""
+    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
+    raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    config_path = tmp_path / "simflow-config-l1000.yaml"
+    config_path.write_text(yaml.safe_dump(raw))
+
+    pdf_file = tmp_path / "pdf.lh5"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pdf",
+            "--cvt-file",
+            str(legend_cvt_path),
+            "--pdf-file",
+            str(pdf_file),
+            "--simid",
+            _SIMID_L1000,
+            "--simflow-config",
+            str(config_path),
+        ],
+    )
+    pdf.main()
+
+    assert pdf_file.exists(), "pdf output file was not created"
+
+    root_keys = lh5.ls(pdf_file)
+    assert "pdf" in root_keys
+    assert "nr_sim_events" in root_keys
+
+    nr_sim_events = lh5.read("nr_sim_events", pdf_file)
+    assert np.issubdtype(type(nr_sim_events.value), np.integer)
+    assert nr_sim_events.value > 0
+
+    inner_keys = lh5.ls(pdf_file, "pdf/")
+    for name in (
+        "pdf/hit",
+        "pdf/mul",
+        "pdf/mul_lar",
+        "pdf/mul_psd",
+        "pdf/mul_lar_psd",
+        "pdf/mul2",
+        "pdf/fail",
+    ):
+        assert name in inner_keys
+
+    def _sum(path):
+        return lh5.read_as(path, pdf_file, "hist").sum()
+
+    # cut hierarchy must be non-increasing
+    n_mul = _sum("pdf/mul")
+    assert _sum("pdf/hit") >= n_mul
+    assert _sum("pdf/mul_lar") <= n_mul
+    assert _sum("pdf/mul_psd") <= n_mul
+    assert _sum("pdf/mul_lar_psd") <= _sum("pdf/mul_lar")
+    assert _sum("pdf/mul_lar_psd") <= _sum("pdf/mul_psd")
