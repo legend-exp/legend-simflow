@@ -49,7 +49,7 @@ def test_l1000_workflow(legend_testdata):
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),
         )
-        dag = wf_api.dag(smkapi.DAGSettings(forceall=True))
+        dag = wf_api.dag()
         dag.execute_workflow()
 
 
