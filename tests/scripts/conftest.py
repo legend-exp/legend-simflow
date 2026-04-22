@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import dbetto.utils
+import h5py
 import pytest
 import yaml
 
@@ -15,6 +16,7 @@ from legendsimflow import aggregate, utils
 from legendsimflow.scripts import extract_hpge_current_pulse_model
 from legendsimflow.scripts.make_simstat_partition_file import main as simstat_main
 from legendsimflow.scripts.pars import extract_hpge_observables_models
+from legendsimflow.scripts.tier import hit, opt
 
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
@@ -117,50 +119,14 @@ def legend_stp_path(tmp_path_factory, legend_gdml_path):
 
 
 @pytest.fixture(scope="session")
-def legend_dtmap_path(tmp_path_factory):
-    """Generate a drift time map LH5 file for V05261B using l1000dsg01 metadata.
+def legend_dtmap_path():
+    """Return the path to the pre-built dummy drift time map for V05261B.
 
-    Calls the ``make_hpge_drift_time_maps.jl`` Julia script with the l1000dsg01
-    dtmap settings (coarse 10 mm grid for speed).  Skips if Julia is not
-    installed.  The result is cached for the full test session and can be used
-    as ``--dtmap-files`` input to the hit tier script.
+    The file lives in ``dummyprod/inputs/simprod/`` and contains constant
+    1000 ns drift times on a 1 mm grid covering the V05261B detector volume.
+    It is used as ``--dtmap-files`` input to the hit tier script.
     """
-    if shutil.which("julia") is None:
-        pytest.skip("julia not installed")
-
-    out_dir = tmp_path_factory.mktemp("legend_dtmap")
-    dtmap_file = out_dir / "V05261B-4200V-hpge-drift-time-map.lh5"
-
-    julia_script = (
-        repo_root / "workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
-    )
-    julia_project = repo_root / "workflow/src/LegendSimflow.jl"
-    dtmap_settings = (
-        testprod / "inputs/simprod/config/pars/l1000dsg01/geds/dtmap/settings.yaml"
-    )
-
-    subprocess.run(
-        [
-            "julia",
-            "--project=" + str(julia_project),
-            "--threads",
-            "1",
-            str(julia_script),
-            "--detector",
-            "V05261B",
-            "--metadata",
-            str(testprod / "inputs"),
-            "--opv",
-            "4200",
-            "--dtmap-settings",
-            str(dtmap_settings),
-            "--output-file",
-            str(dtmap_file),
-        ],
-        check=True,
-        cwd=repo_root,
-    )
-    return dtmap_file
+    return testprod / "inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5"
 
 
 def _l1000_config(tmp_dir: Path) -> Path:
@@ -295,3 +261,128 @@ def legend_hpge_obs_paths(tmp_path_factory):
         }
 
     return paths
+
+
+@pytest.fixture(scope="session")
+def legend_opt_path(
+    tmp_path_factory,
+    legend_testdata,
+    legend_stp_path,
+    legend_gdml_path,
+    legend_simstat_part_path,
+    legend_detector_usabilities_path,
+):
+    """Run ``opt.main()`` and return the path to the output opt LH5 file.
+
+    Uses the dummy optical map from legend-testdata.  Skips if remage is not
+    installed (the stp fixture already enforces this).
+    """
+    out_dir = tmp_path_factory.mktemp("legend_opt")
+    config_path = _l1000_config(out_dir)
+    opt_file = out_dir / "opt.lh5"
+
+    optmap_path = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))
+
+    with _override_argv(
+        "opt",
+        "--stp-file",
+        str(legend_stp_path),
+        "--optmap-lar",
+        str(optmap_path),
+        "--geom-file",
+        str(legend_gdml_path),
+        "--simstat-part-file",
+        str(legend_simstat_part_path),
+        "--detector-usabilities-file",
+        str(legend_detector_usabilities_path),
+        "--jobid",
+        "0000",
+        "--opt-file",
+        str(opt_file),
+        "--scintillator-volume-name",
+        "liquid_argon",
+        "--simflow-config",
+        str(config_path),
+    ):
+        opt.main()
+
+    return opt_file
+
+
+@pytest.fixture(scope="session")
+def legend_hit_path(
+    tmp_path_factory,
+    legend_stp_path,
+    legend_gdml_path,
+    legend_dtmap_path,
+    legend_currmod_paths,
+    legend_hpge_obs_paths,
+    legend_simstat_part_path,
+    legend_detector_usabilities_path,
+):
+    """Run ``hit.main()`` and return the path to the output hit LH5 file.
+
+    Sets up a full pars directory with energy-resolution models, A/E models,
+    PSD cuts, current-pulse models, and drift-time maps for the two l1000dsg01
+    run IDs.  Skips if remage or Julia are not installed (the stp / dtmap
+    fixtures already enforce this).
+    """
+    out_dir = tmp_path_factory.mktemp("legend_hit")
+    pars_dir = out_dir / "pars"
+
+    for runid in _RUNIDS_L1000:
+        obs = legend_hpge_obs_paths[runid]
+        for subdir, src, dest_name in (
+            ("hpge/eresmod", obs["eresmod"], f"{runid}-model.yaml"),
+            ("hpge/aoeresmod", obs["aoeresmod"], f"{runid}-model.yaml"),
+            ("hpge/psdcuts", obs["psdcuts"], f"{runid}-psd-cuts.yaml"),
+            ("hpge/currmod", legend_currmod_paths[runid], f"{runid}-model.yaml"),
+        ):
+            dest_dir = pars_dir / subdir
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, dest_dir / dest_name)
+
+    dtmap_dir = pars_dir / "hpge/dtmaps"
+    dtmap_dir.mkdir(parents=True)
+    # r000: real dtmap for V05261B → PSD will be computed
+    shutil.copy(
+        legend_dtmap_path,
+        dtmap_dir / f"{_RUNIDS_L1000[0]}-hpge-drift-time-maps.lh5",
+    )
+    # r001: empty dtmap → dt_map = None → PSD will be NaN
+    with h5py.File(dtmap_dir / f"{_RUNIDS_L1000[1]}-hpge-drift-time-maps.lh5", "w"):
+        pass
+
+    raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
+    raw["paths"]["metadata"] = str(testprod / "inputs")
+    raw["paths"]["pars"] = str(pars_dir)
+    config_path = out_dir / "simflow-config-l1000.yaml"
+    config_path.write_text(yaml.safe_dump(raw))
+
+    hit_file = out_dir / "hit.lh5"
+
+    with _override_argv(
+        "hit",
+        "--stp-file",
+        str(legend_stp_path),
+        "--jobid",
+        "0000",
+        "--hit-file",
+        str(hit_file),
+        "--geom-file",
+        str(legend_gdml_path),
+        "--dtmap-files",
+        str(dtmap_dir / f"{_RUNIDS_L1000[0]}-hpge-drift-time-maps.lh5"),
+        "--currmod-files",
+        str(legend_currmod_paths[_RUNIDS_L1000[0]]),
+        str(legend_currmod_paths[_RUNIDS_L1000[1]]),
+        "--simstat-part-file",
+        str(legend_simstat_part_path),
+        "--detector-usabilities-file",
+        str(legend_detector_usabilities_path),
+        "--simflow-config",
+        str(config_path),
+    ):
+        hit.main()
+
+    return hit_file
