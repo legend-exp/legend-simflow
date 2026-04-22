@@ -38,6 +38,7 @@ rule build_tier_evt:
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
+        stp_file=patterns.output_simjob_filename(config, tier="stp"),
         add_random_coincidences=lambda wc: config.metadata.simprod.config.tier.evt[
             config.experiment
         ].settings.add_random_coincidences,

@@ -18,7 +18,6 @@ _RUNIDS = ("l200-p03-r000-phy", "l200-p03-r001-phy")
 
 
 @pytest.mark.needs_remage
-@pytest.mark.needs_julia
 def test_hit_script_cli(
     tmp_path,
     monkeypatch,
