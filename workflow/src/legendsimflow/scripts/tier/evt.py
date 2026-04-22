@@ -45,7 +45,7 @@ VALID_PSD = encode_psd_usability("valid")
 
 @snakemake_compatible(
     mapping={
-        "stp_file": "params.stp_file",
+        "stp_file": "input.stp_file",
         "opt_file": "input.opt_file",
         "hit_file": "input.hit_file",
         "simstat_part_file": "input.simstat_part_file",

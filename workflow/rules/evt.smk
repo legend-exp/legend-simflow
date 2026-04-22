@@ -24,21 +24,17 @@ rule build_tier_evt:
       added as `spms/rc_energy` and `spms/rc_time` (controlled by
       ``add_random_coincidences`` in ``tier/evt/{experiment}/settings.yaml``).
 
-    Note: the corresponding `stp` tier file is also accessed at runtime for
-    TCM merging and consistency checks, even though it is not a declared
-    Snakemake input (it is derived from the wildcards inside the script).
-
     Uses wildcards `simid` and `jobid`.
     """
     message:
         "Producing output file for job evt.{wildcards.simid}.{wildcards.jobid}"
     input:
+        stp_file=patterns.output_simjob_filename(config, tier="stp"),
         opt_file=patterns.output_simjob_filename(config, tier="opt"),
         hit_file=patterns.output_simjob_filename(config, tier="hit"),
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
-        stp_file=patterns.output_simjob_filename(config, tier="stp"),
         add_random_coincidences=lambda wc: config.metadata.simprod.config.tier.evt[
             config.experiment
         ].settings.add_random_coincidences,
