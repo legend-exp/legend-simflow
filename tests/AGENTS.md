@@ -34,6 +34,11 @@ The dummy production uses three experiments:
 for tests that require LH5 data files or other binary assets from the testdata
 repository (e.g. `test_reboost.py`, `test_hpge_pars.py`).
 
+Large binary files that the Snakemake configs reference (e.g. optical maps) are
+**gitignored** and populated at the start of every test session by the
+`dummyprod_optmap` autouse fixture in `conftest.py`, which copies them from
+`legend_testdata`. Do not commit empty placeholder files for these assets.
+
 `tests/scripts/conftest.py` is distinct from `tests/conftest.py`. It contains
 session-scoped integration fixtures that build the full vtx→cvt pipeline step by
 step and cache the outputs for the duration of the test session. The fixtures
