@@ -102,17 +102,19 @@ def main() -> None:
 
     stp_file = nersc.dvs_ro(config, args.stp_file)
     jobid = args.jobid
-    hit_file = args.opt_file
-    optmap_lar = args.optmap_lar
-    gdml_file = args.geom_file
+    opt_file = args.opt_file
+    optmap_lar = nersc.dvs_ro(config, args.optmap_lar)
+    gdml_file = nersc.dvs_ro(config, args.geom_file)
     log_file = args.log_file
     metadata = config.metadata
     optmap_per_sipm = args.optmap_per_sipm
     scintillator_volume_name = args.scintillator_volume_name
-    simstat_part_file = args.simstat_part_file
-    usabilities = AttrsDict(load_dict(args.detector_usabilities_file))
+    simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
+    usabilities = AttrsDict(
+        load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
+    )
 
-    hit_file, move2cfs = nersc.make_on_scratch(config, hit_file)
+    opt_file, move2cfs = nersc.make_on_scratch(config, opt_file)
 
     tier_opt_settings = get_tier_settings(config, "opt")
     optmap_scaling_factor = tier_opt_settings.optmap_scaling_factor
@@ -303,7 +305,7 @@ def main() -> None:
                         optmap_lar,
                         sipm,
                         sipm_uid,
-                        hit_file,
+                        opt_file,
                         runid,
                         usability,
                     )
@@ -317,13 +319,13 @@ def main() -> None:
                     optmap_lar,
                     "all",
                     geom_meta.uid,
-                    hit_file,
+                    opt_file,
                     runid,
                     "on",
                 )
 
     log.debug("building the TCM")
-    build_tcm(hit_file, hit_file)
+    build_tcm(opt_file, opt_file)
 
     with perf_block("move_to_cfs()"):
         move2cfs()
