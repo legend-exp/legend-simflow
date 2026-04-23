@@ -2,7 +2,7 @@
 
 ## File naming conventions
 
-The file naming convention for the `stp`, `opt` and `hit` tiers is:
+The file naming convention for simulation output files is:
 
 ```
 {experiment}-{simid}-job_{jobid}-tier_{tier}.{extension}
@@ -260,12 +260,7 @@ either by passing this macro file with `--macro-substitutions` (`SEED` and
 `N_EVENTS`), or by inlining the commands directly when using
 [_remage_'s "inline" mode](https://remage.readthedocs.io/en/stable/manual/running.html#executing-commands-in-batch-mode).
 
-### `hit` tier
-
-This section specifies how to configure the post-processing of the
-[_remage_](https://remage.readthedocs.io/) simulations from the `stp` tier.
-
-#### Run partitioning
+### Run partitioning
 
 An important post-processing step of the workflow is to fold detector models
 with parameters that vary during the livetime of the experiment (across "data
@@ -281,8 +276,13 @@ sample (across all simulation jobs) according to the livetime fraction of each
 run (taken from
 [legend-datasets](https://github.com/legend-exp/legend-datasets)) and apply run
 parameters to each partition. The partitions will still all live in the same
-table in the `hit` file. A new column named `runid` holding the runid of each
-event is appended for convenience.
+table in the output file. A new column named `runid` holding the run index of
+each event is appended for convenience.
+
+Run partitioning is applied to both the `opt` and `hit` tiers: the LAr response
+is processed with the optical parameters and detector usability of the
+corresponding run partition, and the HPGe response with the energy resolution
+and PSD parameters of the same partition.
 
 The user selects a list of data taking runs ("run list" or "data set") that they
 want to simulate. Runs are specified by run-ids ("run identifiers") in the
@@ -328,8 +328,11 @@ runlist:
   - ~runlists:valid.phy.p04
 ```
 
-which can be overridden for selected simulations by setting the `runlist` field
-for the corresponding `simid` in the `hit`-tier `simconfig.yaml` file:
+:::{note}
+
+Per-simid runlist overrides are configured exclusively in the `hit`-tier
+`simconfig.yaml`, even though the same partition is reused by the `opt` tier.
+There is no separate `opt`-tier `simconfig.yaml` for this purpose.
 
 ```{code-block} yaml
 :caption: /.../simprod/config/tier/hit/simconfig.yaml
@@ -340,16 +343,63 @@ hpge_bulk_Rn222_to_Po214:
     - l200-p03-r004-phy
 ```
 
+:::
+
+(opt-tier-settings)=
+
+### `opt` tier
+
+This section specifies how to configure the `opt` tier, which processes the
+liquid argon scintillation response from the `stp` tier.
+
+```{code-block} yaml
+:caption: simprod/config/tier/opt/{experiment}/settings.yaml
+
+scintillator_volume_name: liquid_argon
+optmap_per_sipm: true
+optmap_scaling_factor: 0.3
+photoelectron_resolution_sigma: 0.3
+time_resolution_in_ns: 16
+max_pes_per_hit_per_sipm: 5
+max_pes_per_hit_combined: 100
+buffer_len: "10*MB"
+```
+
+- `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
+  geometry used to identify liquid argon energy depositions (e.g.
+  `liquid_argon`).
+- `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
+  channel using the per-SiPM optical map; when `false`, the combined map across
+  all SiPMs is used.
+- `optmap_scaling_factor` (float) — factor multiplied to every map value,
+  globally scaling the photoelectron detection probability. Maps produced with
+  SiPM PDE set to 1 should use a value equal to the true SiPM PDE.
+- `photoelectron_resolution_sigma` (float) — single-photoelectron amplitude
+  resolution (σ, relative). Applied as Gaussian smearing to each detected
+  photoelectron.
+- `time_resolution_in_ns` (float) — SiPM time resolution in nanoseconds.
+  Photoelectrons within this window are clustered into a single hit.
+- `max_pes_per_hit_per_sipm` (int) — maximum number of photoelectrons per hit
+  per SiPM channel (used when `optmap_per_sipm: true`). Limits memory and
+  processing time.
+- `max_pes_per_hit_combined` (int) — maximum number of photoelectrons per hit
+  across all SiPMs combined (used when `optmap_per_sipm: false`).
+- `buffer_len` (str) — LH5 read chunk size (e.g. `"10*MB"`). Controls memory
+  usage during processing; does not affect the output.
+
 (hit-tier-settings)=
 
-#### `hit` tier settings
+### `hit` tier
 
-A static YAML file with hit-tier-specific settings that apply to all simulations
-for a given experiment configuration. When absent, accessing any field from it
-will raise an error.
+This section specifies how to configure the post-processing of the
+[_remage_](https://remage.readthedocs.io/) simulations from the `stp` tier. When
+absent, accessing any field raises an error.
 
 ```{code-block} yaml
 :caption: simprod/config/tier/hit/{experiment}/settings.yaml
+
+dead_layer_fraction: 0.5
+buffer_len: "500*MB"
 
 eresmod_default:
   expression: FWHMLinear
@@ -370,6 +420,12 @@ psdcuts_default:
     high_side: 3
 ```
 
+- `dead_layer_fraction` (float) — fraction of the dead layer thickness at which
+  the linear ramp in charge collection efficiency starts, between `0` (HPGe
+  surface, ramp begins immediately) and `1` (ramp begins only at the full charge
+  collection depth, i.e. no partial collection).
+- `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
+  usage during processing; does not affect the output.
 - `eresmod_default` — energy resolution model applied to non-ON detectors. See
   {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 - `aoeresmod_default` — A/E resolution model applied to detectors without a
@@ -380,10 +436,10 @@ psdcuts_default:
 
 (evt-tier-settings-meta)=
 
-#### `evt` tier settings
+### `evt` tier
 
-A static YAML file with evt-tier-specific settings that apply to all simulations
-for a given experiment configuration.
+This section specifies how to configure the `evt` tier, which builds physics
+events from the hit-level data.
 
 ```{code-block} yaml
 :caption: simprod/config/tier/evt/{experiment}/settings.yaml
@@ -395,7 +451,7 @@ buffer_len: "50*MB"
 ```
 
 - `add_random_coincidences` (bool) — when `true`, random-coincidence (RC) SiPM
-  data is mixed in during event building.
+  data (taken from `l200data` evt/pet tiers) is mixed in during event building.
 - `geds_energy_thr_kev` (int) — HPGe hit energy threshold in keV; hits below
   this value are discarded.
 - `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
@@ -403,12 +459,44 @@ buffer_len: "50*MB"
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
 
+(cvt-tier-settings)=
+
+### `cvt` tier
+
+This section specifies how to configure the `cvt` tier, which concatenates event
+files across simulation jobs.
+
+```{code-block} yaml
+:caption: simprod/config/tier/cvt/{experiment}/settings.yaml
+
+buffer_len: "500*MB"
+```
+
+- `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
+  usage during processing; does not affect the output.
+
+(pdf-tier-settings)=
+
+### `pdf` tier
+
+This section specifies how to configure the `pdf` tier, which produces
+probability density functions from the concatenated event files.
+
+```{code-block} yaml
+:caption: simprod/config/tier/pdf/{experiment}/settings.yaml
+
+buffer_len: "500*MB"
+```
+
+- `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
+  usage during processing; does not affect the output.
+
 ## `pars/` — simulation parameters
 
 Metadata is organized in this directory by experimental configuration (first
 level) and detector type (second level), mirroring the `tier/` structure.
 
-### HPGe drift time map simulation parameters
+### Drift time map settings
 
 A single shared YAML file (applies to all detectors and voltages) that overrides
 simulation control parameters for the
@@ -439,7 +527,7 @@ cutting script runtime from many minutes to seconds.
 
 (eresmod-metadata-dir)=
 
-### HPGe energy resolution model defaults
+### Energy resolution model defaults
 
 An optional validity-based metadata directory providing HPGe-specific energy
 resolution parameters. When present, it can supplement or fully replace
@@ -480,7 +568,7 @@ at runtime.
 
 (aoeresmod-metadata-dir)=
 
-### HPGe A/E resolution model defaults
+### A/E resolution model defaults
 
 An optional validity-based metadata directory providing HPGe-specific A/E
 resolution parameters. Follows the same structure and four-case logic as
@@ -519,7 +607,7 @@ used at runtime.
 
 (psdcuts-metadata-dir)=
 
-### HPGe PSD cut value defaults
+### PSD cut defaults
 
 An optional validity-based metadata directory providing HPGe-specific PSD cut
 values. Follows the same structure and four-case logic as
@@ -554,7 +642,7 @@ at runtime.
 
 (currmod-metadata-dir)=
 
-### HPGe current pulse model defaults
+### Current pulse model defaults
 
 An optional validity-based metadata directory providing HPGe-specific current
 pulse model parameters. Follows the same structure and four-case logic as
