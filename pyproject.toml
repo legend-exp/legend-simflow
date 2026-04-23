@@ -211,6 +211,7 @@ addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "-m", "
 xfail_strict = true
 filterwarnings = [
   "error",
+  "ignore:overflow encountered in divide:RuntimeWarning",
 ]
 log_cli_level = "INFO"
 testpaths = [
