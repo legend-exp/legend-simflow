@@ -29,6 +29,8 @@ from snakemake.iocontainers import Wildcards
 from . import SimflowConfig, utils
 from .exceptions import SimflowConfigError
 
+_MISSING = object()
+
 log = logging.getLogger(__name__)
 
 USABILITY_CODE = {
@@ -257,7 +259,7 @@ def simpars(
     par: str,
     runid: str,
     experiment: str,
-    default: object | None = None,
+    default: object = _MISSING,
 ) -> AttrsDict:
     """Extract simflow parameters for a certain LEGEND run.
 
@@ -291,7 +293,7 @@ def simpars(
         directory = metadata["simprod/config/pars"][experiment][par]
         return directory.on(runinfo(metadata, runid).start_key, system=datatype)
     except (KeyError, LookupError, FileNotFoundError):
-        if default is None:
+        if default is _MISSING:
             raise
         return default
 
