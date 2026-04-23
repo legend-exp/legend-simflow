@@ -61,9 +61,11 @@ rule build_tier_opt:
     params:
         optmap_per_sipm=_tier_setting("opt", "optmap_per_sipm"),
         scintillator_volume_name=_tier_setting("opt", "scintillator_volume_name"),
-        map_scaling=_tier_setting("opt", "map_scaling"),
-        photoelectron_res=_tier_setting("opt", "photoelectron_res"),
-        time_resolution_ns=_tier_setting("opt", "time_resolution_ns"),
+        optmap_scaling_factor=_tier_setting("opt", "optmap_scaling_factor"),
+        photoelectron_resolution_sigma=_tier_setting(
+            "opt", "photoelectron_resolution_sigma"
+        ),
+        time_resolution_in_ns=_tier_setting("opt", "time_resolution_in_ns"),
         max_pes_per_hit_per_sipm=_tier_setting("opt", "max_pes_per_hit_per_sipm"),
         max_pes_per_hit_combined=_tier_setting("opt", "max_pes_per_hit_combined"),
     output:
