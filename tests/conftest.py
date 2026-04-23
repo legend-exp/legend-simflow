@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import legenddataflowscripts
@@ -21,6 +22,21 @@ def legend_testdata():
     ldata = LegendTestData()
     ldata.checkout("68d8b49")
     return ldata
+
+
+@pytest.fixture(scope="session", autouse=True)
+def dummyprod_optmap(legend_testdata):
+    """Copy the real optical map from legend_testdata into dummyprod.
+
+    All configs referencing ``$_/inputs/simprod/l200cfg01-optmap-dummy.lh5``
+    find a valid LH5 file.  The file is gitignored; this fixture is the sole
+    source of truth for test runs.
+    """
+    src = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))
+    dst = testprod / "inputs/simprod/l200cfg01-optmap-dummy.lh5"
+    shutil.copy2(src, dst)
+    yield
+    dst.unlink(missing_ok=True)
 
 
 @pytest.fixture(scope="session")
