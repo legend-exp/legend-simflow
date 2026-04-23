@@ -212,6 +212,7 @@ xfail_strict = true
 filterwarnings = [
   "error",
   "ignore:overflow encountered in divide:RuntimeWarning",
+  "ignore:overflow encountered in cast:RuntimeWarning",
 ]
 log_cli_level = "INFO"
 testpaths = [

@@ -28,6 +28,7 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, utils
 from legendsimflow.partitioning import partition_simstat
+from legendsimflow.scripts import log_script_invocation
 
 
 @snakemake_compatible(
@@ -72,6 +73,7 @@ def main() -> None:
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log_script_invocation(log, "make-simstat-partition-file", parser, args)
 
     # get full simulation event statistics
     n_events = {}

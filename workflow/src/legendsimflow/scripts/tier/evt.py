@@ -34,6 +34,7 @@ from legendsimflow.metadata import (
     encode_psd_usability,
     encode_usability,
     get_tier_settings,
+    parse_runid,
 )
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
@@ -344,6 +345,18 @@ def main() -> None:
             # take them from the hit tier if available, otherwise from opt
             trigger_source = "opt" if skip_hit else "hit"
             for constant_field in ["run", "period", "evtid"]:
+                if skip_hit and constant_field in ("run", "period"):
+                    # opt TCM can be empty for events with no LAr deposit — reading
+                    # from opt would give NaN. Source run/period from the partition
+                    # runid instead, where they are always known.
+                    _, _period, _run, _ = parse_runid(runid)
+                    val = _period if constant_field == "period" else _run
+                    out_table.add_field(
+                        f"trigger/{constant_field}",
+                        Array(np.full(len(unified_tcm), val, dtype=np.float64)),
+                    )
+                    continue
+
                 data = _read_hits(tcm, trigger_source, constant_field)
 
                 # sanity check
