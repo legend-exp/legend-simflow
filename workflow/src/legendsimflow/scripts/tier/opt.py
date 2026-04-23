@@ -115,9 +115,9 @@ def main() -> None:
     hit_file, move2cfs = nersc.make_on_scratch(config, hit_file)
 
     tier_opt_settings = get_tier_settings(config, "opt")
-    map_scaling = tier_opt_settings.map_scaling
-    photoelectron_res = tier_opt_settings.photoelectron_res
-    time_resolution_ns = tier_opt_settings.time_resolution_ns
+    optmap_scaling_factor = tier_opt_settings.optmap_scaling_factor
+    photoelectron_resolution_sigma = tier_opt_settings.photoelectron_resolution_sigma
+    time_resolution_in_ns = tier_opt_settings.time_resolution_in_ns
     max_pes_per_hit = (
         tier_opt_settings.max_pes_per_hit_per_sipm
         if optmap_per_sipm
@@ -163,7 +163,7 @@ def main() -> None:
                     scint_ph,
                     optmap_lar,
                     sipm,
-                    map_scaling=map_scaling,
+                    map_scaling=optmap_scaling_factor,
                     max_pes_per_hit=max_pes_per_hit,
                 )
             if max_pes_per_hit > 0:
@@ -183,15 +183,15 @@ def main() -> None:
 
             with perf_block("photoelectron_resolution()"):
                 pe_amps_micro = reboost_utils.smear_photoelectrons(
-                    pe_times_micro, photoelectron_res
+                    pe_times_micro, photoelectron_resolution_sigma
                 )
 
-            if time_resolution_ns > 0:
+            if time_resolution_in_ns > 0:
                 with perf_block("cluster_photoelectrons()"):
                     pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
                         pe_times_micro,
                         pe_amps_micro,
-                        time_resolution_ns,
+                        time_resolution_in_ns,
                     )
             else:
                 pe_times = pe_times_micro
