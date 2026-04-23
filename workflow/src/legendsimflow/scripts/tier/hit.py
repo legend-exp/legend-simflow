@@ -412,12 +412,15 @@ def main() -> None:
 
                     # finally calculate A/E, comparable to the A/E in data
                     # corrected for energy dependence
-                    aoe = _a_max / energy
+                    # near-zero energy events produce huge aoe → overflow to inf
+                    # when scaled by 1/aoe_res; inf correctly fails the PSD cut
+                    with np.errstate(over="ignore", divide="ignore"):
+                        aoe = _a_max / energy
 
-                    # ...and A/E classifier
-                    # NOTE: we use the resolution determined from data here instead
-                    # of the intrinsic simulated ones due to noise
-                    aoe_class = (aoe - 1) / aoe_res
+                        # ...and A/E classifier
+                        # NOTE: we use the resolution determined from data here instead
+                        # of the intrinsic simulated ones due to noise
+                        aoe_class = (aoe - 1) / aoe_res
 
                     # ...and PSD flag
                     is_single_site = (aoe_class > psdcuts.aoe.low_side) & (

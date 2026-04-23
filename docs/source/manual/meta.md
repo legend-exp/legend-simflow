@@ -342,7 +342,7 @@ hpge_bulk_Rn222_to_Po214:
 
 (hit-tier-settings)=
 
-#### `simprod/config/tier/hit/{experiment}/settings.yaml` — hit tier settings
+#### `hit` tier settings
 
 A static YAML file with hit-tier-specific settings that apply to all simulations
 for a given experiment configuration. When absent, accessing any field from it
@@ -380,7 +380,7 @@ psdcuts_default:
 
 (evt-tier-settings-meta)=
 
-#### `simprod/config/tier/evt/{experiment}/settings.yaml` — evt tier settings
+#### `evt` tier settings
 
 A static YAML file with evt-tier-specific settings that apply to all simulations
 for a given experiment configuration.
