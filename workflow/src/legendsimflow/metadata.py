@@ -252,15 +252,12 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
             return f"{exp}-{period}-{prev_r}-cal"
 
 
-_MISSING = object()
-
-
 def simpars(
     metadata: LegendMetadata,
     par: str,
     runid: str,
     experiment: str,
-    default: object = _MISSING,
+    default: object | None = None,
 ) -> AttrsDict:
     """Extract simflow parameters for a certain LEGEND run.
 
@@ -294,7 +291,7 @@ def simpars(
         directory = metadata["simprod/config/pars"][experiment][par]
         return directory.on(runinfo(metadata, runid).start_key, system=datatype)
     except (KeyError, LookupError, FileNotFoundError):
-        if default is _MISSING:
+        if default is None:
             raise
         return default
 
