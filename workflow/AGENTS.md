@@ -37,6 +37,11 @@ from Snakemake and directly from the command line. Follow the pattern in
   `scripts/tier/cvt.py` for the canonical example
 - Large output files: write to scratch first via `make_on_scratch()`
   (`nersc.py`)
+- All read-only input file paths must be normalized with
+  `nersc.dvs_ro(config, path)` right after the config is loaded. This rewrites
+  `/global/...` paths to `/dvs_ro/...` on NERSC when `config.nersc.dvs_ro` is
+  enabled, and is a no-op elsewhere. Output paths must **not** be passed through
+  `dvs_ro`.
 - Add a `tier-<name>` pixi task and a test in
   `tests/scripts/test_tier_<name>.py`
 - Add profile logging in disk/compute-intensive scripts (`profile.py`)
