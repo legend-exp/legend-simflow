@@ -105,10 +105,12 @@ def main() -> None:
     geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
     spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
     buffer_len = tier_evt_settings.buffer_len
-    simstat_part_file = args.simstat_part_file
+    simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
-    usabilities = AttrsDict(load_dict(args.detector_usabilities_file))
+    usabilities = AttrsDict(
+        load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
+    )
 
     evt_file, move2cfs = nersc.make_on_scratch(config, evt_file)
 

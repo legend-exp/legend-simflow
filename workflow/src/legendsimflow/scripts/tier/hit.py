@@ -101,12 +101,14 @@ def main() -> None:
     stp_file = nersc.dvs_ro(config, args.stp_file)
     jobid = args.jobid
     hit_file = args.hit_file
-    gdml_file = args.geom_file
+    gdml_file = nersc.dvs_ro(config, args.geom_file)
     log_file = args.log_file
     metadata = config.metadata
-    simstat_part_file = args.simstat_part_file
+    simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     l200data = config.paths.get("l200data", None)
-    usabilities = AttrsDict(load_dict(args.detector_usabilities_file))
+    usabilities = AttrsDict(
+        load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
+    )
 
     # default resolutions/cuts for non-ON detectors, sourced from hit tier settings
     tier_hit_settings = get_tier_settings(config, "hit")
