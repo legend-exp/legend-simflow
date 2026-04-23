@@ -410,17 +410,17 @@ def main() -> None:
                         _a_max_true, pars.current_reso / pars.mean_aoe
                     )
 
-                    # finally calculate A/E, comparable to the A/E in data
-                    # corrected for energy dependence
-                    # near-zero energy events produce huge aoe → overflow to inf
-                    # when scaled by 1/aoe_res; inf correctly fails the PSD cut
-                    with np.errstate(over="ignore", divide="ignore"):
-                        aoe = _a_max / energy
+                    # gauss_smear floors negative-smeared energy to np.finfo(float).tiny;
+                    # dividing by that sentinel produces values that overflow float32.
+                    has_physical_energy = energy > np.finfo(np.float64).tiny
+                    aoe = ak.where(has_physical_energy, _a_max / energy, np.nan)
 
-                        # ...and A/E classifier
-                        # NOTE: we use the resolution determined from data here instead
-                        # of the intrinsic simulated ones due to noise
-                        aoe_class = (aoe - 1) / aoe_res
+                    # ...and A/E classifier
+                    # NOTE: we use the resolution determined from data here instead
+                    # of the intrinsic simulated ones due to noise
+                    aoe_class = ak.where(
+                        has_physical_energy, (aoe - 1) / aoe_res, np.nan
+                    )
 
                     # ...and PSD flag
                     is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
