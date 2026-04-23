@@ -448,6 +448,8 @@ add_random_coincidences: false
 geds_energy_thr_kev: 25
 spms_energy_thr_pe: 0
 buffer_len: "50*MB"
+skip_opt: false
+skip_hit: false
 ```
 
 - `add_random_coincidences` (bool) — when `true`, random-coincidence (RC) SiPM
@@ -458,6 +460,18 @@ buffer_len: "50*MB"
   this value are discarded.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
+- `skip_opt` (bool, default `false`) — when `true`, the `opt` (SiPM/LAr) tier is
+  skipped: the opt Snakemake rule is not run and the evt output contains only
+  HPGe data (no `spms` or `coincident/spms` tables).
+- `skip_hit` (bool, default `false`) — when `true`, the `hit` (HPGe) tier is
+  skipped: the hit Snakemake rule is not run and the evt output contains only
+  SiPM data (no `geds` or `coincident/geds` tables).
+
+:::{note}
+
+Setting both `skip_opt` and `skip_hit` to `true` simultaneously is an error.
+
+:::
 
 (cvt-tier-settings)=
 

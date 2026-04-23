@@ -68,6 +68,15 @@ def main() -> None:
 
     log.info("... reading data from %s", cvt_file)
 
+    # detect what data is available in the cvt file
+    _cvt_file_str = str(cvt_file)
+    _evt_groups = {k.removeprefix("evt/") for k in lh5.ls(_cvt_file_str, "evt/")}
+    has_geds = "geds" in _evt_groups
+    has_spms_coinc = "coincident" in _evt_groups and "spms" in {
+        k.removeprefix("evt/coincident/")
+        for k in lh5.ls(_cvt_file_str, "evt/coincident/")
+    }
+
     # a single cvt file might be large, need to iterate
     iterator = lh5.LH5Iterator(
         str(cvt_file),
@@ -85,68 +94,84 @@ def main() -> None:
 
     # 1 keV/bin over 0-6000 keV; boost-histogram only provides Double (float64) storage
     h1 = hist.new.Reg(6000, 0, 6000).Double
-    histograms = {
-        "hit": h1(),
-        "mul": h1(),
-        "mul_lar": h1(),
-        "mul_psd": h1(),
-        "mul_lar_psd": h1(),
+    histograms = {}
+    fail_histograms = {}
+
+    if has_geds:
+        histograms["hit"] = h1()
+        histograms["mul"] = h1()
+        histograms["mul_psd"] = h1()
         # 2-D: (E_min, E_max) for multiplicity-2 events
-        "mul2": hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double(),
-    }
-    fail_histograms = {
-        "lar": h1(),
-        "psd": h1(),
-    }
+        histograms["mul2"] = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
+        fail_histograms["psd"] = h1()
+
+    if has_spms_coinc:
+        histograms["mul_lar"] = h1()
+        histograms["mul_lar_psd"] = h1()
+        fail_histograms["lar"] = h1()
+
     log.info("... beginning iteration over cvt file")
 
     for chunk in iterator:
         data = chunk.view_as("ak")
 
-        # all-good-channel mask: every detector in the event must be usable
-        good_channel_mask = ak.all(data.geds.is_good_channel, axis=-1)
+        if has_geds:
+            # all-good-channel mask: every detector in the event must be usable
+            good_channel_mask = ak.all(data.geds.is_good_channel, axis=-1)
 
-        # hit: all energy deposits in good-channel events, no multiplicity requirement
-        data_hit = data[good_channel_mask]
-        histograms["hit"].fill(ak.flatten(data_hit.geds.energy))
+            # hit: all energy deposits in good-channel events, no multiplicity requirement
+            data_hit = data[good_channel_mask]
+            histograms["hit"].fill(ak.flatten(data_hit.geds.energy))
 
-        # multiplicity cut: keep only events where exactly one ON detector fired
-        data_m1 = data[(data.geds.multiplicity == 1) & good_channel_mask]
-        histograms["mul"].fill(ak.flatten(data_m1.geds.energy))
+            # multiplicity cut: keep only events where exactly one ON detector fired
+            data_m1 = data[(data.geds.multiplicity == 1) & good_channel_mask]
+            histograms["mul"].fill(ak.flatten(data_m1.geds.energy))
 
-        # LAr cut: coincident.spms is True when SiPMs detected scintillation light
-        # in liquid argon — such events are vetoed
-        data_m1_lar = data_m1[~data_m1.coincident.spms]
-        histograms["mul_lar"].fill(ak.flatten(data_m1_lar.geds.energy))
-        fail_histograms["lar"].fill(
-            ak.flatten(data_m1[data_m1.coincident.spms].geds.energy)
-        )
+            data_m1_lar = data_m1
+            if has_spms_coinc:
+                # LAr cut: coincident.spms is True when SiPMs detected scintillation light
+                # in liquid argon — such events are vetoed
+                data_m1_lar = data_m1[~data_m1.coincident.spms]
+                histograms["mul_lar"].fill(ak.flatten(data_m1_lar.geds.energy))
+                fail_histograms["lar"].fill(
+                    ak.flatten(data_m1[data_m1.coincident.spms].geds.energy)
+                )
 
-        # PSD cut: require valid PSD in data (is_good), simulated A/E observable
-        # (has_aoe), and single-site topology (is_single_site). Events where PSD is
-        # not valid or not simulated are classified as background and cut.
-        def _psd_mask(d):
-            return ak.all(
-                d.geds.psd.is_good & d.geds.psd.has_aoe & d.geds.psd.is_single_site,
-                axis=-1,
+            # PSD cut: require valid PSD in data (is_good), simulated A/E observable
+            # (has_aoe), and single-site topology (is_single_site). Events where PSD is
+            # not valid or not simulated are classified as background and cut.
+            def _psd_mask(d):
+                return ak.all(
+                    d.geds.psd.is_good & d.geds.psd.has_aoe & d.geds.psd.is_single_site,
+                    axis=-1,
+                )
+
+            histograms["mul_psd"].fill(
+                ak.flatten(data_m1[_psd_mask(data_m1)].geds.energy)
             )
 
-        histograms["mul_psd"].fill(ak.flatten(data_m1[_psd_mask(data_m1)].geds.energy))
-        histograms["mul_lar_psd"].fill(
-            ak.flatten(data_m1_lar[_psd_mask(data_m1_lar)].geds.energy)
-        )
+            if has_spms_coinc:
+                histograms["mul_lar_psd"].fill(
+                    ak.flatten(data_m1_lar[_psd_mask(data_m1_lar)].geds.energy)
+                )
 
-        # fail/psd: m1 events with valid and simulated PSD but failing single-site
-        psd_fail_mask = ak.all(
-            data_m1.geds.psd.is_good & data_m1.geds.psd.has_aoe, axis=-1
-        ) & ~_psd_mask(data_m1)
-        fail_histograms["psd"].fill(ak.flatten(data_m1[psd_fail_mask].geds.energy))
+            # fail/psd: m1 events with valid and simulated PSD but failing single-site
+            psd_fail_mask = ak.all(
+                data_m1.geds.psd.is_good & data_m1.geds.psd.has_aoe, axis=-1
+            ) & ~_psd_mask(data_m1)
+            fail_histograms["psd"].fill(ak.flatten(data_m1[psd_fail_mask].geds.energy))
 
-        # m2: events with exactly two detectors fired — fill 2D histogram with (E_low, E_high)
-        data_m2 = data[(data.geds.multiplicity == 2) & good_channel_mask]
-        histograms["mul2"].fill(
-            ak.min(data_m2.geds.energy, axis=-1), ak.max(data_m2.geds.energy, axis=-1)
-        )
+            # m2: events with exactly two detectors fired — fill 2D histogram with (E_low, E_high)
+            data_m2 = data[(data.geds.multiplicity == 2) & good_channel_mask]
+            histograms["mul2"].fill(
+                ak.min(data_m2.geds.energy, axis=-1),
+                ak.max(data_m2.geds.energy, axis=-1),
+            )
+
+        elif has_spms_coinc:
+            # no geds data but spms coincidence data exists: only fill LAr histograms
+            # (we cannot compute meaningful mul_lar without geds energy, so skip filling)
+            pass
 
     log.info("... convert histograms to lgdo")
 
@@ -160,22 +185,19 @@ def main() -> None:
         "fail/lar": "multiplicity-1 events failing the LAr veto",
         "fail/psd": "multiplicity-1 events with valid PSD failing the PSD cut",
     }
-    output = Struct(
-        {
-            name: Histogram(h, attrs={"description": _descriptions[name]})
-            for name, h in histograms.items()
-        }
-        | {
-            "fail": Struct(
-                {
-                    name: Histogram(
-                        h, attrs={"description": _descriptions[f"fail/{name}"]}
-                    )
-                    for name, h in fail_histograms.items()
-                }
-            )
-        }
-    )
+
+    output_dict = {
+        name: Histogram(h, attrs={"description": _descriptions[name]})
+        for name, h in histograms.items()
+    }
+    if fail_histograms:
+        output_dict["fail"] = Struct(
+            {
+                name: Histogram(h, attrs={"description": _descriptions[f"fail/{name}"]})
+                for name, h in fail_histograms.items()
+            }
+        )
+    output = Struct(output_dict)
     lh5.write(output, "pdf", pdf_file, wo_mode="w")
     lh5.write(
         Scalar(int(number_of_primaries)), "nr_sim_events", pdf_file, wo_mode="append"

@@ -77,6 +77,15 @@ across detector subsystems into physics events. The output table is stored under
 designed to mirror the `evt` tier of the actual LEGEND-200 data (produced by
 [pygama](https://legend-pydataobj.readthedocs.io)) as closely as possible.
 
+:::{note}
+
+The `geds/` and `coincident/geds` subtables are absent when `skip_hit: true` is
+set in the evt tier settings (HPGe tier skipped). Similarly, the `spms/` and
+`coincident/spms` subtables are absent when `skip_opt: true` is set (SiPM/LAr
+tier skipped). See {ref}`evt-tier-settings-meta` for details.
+
+:::
+
 ### `trigger/` — event metadata
 
 Constant fields identifying each event.
