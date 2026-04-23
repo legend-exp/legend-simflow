@@ -143,6 +143,195 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert _sum("pdf/fail/psd") == 1
 
 
+def _make_cvt_file_no_spms(path: Path) -> None:
+    """Write a minimal cvt LH5 file with no spms field in the coincident table.
+
+    Identical to ``_make_cvt_file`` except ``coincident`` carries only a
+    ``geds`` boolean array (no ``spms``).  This mirrors the on-disk structure
+    produced by evt.py when ``--skip-opt`` is passed.  pdf.py will see
+    ``has_spms_coinc=False`` and must omit the LAr histograms.
+    """
+    multiplicity = Array(np.array([1, 1, 1, 1, 2, 1], dtype=np.int32))
+    energy = VectorOfVectors(
+        data=[[500.0], [1000.0], [1500.0], [2000.0], [200.0, 300.0], [2500.0]]
+    )
+    is_good_channel = VectorOfVectors(
+        data=[[True], [True], [True], [True], [True, True], [True]]
+    )
+    is_good = VectorOfVectors(
+        data=[[True], [True], [False], [True], [True, True], [True]]
+    )
+    has_aoe = VectorOfVectors(
+        data=[[True], [True], [False], [True], [True, True], [False]]
+    )
+    is_single_site = VectorOfVectors(
+        data=[[True], [False], [False], [True], [True, True], [False]]
+    )
+    psd = Table(
+        col_dict={
+            "is_good": is_good,
+            "has_aoe": has_aoe,
+            "is_single_site": is_single_site,
+        }
+    )
+    geds = Table(
+        col_dict={
+            "energy": energy,
+            "is_good_channel": is_good_channel,
+            "multiplicity": multiplicity,
+            "psd": psd,
+        }
+    )
+    # coincident has only a geds flag — no spms → has_spms_coinc=False in pdf.py
+    coincident = Table(
+        col_dict={"geds": Array(np.array([True, False, True, True, False, True]))}
+    )
+    evt = Table(col_dict={"geds": geds, "coincident": coincident})
+    lh5.write(evt, "evt", path, wo_mode="write_safe")
+
+
+def _make_cvt_file_no_geds(path: Path) -> None:
+    """Write a minimal cvt LH5 file with no geds subtable.
+
+    The evt table contains only a ``coincident/spms`` boolean array.  This
+    mimics a production run with ``skip_hit: true``, where pdf.py will see
+    ``has_geds=False`` and ``has_spms_coinc=True``.
+    """
+    spms = Array(np.array([False, True, False, True, False, False]))
+    coincident = Table(col_dict={"spms": spms})
+    # no geds field at the evt level → has_geds=False
+    evt = Table(col_dict={"coincident": coincident})
+    lh5.write(evt, "evt", path, wo_mode="write_safe")
+
+
+def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
+    """With no spms coincidence data (skip_opt), LAr histograms must be absent."""
+    config_path = tmp_path / "simflow-config.yaml"
+    raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
+    raw_config["paths"]["metadata"] = str(dummyprod / "inputs")
+    config_path.write_text(yaml.safe_dump(raw_config))
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file_no_spms(cvt_file)
+
+    pdf_file = tmp_path / "pdf.lh5"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pdf",
+            "--cvt-file",
+            str(cvt_file),
+            "--pdf-file",
+            str(pdf_file),
+            "--simid",
+            _SIMID_LEGEND,
+            "--simflow-config",
+            str(config_path),
+        ],
+    )
+    pdf.main()
+
+    assert pdf_file.exists()
+
+    inner_keys = lh5.ls(pdf_file, "pdf/")
+
+    # geds-based histograms must all be present
+    for name in ("pdf/hit", "pdf/mul", "pdf/mul_psd", "pdf/mul2", "pdf/fail"):
+        assert name in inner_keys, f"'{name}' missing from pdf/; got {inner_keys}"
+
+    fail_keys = lh5.ls(pdf_file, "pdf/fail/")
+    assert "pdf/fail/psd" in fail_keys, (
+        f"'pdf/fail/psd' missing from pdf/fail/; got {fail_keys}"
+    )
+
+    # LAr histograms must be absent: no spms coincidence data was present
+    for name in ("pdf/mul_lar", "pdf/mul_lar_psd"):
+        assert name not in inner_keys, (
+            f"'{name}' should be absent when has_spms_coinc=False; got {inner_keys}"
+        )
+    assert "pdf/fail/lar" not in fail_keys, (
+        f"'pdf/fail/lar' should be absent when has_spms_coinc=False; got {fail_keys}"
+    )
+
+
+def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch):
+    """With no geds data (skip_hit), geds histograms absent; LAr histograms present with 0 counts.
+
+    pdf.py initialises mul_lar/mul_lar_psd/fail/lar whenever has_spms_coinc=True,
+    but only fills them inside the ``if has_geds:`` block.  When has_geds=False the
+    loop body takes the ``elif has_spms_coinc: pass`` branch, so all three histograms
+    are written to the output file with zero counts.
+    """
+    config_path = tmp_path / "simflow-config.yaml"
+    raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
+    raw_config["paths"]["metadata"] = str(dummyprod / "inputs")
+    config_path.write_text(yaml.safe_dump(raw_config))
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file_no_geds(cvt_file)
+
+    pdf_file = tmp_path / "pdf.lh5"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pdf",
+            "--cvt-file",
+            str(cvt_file),
+            "--pdf-file",
+            str(pdf_file),
+            "--simid",
+            _SIMID_LEGEND,
+            "--simflow-config",
+            str(config_path),
+        ],
+    )
+    pdf.main()
+
+    assert pdf_file.exists()
+
+    inner_keys = lh5.ls(pdf_file, "pdf/")
+
+    # geds-based histograms must be absent (never initialised when has_geds=False)
+    for name in ("pdf/hit", "pdf/mul", "pdf/mul_psd", "pdf/mul2"):
+        assert name not in inner_keys, (
+            f"'{name}' should be absent when has_geds=False; got {inner_keys}"
+        )
+
+    # LAr histograms must be present (initialised from has_spms_coinc=True guard)
+    for name in ("pdf/mul_lar", "pdf/mul_lar_psd"):
+        assert name in inner_keys, (
+            f"'{name}' missing from pdf/; expected when has_spms_coinc=True, got {inner_keys}"
+        )
+
+    fail_keys = lh5.ls(pdf_file, "pdf/fail/")
+    assert "pdf/fail/lar" in fail_keys, (
+        f"'pdf/fail/lar' missing from pdf/fail/; expected when has_spms_coinc=True, got {fail_keys}"
+    )
+
+    # fail/psd must be absent (needs geds data)
+    assert "pdf/fail/psd" not in fail_keys, (
+        f"'pdf/fail/psd' should be absent when has_geds=False; got {fail_keys}"
+    )
+
+    def _sum(path):
+        return lh5.read_as(path, pdf_file, "hist").sum()
+
+    # all LAr histograms were initialised but never filled → 0 counts
+    assert _sum("pdf/mul_lar") == 0, (
+        "pdf/mul_lar should have 0 counts when has_geds=False"
+    )
+    assert _sum("pdf/mul_lar_psd") == 0, (
+        "pdf/mul_lar_psd should have 0 counts when has_geds=False"
+    )
+    assert _sum("pdf/fail/lar") == 0, (
+        "pdf/fail/lar should have 0 counts when has_geds=False"
+    )
+
+
 @pytest.mark.needs_remage
 def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
     """Run the pdf script on a real cvt file produced by the full test pipeline."""

@@ -47,22 +47,32 @@ VALID_PSD = encode_psd_usability("valid")
 @snakemake_compatible(
     mapping={
         "stp_file": "input.stp_file",
-        "opt_file": "input.opt_file",
-        "hit_file": "input.hit_file",
+        "opt_file": lambda snakemake: (
+            snakemake.input.opt_file[0] if snakemake.input.opt_file else None
+        ),
+        "hit_file": lambda snakemake: (
+            snakemake.input.hit_file[0] if snakemake.input.hit_file else None
+        ),
         "simstat_part_file": "input.simstat_part_file",
         "detector_usabilities_file": "input.detector_usabilities[0]",
         "jobid": "wildcards.jobid",
         "evt_file": "output[0]",
         "log_file": "log[0]",
         "add_random_coincidences": "params.add_random_coincidences",
+        "skip_opt": "params.skip_opt",
+        "skip_hit": "params.skip_hit",
         "simflow_config": "config",
     }
 )
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the evt tier.")
     parser.add_argument("--stp-file", required=True, help="input stp tier file")
-    parser.add_argument("--opt-file", required=True, help="input opt tier file")
-    parser.add_argument("--hit-file", required=True, help="input hit tier file")
+    parser.add_argument(
+        "--opt-file", required=False, default=None, help="input opt tier file"
+    )
+    parser.add_argument(
+        "--hit-file", required=False, default=None, help="input hit tier file"
+    )
     parser.add_argument(
         "--simstat-part-file",
         required=True,
@@ -83,6 +93,18 @@ def main() -> None:
         help="add random-coincidence SiPM data from real evt files",
     )
     parser.add_argument(
+        "--skip-opt",
+        action="store_true",
+        default=False,
+        help="skip the opt (SiPM) tier; no spms table will be produced",
+    )
+    parser.add_argument(
+        "--skip-hit",
+        action="store_true",
+        default=False,
+        help="skip the hit (HPGe) tier; no geds table will be produced",
+    )
+    parser.add_argument(
         "--simflow-config",
         "--config",
         dest="simflow_config",
@@ -91,13 +113,24 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    skip_opt = args.skip_opt
+    skip_hit = args.skip_hit
+
+    if skip_opt and skip_hit:
+        parser.error("cannot set both --skip-opt and --skip-hit")
+    if not skip_opt and args.opt_file is None:
+        parser.error("--opt-file is required unless --skip-opt is set")
+    if not skip_hit and args.hit_file is None:
+        parser.error("--hit-file is required unless --skip-hit is set")
+
     config = utils.init_simflow_context(args.simflow_config, workflow=None).config
 
     stp_file = nersc.dvs_ro(config, args.stp_file)
-    hit_file = {
-        "opt": nersc.dvs_ro(config, args.opt_file),
-        "hit": nersc.dvs_ro(config, args.hit_file),
-    }
+    hit_file = {}
+    if not skip_opt:
+        hit_file["opt"] = nersc.dvs_ro(config, args.opt_file)
+    if not skip_hit:
+        hit_file["hit"] = nersc.dvs_ro(config, args.hit_file)
     evt_file = args.evt_file
     log_file = args.log_file
     metadata = config.metadata
@@ -121,29 +154,40 @@ def main() -> None:
 
     log.info("merging hit and opt TCMs")
     with perf_block("merge_tcms()"):
-        scintillator_uid = next(
-            uid
-            for uid, name in reboost_utils.get_remage_detector_uids(stp_file).items()
-            if name == "liquid_argon"
-        )
+        if skip_opt:
+            # No SiPM data: stream STP TCM directly into evt file
+            wo = "write_safe"
+            for chunk in lh5.LH5Iterator(str(stp_file), "tcm", buffer_len=buffer_len):
+                lh5.write(chunk, "tcm", str(evt_file), wo_mode=wo)
+                wo = "append"
+        else:
+            scintillator_uid = next(
+                uid
+                for uid, name in reboost_utils.get_remage_detector_uids(
+                    stp_file
+                ).items()
+                if name == "liquid_argon"
+            )
 
-        merge_stp_n_opt_tcms_to_lh5(
-            stp_file,
-            hit_file["opt"],
-            evt_file,
-            scintillator_uid=scintillator_uid,
-            buffer_len=buffer_len,
-        )
+            merge_stp_n_opt_tcms_to_lh5(
+                stp_file,
+                hit_file["opt"],
+                evt_file,
+                scintillator_uid=scintillator_uid,
+                buffer_len=buffer_len,
+            )
 
     # test that the evt tcm has the same amount of rows as the stp tcm
     if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
         msg = (
             "stp and evt tcm should have same number of rows not "
             f"stp={lh5.read_n_rows('tcm', stp_file)}, "
-            f"evt={lh5.read_n_rows('tcm', evt_file)}, "
-            f"hit={lh5.read_n_rows('tcm', hit_file['hit'])}, "
-            f"opt={lh5.read_n_rows('tcm', hit_file['opt'])}"
+            f"evt={lh5.read_n_rows('tcm', evt_file)}"
         )
+        if not skip_hit:
+            msg += f", hit={lh5.read_n_rows('tcm', hit_file['hit'])}"
+        if not skip_opt:
+            msg += f", opt={lh5.read_n_rows('tcm', hit_file['opt'])}"
         raise ValueError(msg)
 
     # get the mapping of detector name to uid
@@ -151,6 +195,9 @@ def main() -> None:
     # the hit tiers
     det2uid = {}
     for tier in ("opt", "hit"):
+        if (tier == "opt" and skip_opt) or (tier == "hit" and skip_hit):
+            det2uid[tier] = {}
+            continue
         det2uid[tier] = {
             name: uid
             for uid, name in reboost_utils.get_remage_detector_uids(
@@ -163,6 +210,9 @@ def main() -> None:
     # little helper to simplify the code below
     # TODO: move/fix in reboost
     def _read_hits(tcm_ak, tier, field):
+        if not det2uid[tier]:
+            return ak.Array([[] for _ in range(len(ak.num(tcm_ak[tier].row_in_table)))])
+
         msg = f"loading {field=} data from {tier=} (file {hit_file[tier]})"
         log.debug(msg)
 
@@ -236,10 +286,15 @@ def main() -> None:
 
         # canonical non-OFF SiPM channel UIDs for this run, in ascending order.
         # used to pad events with no edep in LAr photons
-        on_spms_uids = sorted(
-            uid
-            for det_name, uid in det2uid["opt"].items()
-            if (usabilities[runid].get(det_name) or {}).get("usability", "on") != "off"
+        on_spms_uids = (
+            sorted(
+                uid
+                for det_name, uid in det2uid["opt"].items()
+                if (usabilities[runid].get(det_name) or {}).get("usability", "on")
+                != "off"
+            )
+            if not skip_opt
+            else []
         )
 
         if add_random_coincidences:
@@ -286,18 +341,19 @@ def main() -> None:
             out_table.add_field("trigger", Table(size=len(unified_tcm)))
 
             # global fields that are constant over the full events
-            # let's take them from the hit tier
+            # take them from the hit tier if available, otherwise from opt
+            trigger_source = "opt" if skip_hit else "hit"
             for constant_field in ["run", "period", "evtid"]:
-                data = _read_hits(tcm, "hit", constant_field)
+                data = _read_hits(tcm, trigger_source, constant_field)
 
                 # sanity check
-                assert len(data) == len(tcm["hit"])
+                assert len(data) == len(tcm[trigger_source])
 
                 # replace the awkward missing values with NaN for LH5 compatibility
                 data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
                 out_table.add_field(f"trigger/{constant_field}", Array(data))
 
-            timestamp = _read_hits(tcm, "hit", "t0")
+            timestamp = _read_hits(tcm, trigger_source, "t0")
             timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
             out_table.add_field(
                 "trigger/timestamp",
@@ -306,185 +362,201 @@ def main() -> None:
 
             # HPGe table
             # ----------
-            out_table.add_field("geds", Table(size=len(unified_tcm)))
+            if not skip_hit:
+                out_table.add_field("geds", Table(size=len(unified_tcm)))
 
-            # first read usability and energy
-            usability = _read_hits(tcm, "hit", "usability")
-            psd_usability = _read_hits(tcm, "hit", "psd_usability")
-            energy = _read_hits(tcm, "hit", "energy")
+                # first read usability and energy
+                usability = _read_hits(tcm, "hit", "usability")
+                psd_usability = _read_hits(tcm, "hit", "psd_usability")
+                energy = _read_hits(tcm, "hit", "energy")
 
-            # we want to only store hits from events in ON and AC detectors and above
-            # our energy threshold
-            hitsel = (usability != OFF) & (energy > geds_energy_thr_kev)
+                # we want to only store hits from events in ON and AC detectors and above
+                # our energy threshold
+                hitsel = (usability != OFF) & (energy > geds_energy_thr_kev)
 
-            # we want to still be able to know which detectors are ON (and not AC)
-            out_table.add_field(
-                "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
-            )
-            out_table.add_field(
-                "geds/energy",
-                VectorOfVectors(
-                    ak.values_astype(energy[hitsel], np.float32), attrs={"units": "keV"}
-                ),
-            )
-            # NOTE: the energy sum does not include AC detectors
-            out_table.add_field(
-                "geds/energy_sum",
-                Array(
-                    np.asarray(
-                        ak.sum(energy[hitsel & (usability == ON)], axis=-1),
-                        dtype=np.float32,
+                # we want to still be able to know which detectors are ON (and not AC)
+                out_table.add_field(
+                    "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
+                )
+                out_table.add_field(
+                    "geds/energy",
+                    VectorOfVectors(
+                        ak.values_astype(energy[hitsel], np.float32),
+                        attrs={"units": "keV"},
                     ),
-                    attrs={"units": "keV"},
-                ),
-            )
+                )
+                # NOTE: the energy sum does not include AC detectors
+                out_table.add_field(
+                    "geds/energy_sum",
+                    Array(
+                        np.asarray(
+                            ak.sum(energy[hitsel & (usability == ON)], axis=-1),
+                            dtype=np.float32,
+                        ),
+                        attrs={"units": "keV"},
+                    ),
+                )
 
-            # fields to identify detectors and lookup stuff in the lower tiers
-            out_table.add_field(
-                "geds/rawid", VectorOfVectors(tcm["hit"].table_key[hitsel])
-            )
-            out_table.add_field(
-                "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
-            )
+                # fields to identify detectors and lookup stuff in the lower tiers
+                out_table.add_field(
+                    "geds/rawid", VectorOfVectors(tcm["hit"].table_key[hitsel])
+                )
+                out_table.add_field(
+                    "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
+                )
 
-            # PSD subtable
-            out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
-            out_table.add_field(
-                "geds/psd/is_good", VectorOfVectors(psd_usability[hitsel] == VALID_PSD)
-            )
+                # PSD subtable
+                out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
+                out_table.add_field(
+                    "geds/psd/is_good",
+                    VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
+                )
 
-            aoe = _read_hits(tcm, "hit", "aoe")
-            out_table.add_field(
-                "geds/psd/aoe",
-                VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
-            )
-            out_table.add_field(
-                "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
-            )
+                aoe = _read_hits(tcm, "hit", "aoe")
+                out_table.add_field(
+                    "geds/psd/aoe",
+                    VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
+                )
+                out_table.add_field(
+                    "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                )
 
-            is_ss = _read_hits(tcm, "hit", "is_single_site")
-            out_table.add_field(
-                "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
-            )
+                is_ss = _read_hits(tcm, "hit", "is_single_site")
+                out_table.add_field(
+                    "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
+                )
 
-            # compute multiplicity
-            geds_multiplicity = ak.sum(hitsel, axis=-1)
-            out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
+                # compute multiplicity
+                geds_multiplicity = ak.sum(hitsel, axis=-1)
+                out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
+            else:
+                geds_multiplicity = ak.Array(np.zeros(len(unified_tcm), dtype=np.int64))
 
             # SiPM table
             # ----------
-            out_table.add_field("spms", Table(size=len(unified_tcm)))
+            if not skip_opt:
+                out_table.add_field("spms", Table(size=len(unified_tcm)))
 
-            # also here, we exclude the non usable channels. this is in line with what
-            # done in the evt tier in pygama
-            usability = _read_hits(tcm, "opt", "usability")
-            energy = _read_hits(tcm, "opt", "energy")
-            chansel = usability != OFF
-            # we also discard all pulses with amplitude below threshold
-            pesel = energy > spms_energy_thr_pe
+                # also here, we exclude the non usable channels. this is in line with what
+                # done in the evt tier in pygama
+                usability = _read_hits(tcm, "opt", "usability")
+                energy = _read_hits(tcm, "opt", "energy")
+                chansel = usability != OFF
+                # we also discard all pulses with amplitude below threshold
+                pesel = energy > spms_energy_thr_pe
 
-            # in simulation the opt TCM does not record events for which there is
-            # no energy in LAr. This means that in the unified TCM these events
-            # will be characterized by spms empty arrays.  pad those events with
-            # the canonical non-OFF channel list (empty PE arrays) to match the
-            # real-data convention where all non-OFF channels are always present.
-            # NOTE: the on_spms_uids ordering must match the ordering
-            # used by non-empty events (i.e. the TCM ordering). Currently both
-            # are ascending by UID.
-            n_events = len(unified_tcm)
-            is_empty_opt = ak.num(tcm["opt"].table_key) == 0
-            rawid = ak.Array([on_spms_uids] * n_events)
+                # in simulation the opt TCM does not record events for which there is
+                # no energy in LAr. This means that in the unified TCM these events
+                # will be characterized by spms empty arrays.  pad those events with
+                # the canonical non-OFF channel list (empty PE arrays) to match the
+                # real-data convention where all non-OFF channels are always present.
+                # NOTE: the on_spms_uids ordering must match the ordering
+                # used by non-empty events (i.e. the TCM ordering). Currently both
+                # are ascending by UID.
+                n_events = len(unified_tcm)
+                is_empty_opt = ak.num(tcm["opt"].table_key) == 0
+                rawid = ak.Array([on_spms_uids] * n_events)
 
-            # rawid is the same canonical list for every event (non-empty events
-            # already carry all non-OFF channels in ascending UID order)
-            out_table.add_field("spms/rawid", VectorOfVectors(rawid))
+                # rawid is the same canonical list for every event (non-empty events
+                # already carry all non-OFF channels in ascending UID order)
+                out_table.add_field("spms/rawid", VectorOfVectors(rawid))
 
-            energy_sel = energy[pesel][chansel]
-            # fill in empty arrays for events with no LAr edep
-            empty_energy = ak.Array([[[] for _ in on_spms_uids]] * n_events)
-            energy_sel = ak.where(is_empty_opt, empty_energy, energy_sel)
-            out_table.add_field(
-                "spms/energy",
-                VectorOfVectors(ak.values_astype(energy_sel, np.float32)),
-            )
-
-            is_saturated = _read_hits(tcm, "opt", "is_saturated")
-            is_saturated_sel = is_saturated[chansel]
-            # fill in Falses for events with no LAr edep
-            empty_is_saturated = ak.Array([[False for _ in on_spms_uids]] * n_events)
-            is_saturated_sel = ak.where(
-                is_empty_opt, empty_is_saturated, is_saturated_sel
-            )
-            out_table.add_field("spms/is_saturated", VectorOfVectors(is_saturated_sel))
-
-            hit_idx = tcm["opt"].row_in_table[chansel]
-            # fill in -1 hit index for events with no LAr edep
-            empty_hit_idx = ak.Array([[-1 for _ in on_spms_uids]] * n_events)
-            hit_idx = ak.where(is_empty_opt, empty_hit_idx, hit_idx)
-            out_table.add_field("spms/hit_idx", VectorOfVectors(hit_idx))
-
-            time = _read_hits(tcm, "opt", "time")
-            time_sel = time[pesel][chansel]
-            # fill in empty arrays for events with no LAr edep
-            empty_time = ak.Array([[[] for _ in on_spms_uids]] * n_events)
-            time_sel = ak.where(is_empty_opt, empty_time, time_sel)
-            out_table.add_field(
-                "spms/time",
-                VectorOfVectors(
-                    ak.values_astype(time_sel, np.float32), attrs={"units": "ns"}
-                ),
-            )
-
-            if add_random_coincidences:
-                with perf_block("get_chunk_rc_data()"):
-                    rc_chunk = spms_pars.get_chunk_rc_data(
-                        [str(f) for f in rc_evt_files],
-                        rc_file_state,
-                        len(unified_tcm),
-                        rc_index_lookup,
-                    )
-                # FIXME: this assertion fails because we haven't thought about
-                # cases when there is a DAQ recabling without hardware changes.
-                # right now this fails with p18 because SiPMs were recabled.
-                #
-                # assert rawid alignment: RC and simulation must use the same
-                # channel ordering (both are ascending by UID)
-                # assert ak.to_list(rc_chunk.rawid[0]) == on_spms_uids, (
-                #     "RC rawid does not match simulation spms/rawid: "
-                #     f"{rc_chunk.rawid[0].to_list()} != {on_spms_uids}"
-                # )
+                energy_sel = energy[pesel][chansel]
+                # fill in empty arrays for events with no LAr edep
+                empty_energy = ak.Array([[[] for _ in on_spms_uids]] * n_events)
+                energy_sel = ak.where(is_empty_opt, empty_energy, energy_sel)
                 out_table.add_field(
-                    "spms/rc_energy",
-                    VectorOfVectors(ak.values_astype(rc_chunk.npe, np.float32)),
+                    "spms/energy",
+                    VectorOfVectors(ak.values_astype(energy_sel, np.float32)),
+                )
+
+                is_saturated = _read_hits(tcm, "opt", "is_saturated")
+                is_saturated_sel = is_saturated[chansel]
+                # fill in Falses for events with no LAr edep
+                empty_is_saturated = ak.Array(
+                    [[False for _ in on_spms_uids]] * n_events
+                )
+                is_saturated_sel = ak.where(
+                    is_empty_opt, empty_is_saturated, is_saturated_sel
                 )
                 out_table.add_field(
-                    "spms/rc_time",
+                    "spms/is_saturated", VectorOfVectors(is_saturated_sel)
+                )
+
+                hit_idx = tcm["opt"].row_in_table[chansel]
+                # fill in -1 hit index for events with no LAr edep
+                empty_hit_idx = ak.Array([[-1 for _ in on_spms_uids]] * n_events)
+                hit_idx = ak.where(is_empty_opt, empty_hit_idx, hit_idx)
+                out_table.add_field("spms/hit_idx", VectorOfVectors(hit_idx))
+
+                time = _read_hits(tcm, "opt", "time")
+                time_sel = time[pesel][chansel]
+                # fill in empty arrays for events with no LAr edep
+                empty_time = ak.Array([[[] for _ in on_spms_uids]] * n_events)
+                time_sel = ak.where(is_empty_opt, empty_time, time_sel)
+                out_table.add_field(
+                    "spms/time",
                     VectorOfVectors(
-                        ak.values_astype(rc_chunk.t0, np.float32),
-                        attrs={"units": "ns"},
+                        ak.values_astype(time_sel, np.float32), attrs={"units": "ns"}
                     ),
                 )
 
-            # total amount of light per event
-            energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
-            out_table.add_field(
-                "spms/energy_sum", Array(np.asarray(energy_sum, dtype=np.float32))
-            )
+                if add_random_coincidences:
+                    with perf_block("get_chunk_rc_data()"):
+                        rc_chunk = spms_pars.get_chunk_rc_data(
+                            [str(f) for f in rc_evt_files],
+                            rc_file_state,
+                            len(unified_tcm),
+                            rc_index_lookup,
+                        )
+                    # FIXME: this assertion fails because we haven't thought about
+                    # cases when there is a DAQ recabling without hardware changes.
+                    # right now this fails with p18 because SiPMs were recabled.
+                    #
+                    # assert rawid alignment: RC and simulation must use the same
+                    # channel ordering (both are ascending by UID)
+                    # assert ak.to_list(rc_chunk.rawid[0]) == on_spms_uids, (
+                    #     "RC rawid does not match simulation spms/rawid: "
+                    #     f"{rc_chunk.rawid[0].to_list()} != {on_spms_uids}"
+                    # )
+                    out_table.add_field(
+                        "spms/rc_energy",
+                        VectorOfVectors(ak.values_astype(rc_chunk.npe, np.float32)),
+                    )
+                    out_table.add_field(
+                        "spms/rc_time",
+                        VectorOfVectors(
+                            ak.values_astype(rc_chunk.t0, np.float32),
+                            attrs={"units": "ns"},
+                        ),
+                    )
 
-            # how many channels saw some light
-            spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
-            out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
+                # total amount of light per event
+                energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
+                out_table.add_field(
+                    "spms/energy_sum",
+                    Array(np.asarray(energy_sum, dtype=np.float32)),
+                )
+
+                # how many channels saw some light
+                spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
+                out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
+            else:
+                energy_sum = ak.Array(np.zeros(len(unified_tcm), dtype=np.float32))
+                spms_multiplicity = ak.Array(np.zeros(len(unified_tcm), dtype=np.int64))
 
             # coincidences table
             # ------------------
             out_table.add_field("coincident", Table(size=len(unified_tcm)))
 
             # is there a signal in the HPGe array?
-            out_table.add_field("coincident/geds", Array(geds_multiplicity > 0))
+            if not skip_hit:
+                out_table.add_field("coincident/geds", Array(geds_multiplicity > 0))
 
             # is there a signal in the LAr instrumentation?
-            lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
-            out_table.add_field("coincident/spms", Array(lar_veto))
+            if not skip_opt:
+                lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
+                out_table.add_field("coincident/spms", Array(lar_veto))
 
             # now write down
             with perf_block("write_chunk()"):
