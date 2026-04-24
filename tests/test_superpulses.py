@@ -1,30 +1,9 @@
-"""Tests for legendsimflow.superpulses.
-
-Covered functions
------------------
-- Slice
-- Superpulse.__init__
-- Superpulse.__repr__
-- Superpulse.to_lgdo
-- perform_data_selection
-- select_detector_events
-- select_data_in_slice
-- compute_superpulse
-- compute_chi2_vs_superpulse
-- apply_chi2_cut
-- write_superpulses_to_lh5
-
-"""
-
 from __future__ import annotations
 
 import awkward as ak
 import numpy as np
 import pytest
-from lgdo import Array as LGDOArray
-from lgdo import Scalar as LGDOScalar
-from lgdo import Struct as LGDOStruct
-from lgdo import lh5
+from lgdo import Array, Scalar, Struct, lh5
 
 from legendsimflow.superpulses import (
     Slice,
@@ -32,7 +11,6 @@ from legendsimflow.superpulses import (
     apply_chi2_cut,
     compute_chi2_vs_superpulse,
     compute_superpulse,
-    perform_data_selection,
     select_data_in_slice,
     select_detector_events,
     write_superpulses_to_lh5,
@@ -68,7 +46,7 @@ def _make_superpulse(
 
 def _make_evt_data(
     n_events=20,
-    rawids=None,
+    detector_names=None,
     hit_idxs=None,
     multiplicity=1,
     forced=False,
@@ -89,8 +67,8 @@ def _make_evt_data(
     All per-detector arrays are wrapped in a length-1 inner dimension to
     reproduce the multiplicity==1 guarantee of the real EVT tier.
     """
-    if rawids is None:
-        rawids = [[1084803]] * n_events
+    if detector_names is None:
+        detector_names = [["V03422A"]] * n_events
     if hit_idxs is None:
         hit_idxs = [[i] for i in range(n_events)]
 
@@ -103,7 +81,7 @@ def _make_evt_data(
                 "muon_offline": [muon_offline] * n_events,
             },
             "geds": {
-                "rawid": rawids,
+                "detector_name": detector_names,
                 "hit_idx": hit_idxs,
                 "multiplicity": [multiplicity] * n_events,
                 "quality": {
@@ -230,7 +208,7 @@ def test_superpulse_repr():
 def test_to_lgdo_returns_struct():
     sp = _make_superpulse()
     result = sp.to_lgdo()
-    assert isinstance(result, LGDOStruct)
+    assert isinstance(result, Struct)
 
 
 def test_to_lgdo_fields_present():
@@ -256,10 +234,10 @@ def test_to_lgdo_fields_present():
 def test_to_lgdo_array_types():
     sp = _make_superpulse()
     result = sp.to_lgdo()
-    assert isinstance(result["charge_wf"], LGDOArray)
-    assert isinstance(result["current_wf"], LGDOArray)
-    assert isinstance(result["charge_time_axis"], LGDOArray)
-    assert isinstance(result["current_time_axis"], LGDOArray)
+    assert isinstance(result["charge_wf"], Array)
+    assert isinstance(result["current_wf"], Array)
+    assert isinstance(result["charge_time_axis"], Array)
+    assert isinstance(result["current_time_axis"], Array)
 
 
 def test_to_lgdo_scalar_types():
@@ -275,7 +253,7 @@ def test_to_lgdo_scalar_types():
         "n_events_preliminary",
         "n_events_final",
     ):
-        assert isinstance(result[key], LGDOScalar), f"{key} should be LGDOScalar"
+        assert isinstance(result[key], Scalar), f"{key} should be Scalar"
 
 
 def test_to_lgdo_scalar_values():
@@ -311,126 +289,28 @@ def test_to_lgdo_waveform_values():
 
 
 # ===========================================================================
-# perform_data_selection
-# ===========================================================================
-
-
-def test_perform_data_selection_all_pass():
-    evt = _make_evt_data(n_events=10)
-    result = perform_data_selection(evt)
-    assert len(result) == 10
-
-
-def test_perform_data_selection_forced_trigger():
-    # Forced trigger events must be removed
-    evt = _make_evt_data(n_events=5, forced=True)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_pulser():
-    evt = _make_evt_data(n_events=5, puls=True)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_muon():
-    evt = _make_evt_data(n_events=5, muon=True)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_muon_offline():
-    evt = _make_evt_data(n_events=5, muon_offline=True)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_bad_channel():
-    evt = _make_evt_data(n_events=5, is_good_channel=False)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_not_bb_like():
-    evt = _make_evt_data(n_events=5, is_bb_like=False)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_multiplicity_gt_1():
-    evt = _make_evt_data(n_events=5, multiplicity=2)
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_low_spms_energy():
-    evt = _make_evt_data(n_events=5, spms_energy_sum=5.0)  # <= 10
-    result = perform_data_selection(evt)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_low_aoe_cut():
-    # low_aoe below threshold should be removed
-    evt = _make_evt_data(n_events=5, low_aoe=-5.0)
-    result = perform_data_selection(evt, aoe_low_threshold=-3.0)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_high_aoe_cut():
-    # high_aoe above threshold should be removed
-    evt = _make_evt_data(n_events=5, high_aoe=5.0)
-    result = perform_data_selection(evt, aoe_high_threshold=3.0)
-    assert len(result) == 0
-
-
-def test_perform_data_selection_mixed():
-    # 3 clean events + 2 forced triggers
-    clean = _make_evt_data(n_events=3)
-    dirty = _make_evt_data(n_events=2, forced=True)
-    evt = ak.concatenate([clean, dirty])
-    result = perform_data_selection(evt)
-    assert len(result) == 3
-
-
-def test_perform_data_selection_custom_aoe_thresholds():
-    # With a tighter threshold, even the "clean" default value (0.0) should pass
-    evt = _make_evt_data(n_events=5, low_aoe=0.0, high_aoe=0.0)
-    result = perform_data_selection(evt, aoe_low_threshold=-1.0, aoe_high_threshold=1.0)
-    assert len(result) == 5
-
-
-# ===========================================================================
 # select_detector_events
 # ===========================================================================
 
-TAB_MAP = {"V03422A": 1084803, "B00035B": 1104005}
-
 
 def test_select_detector_events_basic():
-    evt = _make_evt_data(n_events=10, rawids=[[1084803]] * 10)
-    result = select_detector_events(evt, "V03422A", TAB_MAP)
+    evt = _make_evt_data(n_events=10, detector_names=[["V03422A"]] * 10)
+    result = select_detector_events(evt, "V03422A")
     assert len(result) == 10
 
 
 def test_select_detector_events_filters_other_detector():
     # Mix 6 events for V03422A and 4 for B00035B
-    rawids = [[1084803]] * 6 + [[1104005]] * 4
-    evt = _make_evt_data(n_events=10, rawids=rawids)
-    result = select_detector_events(evt, "V03422A", TAB_MAP)
+    detector_names = [["V03422A"]] * 6 + [["B00035B"]] * 4
+    evt = _make_evt_data(n_events=10, detector_names=detector_names)
+    result = select_detector_events(evt, "V03422A")
     assert len(result) == 6
 
 
 def test_select_detector_events_none_match():
-    evt = _make_evt_data(n_events=5, rawids=[[1104005]] * 5)
-    result = select_detector_events(evt, "V03422A", TAB_MAP)
+    evt = _make_evt_data(n_events=5, detector_names=[["B00035B"]] * 5)
+    result = select_detector_events(evt, "V03422A")
     assert len(result) == 0
-
-
-def test_select_detector_events_unknown_detector():
-    evt = _make_evt_data(n_events=5)
-    with pytest.raises(KeyError):
-        select_detector_events(evt, "UNKNOWN", TAB_MAP)
 
 
 # ===========================================================================
@@ -824,7 +704,7 @@ def test_write_superpulses_lh5_structure(tmp_path):
 
     # The expected group path is V03422A/dt_900_1100_ns
     result = lh5.read("V03422A/dt_900_1100_ns", output_path)
-    assert isinstance(result, LGDOStruct)
+    assert isinstance(result, Struct)
 
 
 def test_write_superpulses_lh5_field_values(tmp_path):
@@ -862,5 +742,5 @@ def test_write_superpulses_multiple_slices(tmp_path):
     # Both groups must be present
     result1 = lh5.read("V03422A/dt_900_1100_ns", output_path)
     result2 = lh5.read("V03422A/dt_1100_1300_ns", output_path)
-    assert isinstance(result1, LGDOStruct)
-    assert isinstance(result2, LGDOStruct)
+    assert isinstance(result1, Struct)
+    assert isinstance(result2, Struct)
