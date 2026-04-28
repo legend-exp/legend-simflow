@@ -1,7 +1,7 @@
 - valid_from: 20220102T000000Z
   apply:
-    - l200-p02-r000-r002-skip.yaml
+    - l200-p02-r000-T%-all-skip.yaml
 
 - valid_from: 20220402T000000Z
   apply:
-    - l200-p02-r003plus-skip.yaml
+    - l200-p02-r003-T%-all-skip.yaml

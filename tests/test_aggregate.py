@@ -221,13 +221,13 @@ def test_psd_usability_unknown_value(config, monkeypatch, caplog):
 # skip-list tests
 # Fixtures: tests/dummyprod/inputs/simprod/config/pars/legend/geds/skip/
 #   validity.yaml:
-#     - valid_from 20220102T000000Z -> l200-p02-r000-r002-skip.yaml  (empty dict {})
-#     - valid_from 20220402T000000Z -> l200-p02-r003plus-skip.yaml  (V99000A, B99000A)
+#     - valid_from 20220102T000000Z -> l200-p02-r000-T%-all-skip.yaml  (empty dict {})
+#     - valid_from 20220402T000000Z -> l200-p02-r003-T%-all-skip.yaml  (V99000A, B99000A)
 
 
 def test_skip_list_removes_detector(config, caplog):
     """A detector listed in the skip file for a run is absent from the output."""
-    # r003 start_key 20220402T000000Z matches the r003plus-skip.yaml that lists V99000A
+    # r003 start_key 20220402T000000Z matches the r003-T%-all-skip.yaml that lists V99000A
     with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
         hpges = agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r003-phy")
     assert "V99000A" not in hpges
@@ -244,7 +244,7 @@ def test_skip_list_warns_for_valid_detector(config, caplog):
         agg.gen_list_of_hpges_valid_for_modeling(config, runid)
     warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
     assert any(
-        "V99000A" in msg and runid in msg and "broken FE preamp" in msg
+        "V99000A" in msg and runid in msg and "SSD crashes" in msg
         for msg in warnings
     )
 
@@ -271,7 +271,7 @@ def test_skip_list_time_validity_boundary(config):
 def test_skip_list_empty_mapping_is_noop(config):
     """An empty skip mapping {} leaves the HPGe list unchanged.
 
-    r000-r002 map to l200-p02-r000-r002-skip.yaml which is {}: V99000A
+    r000-r002 map to l200-p02-r000-T%-all-skip.yaml which is {}: V99000A
     must still appear in the output.
     """
     hpges = agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r000-phy")
@@ -283,7 +283,7 @@ def test_skip_list_usability_gate_takes_precedence(config, caplog):
     """A detector excluded by the usability gate is absent even if also skip-listed.
 
     B99000A has usability='off' in the channelmap (excluded before the skip
-    check) and is also listed in the r003plus skip file. It must remain absent
+    check) and is also listed in the r003-T%-all-skip file. It must remain absent
     and must NOT produce a skip-list WARNING (the usability gate fires first).
     """
     with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
