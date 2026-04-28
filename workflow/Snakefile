@@ -26,7 +26,7 @@ from legendsimflow import aggregate, nersc, utils
 
 logger.info("Initializing workflow context")
 
-SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
+SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow, logger=logger)
 config = SIMFLOW_CONTEXT.config
 
 # sanitize the make_steps field

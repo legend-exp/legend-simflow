@@ -103,7 +103,9 @@ def apply_path_defaults(paths: dict) -> None:
 
 
 def init_simflow_context(
-    raw_config: dict | AttrsDict | str | Path, workflow=None
+    raw_config: dict | AttrsDict | str | Path,
+    workflow=None,
+    logger: logging.Logger | None = None,
 ) -> AttrsDict:
     """Pre-process and sanitize the Simflow configuration.
 
@@ -127,8 +129,12 @@ def init_simflow_context(
         Snakemake workflow instance. If None, occurrences of ``$_`` in the
         configuration will be replaced with the path to the current working
         directory.
+    logger
+        Logger to use for status messages (e.g. the Snakemake logger when
+        called from a Snakefile). Defaults to the module logger.
 
     """
+    log_ = logger if logger is not None else log
     if not raw_config:
         msg = "you must set a config file with --configfile"
         raise RuntimeError(msg)
@@ -182,10 +188,14 @@ def init_simflow_context(
         metadata = LegendMetadata(config.paths.metadata, lazy=True)
 
         if "legend_metadata_version" in config:
+            log_.info(
+                "checking out legend-metadata version %s",
+                config.legend_metadata_version,
+            )
             try:
                 metadata.checkout(config.legend_metadata_version)
             except GitCommandError as e:
-                log.warning("could not checkout legend-metadata version: %s", e)
+                log_.warning("could not checkout legend-metadata version: %s", e)
 
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB
