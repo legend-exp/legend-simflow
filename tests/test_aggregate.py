@@ -244,8 +244,7 @@ def test_skip_list_warns_for_valid_detector(config, caplog):
         agg.gen_list_of_hpges_valid_for_modeling(config, runid)
     warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
     assert any(
-        "V99000A" in msg and runid in msg and "SSD crashes" in msg
-        for msg in warnings
+        "V99000A" in msg and runid in msg and "SSD crashes" in msg for msg in warnings
     )
 
 
