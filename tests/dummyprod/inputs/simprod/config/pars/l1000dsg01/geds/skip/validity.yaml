@@ -1,7 +1,3 @@
 - valid_from: 20200101T000000Z
   apply:
-    - empty-skip.yaml
-
-- valid_from: 20230318T000000Z
-  apply:
-    - l200-p03-r001plus-skip.yaml
+    - l200-p%-r%-T%-all-skip.yaml
