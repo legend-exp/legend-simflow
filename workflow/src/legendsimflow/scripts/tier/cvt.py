@@ -68,7 +68,25 @@ def main() -> None:
     if len(evt_files) == 1:
         shutil.copy(evt_files[0], cvt_file)
     else:
+        # detector_uids must be identical across all evt inputs; merging would
+        # silently mask mismatches, so assert before copying.
+        ref = lh5.read("detector_uids", evt_files[0])
+        ref_map = {name: int(ref[name].value) for name in ref}
+        for f in evt_files[1:]:
+            other = lh5.read("detector_uids", f)
+            other_map = {name: int(other[name].value) for name in other}
+            if other_map != ref_map:
+                msg = (
+                    f"detector_uids in {f} disagrees with {evt_files[0]}; "
+                    "cvt merge requires all evt inputs to share the same "
+                    "name->rawid mapping"
+                )
+                raise ValueError(msg)
+        lh5.write(ref, "detector_uids", cvt_file, wo_mode="write_safe")
+
         for table in lh5.ls(evt_files[0]):
+            if table == "detector_uids":
+                continue
             for chunk in lh5.LH5Iterator(evt_files, table, buffer_len=buffer_len):
                 lh5.write(chunk, table, cvt_file, wo_mode="append")
 

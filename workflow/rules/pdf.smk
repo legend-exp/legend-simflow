@@ -1,6 +1,9 @@
 from pathlib import Path
 
 from legendsimflow import aggregate, patterns
+from legendsimflow.metadata import get_tier_settings
+
+_pdf_settings = get_tier_settings(config, "pdf")
 
 
 rule gen_all_tier_pdf:
@@ -50,6 +53,9 @@ rule build_tier_pdf:
         "Producing output file for job pdf.{wildcards.simid}"
     input:
         cvt_file=patterns.output_tier_cvt_filename(config),
+    params:
+        # surfaced so Snakemake invalidates outputs when the regex map changes
+        detector_groups=_pdf_settings.get("detector_groups", None),
     output:
         patterns.output_tier_pdf_filename(config),
     log:

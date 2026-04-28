@@ -24,7 +24,7 @@ import legenddataflowscripts.utils
 import numpy as np
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
-from lgdo import Array, Table, VectorOfVectors, lh5
+from lgdo import Array, Scalar, Struct, Table, VectorOfVectors, lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, spms_pars, utils
@@ -577,6 +577,18 @@ def main() -> None:
                 evt_wo_mode = "append"
 
         print_stats_since_last()
+
+    # always written (empty when both skip_hit and skip_opt) so cvt can rely on
+    # a stable schema. Reboost UIDs are disjoint between systems so the union
+    # is unambiguous.
+    detector_uids = Struct(
+        {
+            name: Scalar(int(uid))
+            for tier in ("hit", "opt")
+            for name, uid in det2uid[tier].items()
+        }
+    )
+    lh5.write(detector_uids, "detector_uids", evt_file, wo_mode="append")
 
     with perf_block("move_to_cfs()"):
         move2cfs()

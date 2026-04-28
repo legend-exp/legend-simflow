@@ -1,36 +1,90 @@
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 import yaml
-from lgdo import Array, Table, VectorOfVectors, lh5
+from lgdo import Array, Scalar, Struct, Table, VectorOfVectors, lh5
 
 from legendsimflow.scripts.tier import pdf
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
 
+
+def _write_detector_uids(path: Path, names: list[str], uids: list[int]) -> None:
+    detector_uids = Struct(
+        {name: Scalar(int(uid)) for name, uid in zip(names, uids, strict=True)}
+    )
+    lh5.write(detector_uids, "detector_uids", path, wo_mode="append")
+
+
 _SIMID_LEGEND = "birds_nest_K40"
 _SIMID_L1000 = "ultem_insulators_Pb214_to_Po214"
 
 
-def _make_cvt_file(path: Path) -> None:
-    """Write a minimal cvt LH5 file with the fields expected by the pdf script.
+def _make_metadata_with_pdf_settings(tmp_path: Path, extra_pdf_settings: dict) -> Path:
+    """Copy dummyprod inputs to tmp_path and patch the pdf/legend/settings.yaml."""
+    meta_dir = tmp_path / "inputs"
+    shutil.copytree(dummyprod / "inputs", meta_dir)
+    settings_path = (
+        meta_dir / "simprod" / "config" / "tier" / "pdf" / "legend" / "settings.yaml"
+    )
+    base = yaml.safe_load(settings_path.read_text())
+    base.update(extra_pdf_settings)
+    settings_path.write_text(yaml.safe_dump(base))
+    return meta_dir
 
-    6 events:
-    - event 0: m1, 500 keV,      spms=False, PSD valid+simulated+single-site → passes all cuts
-    - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → fail/psd
-    - event 2: m1, 1500 keV,     spms=False, PSD not valid                   → cut (no observable)
-    - event 3: m1, 2000 keV,     spms=True,  PSD valid+simulated+single-site → fail/lar
-    - event 4: m2, 200+300 keV,  spms=False
-    - event 5: m1, 2500 keV,     spms=False, PSD valid+not simulated         → cut (no observable)
-    """
+
+def _run_pdf(
+    tmp_path: Path,
+    monkeypatch,
+    cvt_file: Path,
+    meta_dir: Path | None = None,
+    simid: str = _SIMID_LEGEND,
+    config_template: str = "simflow-config.yaml",
+) -> Path:
+    config_path = tmp_path / config_template
+    raw_config = yaml.safe_load((dummyprod / config_template).read_text())
+    raw_config["paths"]["metadata"] = str(meta_dir or (dummyprod / "inputs"))
+    config_path.write_text(yaml.safe_dump(raw_config))
+
+    pdf_file = tmp_path / "pdf.lh5"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pdf",
+            "--cvt-file",
+            str(cvt_file),
+            "--pdf-file",
+            str(pdf_file),
+            "--simid",
+            simid,
+            "--simflow-config",
+            str(config_path),
+        ],
+    )
+    pdf.main()
+    return pdf_file
+
+
+def _make_cvt_file(path: Path) -> None:
+    """Write a minimal cvt LH5 file with the fields expected by the pdf script."""
+    # 6 events:
+    # - event 0: m1, 500 keV,      spms=False, PSD valid+simulated+single-site → passes all cuts
+    # - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → fail/psd
+    # - event 2: m1, 1500 keV,     spms=False, PSD not valid                   → cut (no observable)
+    # - event 3: m1, 2000 keV,     spms=True,  PSD valid+simulated+single-site → fail/lar
+    # - event 4: m2, 200+300 keV,  spms=False
+    # - event 5: m1, 2500 keV,     spms=False, PSD valid+not simulated         → cut (no observable)
     multiplicity = Array(np.array([1, 1, 1, 1, 2, 1], dtype=np.int32))
     energy = VectorOfVectors(
         data=[[500.0], [1000.0], [1500.0], [2000.0], [200.0, 300.0], [2500.0]]
     )
+    rawid = VectorOfVectors(data=[[1], [1], [1], [1], [1, 2], [1]])
     is_good_channel = VectorOfVectors(
         data=[[True], [True], [True], [True], [True, True], [True]]
     )
@@ -55,6 +109,7 @@ def _make_cvt_file(path: Path) -> None:
     geds = Table(
         col_dict={
             "energy": energy,
+            "rawid": rawid,
             "is_good_channel": is_good_channel,
             "multiplicity": multiplicity,
             "psd": psd,
@@ -63,35 +118,13 @@ def _make_cvt_file(path: Path) -> None:
     coincident = Table(col_dict={"spms": spms})
     evt = Table(col_dict={"geds": geds, "coincident": coincident})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
+    _write_detector_uids(path, ["V01", "B02"], [1, 2])
 
 
 def test_pdf_script_cli(tmp_path, monkeypatch):
-    config_path = tmp_path / "simflow-config.yaml"
-    raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
-    raw_config["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path.write_text(yaml.safe_dump(raw_config))
-
     cvt_file = tmp_path / "cvt.lh5"
     _make_cvt_file(cvt_file)
-
-    pdf_file = tmp_path / "pdf.lh5"
-
-    # use a simid that exists in the dummyprod stp simconfig
-    simid = _SIMID_LEGEND
-
-    argv = [
-        "pdf",
-        "--cvt-file",
-        str(cvt_file),
-        "--pdf-file",
-        str(pdf_file),
-        "--simid",
-        simid,
-        "--simflow-config",
-        str(config_path),
-    ]
-    monkeypatch.setattr(sys, "argv", argv)
-    pdf.main()
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
 
     assert pdf_file.exists()
     root_keys = lh5.ls(pdf_file)
@@ -119,42 +152,37 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
         return lh5.read_as(path, pdf_file, "hist").sum()
 
     # 7 per-detector deposits: 5 m1 + 2 m2
-    assert _sum("pdf/hit") == 7
+    assert _sum("pdf/hit/all") == 7
 
     # 5 m1 events
-    assert _sum("pdf/mul") == 5
+    assert _sum("pdf/mul/all") == 5
 
     # event 3 (spms=True) is vetoed: 4 survive
-    assert _sum("pdf/mul_lar") == 4
+    assert _sum("pdf/mul_lar/all") == 4
 
     # events 0 and 3 pass PSD (valid+simulated+SS); events 1 (MS), 2 (invalid), 5 (not simulated) cut
-    assert _sum("pdf/mul_psd") == 2
+    assert _sum("pdf/mul_psd/all") == 2
 
     # event 3 also fails LAr, so only event 0 survives both
-    assert _sum("pdf/mul_lar_psd") == 1
+    assert _sum("pdf/mul_lar_psd/all") == 1
 
     # 1 m2 event
     assert _sum("pdf/mul2") == 1
 
     # event 3 fails LAr
-    assert _sum("pdf/fail/lar") == 1
+    assert _sum("pdf/fail/lar/all") == 1
 
     # event 1 (valid+simulated PSD, multi-site) fails PSD; event 5 (not simulated) excluded
-    assert _sum("pdf/fail/psd") == 1
+    assert _sum("pdf/fail/psd/all") == 1
 
 
 def _make_cvt_file_no_spms(path: Path) -> None:
-    """Write a minimal cvt LH5 file with no spms field in the coincident table.
-
-    Identical to ``_make_cvt_file`` except ``coincident`` carries only a
-    ``geds`` boolean array (no ``spms``).  This mirrors the on-disk structure
-    produced by evt.py when ``--skip-opt`` is passed.  pdf.py will see
-    ``has_spms_coinc=False`` and must omit the LAr histograms.
-    """
+    """Write a minimal cvt LH5 file with no spms field (mimics ``--skip-opt``)."""
     multiplicity = Array(np.array([1, 1, 1, 1, 2, 1], dtype=np.int32))
     energy = VectorOfVectors(
         data=[[500.0], [1000.0], [1500.0], [2000.0], [200.0, 300.0], [2500.0]]
     )
+    rawid = VectorOfVectors(data=[[1], [1], [1], [1], [1, 2], [1]])
     is_good_channel = VectorOfVectors(
         data=[[True], [True], [True], [True], [True, True], [True]]
     )
@@ -177,6 +205,7 @@ def _make_cvt_file_no_spms(path: Path) -> None:
     geds = Table(
         col_dict={
             "energy": energy,
+            "rawid": rawid,
             "is_good_channel": is_good_channel,
             "multiplicity": multiplicity,
             "psd": psd,
@@ -188,50 +217,25 @@ def _make_cvt_file_no_spms(path: Path) -> None:
     )
     evt = Table(col_dict={"geds": geds, "coincident": coincident})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
+    _write_detector_uids(path, ["V01", "B02"], [1, 2])
 
 
 def _make_cvt_file_no_geds(path: Path) -> None:
-    """Write a minimal cvt LH5 file with no geds subtable.
-
-    The evt table contains only a ``coincident/spms`` boolean array.  This
-    mimics a production run with ``skip_hit: true``, where pdf.py will see
-    ``has_geds=False`` and ``has_spms_coinc=True``.
-    """
+    """Write a minimal cvt LH5 file with no geds subtable (mimics ``skip_hit: true``)."""
     spms = Array(np.array([False, True, False, True, False, False]))
     coincident = Table(col_dict={"spms": spms})
     # no geds field at the evt level → has_geds=False
     evt = Table(col_dict={"coincident": coincident})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
+    # detector_uids is still present (skip_hit produces an empty mapping at evt tier)
+    _write_detector_uids(path, [], [])
 
 
 def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
     """With no spms coincidence data (skip_opt), LAr histograms must be absent."""
-    config_path = tmp_path / "simflow-config.yaml"
-    raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
-    raw_config["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path.write_text(yaml.safe_dump(raw_config))
-
     cvt_file = tmp_path / "cvt.lh5"
     _make_cvt_file_no_spms(cvt_file)
-
-    pdf_file = tmp_path / "pdf.lh5"
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "pdf",
-            "--cvt-file",
-            str(cvt_file),
-            "--pdf-file",
-            str(pdf_file),
-            "--simid",
-            _SIMID_LEGEND,
-            "--simflow-config",
-            str(config_path),
-        ],
-    )
-    pdf.main()
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
 
     assert pdf_file.exists()
 
@@ -256,40 +260,14 @@ def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
     )
 
 
-def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch):
-    """With no geds data (skip_hit), geds histograms absent; LAr histograms present with 0 counts.
-
-    pdf.py initialises mul_lar/mul_lar_psd/fail/lar whenever has_spms_coinc=True,
-    but only fills them inside the ``if has_geds:`` block.  When has_geds=False the
-    loop body takes the ``elif has_spms_coinc: pass`` branch, so all three histograms
-    are written to the output file with zero counts.
-    """
-    config_path = tmp_path / "simflow-config.yaml"
-    raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
-    raw_config["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path.write_text(yaml.safe_dump(raw_config))
-
+def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
+    """With no geds data (skip_hit), geds histograms absent; LAr histograms present with 0 counts."""
     cvt_file = tmp_path / "cvt.lh5"
     _make_cvt_file_no_geds(cvt_file)
-
-    pdf_file = tmp_path / "pdf.lh5"
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "pdf",
-            "--cvt-file",
-            str(cvt_file),
-            "--pdf-file",
-            str(pdf_file),
-            "--simid",
-            _SIMID_LEGEND,
-            "--simflow-config",
-            str(config_path),
-        ],
-    )
-    pdf.main()
+    with caplog.at_level("WARNING"):
+        pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
+    # spurious "matches no detectors" warning is suppressed when has_geds=False
+    assert "matches no detectors" not in caplog.text
 
     assert pdf_file.exists()
 
@@ -321,13 +299,13 @@ def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch):
         return lh5.read_as(path, pdf_file, "hist").sum()
 
     # all LAr histograms were initialised but never filled → 0 counts
-    assert _sum("pdf/mul_lar") == 0, (
+    assert _sum("pdf/mul_lar/all") == 0, (
         "pdf/mul_lar should have 0 counts when has_geds=False"
     )
-    assert _sum("pdf/mul_lar_psd") == 0, (
+    assert _sum("pdf/mul_lar_psd/all") == 0, (
         "pdf/mul_lar_psd should have 0 counts when has_geds=False"
     )
-    assert _sum("pdf/fail/lar") == 0, (
+    assert _sum("pdf/fail/lar/all") == 0, (
         "pdf/fail/lar should have 0 counts when has_geds=False"
     )
 
@@ -335,29 +313,13 @@ def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch):
 @pytest.mark.needs_remage
 def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
     """Run the pdf script on a real cvt file produced by the full test pipeline."""
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
-
-    pdf_file = tmp_path / "pdf.lh5"
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "pdf",
-            "--cvt-file",
-            str(legend_cvt_path),
-            "--pdf-file",
-            str(pdf_file),
-            "--simid",
-            _SIMID_L1000,
-            "--simflow-config",
-            str(config_path),
-        ],
+    pdf_file = _run_pdf(
+        tmp_path,
+        monkeypatch,
+        legend_cvt_path,
+        simid=_SIMID_L1000,
+        config_template="simflow-config-l1000.yaml",
     )
-    pdf.main()
 
     assert pdf_file.exists(), "pdf output file was not created"
 
@@ -385,9 +347,114 @@ def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
         return lh5.read_as(path, pdf_file, "hist").sum()
 
     # cut hierarchy must be non-increasing
-    n_mul = _sum("pdf/mul")
-    assert _sum("pdf/hit") >= n_mul
-    assert _sum("pdf/mul_lar") <= n_mul
-    assert _sum("pdf/mul_psd") <= n_mul
-    assert _sum("pdf/mul_lar_psd") <= _sum("pdf/mul_lar")
-    assert _sum("pdf/mul_lar_psd") <= _sum("pdf/mul_psd")
+    n_mul = _sum("pdf/mul/all")
+    assert _sum("pdf/hit/all") >= n_mul
+    assert _sum("pdf/mul_lar/all") <= n_mul
+    assert _sum("pdf/mul_psd/all") <= n_mul
+    assert _sum("pdf/mul_lar_psd/all") <= _sum("pdf/mul_lar/all")
+    assert _sum("pdf/mul_lar_psd/all") <= _sum("pdf/mul_psd/all")
+
+
+def test_pdf_detector_groups_schema(tmp_path, monkeypatch):
+    """With detector_groups configured, output has per-group and 'all' histograms for every cut."""
+    meta_dir = _make_metadata_with_pdf_settings(
+        tmp_path, {"detector_groups": {"icpc": "V.*", "bege": "B.*"}}
+    )
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file(cvt_file)
+
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    assert pdf_file.exists()
+
+    root_keys = lh5.ls(str(pdf_file))
+    assert "pdf" in root_keys
+    assert "nr_sim_events" in root_keys
+    assert "mul2" not in root_keys  # mul2 is under pdf/, not root
+
+    inner_keys = lh5.ls(str(pdf_file), "pdf/")
+    assert "pdf/mul2" in inner_keys  # global, not split by group
+
+    for cut in ("hit", "mul", "mul_lar", "mul_psd", "mul_lar_psd"):
+        assert f"pdf/{cut}" in inner_keys, f"pdf/{cut} missing"
+        cut_keys = lh5.ls(str(pdf_file), f"pdf/{cut}/")
+        for group in ("icpc", "bege", "all"):
+            assert f"pdf/{cut}/{group}" in cut_keys, (
+                f"pdf/{cut}/{group} missing; got {cut_keys}"
+            )
+
+    fail_keys = lh5.ls(str(pdf_file), "pdf/fail/")
+    for fail_cut in ("psd", "lar"):
+        assert f"pdf/fail/{fail_cut}" in fail_keys, f"pdf/fail/{fail_cut} missing"
+        fc_keys = lh5.ls(str(pdf_file), f"pdf/fail/{fail_cut}/")
+        for group in ("icpc", "bege", "all"):
+            assert f"pdf/fail/{fail_cut}/{group}" in fc_keys, (
+                f"pdf/fail/{fail_cut}/{group} missing; got {fc_keys}"
+            )
+
+
+def test_pdf_no_detector_groups_schema(tmp_path, monkeypatch):
+    """Without detector_groups, output has only 'all' histograms for every cut."""
+    meta_dir = _make_metadata_with_pdf_settings(tmp_path, {})
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file(cvt_file)
+
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    assert pdf_file.exists()
+
+    inner_keys = lh5.ls(str(pdf_file), "pdf/")
+    assert "pdf/mul2" in inner_keys
+
+    for cut in ("hit", "mul", "mul_lar", "mul_psd", "mul_lar_psd"):
+        assert f"pdf/{cut}" in inner_keys, f"pdf/{cut} missing"
+        cut_keys = lh5.ls(str(pdf_file), f"pdf/{cut}/")
+        assert f"pdf/{cut}/all" in cut_keys, f"pdf/{cut}/all missing"
+        for group in ("icpc", "bege"):
+            assert f"pdf/{cut}/{group}" not in cut_keys, (
+                f"pdf/{cut}/{group} should be absent without detector_groups; got {cut_keys}"
+            )
+
+    fail_keys = lh5.ls(str(pdf_file), "pdf/fail/")
+    for fail_cut in ("psd", "lar"):
+        assert f"pdf/fail/{fail_cut}" in fail_keys
+        fc_keys = lh5.ls(str(pdf_file), f"pdf/fail/{fail_cut}/")
+        assert f"pdf/fail/{fail_cut}/all" in fc_keys
+        for group in ("icpc", "bege"):
+            assert f"pdf/fail/{fail_cut}/{group}" not in fc_keys, (
+                f"pdf/fail/{fail_cut}/{group} should be absent without detector_groups"
+            )
+
+
+def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
+    """For non-overlapping groups that partition all detectors, sum of groups equals 'all'."""
+    meta_dir = _make_metadata_with_pdf_settings(
+        tmp_path, {"detector_groups": {"icpc": "V.*", "bege": "B.*"}}
+    )
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file(cvt_file)
+
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+
+    def _counts(path):
+        return lh5.read_as(path, str(pdf_file), "hist").values()
+
+    cuts_to_check = [
+        "hit",
+        "mul",
+        "mul_lar",
+        "mul_psd",
+        "mul_lar_psd",
+        "fail/psd",
+        "fail/lar",
+    ]
+    for cut in cuts_to_check:
+        icpc = _counts(f"pdf/{cut}/icpc")
+        bege = _counts(f"pdf/{cut}/bege")
+        all_counts = _counts(f"pdf/{cut}/all")
+        np.testing.assert_array_equal(
+            icpc + bege,
+            all_counts,
+            err_msg=f"sum(icpc + bege) != all for cut '{cut}'",
+        )

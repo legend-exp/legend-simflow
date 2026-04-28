@@ -38,6 +38,10 @@ rule build_tier_evt:
       added as `spms/rc_energy` and `spms/rc_time` (controlled by
       ``add_random_coincidences`` in ``tier/evt/{experiment}/settings.yaml``).
 
+    A top-level `detector_uids` struct mapping detector names to reboost UIDs
+    (union of hit and opt tiers) is also written, to enable downstream
+    per-group filtering in the `pdf` tier.
+
     Uses wildcards `simid` and `jobid`.
     """
     message:
