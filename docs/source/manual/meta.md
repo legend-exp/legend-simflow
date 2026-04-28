@@ -500,10 +500,23 @@ probability density functions from the concatenated event files.
 :caption: simprod/config/tier/pdf/{experiment}/settings.yaml
 
 buffer_len: "500*MB"
+
+# optional: split 1-D PDFs by detector group
+detector_groups:
+  icpc: "V.*"
+  bege: "B.*"
 ```
 
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
   usage during processing; does not affect the output.
+- `detector_groups` (mapping, optional) — maps group names to Python regex
+  strings. Each regex is matched against LEGEND-200 detector names using
+  `re.fullmatch`, so `"V.*"` selects all detectors whose names start with `V`.
+  When this key is absent, only the implicit `all` group is emitted (equivalent
+  to `detector_groups: {all: ".*"}`). Specifying `detector_groups` extends the
+  output: every named group is produced in addition to `all`, which is always
+  emitted regardless of the config. See {ref}`pdf-tier` for the resulting output
+  schema.
 
 ## `pars/` — simulation parameters
 

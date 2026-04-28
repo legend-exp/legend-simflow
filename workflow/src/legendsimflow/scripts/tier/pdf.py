@@ -16,11 +16,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import re
 
 import awkward as ak
 import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import numpy as np
 from lgdo import Histogram, Scalar, Struct, lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
@@ -77,6 +79,27 @@ def main() -> None:
         for k in lh5.ls(_cvt_file_str, "evt/coincident/")
     }
 
+    # resolve detector-group regexes against the name->uid map written at
+    # evt-tier build time; the implicit "all" group is always emitted.
+    detector_uids = lh5.read("detector_uids", str(cvt_file))
+    name_to_uid = {name: int(detector_uids[name].value) for name in detector_uids}
+
+    groups: dict[str, str] = dict(tier_pdf_settings.get("detector_groups", {}))
+    if "all" in groups:
+        log.warning(
+            "detector_groups contains an 'all' key; it will be overridden by the implicit all-detector group"
+        )
+    groups["all"] = ".*"
+
+    group_uids: dict[str, np.ndarray] = {}
+    for gname, pat in groups.items():
+        rgx = re.compile(pat)
+        matched = sorted(uid for n, uid in name_to_uid.items() if rgx.fullmatch(n))
+        # skip_hit upstream produces an empty detector_uids by design; warning would be spurious.
+        if not matched and has_geds:
+            log.warning("detector group %r matches no detectors", gname)
+        group_uids[gname] = np.asarray(matched, dtype=np.int64)
+
     # a single cvt file might be large, need to iterate
     iterator = lh5.LH5Iterator(
         str(cvt_file),
@@ -94,83 +117,118 @@ def main() -> None:
 
     # 1 keV/bin over 0-6000 keV; boost-histogram only provides Double (float64) storage
     h1 = hist.new.Reg(6000, 0, 6000).Double
-    histograms = {}
-    fail_histograms = {}
+
+    # 1-D histograms are split per detector group; mul2 stays global.
+    histograms: dict[str, dict[str, hist.Hist]] = {}
+    fail_histograms: dict[str, dict[str, hist.Hist]] = {}
+    mul2_hist = None
 
     if has_geds:
-        histograms["hit"] = h1()
-        histograms["mul"] = h1()
-        histograms["mul_psd"] = h1()
-        # 2-D: (E_min, E_max) for multiplicity-2 events
-        histograms["mul2"] = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
-        fail_histograms["psd"] = h1()
+        for cut in ("hit", "mul", "mul_psd"):
+            histograms[cut] = {g: h1() for g in groups}
+        fail_histograms["psd"] = {g: h1() for g in groups}
+        # 2-D: (E_min, E_max) for multiplicity-2 events; not split by group
+        mul2_hist = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
 
     if has_spms_coinc:
-        histograms["mul_lar"] = h1()
-        histograms["mul_lar_psd"] = h1()
-        fail_histograms["lar"] = h1()
+        for cut in ("mul_lar", "mul_lar_psd"):
+            histograms[cut] = {g: h1() for g in groups}
+        fail_histograms["lar"] = {g: h1() for g in groups}
 
     log.info("... beginning iteration over cvt file")
+
+    def _fill_per_group(
+        per_group_hists: dict[str, hist.Hist],
+        energy: ak.Array,
+        det_mask: dict[str, ak.Array],
+    ) -> None:
+        for g in groups:
+            per_group_hists[g].fill(ak.flatten(energy[det_mask[g]]))
+
+    # events without a valid or simulated A/E are classified as background (cut).
+    def _psd_mask(d: ak.Array) -> ak.Array:
+        return ak.all(
+            d.geds.psd.is_good & d.geds.psd.has_aoe & d.geds.psd.is_single_site,
+            axis=-1,
+        )
 
     for chunk in iterator:
         data = chunk.view_as("ak")
 
         if has_geds:
-            # all-good-channel mask: every detector in the event must be usable
+            # awkward 2.x has no ak.isin: build per-group masks via flatten / np.isin / unflatten.
+            counts = ak.num(data.geds.rawid)
+            flat_rawid = ak.flatten(data.geds.rawid)
+            det_in_group = {
+                g: ak.unflatten(np.isin(flat_rawid, uids), counts)
+                for g, uids in group_uids.items()
+            }
+
             good_channel_mask = ak.all(data.geds.is_good_channel, axis=-1)
 
-            # hit: all energy deposits in good-channel events, no multiplicity requirement
             data_hit = data[good_channel_mask]
-            histograms["hit"].fill(ak.flatten(data_hit.geds.energy))
+            det_hit = {g: m[good_channel_mask] for g, m in det_in_group.items()}
+            _fill_per_group(histograms["hit"], data_hit.geds.energy, det_hit)
 
-            # multiplicity cut: keep only events where exactly one ON detector fired
-            data_m1 = data[(data.geds.multiplicity == 1) & good_channel_mask]
-            histograms["mul"].fill(ak.flatten(data_m1.geds.energy))
+            m1_event_mask = (data.geds.multiplicity == 1) & good_channel_mask
+            data_m1 = data[m1_event_mask]
+            det_m1 = {g: m[m1_event_mask] for g, m in det_in_group.items()}
+            _fill_per_group(histograms["mul"], data_m1.geds.energy, det_m1)
 
             data_m1_lar = data_m1
+            det_m1_lar = det_m1
             if has_spms_coinc:
-                # LAr cut: coincident.spms is True when SiPMs detected scintillation light
-                # in liquid argon — such events are vetoed
-                data_m1_lar = data_m1[~data_m1.coincident.spms]
-                histograms["mul_lar"].fill(ak.flatten(data_m1_lar.geds.energy))
-                fail_histograms["lar"].fill(
-                    ak.flatten(data_m1[data_m1.coincident.spms].geds.energy)
+                lar_pass_m1 = ~data_m1.coincident.spms
+                data_m1_lar = data_m1[lar_pass_m1]
+                det_m1_lar = {g: m[lar_pass_m1] for g, m in det_m1.items()}
+                _fill_per_group(
+                    histograms["mul_lar"], data_m1_lar.geds.energy, det_m1_lar
                 )
 
-            # PSD cut: require valid PSD in data (is_good), simulated A/E observable
-            # (has_aoe), and single-site topology (is_single_site). Events where PSD is
-            # not valid or not simulated are classified as background and cut.
-            def _psd_mask(d):
-                return ak.all(
-                    d.geds.psd.is_good & d.geds.psd.has_aoe & d.geds.psd.is_single_site,
-                    axis=-1,
+                lar_fail_m1 = data_m1.coincident.spms
+                data_m1_lar_fail = data_m1[lar_fail_m1]
+                det_m1_lar_fail = {g: m[lar_fail_m1] for g, m in det_m1.items()}
+                _fill_per_group(
+                    fail_histograms["lar"],
+                    data_m1_lar_fail.geds.energy,
+                    det_m1_lar_fail,
                 )
 
-            histograms["mul_psd"].fill(
-                ak.flatten(data_m1[_psd_mask(data_m1)].geds.energy)
+            psd_pass_m1 = _psd_mask(data_m1)
+            data_m1_psd = data_m1[psd_pass_m1]
+            det_m1_psd = {g: m[psd_pass_m1] for g, m in det_m1.items()}
+            _fill_per_group(histograms["mul_psd"], data_m1_psd.geds.energy, det_m1_psd)
+
+            if has_spms_coinc:
+                psd_pass_m1_lar = _psd_mask(data_m1_lar)
+                data_m1_lar_psd = data_m1_lar[psd_pass_m1_lar]
+                det_m1_lar_psd = {g: m[psd_pass_m1_lar] for g, m in det_m1_lar.items()}
+                _fill_per_group(
+                    histograms["mul_lar_psd"],
+                    data_m1_lar_psd.geds.energy,
+                    det_m1_lar_psd,
+                )
+
+            psd_fail_mask = (
+                ak.all(data_m1.geds.psd.is_good & data_m1.geds.psd.has_aoe, axis=-1)
+                & ~psd_pass_m1
+            )
+            data_m1_psd_fail = data_m1[psd_fail_mask]
+            det_m1_psd_fail = {g: m[psd_fail_mask] for g, m in det_m1.items()}
+            _fill_per_group(
+                fail_histograms["psd"],
+                data_m1_psd_fail.geds.energy,
+                det_m1_psd_fail,
             )
 
-            if has_spms_coinc:
-                histograms["mul_lar_psd"].fill(
-                    ak.flatten(data_m1_lar[_psd_mask(data_m1_lar)].geds.energy)
-                )
-
-            # fail/psd: m1 events with valid and simulated PSD but failing single-site
-            psd_fail_mask = ak.all(
-                data_m1.geds.psd.is_good & data_m1.geds.psd.has_aoe, axis=-1
-            ) & ~_psd_mask(data_m1)
-            fail_histograms["psd"].fill(ak.flatten(data_m1[psd_fail_mask].geds.energy))
-
-            # m2: events with exactly two detectors fired — fill 2D histogram with (E_low, E_high)
             data_m2 = data[(data.geds.multiplicity == 2) & good_channel_mask]
-            histograms["mul2"].fill(
+            assert mul2_hist is not None
+            mul2_hist.fill(
                 ak.min(data_m2.geds.energy, axis=-1),
                 ak.max(data_m2.geds.energy, axis=-1),
             )
 
         elif has_spms_coinc:
-            # no geds data but spms coincidence data exists: only fill LAr histograms
-            # (we cannot compute meaningful mul_lar without geds energy, so skip filling)
             pass
 
     log.info("... convert histograms to lgdo")
@@ -186,16 +244,32 @@ def main() -> None:
         "fail/psd": "multiplicity-1 events with valid PSD failing the PSD cut",
     }
 
-    output_dict = {
-        name: Histogram(h, attrs={"description": _descriptions[name]})
-        for name, h in histograms.items()
+    output_dict: dict[str, Struct | Histogram] = {
+        cut: Struct(
+            {
+                g: Histogram(h, attrs={"description": _descriptions[cut]})
+                for g, h in per_group.items()
+            }
+        )
+        for cut, per_group in histograms.items()
     }
     if fail_histograms:
         output_dict["fail"] = Struct(
             {
-                name: Histogram(h, attrs={"description": _descriptions[f"fail/{name}"]})
-                for name, h in fail_histograms.items()
+                cut: Struct(
+                    {
+                        g: Histogram(
+                            h, attrs={"description": _descriptions[f"fail/{cut}"]}
+                        )
+                        for g, h in per_group.items()
+                    }
+                )
+                for cut, per_group in fail_histograms.items()
             }
+        )
+    if mul2_hist is not None:
+        output_dict["mul2"] = Histogram(
+            mul2_hist, attrs={"description": _descriptions["mul2"]}
         )
     output = Struct(output_dict)
     lh5.write(output, "pdf", pdf_file, wo_mode="w")
