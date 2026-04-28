@@ -53,6 +53,8 @@ wildcard_constraints:
 onstart:
     utils.setup_logdir_link(config)
 
+    utils.link_external_paths(config, workflow.basedir, logger=logger)
+
     logger.info("Starting workflow")
 
 
