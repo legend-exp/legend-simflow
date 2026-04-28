@@ -81,6 +81,15 @@ four-case logic as {ref}`hpge-eresmod-extraction`, but cases 3 and 4 bypass
 waveform fitting entirely and do not need `l200data`. The metadata directory is
 described in {ref}`currmod-metadata-dir`.
 
+### Manual HPGe skip-list
+
+In addition to the automatic exclusions performed by
+`gen_list_of_hpges_valid_for_modeling` (usability `on` + valid crystal metadata
+required), individual detectors can be removed from the modelable HPGe list for
+a given set of runs via the {ref}`skip-metadata-dir` directory. A WARNING is
+emitted for each skipped detector, including the reason string and the run
+identifier.
+
 ## `opt` — optical hit building
 
 :::{todo}
@@ -117,7 +126,10 @@ are unavailable for that detector (e.g. a known hardware issue). Similarly, a
 detector missing a drift-time map or current pulse model cannot have its PSD
 response simulated at all — the PSD output columns are filled with NaN in that
 case. Both situations fall back to the default A/E resolution and PSD cuts
-rather than raising a hard error.
+rather than raising a hard error. A detector listed in the
+{ref}`skip-metadata-dir` directory is treated identically: it has no drift-time
+map or current pulse model and therefore follows the same NaN PSD output /
+fallback A/E resolution and PSD cuts path, with no hard error.
 
 :::
 

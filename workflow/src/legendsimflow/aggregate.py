@@ -169,6 +169,12 @@ def gen_list_of_hpges_valid_for_modeling(
     channelmap, then checks if in the crystal metadata there's all the
     information required to generate a drift time map etc.
 
+    Detectors listed in the validity-based metadata directory
+    ``simprod/config/pars/{experiment}/geds/skip/`` for the given `runid` are
+    additionally excluded from the result. The skip list is a mapping
+    ``{detector_name: reason}``; a WARNING is logged for each skipped
+    detector. A missing directory or empty mapping is a no-op.
+
     Warning
     -------
     This function is expensive in terms of filesystem I/O! Do not call it
@@ -179,10 +185,18 @@ def gen_list_of_hpges_valid_for_modeling(
     metadata = config.metadata
     chmap = metadata.channelmap(timestamp, skip_version_check=True)
 
+    skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
+
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
         # we don't model detectors that are OFF or AC
         if chmap[hpge.name].analysis.usability != "on":
+            continue
+
+        if hpge.name in skip:
+            reason = skip[hpge.name]
+            msg = f"skipping {hpge.name} in {runid} (manual skip-list): {reason}"
+            log.warning(msg)
             continue
 
         m = crystal_meta(

@@ -706,3 +706,33 @@ Each entry must contain:
 
 See {ref}`hpge-currmod-extraction` for a description of how these files are used
 at runtime.
+
+(skip-metadata-dir)=
+
+### Manual HPGe skip-list
+
+An optional validity-based metadata directory listing HPGe detectors that should
+be excluded from drift-time map and current pulse model generation, regardless
+of their status in the channel map.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/skip/l200-p03-r%-T%-all-skip.yaml
+
+V02160A: "broken impurity profile in legend-metadata"
+B00091B: "asymmetric geometry not yet supported"
+```
+
+Each entry is a mapping of detector name (as it appears in the channel map, e.g.
+`V02160A`) to a free-form reason string describing why the detector is excluded.
+The reason is written to the workflow log as a WARNING when the skip is applied.
+
+Detectors listed here are removed from the "modelable" HPGe list for the
+matching runs. They will not get a drift-time map nor a current pulse model
+produced. The validity rules are the same as those of the other `geds/`
+parameter directories (see {ref}`eresmod-metadata-dir`).
+
+A detector that is manually skipped is treated identically to one that lacks a
+drift-time map or current pulse model for any other reason: PSD output columns
+are filled with NaN and the fallback A/E resolution and PSD cuts
+(`aoeresmod_default` / `psdcuts_default`) are used. No hard error is raised. See
+{ref}`build-tier-hit-hpge` for the full fallback policy.
