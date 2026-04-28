@@ -32,6 +32,7 @@ import h5py
 import legenddataflowscripts as ldfs
 import lgdo
 import numpy as np
+import yaml
 from dbetto import AttrsDict, TextDB
 from git.exc import GitCommandError
 from legendmeta import LegendMetadata
@@ -100,6 +101,129 @@ def apply_path_defaults(paths: dict) -> None:
         paths["geom"] = paths["pars"] / "geom"
     if "dtmaps" not in paths:
         paths["dtmaps"] = paths["pars"] / "hpge/dtmaps"
+
+
+def link_external_paths(
+    config: AttrsDict,
+    workflow_basedir: str | Path,
+    *,
+    logger: logging.Logger | None = None,
+) -> None:
+    """Symlink user-overridden paths back into their default locations.
+
+    When the user has manually overridden a ``paths.<key>`` entry in
+    ``simflow-config.yaml`` to point outside the current production cycle
+    (e.g. reusing the ``hit`` tier from another production), this function
+    creates a symlink at the canonical default location pointing to the
+    override. Snakemake rules keep reading ``config.paths.<key>``
+    directly; the symlink only exists so the prod cycle's own
+    ``generated/`` tree shows the external data in the standard layout.
+
+    The default locations are computed from the simflow's own template at
+    ``<workflow_basedir>/../templates/default.yaml``, with ``$_``
+    substituted to the current working directory (the prod cycle root in
+    the standard Snakemake invocation). Created symlinks are relative to
+    the destination's parent, keeping the prod cycle portable.
+
+    For each supported key:
+
+    - if ``config.paths.<key>`` resolves to the default location, no
+      override is in effect; any stale symlink at that location is removed;
+    - otherwise a symlink is created (or refreshed) at the default
+      location pointing to ``config.paths.<key>``.
+
+    Real directories at the default location are never touched. The call
+    is a safe no-op when ``<workflow_basedir>/../templates/default.yaml``
+    does not exist.
+
+    Supported keys (relative to ``paths``): every ``tier.<name>``,
+    ``pars``, ``macros``, ``geom`` and ``dtmaps``. Default paths for
+    ``geom`` and ``dtmaps`` fall back to ``<pars>/geom`` and
+    ``<pars>/hpge/dtmaps`` when absent from the template (mirroring
+    :func:`apply_path_defaults`).
+
+    Parameters
+    ----------
+    config
+        Simflow configuration as returned by :func:`init_simflow_context`.
+    workflow_basedir
+        Snakemake workflow basedir (``workflow.basedir`` in a Snakefile).
+        Used only to locate the simflow's default template.
+    logger
+        Logger to use for status messages (e.g. the Snakemake logger when
+        called from a Snakefile). Defaults to the module logger.
+
+    """
+    log_ = logger if logger is not None else log
+    template = Path(workflow_basedir).parent / "templates" / "default.yaml"
+    if not template.is_file():
+        return
+
+    default_cfg = yaml.safe_load(template.read_text())
+    if not isinstance(default_cfg, dict):
+        return
+    ldfs.subst_vars(
+        default_cfg,
+        var_values={"_": str(Path.cwd().resolve())},
+        ignore_missing=True,
+    )
+    default_paths_d = default_cfg.get("paths", {})
+    # mirrors apply_path_defaults() — geom/dtmaps are commented out by default
+    if "pars" in default_paths_d:
+        default_paths_d.setdefault("geom", str(Path(default_paths_d["pars"]) / "geom"))
+        default_paths_d.setdefault(
+            "dtmaps", str(Path(default_paths_d["pars"]) / "hpge/dtmaps")
+        )
+
+    candidates: list[tuple[Any, Any]] = []
+    for tier_name, current in config.paths.get("tier", {}).items():
+        candidates.append((current, (default_paths_d.get("tier") or {}).get(tier_name)))
+    for key in ("pars", "macros", "geom", "dtmaps"):
+        if key in config.paths:
+            candidates.append((config.paths[key], default_paths_d.get(key)))
+
+    for current_str, default_str in candidates:
+        if default_str is None:
+            continue
+        current = Path(current_str)
+        default = Path(default_str)
+
+        # compare absolute paths without resolving symlinks: otherwise a
+        # symlink we just installed at `default` would make resolve() equal
+        # current and look like a "no override".
+        # `os.path.abspath` (not Path.resolve) on purpose: don't follow symlinks
+        if os.path.abspath(current) == os.path.abspath(default):  # noqa: PTH100
+            if default.is_symlink():
+                default.unlink()
+            continue
+
+        # current path is an override: ensure a symlink at the default points to it
+        if default.is_symlink():
+            if (default.parent / default.readlink()).resolve() == current.resolve():
+                continue
+            default.unlink()
+        elif default.exists():
+            log_.warning(
+                "%s is an existing non-symlink path; ignoring override -> %s",
+                default,
+                current,
+            )
+            continue
+
+        if not current.exists():
+            log_.warning(
+                "override target %s does not exist; %s will be a broken symlink",
+                current,
+                default,
+            )
+        elif not current.is_dir():
+            log_.warning(
+                "override target %s is not a directory; linking anyway", current
+            )
+
+        rel = Path(os.path.relpath(current, start=default.parent))
+        default.parent.mkdir(parents=True, exist_ok=True)
+        default.symlink_to(rel, target_is_directory=True)
 
 
 def init_simflow_context(
