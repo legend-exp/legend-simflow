@@ -13,6 +13,7 @@ Conventions
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -494,104 +495,62 @@ def select_data_in_slice(
 # ---------------------------------------------------------------------------
 
 
-def get_charge_and_current_wfs_for_slice(  ### Check entire function
+def get_charge_and_current_wfs_for_slice(
     raw_file: Path | str,
     lh5_group: str,
     indices: list[int],
     dsp_config: Path | str,
-    charge_output: str = "wf_blsub",  ### What parameter should I use?? This? Or wf_av? Others?
-    current_output: str = "curr_av",  ### What parameter should I use??
+    charge_output: str = "wf_pz_win",
+    current_output: str = "curr_av",
     align: str = "tp_aoe_max",
 ) -> tuple[
     np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None
 ]:
     """
-    Extract aligned charge and current waveforms for a set of slice events, using the DSP processing chain via ``WaveformBrowser``.
+    Extract aligned charge and current waveforms for a set of slice events.
 
-    A single ``WaveformBrowser`` instance is created for the file, with both
-    ``charge_output`` and ``current_output`` requested as ``lines``. The full
-    set of raw-tier row indices is passed as ``entry_list`` at construction
-    time so that the browser maps them correctly to its internal buffer.
-    Events are then iterated by local position (0, 1, 2, …) via
-    ``find_entry`` and the processed waveforms are extracted from the
-    browser's internal ``Line2D`` objects and stacked into arrays.
-
-    The ``dsp_config`` and ``lh5_group`` required by this function can be
-    obtained from ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``, which
-    resolves both from the L200 data production directory given a run ID and
-    detector name. The ``indices`` correspond to the raw-tier row indices for
-    the slice events, obtained from ``det_evt_data.geds.hit_idx`` after
-    ``select_data_in_slice``.
+    Uses the DSP processing chain via ``WaveformBrowser``. After alignment each
+    event has the same sampling rate and number of samples but a different
+    x-offset. This function collects all events, finds the overlapping time
+    region, and trims every waveform to that common window.
 
     Parameters
     ----------
     raw_file : Path or str
-        Path to the raw-tier LH5 file containing the waveforms.
+        Path to the raw-tier LH5 file.
     lh5_group : str
         HDF5 group containing the waveform table, e.g. ``"ch1084803/raw"``.
     indices : list[int]
-        Raw-tier row indices of the slice events to extract. These must all
-        belong to ``raw_file``. Passed as ``entry_list`` to
-        ``WaveformBrowser`` so that the browser can resolve them against its
-        internal buffer; iteration then uses local positions 0, 1, 2, …
+        Raw-tier row indices of the slice events.
     dsp_config : Path or str
-        Path to the production DSP configuration JSON file defining the
-        processing chain. Returned as ``dsp_cfg_file`` by
-        ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``.
+        Path to the production DSP configuration JSON file.
     charge_output : str, optional
-        Name of the DSP output corresponding to the baseline-subtracted charge
-        waveform. Default ``"wf_blsub"``.
+        DSP output name for the charge waveform.
     current_output : str, optional
-        Name of the DSP output corresponding to the MWA'd current waveform.
-        Default ``"curr_av"``.
+        DSP output name for the current waveform.
     align : str, optional
-        Name of the DSP parameter used to align waveforms on the time axis.
-        Default ``"tp_aoe_max"``.
+        DSP parameter used to align waveforms on the time axis.
 
     Returns
     -------
     charge_times : np.ndarray
-        1D array of shape ``(n_charge_samples,)`` in ns. Time axis for the
-        charge waveforms, aligned so that ``tp_aoe_max = 0``.
+        Common time axis for charge waveforms, shape ``(n_common_charge,)``.
     current_times : np.ndarray
-        1D array of shape ``(n_current_samples,)`` in ns. Time axis for the
-        current waveforms, aligned so that ``tp_aoe_max = 0``.
+        Common time axis for current waveforms, shape ``(n_common_current,)``.
     charge_wfs : np.ndarray
-        2D array of shape ``(n_valid_events, n_charge_samples)``.
-        Baseline-subtracted charge waveforms, normalised by ``cuspEmax`` so
-        the plateau equals 1, aligned to ``tp_aoe_max``.
+        Trimmed charge waveforms, shape ``(n_valid, n_common_charge)``.
     current_wfs : np.ndarray
-        2D array of shape ``(n_valid_events, n_current_samples)``. MWA'd
-        current waveforms aligned to ``tp_aoe_max``.
+        Trimmed current waveforms, shape ``(n_valid, n_common_current)``.
     bl_std : np.ndarray or None
-        1D array of shape ``(n_valid_events,)`` with the baseline standard
-        deviation (in ADC units) for each event, as computed by the DSP chain.
-        ``None`` if the DSP chain does not provide ``bl_std``.
-        Used downstream by ``compute_chi2_vs_superpulse`` to estimate the
-        per-event noise: ``sigma = bl_std / cuspEmax``.
+        Baseline std (ADC) per event, shape ``(n_valid,)``.
     cuspEmax : np.ndarray or None
-        1D array of shape ``(n_valid_events,)`` with the energy estimator
-        (in ADC units) for each event. ``None`` if the DSP chain does not
-        provide ``cuspEmax``. Needed alongside ``bl_std`` to compute the
-        normalised noise estimate.
-
-    Notes
-    -----
-    Both ``bl_std`` and ``cuspEmax`` are retrieved via the browser's
-    ``legend`` mechanism as scalar DSP outputs. Since ``WaveformBrowser``
-    wraps them as ``pint.Quantity`` objects, their numeric values are
-    extracted via ``.magnitude``.
-
-    Events for which the browser returns NaN-valued waveforms are dropped.
-    The returned arrays contain only valid events.
+        Energy estimator (ADC) per event, shape ``(n_valid,)``.
 
     Raises
     ------
     ValueError
-        If ``indices`` is empty or no valid waveforms are found across all
-        ``indices``.
+        If ``indices`` is empty or no valid waveforms are found.
     """
-    # HACK: deferred import to avoid pint unit registry conflict at module level
     from dspeed.vis import WaveformBrowser  # noqa: PLC0415
 
     if not indices:
@@ -607,102 +566,94 @@ def get_charge_and_current_wfs_for_slice(  ### Check entire function
         norm="cuspEmax",
         align=align,
         legend=["{bl_std}", "{cuspEmax}"],
+        n_drawn=len(indices),
     )
 
-    charge_list: list[np.ndarray] = []
-    current_list: list[np.ndarray] = []
-    bl_std_list: list[float] = []
-    cuspEmax_list: list[float] = []
-    charge_times = None
-    current_times = None
+    browser.find_next(n_wfs=len(indices), append=False)
 
-    for local_idx in range(len(indices)):
-        browser.find_entry(local_idx, append=False)
+    charge_lines = browser.lines.get(charge_output, [])
+    current_lines = browser.lines.get(current_output, [])
 
-        charge_lines = browser.lines[charge_output]
-        current_lines = browser.lines[current_output]
+    if not charge_lines or not current_lines:
+        msg = f"no waveforms returned from {raw_file}"
+        raise ValueError(msg)
 
-        if len(charge_lines) == 0 or len(current_lines) == 0:
-            log.debug(
-                "entry %d (row %d): no waveform returned, skipping",
-                local_idx,
-                indices[local_idx],
-            )
-            continue
+    bl_std_vals = browser.legend_vals.get("bl_std", [])
+    cuspEmax_vals = browser.legend_vals.get("cuspEmax", [])
 
-        charge_y = charge_lines[0].get_ydata()
-        current_y = current_lines[0].get_ydata()
-
-        # Extract the specific X-axis for this event
-        this_charge_x = charge_lines[0].get_xdata()
-        this_current_x = current_lines[0].get_xdata()
+    # First pass: collect valid events with their x- and y-data
+    valid = []
+    for i, (cl, il) in enumerate(zip(charge_lines, current_lines, strict=True)):
+        charge_y = cl.get_ydata()
+        current_y = il.get_ydata()
 
         if np.any(np.isnan(charge_y)) or np.any(np.isnan(current_y)):
-            log.debug(
-                "entry %d (row %d): NaN in waveform, skipping",
-                local_idx,
-                indices[local_idx],
-            )
+            log.debug("event %d: NaN in waveform, skipping", i)
             continue
 
-        ### Charge: Trust WaveformBrowser ??
-        this_charge_x = charge_lines[0].get_xdata()
+        entry = {
+            "charge_x": cl.get_xdata(),
+            "charge_y": charge_y,
+            "current_x": il.get_xdata(),
+            "current_y": current_y,
+        }
+        if bl_std_vals and cuspEmax_vals:
+            entry["bl_std"] = float(bl_std_vals[i].magnitude)
+            entry["cuspEmax"] = float(cuspEmax_vals[i].magnitude)
 
-        ### Current: Manually reconstruct the X-axis to force alignment ??
-        # We know the sampling rate is exactly 1 ns. We force the peak to sit at 0 ns.
-        peak_idx = np.nanargmax(current_y)
-        this_current_x = np.arange(len(current_y), dtype=float) - peak_idx
+        valid.append(entry)
 
-        # Capture the master grids on the first valid event
-        if charge_times is None:
-            charge_times = this_charge_x.copy()
-        if current_times is None:
-            # Create a master grid for the current (-2000 ns to +2000 ns) to ensure all slices across the entire detector share the exact same X-axis.
-            current_times = np.arange(-2000.0, 2000.0, 1.0)
-
-        # Interpolate this event's Y-values onto the master grids
-        charge_y_aligned = np.interp(
-            charge_times, this_charge_x, charge_y, left=np.nan, right=np.nan
-        )
-        current_y_aligned = np.interp(
-            current_times, this_current_x, current_y, left=np.nan, right=np.nan
-        )
-
-        bl_std_vals = browser.legend_vals.get("bl_std", [])
-        cuspEmax_vals = browser.legend_vals.get("cuspEmax", [])
-
-        if not bl_std_vals or not cuspEmax_vals:
-            log.debug(
-                "entry %d (row %d): missing legend values (bl_std=%s, cuspEmax=%s), skipping",
-                local_idx,
-                indices[local_idx],
-                bool(bl_std_vals),
-                bool(cuspEmax_vals),
-            )
-            continue
-
-        charge_list.append(charge_y_aligned)
-        current_list.append(current_y_aligned)
-        bl_std_list.append(float(bl_std_vals[0].magnitude))
-        cuspEmax_list.append(float(cuspEmax_vals[0].magnitude))
-
-    if not charge_list:
+    if not valid:
         msg = f"no valid waveforms found in {raw_file} for {len(indices)} indices"
         raise ValueError(msg)
 
+    # Find the common time window (max of left edges, min of right edges)
+    charge_t_min = max(e["charge_x"][0] for e in valid)
+    charge_t_max = min(e["charge_x"][-1] for e in valid)
+    current_t_min = max(e["current_x"][0] for e in valid)
+    current_t_max = min(e["current_x"][-1] for e in valid)
+
+    # Trim each event to the common window
+    charge_list = []
+    current_list = []
+    bl_std_list = []
+    cuspEmax_list = []
+
+    for e in valid:
+        c_mask = (e["charge_x"] >= charge_t_min) & (e["charge_x"] <= charge_t_max)
+        i_mask = (e["current_x"] >= current_t_min) & (e["current_x"] <= current_t_max)
+
+        charge_list.append(e["charge_y"][c_mask])
+        current_list.append(e["current_y"][i_mask])
+
+        if "bl_std" in e:
+            bl_std_list.append(e["bl_std"])
+            cuspEmax_list.append(e["cuspEmax"])
+
+    # Common time axes from the first event's trimmed region
+    e0 = valid[0]
+    charge_times = e0["charge_x"][
+        (e0["charge_x"] >= charge_t_min) & (e0["charge_x"] <= charge_t_max)
+    ]
+    current_times = e0["current_x"][
+        (e0["current_x"] >= current_t_min) & (e0["current_x"] <= current_t_max)
+    ]
+
     log.debug(
         "extracted %d/%d valid waveforms from %s",
-        len(charge_list),
+        len(valid),
         len(indices),
         Path(raw_file).name,
     )
 
-    charge_wfs = np.array(charge_list)
-    current_wfs = np.array(current_list)
-    bl_std = np.array(bl_std_list) if bl_std_list else None
-    cuspEmax = np.array(cuspEmax_list) if cuspEmax_list else None
-
-    return charge_times, current_times, charge_wfs, current_wfs, bl_std, cuspEmax
+    return (
+        charge_times,
+        current_times,
+        np.array(charge_list),
+        np.array(current_list),
+        np.array(bl_std_list) if bl_std_list else None,
+        np.array(cuspEmax_list) if cuspEmax_list else None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -911,6 +862,121 @@ def apply_chi2_cut(
 # ---------------------------------------------------------------------------
 
 
+def trim_and_stack(
+    times_list: list[np.ndarray], wfs_list: list[np.ndarray]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Find the common time window across multiple arrays, trim, and stack them."""
+    tmin = max(t[0] for t in times_list)
+    tmax = min(t[-1] for t in times_list)
+
+    masks = [(t >= tmin) & (t <= tmax) for t in times_list]
+
+    # Enforce minimum length to handle ±1 sample sub-grid alignment shifts
+    nmin = min(m.sum() for m in masks)
+
+    stacked_wfs = np.concatenate(
+        [w[:, np.where(m)[0][:nmin]] for m, w in zip(masks, wfs_list, strict=True)],
+        axis=0,
+    )
+
+    common_times = times_list[0][np.where(masks[0])[0][:nmin]]
+
+    return common_times, stacked_wfs
+
+
+def accumulate_wfs_for_slice(
+    slice: Slice,
+    detector: str,
+    tab_map: dict[str, int],
+    evt_files: list[str],
+    dsp_files: list[str],
+    raw_files: list[str],
+    dsp_config: Path | str,
+    dsp_fields: list[str],
+    start_file_idx: int = 0,
+    n_target: int = 150,
+    charge_output: str = "wf_pz_win",
+    current_output: str = "curr_av",
+    align: str = "tp_aoe_max",
+) -> tuple[
+    np.ndarray | None,
+    np.ndarray | None,
+    np.ndarray | None,
+    np.ndarray | None,
+    np.ndarray | None,
+    np.ndarray | None,
+    int,
+]:
+    """Accumulate aligned waveforms for one slice, dynamically trimming to a global time window."""
+    if not (len(evt_files) == len(dsp_files) == len(raw_files)):
+        msg = "File lists must have equal lengths."
+        raise RuntimeError(msg)
+    if detector not in tab_map:
+        msg = f"Unknown detector {detector!r}"
+        raise KeyError(msg)
+
+    lh5_group = f"ch{tab_map[detector]}/raw"
+    c_times, i_times, c_wfs, i_wfs, bl_stds, cusps = [], [], [], [], [], []
+
+    next_idx = start_file_idx
+    for file_idx in range(start_file_idx, len(evt_files)):
+        try:
+            evt_data = read_and_select_evt_data(evt_files[file_idx])
+            det_data = select_detector_events(evt_data, detector)
+            if len(det_data) == 0:
+                continue
+
+            det_data = add_dsp_pars_to_evt(
+                det_data, dsp_files[file_idx], tab_map, dsp_fields
+            )
+            slice_data = select_data_in_slice(det_data, slice)
+            if len(slice_data) == 0:
+                continue
+
+            ct, it, cw, iw, bl, ce = get_charge_and_current_wfs_for_slice(
+                raw_file=raw_files[file_idx],
+                lh5_group=lh5_group,
+                indices=ak.flatten(slice_data.geds.hit_idx).to_list(),
+                dsp_config=dsp_config,
+                charge_output=charge_output,
+                current_output=current_output,
+                align=align,
+            )
+
+            c_times.append(ct)
+            i_times.append(it)
+            c_wfs.append(cw)
+            i_wfs.append(iw)
+            if bl is not None:
+                bl_stds.append(bl)
+            if ce is not None:
+                cusps.append(ce)
+
+        except ValueError:
+            log.debug("File %d: No valid waveforms extracted.", file_idx)
+            continue
+        finally:
+            next_idx = file_idx + 1
+
+        # Check target quota
+        if sum(len(c) for c in c_wfs) >= n_target:
+            break
+
+    # Return Nones if no valid waveforms were found at all
+    if not c_wfs:
+        return None, None, None, None, None, None, next_idx
+
+    c_common, c_stack = trim_and_stack(c_times, c_wfs)
+    i_common, i_stack = trim_and_stack(i_times, i_wfs)
+
+    bl_stack = np.concatenate(bl_stds) if bl_stds else None
+    ce_stack = np.concatenate(cusps) if cusps else None
+
+    log.info("%s | %s | Accumulated %d waveforms.", detector, slice, len(c_stack))
+
+    return c_common, i_common, c_stack, i_stack, bl_stack, ce_stack, next_idx
+
+
 def build_superpulse_for_slice(
     slice: Slice,
     detector: str,
@@ -922,239 +988,73 @@ def build_superpulse_for_slice(
     dsp_fields: list[str],
     n_target_wfs: int = 100,
     chi2_threshold: float = 3.0,
-    charge_output: str = "wf_blsub",
+    charge_output: str = "wf_pz_win",
     current_output: str = "curr_av",
     align: str = "tp_aoe_max",
 ) -> Superpulse:
     """
-    Build the final superpulse for one slice using an adaptive two-phase loop.
+    Build the final superpulse for one slice using an adaptive loop.
 
-    This is the main entry point for superpulse construction. It manages the
-    file loop and the two-phase adaptive strategy:
+    Calls ``accumulate_wfs_for_slice`` then steps 7-10 (preliminary
+    superpulse -> chi2 -> cut -> final superpulse). If the chi2 cut leaves
+    fewer than ``n_target_wfs`` golden waveforms and files remain, it
+    resumes accumulation and retries.
 
-    **Phase 1 - accumulate:** read files one at a time, running the full
-    dataset preparation pipeline (steps 1-6) on each. Accumulate the
-    resulting charge and current waveform arrays. Continue until the
-    accumulated event count reaches ``n_target_wfs``.
-
-    **Phase 2 - build and check:** run the full superpulse construction
-    pipeline (steps 7-10) on the accumulated data. If the number of golden
-    waveforms after the chi2 cut is below ``n_target_wfs``, return to
-    Phase 1 and continue reading from the next unread file, adding to the
-    existing accumulation. Repeat until either:
-
-    - ``n_golden >= n_target_wfs``: success, return the final superpulse.
-    - All files are exhausted: log a warning and return the best superpulse
-      available, or raise if no waveforms were found at all.
-
-    The ``lh5_group`` (HDF5 group containing the waveform table, e.g. ``"ch1084803/raw"``)
-    and ``dsp_config`` parameters are most conveniently
-    obtained from ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``,
-    which resolves both from the L200 data production directory given a
-    run ID and detector name.
-
-    Parameters
-    ----------
-    slice : Slice
-        The energy-drift-time slice to process.
-    detector : str
-        Name of the target detector, e.g. ``"V03422A"``.
-    tab_map : dict[str, int]
-        Mapping from detector name to rawid.
-    evt_files : list[str]
-        Sorted list of all available EVT-tier LH5 file paths.
-    dsp_files : list[str]
-        Sorted list of all available DSP-tier LH5 file paths, same order as
-        ``evt_files``.
-    raw_files : list[str]
-        Sorted list of all available raw-tier LH5 file paths, same order as
-        ``evt_files``.
-    dsp_config : Path or str
-        Path to the production DSP configuration JSON file. Returned as
-        ``dsp_cfg_file`` by
-        ``legendsimflow.hpge_pars.lookup_currmod_fit_inputs``.
-    dsp_fields : list[str]
-        DSP fields to attach to events via ``add_dsp_pars_to_evt``.
-        ``tp_aoe_max`` must be included.
-    n_target_wfs : int, optional
-        Target number of golden waveforms (after chi2 cut) for the final
-        superpulse. Default 100.
-    chi2_threshold : float, optional
-        Reduced chi-squared threshold for the self-similarity cut. Default 3.0.
-    charge_output : str, optional
-        DSP output name for the charge waveform. Default ``"wf_blsub"``.
-        Passed to ``get_charge_and_current_wfs_for_slice``.
-    current_output : str, optional
-        DSP output name for the current waveform. Default ``"curr_av"``.
-        Passed to ``get_charge_and_current_wfs_for_slice``.
-    align : str, optional
-        DSP parameter used for waveform alignment. Default ``"tp_aoe_max"``.
-        Passed to ``get_charge_and_current_wfs_for_slice``.
-
-    Returns
-    -------
-    Superpulse
-        Final superpulse with ``n_events_final >= n_target_wfs`` if enough
-        data was available, otherwise the best achievable superpulse from all
-        available files.
-
-    Raises
-    ------
-    ValueError
-        If no waveforms are found in the slice across all files.
-    RuntimeError
-        If ``evt_files``, ``dsp_files``, and ``raw_files`` have different
-        lengths.
-
-    Notes
-    -----
-    File triplets ``(evt_files[i], dsp_files[i], raw_files[i])`` must
-    correspond to the same run segment. The caller is responsible for
-    ensuring this ordering.
-
-    Memory usage is proportional to the number of accumulated events times
-    the waveform length. Since waveforms are extracted already upsampled and
-    processed by the DSP chain, no further upsampling is performed in this
-    function.
+    For access to intermediate arrays (e.g. for diagnostic plots), call
+    ``accumulate_wfs_for_slice`` and steps 7-10 directly from the script.
     """
-    # Input validation
-    if len(evt_files) != len(dsp_files) or len(evt_files) != len(raw_files):
-        msg = (
-            f"file lists must have equal length: "
-            f"evt={len(evt_files)}, dsp={len(dsp_files)}, raw={len(raw_files)}"
-        )
-        raise RuntimeError(msg)
+    _ACCUMULATION_FACTOR = 1.5
 
-    # Construct the raw-tier LH5 group from the rawid
-    if detector not in tab_map:
-        available_detectors = ", ".join(sorted(map(str, tab_map)))
-        msg = (
-            f"unknown detector {detector!r}; not found in tab_map. "
-            f"Available detectors: [{available_detectors}]"
-        )
-        raise KeyError(msg)
-    rawid = tab_map[detector]
-    lh5_group = f"ch{rawid}/raw"
-
-    # Accumulators
-    all_charge_wfs: list[np.ndarray] = []
-    all_current_wfs: list[np.ndarray] = []
-    all_bl_std: list[np.ndarray] = []
-    all_cuspEmax: list[np.ndarray] = []
-    charge_common_times: np.ndarray | None = None
-    current_common_times: np.ndarray | None = None
-
-    # Overshoot factor: accumulate more raw waveforms than needed,
-    # since the chi2 cut will reject some fraction
-    _ACCUMULATION_FACTOR = 1.5  ### I can increase it to avoid looping back to phase 1, but it will increase execution time and memory usage
-
-    file_idx = 0  # tracks which file to read next
+    file_idx = 0
+    b_c_times, b_i_times, b_c_wfs, b_i_wfs, all_bl, all_ce = [], [], [], [], [], []
 
     while file_idx < len(evt_files):
-        # ---------------------------------------------------------------
-        # Phase 1: accumulate waveforms from unread files
-        # ---------------------------------------------------------------
-        while file_idx < len(evt_files):
-            log.info(
-                "%s | %s | file %d/%d",
-                detector,
-                slice,
-                file_idx + 1,
-                len(evt_files),
-            )
+        # Phase 1: accumulate more waveforms
+        n_need = max(
+            1, int(_ACCUMULATION_FACTOR * n_target_wfs) - sum(len(c) for c in b_c_wfs)
+        )
 
-            # read EVT data for one file + apply quality and PSD cuts
-            evt_data = read_and_select_evt_data(evt_files[file_idx])
+        ct, it, cw, iw, bl, ce, file_idx = accumulate_wfs_for_slice(
+            slice=slice,
+            detector=detector,
+            tab_map=tab_map,
+            evt_files=evt_files,
+            dsp_files=dsp_files,
+            raw_files=raw_files,
+            dsp_config=dsp_config,
+            dsp_fields=dsp_fields,
+            start_file_idx=file_idx,
+            n_target=n_need,
+            charge_output=charge_output,
+            current_output=current_output,
+            align=align,
+        )
 
-            # filter to target detector
-            det_data = select_detector_events(evt_data, detector)
+        if cw is not None:
+            b_c_times.append(ct)
+            b_i_times.append(it)
+            b_c_wfs.append(cw)
+            b_i_wfs.append(iw)
+            if bl is not None:
+                all_bl.append(bl)
+            if ce is not None:
+                all_ce.append(ce)
 
-            if len(det_data) == 0:
-                log.debug("file %d: no events for %s after cuts", file_idx, detector)
-                file_idx += 1
-                continue
-
-            # attach DSP fields + drift_time
-            det_data = add_dsp_pars_to_evt(
-                det_data,
-                dsp_files[file_idx],
-                tab_map,
-                dsp_fields,
-            )
-
-            # select events in the slice
-            slice_data = select_data_in_slice(det_data, slice)
-
-            if len(slice_data) == 0:
-                log.debug("file %d: no events in %s", file_idx, slice)
-                file_idx += 1
-                continue
-
-            # extract waveforms via WaveformBrowser
-            indices = ak.flatten(slice_data.geds.hit_idx).to_list()
-
-            try:
-                (
-                    charge_times,
-                    current_times,
-                    charge_wfs,
-                    current_wfs,
-                    bl_std,
-                    cuspEmax,
-                ) = get_charge_and_current_wfs_for_slice(
-                    raw_file=raw_files[file_idx],
-                    lh5_group=lh5_group,
-                    indices=indices,
-                    dsp_config=dsp_config,
-                    charge_output=charge_output,
-                    current_output=current_output,
-                    align=align,
-                )
-            except ValueError:
-                log.debug("file %d: no valid waveforms extracted", file_idx)
-                file_idx += 1
-                continue
-
-            # Store the common time axes (same for all files after alignment)
-            if charge_common_times is None:
-                charge_common_times = charge_times
-            if current_common_times is None:
-                current_common_times = current_times
-
-            all_charge_wfs.append(charge_wfs)
-            all_current_wfs.append(current_wfs)
-            if bl_std is not None:
-                all_bl_std.append(bl_std)
-            if cuspEmax is not None:
-                all_cuspEmax.append(cuspEmax)
-
-            file_idx += 1
-
-            # Check if we have enough raw waveforms to attempt the chi2 cut
-            n_accumulated = sum(c.shape[0] for c in all_charge_wfs)
-            if n_accumulated >= _ACCUMULATION_FACTOR * n_target_wfs:
-                break
-
-        # ---------------------------------------------------------------
-        # Phase 2: build superpulse and apply chi2 cut
-        # ---------------------------------------------------------------
-        n_accumulated = sum(c.shape[0] for c in all_charge_wfs)
-        if n_accumulated == 0:
-            # No waveforms found yet; if files remain, keep going
+        if not b_c_wfs:
             continue
 
-        # Stack all accumulated waveforms
-        charge_stack = np.concatenate(all_charge_wfs, axis=0)
-        current_stack = np.concatenate(all_current_wfs, axis=0)
-        bl_std_stack = np.concatenate(all_bl_std, axis=0) if all_bl_std else None
-        cuspEmax_stack = np.concatenate(all_cuspEmax, axis=0) if all_cuspEmax else None
+        # Re-trim all batches to global common window before stacking
+        charge_times, charge_stack = trim_and_stack(b_c_times, b_c_wfs)
+        current_times, current_stack = trim_and_stack(b_i_times, b_i_wfs)
 
+        bl_std_stack = np.concatenate(all_bl) if all_bl else None
+        cuspEmax_stack = np.concatenate(all_ce) if all_ce else None
         n_preliminary = charge_stack.shape[0]
 
-        # preliminary superpulse
+        # Phase 2: superpulse + chi2 cut
         prelim_sp = compute_superpulse(
-            charge_common_times,
-            current_common_times,
+            charge_times,
+            current_times,
             charge_stack,
             current_stack,
             slice,
@@ -1162,7 +1062,6 @@ def build_superpulse_for_slice(
             n_preliminary,
         )
 
-        # chi2 of each waveform vs preliminary superpulse
         chi2_values = compute_chi2_vs_superpulse(
             charge_stack,
             prelim_sp,
@@ -1170,7 +1069,6 @@ def build_superpulse_for_slice(
             cuspEmax=cuspEmax_stack,
         )
 
-        # apply chi2 cut
         golden_charge, golden_current, _ = apply_chi2_cut(
             charge_stack,
             current_stack,
@@ -1189,8 +1087,6 @@ def build_superpulse_for_slice(
         )
 
         if n_golden >= n_target_wfs or file_idx >= len(evt_files):
-            # Either we have enough, or we've exhausted all files.
-            # In both cases: build the final superpulse from golden wfs.
             if n_golden == 0:
                 log.warning(
                     "%s | %s | no waveforms survived chi2 cut; "
@@ -1211,8 +1107,8 @@ def build_superpulse_for_slice(
                 )
 
             return compute_superpulse(
-                charge_common_times,
-                current_common_times,
+                charge_times,
+                current_times,
                 golden_charge,
                 golden_current,
                 slice,
@@ -1220,14 +1116,12 @@ def build_superpulse_for_slice(
                 n_preliminary,
             )
 
-        # Not enough golden waveforms and files remain - loop back to Phase 1
         log.info(
             "%s | %s | need more waveforms, continuing to next file...",
             detector,
             slice,
         )
 
-    # Only reachable if every file yielded zero waveforms for this slice
     msg = f"no waveforms found for {detector} in {slice} across all files"
     raise ValueError(msg)
 
@@ -1298,3 +1192,359 @@ def write_superpulses_to_lh5(
         detector,
         output_path,
     )
+
+
+def read_superpulses_from_lh5(
+    path: str,
+    detector: str,
+) -> dict[Slice, Superpulse]:
+    """Read superpulses written by :func:`write_superpulses_to_lh5`.
+
+    Parameters
+    ----------
+    path
+        Path to the LH5 file.
+    detector
+        Detector name (top-level group), e.g. ``"V03422A"``.
+
+    Returns
+    -------
+    dict[Slice, Superpulse]
+    """
+    superpulses: dict[Slice, Superpulse] = {}
+
+    # List subgroups under {detector}/
+    det_struct = lh5.read(detector, path)
+
+    for key in det_struct:
+        # Keys are like "dt_1100_1300_ns"
+        match = re.match(r"dt_(\d+)_(\d+)_ns", key)
+        if match is None:
+            log.debug("skipping unrecognised key %s/%s", detector, key)
+            continue
+
+        group = lh5.read(f"{detector}/{key}", path)
+
+        sl = Slice(
+            energy_range=(float(group["e_lo"].value), float(group["e_hi"].value)),
+            drift_time_range=(float(group["dt_lo"].value), float(group["dt_hi"].value)),
+        )
+
+        sp = Superpulse(
+            charge_wf=group["charge_wf"].view_as("np"),
+            current_wf=group["current_wf"].view_as("np"),
+            charge_time_axis=group["charge_time_axis"].view_as("np"),
+            current_time_axis=group["current_time_axis"].view_as("np"),
+            slice=sl,
+            detector=group["detector"].value,
+            n_events_preliminary=int(group["n_events_preliminary"].value),
+            n_events_final=int(group["n_events_final"].value),
+        )
+
+        superpulses[sl] = sp
+
+    log.info("read %d slices for %s from %s", len(superpulses), detector, path)
+    return superpulses
+
+
+# ---------------------------------------------------------------------------
+# Plotting
+# ---------------------------------------------------------------------------
+
+
+def plot_wfs_and_superpulse(
+    charge_times: np.ndarray,
+    current_times: np.ndarray,
+    golden_charge_wfs: np.ndarray,
+    golden_current_wfs: np.ndarray,
+    superpulse: Superpulse,
+):
+    """
+    Plot golden charge and current waveforms with the final superpulse.
+
+    Two-panel figure: top = charge waveforms + superpulse,
+    bottom = current waveforms + superpulse.
+    Each panel uses its own time axis, but both are clipped to the
+    intersection of the two time ranges for consistent visualization.
+
+    Parameters
+    ----------
+    charge_times, current_times : np.ndarray
+        Time axes (may have different ranges).
+    golden_charge_wfs, golden_current_wfs : np.ndarray
+        Golden waveform arrays after chi2 cut, shape ``(n_events, n_samples)``.
+    superpulse : Superpulse
+        The final superpulse to overlay.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    (ax_charge, ax_current) : tuple of Axes
+    """
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    sl = superpulse.slice
+
+    # Shared x range: intersection of the two time axes
+    x_min = max(charge_times[0], current_times[0])
+    x_max = min(charge_times[-1], current_times[-1])
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+    fig.suptitle(
+        f"{superpulse.detector} - {sl}  ({superpulse.n_events_final} events)",
+        fontsize=14,
+    )
+
+    # Charge
+    ax1.plot(
+        charge_times, golden_charge_wfs.T, color="deepskyblue", alpha=0.3, linewidth=1
+    )
+    ax1.plot(
+        [],
+        [],
+        color="deepskyblue",
+        alpha=0.8,
+        linewidth=1,
+        label=f"Golden wfs ({golden_charge_wfs.shape[0]})",
+    )
+    ax1.plot(
+        superpulse.charge_time_axis,
+        superpulse.charge_wf,
+        color="black",
+        linewidth=2,
+        label="superpulse",
+    )
+    ax1.set_ylabel("ADC / cuspEmax")
+    ax1.set_xlim(x_min, x_max)
+    ax1.legend()
+    ax1.grid(alpha=0.3, linestyle="--")
+
+    # Current
+    ax2.plot(
+        current_times, golden_current_wfs.T, color="deepskyblue", alpha=0.3, linewidth=1
+    )
+    ax2.plot(
+        [],
+        [],
+        color="deepskyblue",
+        alpha=0.8,
+        linewidth=1,
+        label=f"Golden wfs ({golden_current_wfs.shape[0]})",
+    )
+    ax2.plot(
+        superpulse.current_time_axis,
+        superpulse.current_wf,
+        color="black",
+        linewidth=2,
+        label="superpulse",
+    )
+    ax2.set_xlabel("Time [ns]")
+    ax2.set_ylabel("d(ADC/cuspEmax)/dt")
+    ax2.set_xlim(x_min, x_max)
+    ax2.legend()
+    ax2.grid(alpha=0.3, linestyle="--")
+
+    fig.tight_layout()
+    return fig, (ax1, ax2)
+
+
+def plot_chi2_cut(
+    chi2_values: np.ndarray,
+    chi2_threshold: float,
+    times: np.ndarray,
+    wfs: np.ndarray,
+    final_superpulse: Superpulse,
+    curve: str = "charge",
+):
+    """
+    Two-panel validation plot for the chi2 self-similarity cut.
+
+    Left: histogram of reduced chi2 with threshold line.
+    Right: all waveforms color-coded by cut status (blue=pass, red=fail)
+           with the final superpulse overlaid.
+
+    Parameters
+    ----------
+    chi2_values : np.ndarray
+        Reduced chi2 per waveform, shape ``(n_events,)``.
+    chi2_threshold : float
+        Cut threshold.
+    times : np.ndarray
+        Time axis, shape ``(n_samples,)``.
+    wfs : np.ndarray
+        All waveforms before cut, shape ``(n_events, n_samples)``.
+    final_superpulse : Superpulse
+        Superpulse built from golden waveforms (after cut).
+    curve : str, optional
+        ``"charge"`` or ``"current"``. Default ``"charge"``.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    (ax_hist, ax_wfs) : tuple of Axes
+    """
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    if curve == "charge":
+        sp_times = final_superpulse.charge_time_axis
+        sp_wf = final_superpulse.charge_wf
+        ylabel = "ADC / cuspEmax"
+    else:
+        sp_times = final_superpulse.current_time_axis
+        sp_wf = final_superpulse.current_wf
+        ylabel = "d(ADC/cuspEmax)/dt"
+
+    sl = final_superpulse.slice
+    mask_pass = chi2_values < chi2_threshold
+    idx_fail = np.where(~mask_pass)[0]
+    idx_pass = np.where(mask_pass)[0]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f"{final_superpulse.detector} - {sl}", fontsize=14)
+
+    # Left: histogram
+    bw = chi2_threshold / 8
+    bins = np.arange(0, chi2_values.max() + bw, bw)
+    ax1.hist(
+        chi2_values,
+        bins=bins,
+        alpha=0.7,
+        color="grey",
+        histtype="step",
+        label="All events",
+    )
+    ax1.hist(
+        chi2_values[mask_pass],
+        bins=bins,
+        alpha=0.9,
+        color="deepskyblue",
+        histtype="stepfilled",
+        label=rf"$\chi^2_r$ < {chi2_threshold}",
+    )
+    ax1.axvline(chi2_threshold, color="red", linestyle="--", linewidth=1)
+    ax1.set_xlabel(r"Reduced $\chi^2$")
+    ax1.set_ylabel("Counts")
+    ax1.legend()
+
+    # Right: waveforms color-coded by pass/fail
+    if len(idx_fail) > 0:
+        ax2.plot(times, wfs[idx_fail].T, color="firebrick", alpha=0.8, linewidth=1)
+        ax2.plot(
+            [],
+            [],
+            color="firebrick",
+            alpha=0.8,
+            linewidth=1,
+            label=f"Fail ({len(idx_fail)})",
+        )
+    if len(idx_pass) > 0:
+        ax2.plot(times, wfs[idx_pass].T, color="deepskyblue", alpha=0.8, linewidth=1)
+        ax2.plot(
+            [],
+            [],
+            color="deepskyblue",
+            alpha=0.8,
+            linewidth=1,
+            label=f"Pass ({len(idx_pass)})",
+        )
+
+    ax2.plot(sp_times, sp_wf, color="black", linewidth=2, label="Final superpulse")
+
+    ax2.set_xlabel("Time [ns]")
+    ax2.set_ylabel(ylabel)
+    ax2.set_xlim(-1000, 500)
+    ax2.grid(alpha=0.3, linestyle="--")
+    ax2.legend(loc="upper left")
+
+    fig.tight_layout()
+    return fig, (ax1, ax2)
+
+
+def plot_superpulses(
+    lh5_file: str,
+    detector: str,
+    curve: str = "charge",
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+) -> tuple:
+    """
+    Plot superpulses from all drift-time slices, color-coded by drift time.
+
+    Parameters
+    ----------
+    lh5_file : str
+        Path to the LH5 file produced by :func:`write_superpulses_to_lh5`.
+    detector : str
+        Detector name (top-level group in the file).
+    curve : str, optional
+        ``"charge"`` or ``"current"``. Default ``"charge"``.
+    xlim : tuple[float, float], optional
+        x-axis limits in ns. Default ``(-5000, 5000)``.
+    ylim : tuple[float, float] or None, optional
+        y-axis limits. If ``None``, matplotlib auto-scales.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax  : matplotlib.axes.Axes
+    """
+    import matplotlib.colors as mcolors  # noqa: PLC0415
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+    from matplotlib import cm  # noqa: PLC0415
+
+    if curve not in ("charge", "current"):
+        msg = f"curve must be 'charge' or 'current', got {curve!r}"
+        raise ValueError(msg)
+
+    groups = sorted(
+        lh5.ls(lh5_file, f"{detector}/"),
+        key=lambda g: int(g.split("_")[1]),
+    )
+
+    norm = mcolors.Normalize(vmin=0, vmax=2500)
+    viridis = cm.get_cmap("viridis")
+    ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    e_lo, e_hi = None, None
+    for group in groups:
+        struct = lh5.read(group, lh5_file)
+
+        if e_lo is None:
+            e_lo = struct["e_lo"].value
+            e_hi = struct["e_hi"].value
+
+        dt_center = struct["dt_center"].value
+        dt_lo = struct["dt_lo"].value
+        dt_hi = struct["dt_hi"].value
+        n_events = struct["n_events_final"].value
+        times = struct[f"{curve}_time_axis"].nda
+        wf = struct[f"{curve}_wf"].nda
+
+        color = mcolors.to_hex(viridis(norm(dt_center)))
+        ax.plot(
+            times,
+            wf,
+            color=color,
+            alpha=0.8,
+            linewidth=2,
+            label=f"dt=[{dt_lo:.0f}, {dt_hi:.0f}] ns  ({n_events} ev)",
+        )
+
+    ax.set_title(f"{detector} - {curve} superpulses  |  E = [{e_lo}, {e_hi}] keV")
+    ax.set_xlabel("Time [ns]")
+    ax.set_ylabel(ylabel)
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    ax.grid(visible=True, which="both", linestyle="--", alpha=0.5)
+
+    sm = plt.cm.ScalarMappable(cmap=viridis, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.8)
+    cbar.set_label("Drift Time [ns]", rotation=270, labelpad=20)
+    fig.tight_layout()
+
+    return fig, ax
