@@ -15,13 +15,13 @@ RUNID_P03 = "l200-p03-r000-phy"
 # p02 runid: currmod validity.yaml maps 20220102 → p02 file (no "default", only V02160A override)
 RUNID_P02 = "l200-p02-r000-phy"
 
-# ON detector that receives the metadata default values
-DET_DEFAULT = "V05261B"
+# any ON detector that is NOT V02160A — receives the metadata default values
+DET_DEFAULT = "V05261A"
 # has a per-detector override in the p03 metadata
 DET_OVERRIDE = "V02160A"
 
 
-def _build_argv(tmp_path: Path, runid: str) -> list[str]:
+def _build_argv(tmp_path: Path, runid: str, hpge_detector: str) -> list[str]:
     """Return sys.argv for the currmod script under test.
 
     Copies the dummyprod simflow-config.yaml to tmp_path, points metadata at
@@ -33,18 +33,12 @@ def _build_argv(tmp_path: Path, runid: str) -> list[str]:
     raw["paths"].pop("l200data", None)
     config_path.write_text(yaml.safe_dump(raw))
 
-    # minimal cache file with the two dummyprod ON detectors
-    cache_path = tmp_path / "modelable_hpge_detectors.yaml"
-    cache_path.write_text(
-        yaml.safe_dump({runid: {DET_DEFAULT: 4200, DET_OVERRIDE: 4200}})
-    )
-
     return [
         "extract-hpge-currmod",
         "--runid",
         runid,
-        "--modelable-hpges-file",
-        str(cache_path),
+        "--hpge-detector",
+        hpge_detector,
         "--pars-file",
         str(tmp_path / "pars.yaml"),
         "--plot-file",
@@ -54,8 +48,9 @@ def _build_argv(tmp_path: Path, runid: str) -> list[str]:
     ]
 
 
-def test_metadata_all_detectors(tmp_path, monkeypatch):
-    monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P03))
+def test_metadata_default_written_for_detector(tmp_path, monkeypatch):
+    """p03 + a detector without its own override must get the metadata default."""
+    monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P03, DET_DEFAULT))
 
     extract_hpge_current_pulse_model.main()
 
@@ -68,20 +63,31 @@ def test_metadata_all_detectors(tmp_path, monkeypatch):
     with pars_file.open() as f:
         result = yaml.safe_load(f)
 
-    # DET_DEFAULT (V05261B) gets the metadata default values
-    assert DET_DEFAULT in result
-    assert result[DET_DEFAULT]["current_pulse_pars"]["sigma"] == pytest.approx(45.0)
-    assert result[DET_DEFAULT]["mean_aoe"] == pytest.approx(0.72)
-    assert result[DET_DEFAULT]["current_reso"] == pytest.approx(4.1)
+    assert "current_pulse_pars" in result
+    assert result["current_pulse_pars"]["sigma"] == pytest.approx(45.0)
+    assert result["mean_aoe"] == pytest.approx(0.72)
+    assert result["current_reso"] == pytest.approx(4.1)
 
-    # DET_OVERRIDE (V02160A) gets the per-detector override
-    assert DET_OVERRIDE in result
-    assert result[DET_OVERRIDE]["current_pulse_pars"]["sigma"] == pytest.approx(48.0)
-    assert result[DET_OVERRIDE]["current_reso"] == pytest.approx(5.3)
+
+def test_metadata_override_wins_for_v02160a(tmp_path, monkeypatch):
+    """p03 + V02160A must get the per-detector override, not the default."""
+    monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P03, DET_OVERRIDE))
+
+    extract_hpge_current_pulse_model.main()
+
+    pars_file = tmp_path / "pars.yaml"
+    assert pars_file.exists(), "pars output file was not created"
+
+    with pars_file.open() as f:
+        result = yaml.safe_load(f)
+
+    assert result["current_pulse_pars"]["sigma"] == pytest.approx(48.0)
+    assert result["current_reso"] == pytest.approx(5.3)
 
 
 def test_raises_without_default_and_no_l200data(tmp_path, monkeypatch):
-    monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P02))
+    """p02 has no 'default' key and no l200data is configured → RuntimeError."""
+    monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P02, DET_DEFAULT))
 
     with pytest.raises(RuntimeError, match=r"l200data|currmod"):
         extract_hpge_current_pulse_model.main()
