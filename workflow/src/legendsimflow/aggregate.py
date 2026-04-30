@@ -194,9 +194,6 @@ def gen_list_of_hpges_valid_for_modeling(
             continue
 
         if hpge.name in skip:
-            reason = skip[hpge.name]
-            msg = f"skipping {hpge.name} in {runid} (manual skip-list): {reason}"
-            log.warning(msg)
             continue
 
         m = crystal_meta(
