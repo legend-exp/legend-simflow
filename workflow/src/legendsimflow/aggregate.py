@@ -404,7 +404,7 @@ def gen_list_of_dtmap_plots_outputs(
 
 def gen_list_of_currmods(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
-) -> list[str]:
+) -> list[Path]:
     """Generate the list of HPGe current model parameter files for a `runid`."""
     hpges = (
         gen_list_of_hpges_valid_for_modeling(config, runid)
@@ -428,7 +428,7 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]
 def gen_list_of_currmod_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map plot outputs."""
+    """Generate the list of HPGe current pulse model plot outputs."""
     files = []
     for runid in get_runlist(config, simid):
         hpges = (
