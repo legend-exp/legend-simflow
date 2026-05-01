@@ -15,9 +15,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
-from lgdo import lh5
 
 from legendsimflow import nersc
 from legendsimflow.plot import decorate

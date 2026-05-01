@@ -21,7 +21,8 @@ from pathlib import Path
 
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-from lgdo import Scalar, Struct, lh5
+import lh5
+from lgdo import Scalar, Struct
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils

@@ -21,10 +21,11 @@ import argparse
 import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import lh5
 import numpy as np
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
-from lgdo import Array, Scalar, Struct, Table, VectorOfVectors, lh5
+from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, spms_pars, utils

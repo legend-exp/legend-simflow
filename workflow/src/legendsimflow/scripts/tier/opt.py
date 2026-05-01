@@ -21,6 +21,7 @@ from pathlib import Path
 import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import lh5
 import numpy as np
 import pyg4ometry
 import pygeomtools
@@ -31,8 +32,8 @@ import reboost.math.functions
 import reboost.spms
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
-from lgdo import Array, VectorOfVectors, lh5
-from lgdo.lh5 import LH5Iterator
+from lgdo import Array, VectorOfVectors
+from lh5 import LH5Iterator
 from reboost.optmap.convolve import OptmapForConvolve
 from snakemake_argparse_bridge import snakemake_compatible
 

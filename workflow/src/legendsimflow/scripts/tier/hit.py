@@ -21,6 +21,7 @@ import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
+import lh5
 import numpy as np
 import pint
 import pyg4ometry
@@ -34,8 +35,7 @@ import reboost.math.stats
 import reboost.spms
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
-from lgdo import lh5
-from lgdo.lh5 import LH5Iterator
+from lh5 import LH5Iterator
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import hpge_pars, nersc, patterns, utils

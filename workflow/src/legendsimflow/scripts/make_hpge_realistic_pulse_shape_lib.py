@@ -19,7 +19,8 @@ from __future__ import annotations
 import argparse
 import logging
 
-from lgdo import Struct, lh5
+import lh5
+from lgdo import Struct
 from reboost import units
 
 from legendsimflow import psl

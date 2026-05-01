@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import awkward as ak
-from lgdo import lh5
+import lh5
 
 from legendsimflow import awkward
 

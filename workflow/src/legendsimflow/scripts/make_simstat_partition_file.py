@@ -22,7 +22,7 @@ from pathlib import Path
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-from lgdo import lh5
+import lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
@@ -83,7 +83,7 @@ def main() -> None:
             msg = f"{stp_file} does not contain the job number segment"
             raise RuntimeError(msg)
 
-        n_events[m.group()] = lh5.utils.read_n_rows("/tcm", stp_file)
+        n_events[m.group()] = lh5.read_n_rows("/tcm", stp_file)
 
     log.debug("n_events per job: %s", n_events)
 

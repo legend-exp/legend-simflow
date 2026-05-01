@@ -22,8 +22,9 @@ import awkward as ak
 import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
+import lh5
 import numpy as np
-from lgdo import Histogram, Scalar, Struct, lh5
+from lgdo import Histogram, Scalar, Struct
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils

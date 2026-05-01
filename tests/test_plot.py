@@ -20,9 +20,10 @@ mpl.use("Agg")
 
 import awkward as ak
 import hist
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
-from lgdo import Array, Table, lh5
+from lgdo import Array, Table
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import plot

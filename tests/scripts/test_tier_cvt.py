@@ -3,9 +3,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import lh5
 import pytest
 import yaml
-from lgdo import Scalar, Struct, Table, lh5
+from lgdo import Scalar, Struct, Table
 
 from legendsimflow.scripts.tier import cvt
 

@@ -19,9 +19,9 @@ from pathlib import Path
 
 import awkward as ak
 import hist
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
-from lgdo import lh5
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import metadata as mutils

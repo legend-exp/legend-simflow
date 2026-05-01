@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import awkward as ak
+import lh5
 import pytest
-from lgdo import Table, lh5
+from lgdo import Table
 
 from legendsimflow.tcm import (
     merge_stp_n_opt_tcms,
