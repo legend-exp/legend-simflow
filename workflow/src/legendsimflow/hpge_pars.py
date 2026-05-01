@@ -24,11 +24,11 @@ from pathlib import Path
 from typing import Any
 
 import hist
+import lh5
 import numpy as np
 from dbetto import AttrsDict, TextDB
 from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
-from lgdo import lh5
 from matplotlib import pyplot as plt
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian

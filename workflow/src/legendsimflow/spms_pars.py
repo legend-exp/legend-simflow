@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Any
 
 import awkward as ak
+import lh5
 import numpy as np
-from lgdo import lh5
 
 from .profile import make_profiler
 from .utils import lookup_dataflow_config

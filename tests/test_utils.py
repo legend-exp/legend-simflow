@@ -5,11 +5,12 @@ import tempfile
 from pathlib import Path
 
 import dbetto
+import lh5
 import numpy as np
 import pytest
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
-from lgdo import Array, Table, lh5
+from lgdo import Array, Table
 
 from legendsimflow import hpge_pars, utils
 

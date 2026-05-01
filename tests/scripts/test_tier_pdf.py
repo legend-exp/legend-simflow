@@ -4,10 +4,11 @@ import shutil
 import sys
 from pathlib import Path
 
+import lh5
 import numpy as np
 import pytest
 import yaml
-from lgdo import Array, Scalar, Struct, Table, VectorOfVectors, lh5
+from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
 
 from legendsimflow.scripts.tier import pdf
 

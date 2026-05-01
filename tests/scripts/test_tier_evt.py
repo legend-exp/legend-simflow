@@ -3,10 +3,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import lh5
 import numpy as np
 import pytest
 import yaml
-from lgdo import lh5
 
 from legendsimflow.scripts.tier import evt
 

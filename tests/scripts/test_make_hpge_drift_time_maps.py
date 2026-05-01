@@ -4,8 +4,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import lh5
 import pytest
-from lgdo import lh5
 
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent

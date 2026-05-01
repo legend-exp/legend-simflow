@@ -80,9 +80,8 @@ intersphinx_mapping = {
     # legend
     "dspeed": ("https://dspeed.readthedocs.io/en/stable", None),
     "daq2lh5": ("https://legend-daq2lh5.readthedocs.io/en/stable", None),
-    # pinned to v1.x: legend-pydataobj v2 removed lgdo.lh5 (moved to legend-lh5io),
-    # which would break intersphinx references to lgdo.lh5.* still used in this project
-    "lgdo": ("https://legend-pydataobj.readthedocs.io/en/v1.17.4", None),
+    "lgdo": ("https://legend-pydataobj.readthedocs.io/en/stable", None),
+    "lh5": ("https://legend-lh5io.readthedocs.io/en/stable/", None),
     "dbetto": ("https://dbetto.readthedocs.io/en/stable", None),
     "pylegendmeta": ("https://pylegendmeta.readthedocs.io/en/stable", None),
     # remage
