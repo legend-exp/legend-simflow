@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import lh5
 import numpy as np
 import pytest
 from dbetto import AttrsDict
 from iminuit import Minuit
-from lgdo import lh5
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model

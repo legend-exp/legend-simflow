@@ -17,9 +17,9 @@
 
 import awkward as ak
 import hist
+import lh5
 import matplotlib.pyplot as plt
-from lgdo import lh5
-from lgdo.lh5 import LH5Iterator
+from lh5 import LH5Iterator
 
 from legendsimflow import nersc, plot
 

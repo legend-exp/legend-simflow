@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import awkward as ak
 import lgdo
+import lh5
 import numpy as np
 import pyg4ometry
 import pytest
 import reboost
 import reboost.math.stats
-from lgdo import lh5
 
 from legendsimflow import reboost as rutils
 from legendsimflow import spms_pars

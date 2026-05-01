@@ -19,9 +19,10 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import awkward as ak
+import lh5
 import numpy as np
 import pygama.evt
-from lgdo import Table, lh5
+from lgdo import Table
 
 
 def build_tcm(
@@ -147,7 +148,7 @@ def merge_stp_n_opt_tcms_to_lh5(
 ) -> None:
     """Stream-merge STP and OPT TCMs and write unified TCM to disk in chunks.
 
-    Iterates over `stp_file:/tcm` using :class:`~lgdo.lh5.iterator.LH5Iterator`. For each
+    Iterates over `stp_file:/tcm` using :class:`~lh5.LH5Iterator`. For each
     chunk, reads only the required number of OPT TCM rows (those corresponding
     to STP rows containing the `scintillator_uid` placeholder) via `lh5.read_as`
     with explicit indices. The merged output is appended to `out_file:/tcm`.

@@ -20,7 +20,7 @@ import shutil
 
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-from lgdo import lh5
+import lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils

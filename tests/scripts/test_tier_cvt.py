@@ -3,8 +3,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import lh5
 import yaml
-from lgdo import Table, lh5
+from lgdo import Table
 
 from legendsimflow.scripts.tier import cvt
 

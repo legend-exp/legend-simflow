@@ -22,13 +22,14 @@ from pathlib import Path
 import awkward as ak
 import h5py
 import lgdo
+import lh5
 import numba as nb
 import numpy as np
 import pyg4ometry
 import pygeomtools
 import reboost.hpge.utils
 import reboost.units
-from lgdo import LGDO, lh5
+from lgdo import LGDO
 
 from . import patterns
 from .utils import SimflowConfig
@@ -167,7 +168,7 @@ def write_chunk(chunk: lgdo.Table, objname: str, outfile: str, objuid: int) -> N
             f[f"hit/__by_uid__/{link_name}"] = h5py.SoftLink(objname)
             # updated the struct datatype attribute by adding the new symlink
             dt = f["hit/__by_uid__"].attrs.pop("datatype")
-            fields = [*lgdo.lh5.datatype.get_struct_fields(dt), link_name]
+            fields = [*lh5.io.datatype.get_struct_fields(dt), link_name]
             f["hit/__by_uid__"].attrs["datatype"] = (
                 "struct{" + ",".join(sorted(fields)) + "}"
             )

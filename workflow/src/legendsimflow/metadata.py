@@ -20,10 +20,10 @@ import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+import lh5
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendmeta.police import validate_dict_schema
-from lgdo import lh5
 from snakemake.iocontainers import Wildcards
 
 from . import SimflowConfig, utils
