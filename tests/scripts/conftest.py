@@ -147,30 +147,40 @@ def legend_currmod_paths(tmp_path_factory):
     """Run ``extract_hpge_current_pulse_model`` for both l1000dsg01 runids.
 
     The l1000dsg01 metadata has a ``default`` key so no l200data is required.
-    Returns a dict mapping each runid to its output YAML path.
+    For each runid, runs the per-detector extraction script over all modelable
+    HPGes and merges the outputs into a single ``{runid}-model.yaml`` keyed by
+    detector name (mirroring the ``merge_current_pulse_model_pars`` rule).
+    Returns a dict mapping each runid to its merged YAML path.
     """
     out_dir = tmp_path_factory.mktemp("legend_currmod")
     config_path = _l1000_config(out_dir)
+    config = utils.init_simflow_context(str(config_path), workflow=None).config
 
     paths = {}
     for runid in _RUNIDS_L1000:
-        pars_file = out_dir / f"{runid}-model.yaml"
-        plot_file = out_dir / f"{runid}-fit-results.pdf"
+        merged_file = out_dir / f"{runid}-model.yaml"
+        merged: dict = {}
+        for hpge in aggregate.gen_list_of_hpges_valid_for_modeling(config, runid):
+            pars_file = out_dir / f"{runid}-{hpge}-model.yaml"
+            plot_file = out_dir / f"{runid}-{hpge}-fit-result.pdf"
+            with _override_argv(
+                "extract-hpge-currmod",
+                "--runid",
+                runid,
+                "--hpge-detector",
+                hpge,
+                "--pars-file",
+                str(pars_file),
+                "--plot-file",
+                str(plot_file),
+                "--simflow-config",
+                str(config_path),
+            ):
+                extract_hpge_current_pulse_model.main()
+            merged[hpge] = dbetto.utils.load_dict(pars_file)
 
-        with _override_argv(
-            "extract-hpge-currmod",
-            "--runid",
-            runid,
-            "--pars-file",
-            str(pars_file),
-            "--plot-file",
-            str(plot_file),
-            "--simflow-config",
-            str(config_path),
-        ):
-            extract_hpge_current_pulse_model.main()
-
-        paths[runid] = pars_file
+        dbetto.utils.write_dict(merged, merged_file)
+        paths[runid] = merged_file
 
     return paths
 

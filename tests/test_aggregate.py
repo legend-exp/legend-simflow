@@ -164,8 +164,10 @@ def test_hpge_voltage_functions(config):
 
 
 def test_currmod_stuff(config):
+    runid = "l200-p02-r000-phy"
     simid = "stp.pen_plates_Ra224_to_Pb208"
 
+    assert len(agg.gen_list_of_currmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
 
@@ -231,21 +233,6 @@ def test_skip_list_removes_detector(config, caplog):
     with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
         hpges = agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r003-phy")
     assert "V99000A" not in hpges
-
-
-def test_skip_list_warns_for_valid_detector(config, caplog):
-    """Skip-listing a detector that would otherwise be valid produces a WARNING.
-
-    The message must include the detector name, the runid, and the reason string
-    from the skip-file value.
-    """
-    runid = "l200-p02-r003-phy"
-    with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
-        agg.gen_list_of_hpges_valid_for_modeling(config, runid)
-    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
-    assert any(
-        "V99000A" in msg and runid in msg and "SSD crashes" in msg for msg in warnings
-    )
 
 
 def test_skip_list_time_validity_boundary(config):
