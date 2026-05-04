@@ -17,15 +17,50 @@
 
 import argparse
 import shutil
+from pathlib import Path
 
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
-from lgdo import lh5
+from lgdo import Scalar, Struct, lh5
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils
 from legendsimflow.metadata import get_tier_settings
 from legendsimflow.scripts import log_script_invocation
+
+
+def union_detector_uids(evt_files: list[str | Path]) -> dict[str, int]:
+    """Build the union ``name -> uid`` mapping over a set of evt files.
+
+    Different jobs in the same simid can produce evt files with different
+    detector subsets when low-rate decays leave some detectors with zero hits.
+    Their ``detector_uids`` structs then disagree on which detector names are
+    present, even though the underlying ``name -> uid`` mapping is consistent.
+    This helper unions the entries; any genuine collision (a name mapped to
+    different uids, or a uid mapped to different names, across files) is
+    treated as a real inconsistency and raises.
+    """
+    union: dict[str, int] = {}
+    uid_to_name: dict[int, str] = {}
+    for f in evt_files:
+        per_file = lh5.read("detector_uids", f)
+        for name in per_file:
+            uid = int(per_file[name].value)
+            if name in union and union[name] != uid:
+                msg = (
+                    f"detector_uids inconsistency: '{name}' maps to {union[name]} "
+                    f"in earlier evt files but to {uid} in {f}"
+                )
+                raise ValueError(msg)
+            if uid in uid_to_name and uid_to_name[uid] != name:
+                msg = (
+                    f"detector_uids inconsistency: uid {uid} maps to "
+                    f"'{uid_to_name[uid]}' in earlier evt files but to '{name}' in {f}"
+                )
+                raise ValueError(msg)
+            union[name] = uid
+            uid_to_name[uid] = name
+    return union
 
 
 @snakemake_compatible(
@@ -68,21 +103,13 @@ def main() -> None:
     if len(evt_files) == 1:
         shutil.copy(evt_files[0], cvt_file)
     else:
-        # detector_uids must be identical across all evt inputs; merging would
-        # silently mask mismatches, so assert before copying.
-        ref = lh5.read("detector_uids", evt_files[0])
-        ref_map = {name: int(ref[name].value) for name in ref}
-        for f in evt_files[1:]:
-            other = lh5.read("detector_uids", f)
-            other_map = {name: int(other[name].value) for name in other}
-            if other_map != ref_map:
-                msg = (
-                    f"detector_uids in {f} disagrees with {evt_files[0]}; "
-                    "cvt merge requires all evt inputs to share the same "
-                    "name->rawid mapping"
-                )
-                raise ValueError(msg)
-        lh5.write(ref, "detector_uids", cvt_file, wo_mode="write_safe")
+        # detector_uids may differ across jobs because low-rate decays can leave
+        # some detectors with zero hits in some jobs (and thus absent from
+        # detector_uids). We union the mappings; a real (name, uid) collision is
+        # raised by union_detector_uids.
+        merged_uids = union_detector_uids(list(evt_files))
+        merged = Struct({name: Scalar(uid) for name, uid in merged_uids.items()})
+        lh5.write(merged, "detector_uids", cvt_file, wo_mode="write_safe")
 
         for table in lh5.ls(evt_files[0]):
             if table == "detector_uids":

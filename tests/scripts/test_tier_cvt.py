@@ -3,12 +3,57 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
-from lgdo import Table, lh5
+from lgdo import Scalar, Struct, Table, lh5
 
 from legendsimflow.scripts.tier import cvt
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
+
+
+def _write_detector_uids(path: Path, mapping: dict[str, int]) -> None:
+    s = Struct({name: Scalar(uid) for name, uid in mapping.items()})
+    lh5.write(s, "detector_uids", path, wo_mode="write_safe")
+
+
+def test_union_detector_uids_identical_mappings(tmp_path):
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11, "V02": 12})
+    _write_detector_uids(f2, {"V01": 11, "V02": 12})
+
+    assert cvt.union_detector_uids([f1, f2]) == {"V01": 11, "V02": 12}
+
+
+def test_union_detector_uids_disjoint_subsets(tmp_path):
+    """A detector present in one job but missing in another (zero-hit) must union."""
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11, "V02": 12})
+    _write_detector_uids(f2, {"V01": 11, "V03": 13})
+
+    assert cvt.union_detector_uids([f1, f2]) == {"V01": 11, "V02": 12, "V03": 13}
+
+
+def test_union_detector_uids_name_collision_raises(tmp_path):
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11})
+    _write_detector_uids(f2, {"V01": 99})
+
+    with pytest.raises(ValueError, match="'V01' maps to 11"):
+        cvt.union_detector_uids([f1, f2])
+
+
+def test_union_detector_uids_uid_collision_raises(tmp_path):
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11})
+    _write_detector_uids(f2, {"V02": 11})
+
+    with pytest.raises(ValueError, match="uid 11 maps to"):
+        cvt.union_detector_uids([f1, f2])
 
 
 def test_cvt_script_cli(tmp_path, monkeypatch):
