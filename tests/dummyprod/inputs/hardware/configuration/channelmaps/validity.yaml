@@ -1,0 +1,38 @@
+- valid_from: 20220102T000000Z
+  apply:
+    - l200-p02-r%-T%-all-config.yaml
+    - l200-p02-r006-T%-all-config.yaml
+
+- valid_from: 20220101T000000Z
+  category: cal
+  apply:
+    - l200-p02-r%-T%-all-config.yaml
+    - l200-p02-r%-T%-cal-config.yaml
+    - l200-p02-r006-T%-all-config.yaml
+
+- valid_from: 20210702T000000Z
+  mode: replace
+  apply:
+    - l200-p02-r006-T%-all-config.yaml
+    - l200-p02-r009-T%-all-config.yaml
+
+- valid_from: 20210701T000000Z
+  mode: replace
+  category: cal
+  apply:
+    - l200-p02-r006-T%-all-config.yaml
+    - l200-p02-r009-T%-all-config.yaml
+
+- valid_from: 20230301T000000Z
+  mode: reset
+  category:
+    - all
+    - cal
+  apply:
+    - l200-p03-r%-T%-all-config.yaml
+
+- valid_from: 20250701T000000Z
+  mode: reset
+  category: all
+  apply:
+    - l200-p15-r%-T%-all-config.yaml

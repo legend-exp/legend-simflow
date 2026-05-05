@@ -1,12 +1,18 @@
 from legendsimflow import aggregate, patterns
 
 
+def _tier_setting(tier, key):
+    return lambda wc: config.metadata.simprod.config.tier[tier][
+        config.experiment
+    ].settings[key]
+
+
 rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
-        aggregate.gen_list_of_all_plots_outputs(
-            config, tier="hit", cache=SIMFLOW_CONTEXT.modelable_hpges
+        lambda wc: aggregate.gen_list_of_all_plots_outputs(
+            config, tier="hit", cache=smk_load_hpge_cache()
         ),
 
 
@@ -21,8 +27,8 @@ rule build_tier_hit:
 
     - each chunk is partitioned according to the livetime span of each run
       (see the `make_simstat_partition_file` rule). For each partition:
-    - the detector usability is retrieved from `legend-metadata` and stored in
-      the output;
+    - the detector usability and PSD usability are retrieved from
+      `legend-metadata` and stored in the output;
     - the active volume model is applied based on information from `legend-metadata`;
     - A/E is simulated based on current signal templates extracted from
       LEGEND-200 data;
@@ -52,6 +58,8 @@ rule build_tier_hit:
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
+    params:
+        dead_layer_fraction=_tier_setting("hit", "dead_layer_fraction"),
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:

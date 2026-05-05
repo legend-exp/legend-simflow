@@ -24,3 +24,18 @@ def test_partition_simstat_expected_dict():
     }
 
     assert partition_simstat(n_events, n_events_part, runlist) == expected
+
+
+def test_partition_simstat_unsorted_runlist():
+    n_events = {"job_000": 10, "job_001": 10}
+    n_events_part = {
+        "l200-p03-r001-phy": 5,
+        "l200-p03-r002-phy": 10,
+        "l200-p03-r003-phy": 5,
+    }
+    sorted_runlist = sorted(n_events_part.keys())
+    reversed_runlist = list(reversed(sorted_runlist))
+
+    assert partition_simstat(
+        n_events, n_events_part, sorted_runlist
+    ) == partition_simstat(n_events, n_events_part, reversed_runlist)

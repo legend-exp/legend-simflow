@@ -1,0 +1,12 @@
+default:
+  expression: SigmaFit
+  parameters:
+    a: 0.0001
+    b: 0
+    c: 1
+V02160A:
+  expression: SigmaFit
+  parameters:
+    a: 0.0002
+    b: 0
+    c: 1

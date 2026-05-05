@@ -175,17 +175,14 @@ def test_get_index_sorted_by_proximity(legend_testdata):
     path = ref_path / Path("generated/tier/hit/cal/p03/r001")
     files = [str(p) for p in path.glob("*")]
 
-    # Wide energy window to get at least 2 events for a meaningful sort check
-    pairs, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
+    _, all_dts, selected_dts = hpge_pars.lookup_currmod_fit_data(
         files,
         "ch1084803/hit",
         ewin_center=500,
         ewin_width=1000,
+        max_waveforms=2,
         get_drift_time=False,
     )
-
-    if len(pairs) < 2:
-        pytest.skip("not enough test events to verify sorting")
 
     med = float(np.median(all_dts))
     distances = np.abs(selected_dts - med)
@@ -258,7 +255,7 @@ def test_get_waveform_maxima():
     assert np.all(maxi < 2)
 
 
-def test_get_noise_waveforms(legend_testdata):
+def test_get_noise_maxima_and_sample(legend_testdata):
     raw_file = legend_testdata.get_path(
         "lh5/prod-ref-l200/generated/tier/raw/phy/p03/r001/l200-p03-r001-phy-20230322T160139Z-tier_raw.lh5"
     )
@@ -266,17 +263,48 @@ def test_get_noise_waveforms(legend_testdata):
         "lh5/prod-ref-l200/generated/tier/hit/phy/p03/r001/l200-p03-r001-phy-20230322T160139Z-tier_hit.lh5"
     )
 
-    wfs = hpge_pars.get_noise_waveforms(
+    template = np.zeros(1000)
+    template[200] = 1.0  # simple spike template
+
+    sample_wfs, a_max = hpge_pars.get_noise_maxima_and_sample(
         [raw_file],
         [hit_file],
         lh5_group="ch1084803/raw",
         energy_var="cuspEmax_ctc_cal",
         dsp_config=None,
         dsp_output="waveform",
+        template=template,
+        sample_size=5,
     )
 
-    assert wfs is not None
-    assert np.shape(wfs)[1] == 1000
+    assert sample_wfs.ndim == 2
+    assert sample_wfs.shape[0] <= 5
+    assert sample_wfs.shape[1] == 1000
+    assert len(a_max) > 0
+    assert a_max.ndim == 1
+
+
+def test_iter_noise_waveforms(legend_testdata):
+    raw_file = legend_testdata.get_path(
+        "lh5/prod-ref-l200/generated/tier/raw/phy/p03/r001/l200-p03-r001-phy-20230322T160139Z-tier_raw.lh5"
+    )
+    hit_file = legend_testdata.get_path(
+        "lh5/prod-ref-l200/generated/tier/hit/phy/p03/r001/l200-p03-r001-phy-20230322T160139Z-tier_hit.lh5"
+    )
+
+    wfs = list(
+        hpge_pars._iter_noise_waveforms(
+            [raw_file],
+            [hit_file],
+            lh5_group="ch1084803/raw",
+            energy_var="cuspEmax_ctc_cal",
+            dsp_config=None,
+            dsp_output="waveform",
+        )
+    )
+
+    assert len(wfs) > 0
+    assert len(wfs[0]) == 1000
 
 
 def test_get_aoe():
@@ -358,7 +386,7 @@ def test_build_eres_funcs(config, test_l200data):
     )
 
     assert isinstance(meta, dict)
-    assert list(meta.keys()) == ["V99000A"]
+    assert list(meta.keys()) == ["V02160A"]
 
 
 def test_lookup_aoeres(config, test_l200data):
@@ -373,7 +401,7 @@ def test_lookup_aoeres(config, test_l200data):
     for k, v in meta.items():
         assert isinstance(k, str)
         assert "expression" in v
-        assert "pars" in v
+        assert "parameters" in v
 
     meta = hpge_pars.lookup_aoe_res_metadata(
         test_l200data / "v3.0.0",
@@ -386,12 +414,21 @@ def test_lookup_aoeres(config, test_l200data):
     for k, v in meta.items():
         assert isinstance(k, str)
         assert "expression" in v
-        assert "pars" in v
+        assert "parameters" in v
 
 
 def test_aoeres_func():
     f = hpge_pars.build_aoe_res_func("SigmaFit")
     assert isinstance(f, Callable)
+
+
+def test_build_aoe_res_func_from_entry():
+    entry = {"expression": "SigmaFit", "parameters": {"a": 0.0001, "b": 0, "c": 1}}
+    f = hpge_pars.build_aoe_res_func_from_entry(entry)
+    assert isinstance(f, Callable)
+    # SigmaFit with b=0: sigma = sqrt(a) = sqrt(0.0001) = 0.01, constant across E
+    assert f(2039) == pytest.approx(0.01, abs=1e-6)
+    assert f(500) == pytest.approx(0.01, abs=1e-6)
 
 
 def test_build_aoeres_funcs(config, test_l200data):
@@ -403,8 +440,8 @@ def test_build_aoeres_funcs(config, test_l200data):
     )
 
     assert isinstance(meta, dict)
-    assert list(meta.keys()) == ["V99000A"]
-    assert meta["V99000A"](2000) == pytest.approx(0.007, abs=0.001)
+    assert list(meta.keys()) == ["V02160A"]
+    assert meta["V02160A"](2000) == pytest.approx(0.007, abs=0.001)
 
 
 def test_lookup_psd_cut_vals(config, test_l200data):

@@ -1,0 +1,68 @@
+PULS01:
+  name: PULS01
+  system: puls
+  rate_in_Hz: 0.05
+  amplitude_in_keV: 1000
+  daq:
+    crate: 1
+    card:
+      id: 0
+      address: "0x456"
+      serialno: null
+    channel: 1
+    fcid: 1
+    rawid: 1234567
+V99000A:
+  name: V99000A
+  system: geds
+  location:
+    string: 1
+    position: 1
+  daq:
+    crate: 0
+    card:
+      id: 1
+      address: "0x234"
+      serialno: null
+    channel: 0
+    fcid: 7
+    rawid: 1234568
+  voltage:
+    card:
+      id: 2
+      serialno: null
+    channel: 2
+    filter:
+      id: null
+      channel: null
+  electronics:
+    cc4:
+      id: C2
+      channel: 0
+B99000A:
+  name: B99000A
+  system: geds
+  location:
+    string: 4
+    position: 1
+  daq:
+    crate: 0
+    card:
+      id: 6
+      address: "0x123"
+      serialno: null
+    channel: 2
+    fcid: 30
+    rawid: 1234569
+  voltage:
+    card:
+      id: 0
+      serialno: null
+    channel: 0
+    filter:
+      id: null
+      channel: null
+  electronics:
+    cc4:
+      id: C1
+      channel: 0

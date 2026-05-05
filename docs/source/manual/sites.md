@@ -4,9 +4,19 @@
 
 On NERSC you can use Conda/Mamba and Pixi, but you have to make sure that
 software is installed on a performant filesystem like `$SCRATCH` or in
-`/global/common/software/...`. In case you are running the production on CFS
-(slower filesystem), these environment variables are a good starting point
-(customize paths if needed):
+`/global/common/software/...`.
+
+:::{warning}
+
+Pixi cannot install software to `/global/common/software`, because this
+filesystem is **read-only on compute nodes** and Pixi needs to modify its
+environment at runtime. Use `$SCRATCH` for Pixi environments instead (see the
+`detached-environments` setting below).
+
+:::
+
+In case you are running the production on CFS (slower filesystem), these
+environment variables are a good starting point (customize paths if needed):
 
 ```bash
 export SWPREFIX="$SCRATCH/software"
@@ -57,7 +67,7 @@ Now you can proceed with setting up and running the production workflow, with
 e.g. on a compute node:
 
 ```console
-> pixi run snakemake --workflow-profile workflow/profiles/nersc-compute
+> pixi run prod --profile nersc-compute
 ```
 
 Using the provided `nersc-*` profiles is recommended (have a look at them!).
@@ -91,6 +101,20 @@ nersc:
 
 Both features can be disabled by setting the corresponding fields to false.
 
+:::{note}
+
+The NERSC profiles already set the Snakemake option `local-storage-prefix` to
+stage intermediate files on scratch. This is a Snakemake-native mechanism and is
+**independent** of the Simflow's own `nersc.scratch` setting described above. If
+you pass `--default-storage-provider fs` to Snakemake (or add
+`default-storage-provider: fs` to a profile), Snakemake will use the
+`local-storage-prefix` path as the default storage location for all intermediate
+files, copying them to the final output path on completion.
+`--default-storage-provider fs` and `nersc.scratch` are **mutually exclusive**
+and should not be used together.
+
+:::
+
 :::{warning}
 
 These features are implemented manually for each Snakemake rule, so it could be
@@ -99,6 +123,13 @@ that some rules are unaffected by them.
 :::
 
 ### Multi-node execution
+
+:::{warning}
+
+Multi-node execution via `snakemake-nersc` / `pixi run prodnodes` is **highly
+experimental**. Use at your own risk and always verify results afterwards.
+
+:::
 
 As of Snakemake v8.30, support for parallel execution across multiple compute
 nodes or interaction with job schedulers (such as Slurm) is not well supported.
@@ -121,11 +152,27 @@ starting many `srun` instances for performance reasons. As a result, the only
 reliable way to run Snakemake is with one instance on a single compute node.
 
 The `snakemake-nersc` executable, exposed by `legend-simflow` offers a way to
-parallelize the workflow in some situations over several nodes. The usage is:
+parallelize the workflow in some situations over several nodes. The recommended
+invocation is:
 
 ```console
-> [pixi run] snakemake-nersc -N NUMBER_OF_NODES [SNAKEMAKE ARGS]
+> pixi run prodnodes NUMBER_OF_NODES
 ```
+
+which is equivalent to:
+
+```console
+> snakemake-nersc --nodes NUMBER_OF_NODES
+```
+
+To submit the workflow as a batch Slurm job instead, use:
+
+```console
+> pixi run prodsubmit --time HH:MM:SS [--nodes N]
+```
+
+where `--time` is the requested wall time (required) and `--nodes` defaults to
+`1`.
 
 The program determines the list of simulations (see the `simlist` in
 {ref}`production`) that the user wants to process, partitions it in
@@ -139,6 +186,22 @@ srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc-compute --conf
 
 wait
 ```
+
+:::{warning}
+
+The Snakemake instances spawned per chunk are fully independent and share no
+locking mechanism. It is the user's responsibility to ensure that each instance
+operates on a **disjoint subset of the DAG** — otherwise multiple instances may
+try to build the same output concurrently, leading to race conditions and
+corrupted files.
+
+In practice this means that any shared steps (e.g. `par`, which produces
+drift-time maps and other parameters consumed by all `hit`/`opt` jobs) **must be
+completed before** launching the multi-node run. The safest approach is to first
+run `pixi run prod` with only the shared steps in `make_steps`, wait for it to
+finish, and only then launch the multi-node run with those steps excluded.
+
+:::
 
 This approach makes it unfortunately harder to manually interrupt the Simflow,
 e.g. hitting `Ctrl+C` will just make Slurm print some jobset status information.

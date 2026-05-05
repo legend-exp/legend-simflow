@@ -53,6 +53,7 @@ def fig(hpge):
         args.config.metadata.hardware.detectors.germanium.diodes[hpge],
         registry=reg,
         material=natge,
+        allow_cylindrical_asymmetry=False,
     )
 
     dtmap = lh5.read(hpge, dtmap_file)

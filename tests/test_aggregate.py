@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
 from dbetto import AttrsDict
 
+import legendsimflow.aggregate as agg_mod
 from legendsimflow import aggregate as agg
 from legendsimflow.exceptions import SimflowConfigError
 
@@ -112,7 +114,8 @@ def test_hpge_harvesting(config):
 
     assert agg.start_key(config, "l200-p02-r005-phy") == "20220602T000000Z"
 
-    assert agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r005-phy") == [
+    # r000-r002 have an empty skip list, so V99000A is present; r003+ have V99000A skip-listed
+    assert agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r001-phy") == [
         "V99000A"
     ]
 
@@ -190,5 +193,107 @@ def test_usability_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    # now returns dict[str, int] (hpge -> usability)
-    assert usability["l200-p02-r000-phy"] == {"V99000A": "on", "B99000A": "on"}
+    assert usability["l200-p02-r000-phy"] == {
+        "V99000A": {"usability": "on", "psd_usability": "valid"},
+        "B99000A": {"usability": "off", "psd_usability": "missing"},
+    }
+
+
+def test_psd_usability_unknown_value(config, monkeypatch, caplog):
+    """Unknown psd.status.low_aoe values should warn and default to 'valid'."""
+    original = agg_mod.encode_psd_usability
+
+    # Make encode_psd_usability raise KeyError for any value except "valid"
+    # (simulates an unexpected psd.status.low_aoe in the metadata)
+    def patched_encode(val):
+        if val != "valid":
+            raise KeyError(val)
+        return original(val)
+
+    monkeypatch.setattr(agg_mod, "encode_psd_usability", patched_encode)
+
+    with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
+        result = agg_mod.gen_list_of_all_usabilities(config)
+
+    assert "unexpected psd.status.low_aoe" in caplog.text
+    # B99000A has psd.status.low_aoe="missing" -> triggers warning -> defaults to "valid"
+    assert result["l200-p02-r000-phy"]["B99000A"]["psd_usability"] == "valid"
+
+
+# skip-list tests
+# Fixtures: tests/dummyprod/inputs/simprod/config/pars/legend/geds/skip/
+#   validity.yaml:
+#     - valid_from 20220102T000000Z -> l200-p02-r000-T%-all-skip.yaml  (empty dict {})
+#     - valid_from 20220402T000000Z -> l200-p02-r003-T%-all-skip.yaml  (V99000A, B99000A)
+
+
+def test_skip_list_removes_detector(config, caplog):
+    """A detector listed in the skip file for a run is absent from the output."""
+    # r003 start_key 20220402T000000Z matches the r003-T%-all-skip.yaml that lists V99000A
+    with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
+        hpges = agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r003-phy")
+    assert "V99000A" not in hpges
+
+
+def test_skip_list_time_validity_boundary(config):
+    """A detector in the skip file for r003+ is included for r000-r002 but not r003+."""
+    # r000-r002: validity points to the empty skip file
+    for runid in ("l200-p02-r000-phy", "l200-p02-r001-phy", "l200-p02-r002-phy"):
+        hpges = agg.gen_list_of_hpges_valid_for_modeling(config, runid)
+        assert "V99000A" in hpges
+
+    # r003-r007: validity points to the skip file listing V99000A
+    for runid in (
+        "l200-p02-r003-phy",
+        "l200-p02-r004-phy",
+        "l200-p02-r005-phy",
+        "l200-p02-r006-phy",
+        "l200-p02-r007-phy",
+    ):
+        hpges = agg.gen_list_of_hpges_valid_for_modeling(config, runid)
+        assert "V99000A" not in hpges
+
+
+def test_skip_list_empty_mapping_is_noop(config):
+    """An empty skip mapping {} leaves the HPGe list unchanged.
+
+    r000-r002 map to l200-p02-r000-T%-all-skip.yaml which is {}: V99000A
+    must still appear in the output.
+    """
+    hpges = agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r000-phy")
+    assert "V99000A" in hpges
+    assert isinstance(hpges, list)
+
+
+def test_skip_list_usability_gate_takes_precedence(config, caplog):
+    """A detector excluded by the usability gate is absent even if also skip-listed.
+
+    B99000A has usability='off' in the channelmap (excluded before the skip
+    check) and is also listed in the r003-T%-all-skip file. It must remain absent
+    and must NOT produce a skip-list WARNING (the usability gate fires first).
+    """
+    with caplog.at_level(logging.WARNING, logger="legendsimflow.aggregate"):
+        hpges = agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r003-phy")
+
+    assert "B99000A" not in hpges
+    # The skip-list warning should NOT fire for B99000A since the usability gate
+    # prunes it before the skip check runs
+    assert not any(
+        "B99000A" in r.message for r in caplog.records if r.levelname == "WARNING"
+    )
+
+
+def test_skip_list_all_hpges_reflects_exclusion(config):
+    """gen_list_of_all_hpges_valid_for_modeling omits detectors for all skip-covered runs."""
+    hpges = agg.gen_list_of_all_hpges_valid_for_modeling(config)
+    # r000-r002 have V99000A (empty skip list); r003-r007 do not
+    for runid in ("l200-p02-r000-phy", "l200-p02-r001-phy", "l200-p02-r002-phy"):
+        assert "V99000A" in hpges[runid]
+    for runid in (
+        "l200-p02-r003-phy",
+        "l200-p02-r004-phy",
+        "l200-p02-r005-phy",
+        "l200-p02-r006-phy",
+        "l200-p02-r007-phy",
+    ):
+        assert "V99000A" not in hpges[runid]

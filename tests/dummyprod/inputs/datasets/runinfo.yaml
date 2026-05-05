@@ -1,0 +1,162 @@
+p02:
+  r000:
+    cal:
+      start_key: 20220101T000000Z
+    phy:
+      start_key: 20220102T000000Z
+      livetime_in_s: 10000
+  r001:
+    cal:
+      start_key: 20220201T000000Z
+    phy:
+      start_key: 20220202T000000Z
+      livetime_in_s: 10000
+  r002:
+    cal:
+      start_key: 20220301T000000Z
+    phy:
+      start_key: 20220302T000000Z
+      livetime_in_s: 10000
+  r003:
+    cal:
+      start_key: 20220401T000000Z
+    phy:
+      start_key: 20220402T000000Z
+      livetime_in_s: 10000
+  r004:
+    cal:
+      start_key: 20220501T000000Z
+    phy:
+      start_key: 20220502T000000Z
+      livetime_in_s: 10000
+  r005:
+    cal:
+      start_key: 20220601T000000Z
+    phy:
+      start_key: 20220602T000000Z
+      livetime_in_s: 10000
+  r006:
+    cal:
+      start_key: 20220701T000000Z
+    phy:
+      start_key: 20220702T000000Z
+      livetime_in_s: 10000
+  r007:
+    cal:
+      start_key: 20220801T000000Z
+    phy:
+      start_key: 20220802T000000Z
+      livetime_in_s: 10000
+
+p03:
+  r000:
+    cal:
+      start_key: 20230311T235840Z
+    phy:
+      start_key: 20230312T043356Z
+      livetime_in_s: 10000
+  r001:
+    cal:
+      start_key: 20230317T211819Z
+    phy:
+      start_key: 20230318T015140Z
+      livetime_in_s: 10000
+  r002:
+    cal:
+      start_key: 20230324T161401Z
+    phy:
+      start_key: 20230324T205907Z
+      livetime_in_s: 10000
+  r003:
+    cal:
+      start_key: 20230331T161141Z
+    phy:
+      start_key: 20230401T012732Z
+      livetime_in_s: 10000
+  r004:
+    cal:
+      start_key: 20230406T192453Z
+    phy:
+      start_key: 20230406T235540Z
+      livetime_in_s: 10000
+  r005:
+    cal:
+      start_key: 20230412T124030Z
+    phy:
+      start_key: 20230412T171450Z
+      livetime_in_s: 10000
+
+p13:
+  r001:
+    ant: # argon noise-triggers thorium
+      start_key: 20241210T225016Z
+      livetime_in_s: 420
+    ath: # argon thorium
+      start_key: 20241210T230220Z
+      livetime_in_s: 420
+  r002:
+    ath:
+      start_key: 20241216T183832Z
+      livetime_in_s: 420
+  r003:
+    anp: # argon noise-triggers physics
+      start_key: 20241217T094846Z
+      livetime_in_s: 420
+    aph: # argon physics
+      start_key: 20241217T095149Z
+      livetime_in_s: 420
+  r004:
+    tst:
+      start_key: 20241217T212313Z
+      livetime_in_s: 420
+  r005:
+    tst:
+      start_key: 20241217T213209Z
+      livetime_in_s: 420
+  r006:
+    acs: # argon cesium
+      start_key: 20241221T150307Z
+      livetime_in_s: 420
+    anc: # argon noise-triggers cesium
+      start_key: 20241221T150249Z
+      livetime_in_s: 420
+  r008:
+    ant:
+      start_key: 20250110T192950Z
+      livetime_in_s: 420
+    ath:
+      start_key: 20250110T193010Z
+      livetime_in_s: 420
+  r009:
+    tst:
+      start_key: 20250111T083232Z
+      livetime_in_s: 420
+
+p16:
+  r006:
+    phy:
+      start_key: 20251001T181505Z
+      livetime_in_s: 69
+    cal:
+      start_key: 20251001T130640Z
+    fft:
+      start_key: 20251001T181428Z
+    pzc:
+      start_key: 20251001T150857Z
+  r007:
+    cal:
+      start_key: 20251005T220109Z
+    fft:
+      start_key: 20251006T032205Z
+    pzc:
+      start_key: 20251006T000432Z
+  r008:
+    ssc:
+      start_key: 20251006T205904Z
+      livetime_in_s: 420
+  r009:
+    fft:
+      start_key: 20251007T222823Z
+    ssc:
+      start_key: 20251007T101537Z
+      livetime_in_s: 420

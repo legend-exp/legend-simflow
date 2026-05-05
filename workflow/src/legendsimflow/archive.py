@@ -41,3 +41,21 @@ def create_plots_tarball(generated_dir: Path, output: Path, prefix: str) -> None
         for plots_dir in plots_dirs:
             rel = plots_dir.relative_to(generated_dir)
             tar.add(plots_dir, arcname=f"{prefix}/{rel}")
+
+
+def create_pdfs_tarball(pdf_dir: Path, output: Path, prefix: str) -> None:
+    """Archive all pdf tier LH5 files into a .tar.xz.
+
+    Parameters
+    ----------
+    pdf_dir
+        The ``tier/pdf/`` directory of the production cycle.
+    output
+        Path to write the ``.tar.xz`` tarball.
+    prefix
+        Prefix directory name inside the archive (e.g. ``prod-v1-pdfs``).
+    """
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    with tarfile.open(output, "w:xz") as tar:
+        tar.add(pdf_dir, arcname=prefix)

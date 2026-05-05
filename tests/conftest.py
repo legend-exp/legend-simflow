@@ -20,25 +20,35 @@ config_filename = testprod / "simflow-config.yaml"
 @pytest.fixture(scope="session")
 def legend_testdata():
     ldata = LegendTestData()
-    ldata.checkout("9f03127")
+    ldata.checkout("68d8b49")
     return ldata
 
 
-@pytest.fixture(scope="session")
-def legend_test_metadata(legend_testdata):
-    return LegendMetadata(legend_testdata["legend/metadata"])
+@pytest.fixture(scope="session", autouse=True)
+def dummyprod_optmap(legend_testdata):
+    """Copy the real optical map from legend_testdata into dummyprod.
+
+    All configs referencing ``$_/inputs/simprod/l200cfg01-optmap-dummy.lh5``
+    find a valid LH5 file.  The file is gitignored; this fixture is the sole
+    source of truth for test runs.
+    """
+    src = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))
+    dst = testprod / "inputs/simprod/l200cfg01-optmap-dummy.lh5"
+    shutil.copy2(src, dst)
+    yield
+    dst.unlink(missing_ok=True)
 
 
 @pytest.fixture(scope="session")
 def test_generate_gdml(config):
-    geom_config = config.metadata.simprod.config.geom["l200p02-geom-config"]
+    geom_config = config.metadata.simprod.config.geom["legend-geom-config"]
 
     return core.construct(
         use_detailed_fiber_model=False, config=geom_config, public_geometry=True
     )
 
 
-def make_config(legend_testdata):
+def make_config():
     with config_filename.open() as f:
         config = yaml.safe_load(f)
 
@@ -57,18 +67,6 @@ def make_config(legend_testdata):
     config["paths"] = _make_path(config["paths"])
     apply_path_defaults(config["paths"])
 
-    def _copy_skip_existing(src, dst):
-        if not Path(dst).exists():
-            shutil.copy2(src, dst)
-
-    for fd in ("hardware", "datasets"):
-        shutil.copytree(
-            legend_testdata[f"legend/metadata/{fd}"],
-            testprod / "inputs" / fd,
-            copy_function=_copy_skip_existing,
-            dirs_exist_ok=True,
-        )
-
     metadata = LegendMetadata(testprod / "inputs")
 
     config["metadata"] = metadata
@@ -78,13 +76,13 @@ def make_config(legend_testdata):
 
 
 @pytest.fixture(scope="session")
-def config(legend_testdata):
-    return make_config(legend_testdata)
+def config():
+    return make_config()
 
 
 @pytest.fixture
-def fresh_config(legend_testdata):
-    return make_config(legend_testdata)
+def fresh_config():
+    return make_config()
 
 
 class mock_workflow_class:

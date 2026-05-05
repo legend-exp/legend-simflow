@@ -1,0 +1,6 @@
+Pb214_to_Po214:
+  - /RMG/Generator/Select GPS
+  - /gps/particle ion
+  - /gps/energy 0 eV
+  - /gps/ion 82 214
+  - /process/had/rdm/nucleusLimits 214 214 82 83

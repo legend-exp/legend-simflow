@@ -1,0 +1,215 @@
+B00000A:
+  usability: "on"
+B00000B:
+  usability: "ac"
+B00000C:
+  usability: "off"
+B00000D:
+  usability: "off"
+B00002A:
+  usability: "off"
+B00002B:
+  usability: "off"
+B00002C:
+  usability: "off"
+B00032A:
+  usability: "off"
+B00032B:
+  usability: "off"
+B00032C:
+  usability: "off"
+B00032D:
+  usability: "off"
+B00035A:
+  usability: "off"
+B00035B:
+  usability: "off"
+B00035C:
+  usability: "off"
+B00061A:
+  usability: "off"
+B00061B:
+  usability: "off"
+B00061C:
+  usability: "off"
+B00076C:
+  usability: "off"
+B00079B:
+  usability: "off"
+B00079C:
+  usability: "off"
+B00089A:
+  usability: "off"
+B00089B:
+  usability: "off"
+B00089C:
+  usability: "off"
+B00089D:
+  usability: "off"
+B00091A:
+  usability: "off"
+B00091B:
+  usability: "off"
+B00091C:
+  usability: "off"
+B00091D:
+  usability: "off"
+C000RG1:
+  usability: "on"
+C000RG2:
+  usability: "ac"
+C00ANG2:
+  usability: "off"
+C00ANG3:
+  usability: "off"
+C00ANG4:
+  usability: "off"
+C00ANG5:
+  usability: "off"
+P00537A:
+  usability: "off"
+P00538A:
+  usability: "ac"
+P00538B:
+  usability: "off"
+P00573A:
+  usability: "on"
+P00573B:
+  usability: "off"
+P00574A:
+  usability: "off"
+P00574B:
+  usability: "off"
+P00574C:
+  usability: "off"
+P00575A:
+  usability: "off"
+P00661A:
+  usability: "off"
+P00661B:
+  usability: "off"
+P00661C:
+  usability: "off"
+P00662A:
+  usability: "off"
+P00662B:
+  usability: "off"
+P00662C:
+  usability: "off"
+P00664A:
+  usability: "off"
+P00665A:
+  usability: "off"
+P00665B:
+  usability: "off"
+P00665C:
+  usability: "off"
+P00698A:
+  usability: "off"
+P00698B:
+  usability: "off"
+P00712A:
+  usability: "off"
+P00748A:
+  usability: "off"
+P00748B:
+  usability: "off"
+P00909B:
+  usability: "off"
+P00909C:
+  usability: "off"
+V00048A:
+  usability: "off"
+V00048B:
+  usability: "off"
+V00050A:
+  usability: "off"
+V00050B:
+  usability: "off"
+V00074A:
+  usability: "off"
+V01240A:
+  usability: "off"
+V01386A:
+  usability: "off"
+V01387A:
+  usability: "off"
+V01389A:
+  usability: "off"
+V01403A:
+  usability: "off"
+V01404A:
+  usability: "off"
+V01406A:
+  usability: ac
+V01415A:
+  usability: "off"
+V02160A:
+  psd:
+    status:
+      low_aoe: valid
+  usability: "on"
+V02160B:
+  usability: "off"
+V02162B:
+  usability: "off"
+V02166B:
+  usability: "off"
+V04199A:
+  usability: "off"
+V04545A:
+  usability: "off"
+V04549A:
+  usability: "off"
+V05261A:
+  usability: "off"
+V05261B:
+  psd:
+    status:
+      low_aoe: valid
+  usability: "on"
+V05266A:
+  usability: "off"
+V05266B:
+  usability: "off"
+V05267A:
+  usability: "off"
+V05267B:
+  usability: "off"
+V05268A:
+  usability: "off"
+V05268B:
+  usability: "off"
+V05612A:
+  usability: "off"
+V05612B:
+  usability: "off"
+V07298B:
+  usability: "off"
+V07302A:
+  usability: "off"
+V07302B:
+  usability: "off"
+V07646A:
+  usability: "off"
+V07647A:
+  usability: "off"
+V07647B:
+  usability: "off"
+V08682A:
+  usability: "off"
+V08682B:
+  usability: "off"
+V09372A:
+  usability: "off"
+V09374A:
+  usability: "off"
+V09724A:
+  usability: "off"
+
+S002:
+  usability: "on"
+S003:
+  usability: "ac"
+S007:
+  usability: "off"

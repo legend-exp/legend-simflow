@@ -3,9 +3,11 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
 from dbetto import AttrsDict
 
 from legendsimflow import metadata
+from legendsimflow.exceptions import SimflowConfigError
 
 
 def test_all(config):
@@ -24,8 +26,38 @@ def test_all(config):
 
     assert (
         "operational_voltage_in_V"
-        in metadata.simpars(config.metadata, "geds.opv", "l200-p02-r002-phy").V99000A
+        in metadata.simpars(
+            config.metadata, "geds.opv", "l200-p02-r002-phy", config.experiment
+        ).V99000A
     )
+
+    # default= returns the default when the par directory does not exist
+    assert (
+        metadata.simpars(
+            config.metadata,
+            "geds.nonexistent",
+            "l200-p02-r002-phy",
+            config.experiment,
+            default=None,
+        )
+        is None
+    )
+    assert (
+        metadata.simpars(
+            config.metadata,
+            "geds.nonexistent",
+            "l200-p02-r002-phy",
+            config.experiment,
+            default=42,
+        )
+        == 42
+    )
+
+    # without default=, a missing par raises
+    with pytest.raises((KeyError, LookupError, FileNotFoundError)):
+        metadata.simpars(
+            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", config.experiment
+        )
 
     assert isinstance(
         metadata.get_vtx_simconfig(config, "lar_hpge_shell_K42"), AttrsDict
@@ -36,10 +68,11 @@ def test_run_stuff(config):
     assert metadata.parse_runid("l200-p42-r999-ant") == ("l200", 42, 999, "ant")
 
     assert metadata.is_runid("l200-p00-r000-phy")
+    assert metadata.is_runid("l1000-p00-r000-phy")
     assert not metadata.is_runid("l200-p00-r00-phy")
     assert not metadata.is_runid("l200-p00-r000-ph0")
     assert not metadata.is_runid("l200-k00-r000-phy")
-    assert not metadata.is_runid("l1000-p00-r000-phy")
+    assert not metadata.is_runid("l200.p00.r000.phy")
 
     assert metadata.query_runlist_db(config.metadata, "valid.phy.p02") == [
         f"l200-p02-r00{r}-phy" for r in range(8)
@@ -75,6 +108,56 @@ def test_run_stuff(config):
     )
 
 
+def test_is_simid():
+    # valid simids
+    assert metadata.is_simid("hpge_bulk_Rn222_to_Po214")
+    assert metadata.is_simid("birds_nest_K40")
+    assert metadata.is_simid("simid123")
+    assert metadata.is_simid("with-hyphen")
+    assert metadata.is_simid("a")
+
+    # invalid simids
+    assert not metadata.is_simid("has.dot")
+    assert not metadata.is_simid("has dot")
+    assert not metadata.is_simid("has@special")
+    assert not metadata.is_simid("")
+    assert not metadata.is_simid("tier.simid")
+
+
+def test_validate_simconfig_keys():
+    # all valid keys — should not raise
+    valid = {
+        "hpge_bulk_Rn222_to_Po214": {},
+        "birds_nest_K40": {},
+        "simid-with-hyphens": {},
+    }
+    metadata.validate_simconfig_keys(valid)
+
+    # one invalid key (contains a dot)
+    invalid = {"valid_key": {}, "bad.key": {}}
+    with pytest.raises(SimflowConfigError, match=r"bad\.key"):
+        metadata.validate_simconfig_keys(invalid)
+
+    # multiple invalid keys, block label included in message
+    multi_invalid = {"ok": {}, "also.bad": {}, "has space": {}}
+    with pytest.raises(SimflowConfigError, match=r"also\.bad"):
+        metadata.validate_simconfig_keys(multi_invalid, block="test.block")
+
+
+def test_get_simconfig_validates_keys(config):
+    # getting the full stp simconfig should succeed (all keys are valid simids)
+    simcfg = metadata.get_simconfig(config, "stp")
+    assert all(metadata.is_simid(k) for k in simcfg)
+
+
+def test_get_simconfig_invalid_key_raises(config):
+    # inject an invalid top-level key and ensure full simconfig load validates it
+    config.metadata.simprod.config.tier.stp[config.experiment].simconfig[123] = {}
+
+    with pytest.raises(SimflowConfigError, match=r"123"):
+        metadata.get_simconfig(config, "stp")
+
+
 def test_encode_usability():
     assert metadata.encode_usability("on") == 0
     assert metadata.encode_usability("ac") == 1
@@ -105,3 +188,27 @@ def test_extract_integer():
         # Test negative integer
         test_file.write_text("-999")
         assert metadata.extract_integer(test_file) == -999
+
+
+def test_get_tier_settings_hit(config):
+    """get_tier_settings returns the settings object for the hit tier."""
+    settings = metadata.get_tier_settings(config, "hit")
+
+    assert "dead_layer_fraction" in settings
+    assert "buffer_len" in settings
+
+    assert settings.dead_layer_fraction == 0.5
+    assert settings.buffer_len == "500*MB"
+
+
+def test_get_tier_settings_evt(config):
+    """get_tier_settings returns the settings object for the evt tier."""
+    settings = metadata.get_tier_settings(config, "evt")
+
+    assert "geds_energy_thr_kev" in settings
+    assert "spms_energy_thr_pe" in settings
+    assert "buffer_len" in settings
+
+    assert settings.geds_energy_thr_kev == 25
+    assert settings.spms_energy_thr_pe == 0
+    assert settings.buffer_len == "50*MB"

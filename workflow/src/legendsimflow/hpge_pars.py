@@ -15,7 +15,9 @@
 from __future__ import annotations
 
 import functools
+import itertools
 import logging
+import math
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -469,7 +471,12 @@ def get_current_pulses(
     return times_list, current_list
 
 
-def get_noise_waveforms(
+def _remove_outliers(data: NDArray, sigma: float = 5) -> NDArray:
+    """Remove elements more than ``sigma`` standard deviations from the mean."""
+    return data[abs(data - np.mean(data)) < sigma * np.std(data)]
+
+
+def _iter_noise_waveforms(
     raw_files: list,
     hit_files: list,
     lh5_group: str,
@@ -478,14 +485,51 @@ def get_noise_waveforms(
     *,
     threshold: float = 5,
     length: int = 1000,
+    energy_var: str = "cuspEmax_cal",
+):
+    """Yield noise waveforms one at a time without accumulating them all in memory.
+
+    Parameters are the same as :func:`get_noise_maxima_and_sample`.
+    """
+    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
+
+    for raw_file, hit_file in zip(raw_files, hit_files, strict=True):
+        browser = WaveformBrowser(
+            str(raw_file), lh5_group, dsp_config=dsp_config, lines=[dsp_output]
+        )
+        energies = lh5.read(
+            f"{lh5_group.replace('raw', 'hit')}/{energy_var}", hit_file
+        ).view_as("np")
+
+        indices = np.where(energies < threshold)[0]
+        del energies
+
+        for idx in indices:
+            browser.find_entry(idx, append=False)
+            yield browser.lines[dsp_output][0].get_ydata()[:length].copy()
+
+        del indices
+
+
+def get_noise_maxima_and_sample(
+    raw_files: list,
+    hit_files: list,
+    lh5_group: str,
+    dsp_config: str,
+    dsp_output: str,
+    template: ArrayLike,
+    *,
+    norm: float = 1,
+    sample_size: int = 100,
+    threshold: float = 5,
     maximum_number: int | None = None,
     energy_var: str = "cuspEmax_cal",
-) -> NDArray:
-    """Extract a matrix of noise waveforms, after applying some DSP processing.
+) -> tuple[NDArray, NDArray]:
+    """Compute waveform maxima on-the-fly, keeping only a small sample in memory.
 
-    The waveforms are only those with energy less than `threshold` and are the
-    result of the dsp processing defined in `config_path` with output variable
-    `dsp_output`.
+    This avoids storing all noise waveforms at once. Instead, it iterates
+    through waveforms, computes the maximum of ``waveform + template`` for each,
+    and only retains the first ``sample_size`` waveforms for plotting.
 
     Parameters
     ----------
@@ -500,45 +544,58 @@ def get_noise_waveforms(
         to estimate the current pulse.
     dsp_output
         the name of the DSP output corresponding to the current pulse.
+    template
+        the current-pulse template waveform.
+    norm
+        normalisation for the template.
+    sample_size
+        number of waveforms to keep for plotting.
+    threshold
+        energy threshold to apply to select the noise waveforms.
+    maximum_number
+        maximum number of waveforms to process.
     energy_var
         the name of the energy variable to use for thresholding.
-    threshold
-        energy threshold to apply to select the noise waveforms
-    maximum_number
-        Number of waveforms to extract.
-    length
-        length of noise waveform to extract (takes the first `N` samples).
 
     Returns
     -------
-    a 2D array of the waveforms.
+    sample_wfs
+        2D array of the first ``sample_size`` waveforms (for plotting).
+    a_max
+        1D array of the maximum of ``waveform + template`` for each waveform.
 
     """
-    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
+    norm_template = norm * np.asarray(template) / np.max(template)
+    length = len(norm_template)
 
-    waveforms = []
+    sample_wfs = []
+    sample_full = False
+    maxima = []
 
-    for raw_file, hit_file in zip(raw_files, hit_files, strict=True):
-        browser = WaveformBrowser(
-            str(raw_file), lh5_group, dsp_config=dsp_config, lines=[dsp_output]
-        )
-        energies = lh5.read(
-            f"{lh5_group.replace('raw', 'hit')}/{energy_var}", hit_file
-        ).view_as("np")
+    waveforms = _iter_noise_waveforms(
+        raw_files,
+        hit_files,
+        lh5_group,
+        dsp_config,
+        dsp_output,
+        threshold=threshold,
+        length=length,
+        energy_var=energy_var,
+    )
+    for wf in itertools.islice(waveforms, maximum_number):
+        m = np.max(wf + norm_template)
+        if not np.isnan(m):
+            maxima.append(m)
 
-        # only look at low energy
-        indices = np.where(energies < threshold)
+        if not sample_full:
+            sample_wfs.append(wf)
+            sample_full = len(sample_wfs) >= sample_size
 
-        for idx in indices[0]:
-            browser.find_entry(idx, append=False)
+    a_max = np.array(maxima)
+    if len(a_max) > 0:
+        a_max = _remove_outliers(a_max)
 
-            waveform = browser.lines[dsp_output][0].get_ydata()
-            waveforms.append(waveform[:length].reshape(1, length))
-
-            if maximum_number is not None and len(waveforms) >= maximum_number:
-                return np.concatenate(waveforms, axis=0)
-
-    return np.concatenate(waveforms, axis=0)
+    return np.array(sample_wfs), a_max
 
 
 def plot_currmod_fit_result(
@@ -649,16 +706,12 @@ def get_waveform_maxima(
         The normalisation for the template.
 
     """
-    # normalise the template
     template = norm * template / np.max(template)
 
     maximum = np.max(noise_wfs + template, axis=1)
-
-    # remove nan
     maximum = maximum[~np.isnan(maximum)]
 
-    # remove far outliers
-    return maximum[abs(maximum - np.mean(maximum)) < np.std(maximum) * 5]
+    return _remove_outliers(maximum)
 
 
 def lookup_file_paths(l200data: str, runid: str, hit_tier_name: str) -> AttrsDict:
@@ -808,7 +861,7 @@ def _lookup_generated_pars_file(
 
     # get the pars file at the correct timestamp
     tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.hardware.configuration.channelmaps.on(tstamp)
+    chmap = metadata.channelmap(tstamp, skip_version_check=True)
     pars_file = pars_db.on(tstamp)
 
     return pars_file, chmap
@@ -932,7 +985,12 @@ def lookup_aoe_res_metadata(
         )
         par = _getpar(detmeta, "results.aoe.correction_fit_results.SigmaFits")
         if par is not None:
-            out_dict[hpge] = par
+            # normalise to "parameters"/"uncertainties" for consistency with eresmod
+            out_dict[hpge] = {
+                "expression": par["expression"],
+                "parameters": par["pars"],
+                "uncertainties": par.get("errs", {}),
+            }
 
     return AttrsDict(out_dict)
 
@@ -947,12 +1005,53 @@ def build_energy_res_func(function: str) -> Callable:
     raise NotImplementedError
 
 
+def build_energy_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
+    """Build a bound energy resolution callable from a single metadata entry.
+
+    Parameters
+    ----------
+    meta
+        A single detector's energy resolution metadata, with keys ``expression``
+        and ``parameters``. Same format as one value from
+        :func:`lookup_energy_res_metadata`.
+
+    Returns
+    -------
+    Callable that takes energy in keV and returns FWHM in keV.
+    """
+    if not isinstance(meta, AttrsDict):
+        meta = AttrsDict(meta)
+    func = build_energy_res_func(meta.expression)
+    base = functools.partial(func, **meta.parameters.to_dict())
+    return lambda E, base=base: base(E)
+
+
 def build_aoe_res_func(function: str) -> Callable:
     """A/E resolution function builder."""
     if function == "SigmaFit":
         return lambda energy, a, b, c: (a + (b / (energy + 10**-99)) ** c) ** (0.5)
 
     raise NotImplementedError
+
+
+def build_aoe_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
+    """Build a bound A/E resolution callable from a single metadata entry.
+
+    Parameters
+    ----------
+    meta
+        A single detector's A/E resolution metadata, with keys ``expression``
+        and ``parameters``.
+
+    Returns
+    -------
+    Callable that takes energy in keV and returns the A/E resolution (sigma).
+    """
+    if not isinstance(meta, AttrsDict):
+        meta = AttrsDict(meta)
+    func = build_aoe_res_func(meta.expression)
+    base = functools.partial(func, **meta.parameters.to_dict())
+    return lambda E, base=base: base(E)
 
 
 def build_energy_res_func_dict(
@@ -1064,9 +1163,9 @@ def build_aoe_res_func_dict(
         # use functools.partial correctly freeze the parameters into the function
         base = functools.partial(
             _func_full,
-            a=meta.pars.a,
-            b=meta.pars.b,
-            c=meta.pars.c,
+            a=meta.parameters.a,
+            b=meta.parameters.b,
+            c=meta.parameters.c,
         )
 
         def _aoeres(E, base=base):
@@ -1123,11 +1222,14 @@ def lookup_psd_cut_values(
         hpge = (
             chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
         )
-        out_dict[hpge] = {
-            "aoe": {
-                "low_side": _getpar(detmeta, "results.aoe.low_cut"),
-                "high_side": _getpar(detmeta, "results.aoe.high_cut"),
-            }
-        }
+        low = _getpar(detmeta, "results.aoe.low_cut")
+        high = _getpar(detmeta, "results.aoe.high_cut")
+        # l200data may store NaN for missing cuts; treat as absent so that
+        # sanitize_dict_with_defaults (called in hit.py) can substitute the default
+        if low is not None and math.isnan(low):
+            low = None
+        if high is not None and math.isnan(high):
+            high = None
+        out_dict[hpge] = {"aoe": {"low_side": low, "high_side": high}}
 
     return AttrsDict(out_dict)

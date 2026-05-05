@@ -42,7 +42,7 @@ end
     meta = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
 
     det = "V99000A"
-    opv_val = 3000.0
+    opv_val = 4200.0
 
     meta_dict, xtal, opv = load_detector_metadata(meta, det, opv_val)
 
@@ -65,8 +65,8 @@ end
 @testset "map_generation" begin
     meta_path = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
     det = "V99000A"
-    opv_val = 3000.0
-    T = Float64
+    opv_val = 4200.0
+    T = Float32
     refinement_limits = [0.2, 0.1, 0.05, 0.02]
 
     meta, xtal, opv = load_detector_metadata(meta_path, det, opv_val)
@@ -74,6 +74,9 @@ end
     sim = setup_hpge_simulation(meta_path, meta, xtal, opv, T, refinement_limits, threshold = 20000)
 
     @test isa(sim, Simulation{T})
+    @test isa(sim.detector.semiconductor.charge_drift_model, ADL2016ChargeDriftModel)
+    @test isa(sim.detector.semiconductor.charge_drift_model.temperaturemodel, PowerLawTemperatureModel)
+    @test sim.detector.semiconductor.charge_drift_model.temperaturemodel.reference_temperature == T(87)
 
     # test valid spawn pos
     # Candidate positions include one valid and one invalid

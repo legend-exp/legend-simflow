@@ -23,6 +23,7 @@ make_steps:
   - hit
   - evt
   - cvt
+  - pdf
 
 # legend_metadata_version: main
 
@@ -56,7 +57,6 @@ paths:
     evt: $_/generated/tier/evt
     cvt: $_/generated/tier/cvt
     pdf: $_/generated/tier/pdf
-  pdf_releases: $_/generated/releases
 #
 # runcmd:
 #   remage: apptainer run --cleanenv /home/gipert/sw/apptainer/remage_latest.sif

@@ -1,0 +1,43 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  simple:
+    format: >-
+      %(asctime)s|%(levelname)s|%(name)s @%(filename)s:L%(lineno)d >>>
+      %(message)s
+    datefmt: "%Y-%m-%d %H:%M:%S"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: simple
+    stream: ext://sys.stdout
+
+  dataflow:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: simple
+    filename: __auto__
+    mode: a
+
+loggers:
+  prod:
+    level: DEBUG
+    handlers: [dataflow]
+    propagate: no
+
+  legendsimflow:
+    level: DEBUG
+    handlers: [dataflow]
+    propagate: no
+
+  legendsimflow.profile:
+    level: INFO
+    handlers: [dataflow]
+    propagate: no
+
+root:
+  level: INFO
+  handlers: [dataflow]

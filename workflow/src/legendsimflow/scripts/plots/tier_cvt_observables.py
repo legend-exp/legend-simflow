@@ -18,6 +18,7 @@
 import awkward as ak
 import hist
 import matplotlib.pyplot as plt
+from lgdo import lh5
 from lgdo.lh5 import LH5Iterator
 
 from legendsimflow import nersc, plot
@@ -34,6 +35,8 @@ def _gimme_ehist():
 cvt_file = args.input
 output_pdf = args.output[0]
 simid = args.wildcards.simid
+
+has_rc = "evt/spms/rc_energy" in lh5.ls(str(cvt_file), "evt/spms/")
 
 
 def _fill_ehist(h, evt_chunk, mask):
@@ -68,12 +71,13 @@ def _plot_ehist(ax, mask, **kwargs):
     plot.plot_hist(h, ax=ax, **kwargs)
 
 
-fig = plt.figure(figsize=(14, 12))
+fig = plt.figure(figsize=(14, 16))
 
-outer = fig.add_gridspec(nrows=3, ncols=1, height_ratios=[1, 1, 1])
+outer = fig.add_gridspec(nrows=4, ncols=1, height_ratios=[1, 1, 1, 1])
 gs_top = outer[0].subgridspec(1, 1)
 gs_mid = outer[1].subgridspec(1, 1)
 gs_bot = outer[2].subgridspec(1, 2, width_ratios=[1, 1])
+gs_pe = outer[3].subgridspec(1, 2, width_ratios=[1, 1])
 
 ax = fig.add_subplot(gs_top[0, 0])
 
@@ -115,23 +119,24 @@ base_mask = (  # noqa: E731
     lambda evt: evt.coincident.geds
     & (evt.geds.multiplicity == 1)
     & evt.geds.is_good_channel
-    & evt.geds.has_aoe
+    & evt.geds.psd.has_aoe
+    & evt.geds.psd.is_good
 )
 _plot_ehist(
     ax,
     base_mask,
     color="silver",
-    label="geds.is_good_channel & geds.has_aoe & geds.multiplicity == 1",
+    label="geds.is_good_channel & geds.psd.has_aoe & geds.psd.is_good & geds.multiplicity == 1",
 )
 _plot_ehist(
     ax,
-    lambda evt: base_mask(evt) & evt.geds.is_single_site,
+    lambda evt: base_mask(evt) & evt.geds.psd.is_single_site,
     color="tab:green",
-    label="... geds.is_single_site",
+    label="... geds.psd.is_single_site",
 )
 _plot_ehist(
     ax,
-    lambda evt: base_mask(evt) & evt.geds.is_single_site & ~evt.coincident.spms,
+    lambda evt: base_mask(evt) & evt.geds.psd.is_single_site & ~evt.coincident.spms,
     color="tab:red",
     label="... ~coincident.spms",
 )
@@ -149,13 +154,73 @@ for evt_chunk in it:
 plot.plot_hist(h, ax)
 
 ax = fig.add_subplot(gs_bot[0, 1])
-h = hist.new.IntCategory(range(60), name="spms multiplicity").Double()
-it = LH5Iterator(
-    cvt_file, "evt", buffer_len=BUFFER_LEN, field_mask=["spms/multiplicity"]
-)
+h_spms_mult_sim = hist.new.IntCategory(range(60), name="spms multiplicity").Double()
+if has_rc:
+    h_spms_mult_rc = hist.new.IntCategory(range(60), name="spms multiplicity").Double()
+field_mask = ["spms/multiplicity"]
+if has_rc:
+    field_mask.append("spms/rc_energy")
+it = LH5Iterator(cvt_file, "evt", buffer_len=BUFFER_LEN, field_mask=field_mask)
 for evt_chunk in it:
-    h.fill(evt_chunk.view_as("ak").spms.multiplicity)
-plot.plot_hist(h, ax)
+    spms = evt_chunk.view_as("ak").spms
+    h_spms_mult_sim.fill(spms.multiplicity)
+    if has_rc:
+        h_spms_mult_rc.fill(ak.sum(ak.any(spms.rc_energy > 0, axis=-1), axis=-1))
+plot.plot_hist(h_spms_mult_sim, ax, label="simulated")
+if has_rc:
+    plot.plot_hist(h_spms_mult_rc, ax, label="random coincidences")
+ax.set_yscale("log")
+if has_rc:
+    ax.legend()
+
+ax = fig.add_subplot(gs_pe[0, 0])
+h_npe_sim = hist.new.Reg(200, 0, 150, name="light per event (photoelectrons)").Double()
+if has_rc:
+    h_npe_rc = hist.new.Reg(
+        200, 0, 150, name="light per event (photoelectrons)"
+    ).Double()
+field_mask = ["spms/energy_sum"]
+if has_rc:
+    field_mask.append("spms/rc_energy")
+it = LH5Iterator(cvt_file, "evt", buffer_len=BUFFER_LEN, field_mask=field_mask)
+for evt_chunk in it:
+    spms = evt_chunk.view_as("ak").spms
+    h_npe_sim.fill(spms.energy_sum)
+    if has_rc:
+        h_npe_rc.fill(ak.sum(ak.sum(spms.rc_energy, axis=-1), axis=-1))
+plot.plot_hist(h_npe_sim, ax, flow="hint", label="simulated")
+if has_rc:
+    plot.plot_hist(h_npe_rc, ax, flow="hint", label="random coincidences")
+ax.set_ylabel("counts")
+ax.set_yscale("log")
+ax.legend()
+
+ax = fig.add_subplot(gs_pe[0, 1])
+h_time_sim = hist.new.Reg(
+    375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+).Double()
+if has_rc:
+    h_time_rc = hist.new.Reg(
+        375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+    ).Double()
+field_mask = ["spms/time", "trigger/timestamp"]
+if has_rc:
+    field_mask.append("spms/rc_time")
+it = LH5Iterator(cvt_file, "evt", buffer_len=BUFFER_LEN, field_mask=field_mask)
+for evt_chunk in it:
+    evt = evt_chunk.view_as("ak")
+    t0, spms_time = ak.broadcast_arrays(evt.trigger.timestamp, evt.spms.time)
+    dt = spms_time - t0
+    h_time_sim.fill(ak.flatten(dt, axis=None))
+    if has_rc:
+        t0_rc, rc_time = ak.broadcast_arrays(evt.trigger.timestamp, evt.spms.rc_time)
+        h_time_rc.fill(ak.flatten(rc_time - t0_rc, axis=None))
+plot.plot_hist(h_time_sim, ax, flow="none", label="simulated")
+if has_rc:
+    plot.plot_hist(h_time_rc, ax, flow="none", label="random coincidences")
+ax.set_ylabel("counts / 16 ns")
+ax.set_yscale("log")
+ax.legend()
 
 fig.suptitle(f"{simid}: evt tier")
 

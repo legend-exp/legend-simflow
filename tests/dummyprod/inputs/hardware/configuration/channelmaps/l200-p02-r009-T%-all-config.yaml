@@ -1,0 +1,8 @@
+V99000A:
+  daq:
+    fcid: 12
+    rawid: 12
+B99000A:
+  daq:
+    fcid: 10
+    rawid: 11

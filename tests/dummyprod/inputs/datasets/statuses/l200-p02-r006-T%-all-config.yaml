@@ -1,0 +1,12 @@
+V99000A:
+  processable: true
+  usability: "on"
+  psd:
+    status:
+      low_aoe: "valid"
+B99000A:
+  processable: true
+  usability: "off"
+  psd:
+    status:
+      low_aoe: "missing"

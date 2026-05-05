@@ -6,14 +6,32 @@ Run a production by using one of the provided site-specific profiles
 (recommended):
 
 ```console
+> pixi run prod --profile <profile-name>
+```
+
+This is equivalent to calling Snakemake directly:
+
+```console
 > snakemake --workflow-profile workflow/profiles/<profile-name>
 ```
 
-If no system-specific profiles are provided, the `--workflow-profile` option can
-be omitted. Snakemake will use the `default` profile.
+If no system-specific profile is needed, omit `--profile` (defaults to
+`default`):
 
 ```console
-> snakemake
+> pixi run prod
+```
+
+To preview what Snakemake would do without executing anything, use `dry`:
+
+```console
+> pixi run dry
+```
+
+To mark all output files as up-to-date without rerunning jobs, use `touch`:
+
+```console
+> pixi run touch
 ```
 
 The `--config` command line option is very useful to override configuration
@@ -71,6 +89,39 @@ This collects all `plots/` subdirectories under `generated/` and packs them into
 target and must always be triggered explicitly.
 
 Find some useful Snakemake command-line options at the bottom of this page.
+
+## Running tier scripts standalone
+
+Tier scripts can be run directly from the command line, outside of Snakemake.
+This is useful to quickly reproduce or debug a failing job: at the start of
+every run, each script logs the exact command needed to re-run it manually.
+
+Each supported script has a dedicated pixi task named `tier-<name>`:
+
+```console
+> pixi run tier-<name> [options]
+```
+
+For example, to run the `cvt` script:
+
+```console
+> pixi run tier-cvt --evt-files <evt-files> --cvt-file <cvt-file> \
+      --simflow-config <path-to-simflow-config.yaml>
+```
+
+Pass `--help` to any task to see its full list of options:
+
+```console
+> pixi run tier-cvt --help
+```
+
+All scripts share the following conventions:
+
+- `--simflow-config` (alias `--config`) accepts the same configuration file that
+  the Snakemake workflow uses as `--configfile`. Variable substitution (e.g.
+  `$_`) is performed relative to the directory containing the config file,
+  matching the behavior of the Snakemake workflow.
+- `--log-file` is optional: if omitted, log output goes to the console.
 
 ## Selective step execution with `make_steps`
 
@@ -157,7 +208,7 @@ value of 10 000 is a reasonable starting point.
 Run the production as usual. Snakemake will spawn exactly one job per `simid`:
 
 ```console
-> snakemake --workflow-profile workflow/profiles/<profile-name>
+> pixi run prod --profile <profile-name>
 ```
 
 ### Inspecting results

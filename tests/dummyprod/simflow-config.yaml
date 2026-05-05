@@ -1,4 +1,4 @@
-experiment: l200p02
+experiment: legend
 
 runlist:
   - l200-p02-r000-phy
@@ -16,9 +16,7 @@ paths:
   metadata: $_/inputs
   config: $_/inputs/simprod/config
   optical_maps:
-    fiber: $_/inputs/simprod/l200a-optical-map-fiber.lh5
-    lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
-    pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
+    lar: $_/inputs/simprod/l200cfg01-optmap-dummy.lh5
 
   pars: $_/generated/pars
   macros: $_/generated/macros

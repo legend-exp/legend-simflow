@@ -112,8 +112,13 @@ The first step is obtaining the software, which is fully specified by the
 [pixi](https://pixi.sh), which can be easily installed following instructions on
 the official documentation.
 
-To load the software, just execute `pixi shell`. Alternatively, you may run
-Snakemake via `pixi run snakemake ...`.
+To load the software, just execute `pixi shell`. Alternatively, use the provided
+pixi tasks to run the workflow without entering a shell:
+
+- `pixi run prod [--profile <name>]` — run a full production (recommended)
+- `pixi run dry` — preview what Snakemake would do without executing
+- `pixi run touch` — mark all outputs as up-to-date without re-running jobs
+- `pixi run snakemake [ARGS]` — pass arbitrary arguments directly to Snakemake
 
 If you prefer, you can use a Python-only package manager of your choice, for
 example [uv](https://docs.astral.sh/uv/):

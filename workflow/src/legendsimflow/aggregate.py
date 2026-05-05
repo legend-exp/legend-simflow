@@ -16,22 +16,20 @@
 from __future__ import annotations
 
 import logging
-import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
-from snakemake.logging import logger as smklog
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .metadata import get_runlist, get_simconfig, runinfo, simpars
+from .metadata import encode_psd_usability, get_runlist, get_simconfig, runinfo, simpars
 
 log = logging.getLogger(__name__)
 
-STEPS_ORDERED: list[str] = ["vtx", "stp", "par", "opt", "hit", "evt", "cvt"]
+STEPS_ORDERED: list[str] = ["vtx", "stp", "par", "opt", "hit", "evt", "cvt", "pdf"]
 
 
 def get_simid_njobs(config: SimflowConfig, simid: str) -> int:
@@ -89,6 +87,11 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
         ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
+    if tier == "par":
+        return [
+            *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
+            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
+        ]
     return []
 
 
@@ -168,6 +171,12 @@ def gen_list_of_hpges_valid_for_modeling(
     channelmap, then checks if in the crystal metadata there's all the
     information required to generate a drift time map etc.
 
+    Detectors listed in the validity-based metadata directory
+    ``simprod/config/pars/{experiment}/geds/skip/`` for the given `runid` are
+    additionally excluded from the result. The skip list is a mapping
+    ``{detector_name: reason}``; a WARNING is logged for each skipped
+    detector. A missing directory or empty mapping is a no-op.
+
     Warning
     -------
     This function is expensive in terms of filesystem I/O! Do not call it
@@ -176,13 +185,17 @@ def gen_list_of_hpges_valid_for_modeling(
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
-    chmap = metadata.hardware.configuration.channelmaps.on(timestamp)
-    statuses = metadata.datasets.statuses.on(timestamp)
+    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+
+    skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
         # we don't model detectors that are OFF or AC
-        if statuses[hpge.name].usability != "on":
+        if chmap[hpge.name].analysis.usability != "on":
+            continue
+
+        if hpge.name in skip:
             continue
 
         m = crystal_meta(
@@ -225,8 +238,6 @@ def gen_list_of_all_hpges_valid_for_modeling(
 
     i.e. a mapping ``runid -> hpge -> voltage``.
     """
-    start = time.time()
-
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
@@ -236,36 +247,36 @@ def gen_list_of_all_hpges_valid_for_modeling(
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         out[runid] = {hpge: get_hpge_voltage(config, hpge, runid) for hpge in hpges}
 
-    msg = (
-        f"gen_list_of_all_hpges_valid_for_modeling() took {time.time() - start:.1f} sec"
-    )
-    smklog.debug(msg)
-
     if write_to_file is not None:
         Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)
-        # write to disk as well
-        dbetto.utils.write_dict(
-            {runid: list(inner) for runid, inner in out.items()}, write_to_file
-        )
+        dbetto.utils.write_dict(out, write_to_file)
 
     return out
 
 
 def gen_list_of_all_usabilities(
     config: SimflowConfig,
-) -> AttrsDict[str, AttrsDict[str, str]]:
-    """Get usability for all detectors and all runs defined in the Simflow.
+) -> AttrsDict[str, AttrsDict[str, dict]]:
+    """Generate a usability mapping for all detectors and all runs defined in the Simflow.
 
-    Use this function to build a cache, in case repeated calls to
-    :func:`.metadata.usability` are needed. Returns the following dictionary:
+    Use this function to build a cache to avoid repeated metadata lookups.
+    Returns the following dictionary:
 
     .. code-block::
 
         {
-          'l200-p03-r000-phy': {'V00048A': "on", ...},
-          'l200-p03-r001-phy': {'V00050B': "off", ...},
+          'l200-p03-r000-phy': {
+            'V00048A': {'usability': 'on', 'psd_usability': 0},
+            ...
+          },
           ...
         }
+
+    ``psd_usability`` is an integer encoding of the ``psd.status.low_aoe``
+    field in the channel map status for germanium detectors (see
+    ``legendsimflow.metadata.PSD_USABILITY_CODE``). If the field is absent it
+    defaults silently to ``"valid"``; if it has an unexpected value a warning
+    is emitted and it also defaults to ``"valid"``.
 
     Parameters
     ----------
@@ -273,8 +284,6 @@ def gen_list_of_all_usabilities(
         Simflow configuration object.
 
     """
-    start = time.time()
-
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
@@ -283,14 +292,27 @@ def gen_list_of_all_usabilities(
     for runid in all_runids:
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
-        chmap = config.metadata.hardware.configuration.channelmaps.on(rinfo.start_key)
+        chmap = config.metadata.channelmap(rinfo.start_key, skip_version_check=True)
         for chname in chmap:
-            statuses = config.metadata.datasets.statuses.on(rinfo.start_key)
-            if chname in statuses:
-                out_dict[runid][chname] = statuses[chname].usability
+            if "analysis" in chmap[chname]:
+                usability = chmap[chname].analysis.usability
 
-    msg = f"get_all_usabilities() took {time.time() - start:.1f} sec"
-    smklog.debug(msg)
+                entry = {"usability": usability}
+                if chmap[chname].system == "geds":
+                    psd_usability = "valid"
+                    try:
+                        psd_status = chmap[chname].analysis.psd.status.low_aoe
+                        try:
+                            encode_psd_usability(psd_status)  # validate
+                            psd_usability = psd_status
+                        except KeyError:
+                            msg = f"unexpected psd.status.low_aoe value {psd_status!r} for {chname} in {runid}, defaulting to valid"
+                            log.warning(msg)
+                    except AttributeError:
+                        pass
+                    entry["psd_usability"] = psd_usability
+
+                out_dict[runid][chname] = entry
 
     return AttrsDict(out_dict)
 
@@ -310,7 +332,9 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
     Returns the voltage as an integer.
     """
     try:
-        opv = simpars(config.metadata, "geds.opv", runid)[hpge].operational_voltage_in_V
+        opv = simpars(config.metadata, "geds.opv", runid, config.experiment)[
+            hpge
+        ].operational_voltage_in_V
     except KeyError as e:
         msg = f"operational voltage for hpge {hpge} not found in run {runid}"
         raise KeyError(msg) from e
@@ -382,7 +406,7 @@ def gen_list_of_dtmap_plots_outputs(
 
 def gen_list_of_currmods(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
-) -> list[str]:
+) -> list[Path]:
     """Generate the list of HPGe current model parameter files for a `runid`."""
     hpges = (
         gen_list_of_hpges_valid_for_modeling(config, runid)
@@ -406,7 +430,7 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]
 def gen_list_of_currmod_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map plot outputs."""
+    """Generate the list of HPGe current pulse model plot outputs."""
     files = []
     for runid in get_runlist(config, simid):
         hpges = (
@@ -446,6 +470,22 @@ def gen_list_of_psdcuts(config: SimflowConfig, simid: str) -> list[Path]:
     ]
 
 
+def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
+    """Generate the list of all (non-plot) ``par`` step output files in the Simflow."""
+    files: list[Path] = [
+        config.paths.pars / "modelable_hpge_detectors.yaml",
+        config.paths.pars / "detector_usabilities.yaml",
+    ]
+    for simid in gen_list_of_all_simids(config):
+        files.append(patterns.simstat_part_filename(config, simid=simid))
+        files.extend(gen_list_of_merged_dtmaps(config, simid))
+        files.extend(gen_list_of_merged_currmods(config, simid))
+        files.extend(gen_list_of_eresmods(config, simid))
+        files.extend(gen_list_of_aoeresmods(config, simid))
+        files.extend(gen_list_of_psdcuts(config, simid))
+    return files
+
+
 # tier cvt
 
 
@@ -453,6 +493,17 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
     """Generate the list of all ``cvt`` tier files in the Simflow."""
     return [
         patterns.output_tier_cvt_filename(config, simid=simid, **kwargs)
+        for simid in gen_list_of_all_simids(config)
+    ]
+
+
+# tier pdf
+
+
+def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
+    """Generate the list of all ``pdf`` tier files in the Simflow."""
+    return [
+        patterns.output_tier_pdf_filename(config, simid=simid, **kwargs)
         for simid in gen_list_of_all_simids(config)
     ]
 
@@ -516,5 +567,7 @@ def process_simlist(
                 mlist += gen_list_of_simid_outputs(config, t, simid)
             elif t == "cvt":
                 mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
+            elif t == "pdf":
+                mlist.append(patterns.output_tier_pdf_filename(config, simid=simid))
 
     return mlist

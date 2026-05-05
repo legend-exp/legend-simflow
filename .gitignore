@@ -6,8 +6,9 @@ workflow/src/legendsimflow/_version.py
 /simflow-config.yaml
 /generated
 tests/dummyprod/generated
-tests/dummyprod/inputs/hardware/configuration
-tests/dummyprod/inputs/datasets
+tests/dummyprod/generated-l200
+tests/dummyprod/generated-l1000
+tests/dummyprod/inputs/simprod/l200cfg01-optmap-dummy.lh5
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -181,3 +182,4 @@ Manifest.toml
 .pixi/*
 !.pixi/config.toml
 pixi.lock
+__auto__

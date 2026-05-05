@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -7,9 +8,12 @@ import dbetto
 import numpy as np
 import pytest
 from dbetto import AttrsDict
+from legendmeta import LegendMetadata
 from lgdo import Array, Table, lh5
 
 from legendsimflow import hpge_pars, utils
+
+_REPO_TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
 
 
 def test_get_parameter_dict():
@@ -44,12 +48,15 @@ def test_get_dataflow_config(test_l200data):
 
 
 def test_check_nans_leq():
-    utils.check_nans_leq([1, 2, 3, 4], "boh", 0.1)
-    utils.check_nans_leq([[1], [2, 3], 4], "boh", 0.1)
-    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.5)
+    utils.check_nans_leq([1, 2, 3, 4], "boh", 0.1, min_entries=1)
+    utils.check_nans_leq([[1], [2, 3], 4], "boh", 0.1, min_entries=1)
+    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.5, min_entries=1)
 
     with pytest.raises(RuntimeError):
-        utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1)
+        utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1, min_entries=1)
+
+    # below min_entries: warns instead of raising
+    utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1, min_entries=100)
 
 
 def test_merge_defaults():
@@ -137,6 +144,37 @@ def test_setup_logdir_link():
         assert link.exists()
         assert link.is_symlink()
         assert link.readlink() == Path(new_proctime)
+
+
+def test_init_simflow_context_returns_initialized_config(config):
+    """Ensure init_simflow_context returns pre-initialized configs unchanged."""
+    context = utils.init_simflow_context(config, workflow=None)
+    assert context.config is config
+
+
+def test_init_simflow_context_loads_from_path(tmp_path, legend_testdata):
+    metadata_path = Path(legend_testdata["legend/metadata"]).resolve()
+    pars_path = (tmp_path / "pars").resolve()
+
+    raw_config = {
+        "paths": {
+            "metadata": str(metadata_path),
+            "pars": str(pars_path),
+        }
+    }
+
+    config_path = tmp_path / "simflow-config.yaml"
+    dbetto.utils.write_dict(raw_config, str(config_path))
+
+    context = utils.init_simflow_context(config_path, workflow=None)
+    config = context.config
+    assert isinstance(config, AttrsDict)
+    assert isinstance(config.metadata, LegendMetadata)
+    assert config.paths.metadata == metadata_path
+    assert config.paths.pars == pars_path
+    assert config.paths.geom == pars_path / "geom"
+    assert config.paths.dtmaps == pars_path / "hpge/dtmaps"
+    assert config._proctime
 
 
 def test_hash_dict():
@@ -416,3 +454,184 @@ def test_get_dict_value():
     assert utils.get_dict_value(d, "a.b") == 3
     assert utils.get_dict_value(d, "a.b.d") is None
     assert utils.get_dict_value(d, "a.b.d", 69) == 69
+
+
+@pytest.fixture
+def link_setup(tmp_path, monkeypatch):
+    """Fake simflow source repo + a prod cycle as cwd + a config of all-default paths."""
+    repo = tmp_path / "simflow"
+    workflow_basedir = repo / "workflow"
+    workflow_basedir.mkdir(parents=True)
+    (repo / "templates").mkdir()
+    shutil.copy(_REPO_TEMPLATES / "default.yaml", repo / "templates" / "default.yaml")
+
+    cycle = tmp_path / "cycle"
+    cycle.mkdir()
+    monkeypatch.chdir(cycle)
+
+    config = AttrsDict(
+        {
+            "paths": AttrsDict(
+                {
+                    "pars": cycle / "generated/pars",
+                    "macros": cycle / "generated/macros",
+                    "geom": cycle / "generated/pars/geom",
+                    "dtmaps": cycle / "generated/pars/hpge/dtmaps",
+                    "tier": AttrsDict(
+                        {
+                            t: cycle / f"generated/tier/{t}"
+                            for t in (
+                                "vtx",
+                                "stp",
+                                "par",
+                                "opt",
+                                "hit",
+                                "evt",
+                                "cvt",
+                                "pdf",
+                            )
+                        }
+                    ),
+                }
+            )
+        }
+    )
+    return workflow_basedir, cycle, config
+
+
+def test_link_external_paths_links_overrides(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+
+    ext_hit = tmp_path / "external" / "hit"
+    ext_opt = tmp_path / "external" / "opt"
+    ext_pars = tmp_path / "external" / "pars"
+    for d in (ext_hit, ext_opt, ext_pars):
+        d.mkdir(parents=True)
+    config.paths.tier["hit"] = ext_hit
+    config.paths.tier["opt"] = ext_opt
+    config.paths["pars"] = ext_pars
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    for default, target in (
+        (cycle / "generated/tier/hit", ext_hit),
+        (cycle / "generated/tier/opt", ext_opt),
+        (cycle / "generated/pars", ext_pars),
+    ):
+        assert default.is_symlink()
+        assert not default.readlink().is_absolute()
+        assert default.resolve() == target.resolve()
+
+    assert not (cycle / "generated/tier/evt").exists()
+
+
+def test_link_external_paths_noop_when_at_default(link_setup):
+    workflow_basedir, cycle, config = link_setup
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    for tier in ("hit", "opt", "evt"):
+        assert not (cycle / f"generated/tier/{tier}").exists()
+    assert not (cycle / "generated/pars").exists()
+
+
+def test_link_external_paths_skips_real_default_directories(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+
+    ext_hit = tmp_path / "external" / "hit"
+    ext_hit.mkdir(parents=True)
+    config.paths.tier["hit"] = ext_hit
+
+    real = cycle / "generated/tier/hit"
+    real.mkdir(parents=True)
+    (real / "data.lh5").touch()
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    assert not real.is_symlink()
+    assert (real / "data.lh5").is_file()
+
+
+def test_link_external_paths_is_idempotent(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+
+    ext_hit = tmp_path / "external" / "hit"
+    ext_hit.mkdir(parents=True)
+    config.paths.tier["hit"] = ext_hit
+
+    utils.link_external_paths(config, workflow_basedir)
+    default = cycle / "generated/tier/hit"
+    target1 = default.readlink()
+
+    utils.link_external_paths(config, workflow_basedir)
+    target2 = default.readlink()
+
+    assert target1 == target2
+
+
+def test_link_external_paths_replaces_wrong_symlink(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+
+    ext_hit = tmp_path / "external" / "hit"
+    ext_hit.mkdir(parents=True)
+    config.paths.tier["hit"] = ext_hit
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    default = cycle / "generated/tier/hit"
+    default.parent.mkdir(parents=True)
+    default.symlink_to(elsewhere)
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    assert default.is_symlink()
+    assert default.resolve() == ext_hit.resolve()
+
+
+def test_link_external_paths_removes_stale_symlink(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    default = cycle / "generated/tier/hit"
+    default.parent.mkdir(parents=True)
+    default.symlink_to(elsewhere)
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    assert not default.is_symlink()
+    assert not default.exists()
+
+
+def test_link_external_paths_geom_dtmaps_default(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+    del config.paths["pars"]
+    ext_geom = tmp_path / "external" / "geom"
+    ext_dtmaps = tmp_path / "external" / "dtmaps"
+    ext_geom.mkdir(parents=True)
+    ext_dtmaps.mkdir(parents=True)
+    config.paths["geom"] = ext_geom
+    config.paths["dtmaps"] = ext_dtmaps
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    default_geom = cycle / "generated/pars/geom"
+    default_dtmaps = cycle / "generated/pars/hpge/dtmaps"
+    assert default_geom.is_symlink()
+    assert default_geom.resolve() == ext_geom.resolve()
+    assert default_dtmaps.is_symlink()
+    assert default_dtmaps.resolve() == ext_dtmaps.resolve()
+
+
+def test_link_external_paths_creates_intermediate_dirs(link_setup, tmp_path):
+    workflow_basedir, cycle, config = link_setup
+
+    ext_hit = tmp_path / "external" / "hit"
+    ext_hit.mkdir(parents=True)
+    config.paths.tier["hit"] = ext_hit
+
+    assert not (cycle / "generated").exists()
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    assert (cycle / "generated/tier/hit").is_symlink()

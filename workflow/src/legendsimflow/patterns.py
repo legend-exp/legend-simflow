@@ -101,6 +101,16 @@ def plots_tarball_filename(config: SimflowConfig) -> Path:
     return config.paths.generated / "tarballs" / (cycle_dir.name + "-plots.tar.xz")
 
 
+def pdf_tarball_filename(config: SimflowConfig) -> Path:
+    """The path to the pdf tier archive tarball for the current production cycle.
+
+    The Simflow has no explicit knowledge of the production cycle name, so the
+    name of the directory where the Simflow lives is used as a proxy.
+    """
+    cycle_dir = config.paths.generated.parent
+    return config.paths.generated / "tarballs" / (cycle_dir.name + "-pdfs.tar.xz")
+
+
 # geometry
 
 
@@ -322,6 +332,12 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 # hpge energy resolution
 
 
+def log_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for HPGe observables model extraction for a `runid`."""
+    pat = log_dirname(config) / "hpge/eresmod/{runid}-model.log"
+    return _expand(pat, **kwargs)
+
+
 def output_eresmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the HPGe energy resolution model parameter file for a `runid`."""
     return _expand(
@@ -391,26 +407,25 @@ def benchmark_tier_cvt_filename(config: SimflowConfig, **kwargs) -> Path:
 # pdf tier
 
 
-def pdffile_rel_basename(**kwargs):
-    """The relative basename (without extension) for a `pdf` tier file."""
-    return expand("{simid}/{simid}-tier_pdf", **kwargs, allow_missing=True)[0]
+def tier_pdf_base_segment(config: SimflowConfig, **kwargs) -> str:
+    """The base filename segment for `pdf` tier files for a `simid`."""
+    return _expand(config.experiment + "-{simid}-tier_pdf", **kwargs)
 
 
-def output_pdf_filename(config: SimflowConfig, **kwargs):
-    """The path to the `pdf` tier output file for a `simid`."""
-    expr = str(config.paths.tier.pdf / (pdffile_rel_basename() + ".lh5"))
-    return expand(expr, **kwargs, allow_missing=True)[0]
-
-
-def log_pdffile_path(config: SimflowConfig, **kwargs):
-    """The log file path for the `pdf` tier build for a `simid`."""
-    pat = str(
-        config.paths.log / config._proctime / "pdf" / (pdffile_rel_basename() + ".log")
+def output_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the merged `pdf` tier output file for a `simid`."""
+    return _expand(
+        config.paths.tier.pdf / (tier_pdf_base_segment(config) + ".lh5"), **kwargs
     )
-    return expand(pat, **kwargs, allow_missing=True)[0]
 
 
-def benchmark_pdffile_path(config: SimflowConfig, **kwargs):
+def log_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for the `pdf` tier build for a `simid`."""
+    pat = log_dirname(config) / "pdf" / (tier_pdf_base_segment(config) + ".log")
+    return _expand(pat, **kwargs)
+
+
+def benchmark_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
     """The benchmark file path for the `pdf` tier build for a `simid`."""
-    pat = str(config.paths.benchmarks / "pdf" / (pdffile_rel_basename() + ".tsv"))
-    return expand(pat, **kwargs, allow_missing=True)[0]
+    pat = config.paths.benchmarks / "pdf" / (tier_pdf_base_segment(config) + ".tsv")
+    return _expand(pat, **kwargs)

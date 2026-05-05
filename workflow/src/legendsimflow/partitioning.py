@@ -66,6 +66,9 @@ def partition_simstat(
         list of runs in the form ``<experiment>-<period>-<run>-<datatype>``.
 
     """
+    # sort runids to guarantee sequential partitioning
+    runlist = sorted(runlist)
+
     # remaining events per run to allocate across jobs
     remaining_run_events = dict(n_events_part)
 

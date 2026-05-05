@@ -80,7 +80,9 @@ intersphinx_mapping = {
     # legend
     "dspeed": ("https://dspeed.readthedocs.io/en/stable", None),
     "daq2lh5": ("https://legend-daq2lh5.readthedocs.io/en/stable", None),
-    "lgdo": ("https://legend-pydataobj.readthedocs.io/en/stable", None),
+    # pinned to v1.x: legend-pydataobj v2 removed lgdo.lh5 (moved to legend-lh5io),
+    # which would break intersphinx references to lgdo.lh5.* still used in this project
+    "lgdo": ("https://legend-pydataobj.readthedocs.io/en/v1.17.4", None),
     "dbetto": ("https://dbetto.readthedocs.io/en/stable", None),
     "pylegendmeta": ("https://pylegendmeta.readthedocs.io/en/stable", None),
     # remage
@@ -103,7 +105,7 @@ nitpick_ignore_regex = [
     ("py:class", r"awkward\.highlevel\..*"),
     ("py:class", r"awkward\.contents\..*"),
     # snakemake internal paths differ from public API paths
-    ("py:class", r"snakemake\.io\.container\..*"),
+    ("py:class", r"snakemake\.iocontainers\..*"),
     # legendmeta re-exports LegendMetadata at top level but inventory uses submodule path
     ("py:class", r"legendmeta\.LegendMetadata"),
     # iminuit exposes Minuit at iminuit.Minuit but annotations resolve to internal path

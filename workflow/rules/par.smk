@@ -15,9 +15,16 @@
 
 """Rules to compute the simulation parameters (`par` step)."""
 
-from pathlib import Path
-
 from legendsimflow import aggregate, hpge_pars, patterns
+
+
+rule gen_all_tier_par:
+    """Produce all `par` step outputs."""
+    input:
+        aggregate.gen_list_of_all_par_outputs(config),
+        lambda wc: aggregate.gen_list_of_all_plots_outputs(
+            config, tier="par", cache=smk_load_hpge_cache()
+        ),
 
 
 rule make_simstat_partition_file:
@@ -82,6 +89,8 @@ def smk_hpge_drift_time_map_inputs(wildcards):
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
+        "dtmap_settings": _m
+        / f"simprod/config/pars/{config.experiment}/geds/dtmap/settings.yaml",
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -114,6 +123,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
+        "    --dtmap-settings {input.dtmap_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 
@@ -130,7 +140,7 @@ rule merge_hpge_drift_time_maps:
         "Merging HPGe drift time map files for {wildcards.runid}"
     input:
         lambda wc: aggregate.gen_list_of_dtmaps(
-            config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+            config, wc.runid, cache=smk_load_hpge_cache()
         ),
     output:
         patterns.output_dtmap_merged_filename(config),
@@ -245,15 +255,19 @@ rule merge_current_pulse_model_pars:
         "Merging current model parameters in {wildcards.runid}"
     input:
         lambda wc: aggregate.gen_list_of_currmods(
-            config, wc.runid, cache=SIMFLOW_CONTEXT.modelable_hpges
+            config, wc.runid, cache=smk_load_hpge_cache()
         ),
+    params:
+        # materialize the HPGe list here so the run: block can map file
+        # indices back to detector names without calling back into the cache
+        hpges=lambda wc: list(smk_load_hpge_cache()[wc.runid]),
     output:
         patterns.output_currmod_merged_filename(config),
     run:
         import dbetto
 
         # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = list(SIMFLOW_CONTEXT.modelable_hpges[wildcards.runid])
+        hpges = params.hpges
 
         out_dict = {}
         for i, f in enumerate(input):
@@ -263,7 +277,7 @@ rule merge_current_pulse_model_pars:
 
 
 rule extract_hpge_observables_models:
-    """Extract from the LEGEND-200 data and store on disk models of the HPGe observables.
+    """Extract and store on disk models of the HPGe observables for a run.
 
     Stores YAML files with a mapping between HPGe detectors and respective
     information to reconstruct:
@@ -275,6 +289,11 @@ rule extract_hpge_observables_models:
     because the data production parameter database is large and we don't want
     to use a lot of memory in the `build_tier_hit` rule.
 
+    **Design:** this rule is a *collection* step, not a *validation* step. It
+    gathers what it can from l200data and ``simprod/config/pars/geds/eresmod/``;
+    the output may be incomplete. Completeness is validated downstream in
+    ``build_tier_hit``.
+
     Uses wildcard `runid`.
     """
     message:
@@ -285,51 +304,7 @@ rule extract_hpge_observables_models:
         eresmod_file=patterns.output_eresmod_filename(config),
         aoeresmod_file=patterns.output_aoeresmod_filename(config),
         psdcuts_file=patterns.output_psdcuts_filename(config),
-    run:
-        import dbetto
-        from legendsimflow import hpge_pars, utils
-
-        l200data = config.paths.l200data
-
-        hit_tier_name = utils.get_hit_tier_name(l200data)
-        pars_db = utils.init_generated_pars_db(l200data, tier=hit_tier_name, lazy=True)
-
-        eres_pars_dict = hpge_pars.lookup_energy_res_metadata(
-            l200data,
-            config.metadata,
-            wildcards.runid,
-            hit_tier_name=hit_tier_name,
-            pars_db=pars_db,
-        )
-
-        out_dict = dbetto.AttrsDict({})
-        fields = ["expression", "parameters", "uncertainties"]
-        for hpge, meta in eres_pars_dict.items():
-            out_dict[hpge] = {f: meta[f] for f in fields}
-
-        dbetto.utils.write_dict(out_dict.to_dict(), output.eresmod_file)
-
-        aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
-            l200data,
-            config.metadata,
-            wildcards.runid,
-            hit_tier_name=hit_tier_name,
-            pars_db=pars_db,
-        )
-
-        out_dict = dbetto.AttrsDict({})
-        fields = ["expression", "pars", "errs"]
-        for hpge, meta in aoeres_pars_dict.items():
-            out_dict[hpge] = {f: meta[f] for f in fields}
-
-        dbetto.utils.write_dict(out_dict.to_dict(), output.aoeresmod_file)
-
-        aoecuts_pars_dict = hpge_pars.lookup_psd_cut_values(
-            l200data,
-            config.metadata,
-            wildcards.runid,
-            hit_tier_name=hit_tier_name,
-            pars_db=pars_db,
-        )
-
-        dbetto.utils.write_dict(aoecuts_pars_dict, output.psdcuts_file)
+    log:
+        patterns.log_eresmod_filename(config),
+    script:
+        "../src/legendsimflow/scripts/pars/extract_hpge_observables_models.py"

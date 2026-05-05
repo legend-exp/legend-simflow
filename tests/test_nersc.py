@@ -20,6 +20,12 @@ def test_dvs_ro(fresh_config):
         "/another/test/file",
     ]
 
+    # must not replace /global not at the start of the path
+    assert nersc.dvs_ro(c, "/some/global/test/file") == "/some/global/test/file"
+    assert nersc.dvs_ro(c, Path("/some/global/test/file")) == Path(
+        "/some/global/test/file"
+    )
+
     c.nersc.dvs_ro = False
     assert nersc.dvs_ro(c, "/global/test/file") == "/global/test/file"
 

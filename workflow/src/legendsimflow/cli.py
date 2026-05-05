@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import random
 import shlex
 import signal
@@ -27,6 +28,8 @@ from legenddataflowscripts.workflow.utils import subst_vars
 from legendmeta import LegendMetadata
 
 from . import aggregate
+
+log = logging.getLogger(__name__)
 
 
 def _partition(xs, n):
@@ -84,6 +87,10 @@ def snakemake_nersc_cli():
     metadata = LegendMetadata(config.paths.metadata, lazy=True)
 
     if "legend_metadata_version" in config:
+        log.info(
+            "checking out legend-metadata version %s",
+            config.legend_metadata_version,
+        )
         metadata.checkout(config.legend_metadata_version)
 
     config["metadata"] = metadata
@@ -221,7 +228,9 @@ def snakemake_nersc_batch_cli():
     if args.job_name is not None:
         cmd.extend(["--job-name", args.job_name])
     if args.mail_user is not None:
-        cmd.extend(["--mail-type", "TIME_LIMIT,FAIL", "--mail-user", args.mail_user])
+        cmd.extend(
+            ["--mail-type", "TIME_LIMIT,FAIL,END", "--mail-user", args.mail_user]
+        )
 
     if int(args.nodes) > 1:
         snakemake = "pixi run snakemake-nersc --nodes $SLURM_NNODES"

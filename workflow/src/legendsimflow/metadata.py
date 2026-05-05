@@ -17,17 +17,19 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendmeta.police import validate_dict_schema
 from lgdo import lh5
-from snakemake.io.container import Wildcards
+from snakemake.iocontainers import Wildcards
 
 from . import SimflowConfig, utils
 from .exceptions import SimflowConfigError
+
+_MISSING = object()
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +37,12 @@ USABILITY_CODE = {
     "on": 0,
     "ac": 1,
     "off": 2,
+}
+
+PSD_USABILITY_CODE = {
+    "valid": 0,
+    "present": 1,
+    "missing": 2,
 }
 
 
@@ -70,7 +78,9 @@ def get_simconfig(
     try:
         if simid is None:
             block = f"simprod.config.tier.{tier}.{config.experiment}"
-            return _m.tier[tier][config.experiment].simconfig
+            simcfg = _m.tier[tier][config.experiment].simconfig
+            validate_simconfig_keys(simcfg, block + ".simconfig")
+            return simcfg
         if field is None:
             return _m.tier[tier][config.experiment].simconfig[simid]
         return _m.tier[tier][config.experiment].simconfig[simid][field]
@@ -80,6 +90,11 @@ def get_simconfig(
         raise SimflowConfigError(msg, block) from e
     except FileNotFoundError as e:
         raise SimflowConfigError(e, block) from e
+
+
+def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
+    """Return the settings block for *tier* and the current experiment."""
+    return config.metadata.simprod.config.tier[tier][config.experiment].settings
 
 
 def smk_hash_simconfig(
@@ -125,6 +140,7 @@ def smk_hash_simconfig(
 
 
 def extract_integer(file_path: Path) -> int:
+    """Read a single integer from a file, stripping surrounding whitespace."""
     with file_path.open() as f:
         return int(f.read().strip())
 
@@ -139,7 +155,7 @@ def usability(
     to a non-None value, it will be returned.
     """
     rinfo = runinfo(metadata, runid)
-    chmap = metadata.channelmap(rinfo.start_key)
+    chmap = metadata.channelmap(rinfo.start_key, skip_version_check=True)
     if det_name in chmap and "analysis" in chmap[det_name]:
         return chmap[det_name].analysis.usability
 
@@ -163,6 +179,17 @@ def decode_usability(usability_code: int) -> str:
     """Decode the HPGe usability (see :func:`encode_usability`)."""
     _codes = {v: k for k, v in USABILITY_CODE.items()}
     return _codes[usability_code]
+
+
+def encode_psd_usability(psd_usability: str) -> int:
+    """Encode the PSD usability in an int."""
+    return PSD_USABILITY_CODE[psd_usability]
+
+
+def decode_psd_usability(psd_usability_code: int) -> str:
+    """Decode the PSD usability (see :func:`encode_psd_usability`)."""
+    _codes = {v: k for k, v in PSD_USABILITY_CODE.items()}
+    return _codes[psd_usability_code]
 
 
 def parse_runid(runid: str) -> (str, int, int, str):
@@ -227,29 +254,48 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
             return f"{exp}-{period}-{prev_r}-cal"
 
 
-def simpars(metadata: LegendMetadata, par: str, runid: str) -> AttrsDict:
+def simpars(
+    metadata: LegendMetadata,
+    par: str,
+    runid: str,
+    experiment: str,
+    default: object = _MISSING,
+) -> AttrsDict:
     """Extract simflow parameters for a certain LEGEND run.
 
     Queries the simflow parameters database stored under
-    ``simprod.config.pars`` by parameter name `par` and LEGEND run identifier
-    `runid`.
+    ``simprod.config.pars`` by experiment name `experiment`, parameter name
+    `par` and LEGEND run identifier `runid`.
 
     Parameters
     ----------
     metadata
         LEGEND metadata database.
     par
-        name of directory under ``metadata.simprod.config.pars``. Can be a
-        nested property, as in e.g. ``geds.opv.value``. ``.`` and ``/`` are
-        allowed separators.
+        name of directory under ``metadata.simprod.config.pars.{experiment}``.
+        Can be a nested property, as in e.g. ``geds.opv.value``. ``.`` and
+        ``/`` are allowed separators.
     runid
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
+    experiment
+        experiment identifier (e.g. ``l200cfg01``, ``l1000dsg01``). Selects
+        the experiment-level subdirectory under ``simprod/config/pars/``.
+    default
+        value to return when the parameter directory is not found in the
+        database or no validity entry matches `runid`. If not provided, such
+        cases raise ``KeyError`` or ``LookupError``. Other errors (e.g.
+        malformed YAML) are always re-raised regardless of this argument.
 
     """
     par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
-    directory = metadata["simprod/config/pars"][par]
-    return directory.on(runinfo(metadata, runid).start_key, system=datatype)
+    try:
+        directory = metadata["simprod/config/pars"][experiment][par]
+        return directory.on(runinfo(metadata, runid).start_key, system=datatype)
+    except (KeyError, LookupError, FileNotFoundError):
+        if default is _MISSING:
+            raise
+        return default
 
 
 def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
@@ -283,7 +329,22 @@ def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
 
 
 def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
-    det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+    """Return the FCCD value for `det_name`, falling back to 1 mm if the FCCD field is absent.
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata database.
+    det_name
+        Detector name.
+
+    """
+    try:
+        det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+    except (FileNotFoundError, KeyError):
+        msg = f"{det_name} diode metadata not found, setting FCCD to 1 mm"
+        log.warning(msg)
+        return 1.0
 
     has_fccd_meta = validate_dict_schema(
         det_meta.characterization,
@@ -306,9 +367,46 @@ def is_runid(runid: str) -> bool:
     """Whether a runid (run identifier) is correctly formatted.
 
     It should be in the form
-    ``l200-<period>-<run>-<datatype>``/``l200-pNN-rMMM-AAA``.
+    ``<experiment>-<period>-<run>-<datatype>``/``XXX-pNN-rMMM-AAA``
+    where ``XXX`` is any alphanumeric experiment identifier.
     """
-    return re.match(r"^l200-p(\d{2})-r(\d{3})-([A-Za-z]+)$", runid) is not None
+    return re.match(r"^[A-Za-z0-9]+-p(\d{2})-r(\d{3})-([A-Za-z]+)$", runid) is not None
+
+
+def is_simid(simid: str) -> bool:
+    r"""Whether a simid (simulation identifier) is correctly formatted.
+
+    A valid simid must consist entirely of word characters (letters, digits,
+    underscores) and hyphens, matching the pattern ``[-\w]+``. Dots and other
+    special characters are not allowed; in particular, dots are forbidden
+    because they are used as the delimiter in the simlist format
+    ``<tier>.<simid>``.
+    """
+    return re.fullmatch(r"[-\w]+", simid, flags=re.ASCII) is not None
+
+
+def validate_simconfig_keys(simconfig: Mapping, block: str | None = None) -> None:
+    """Validate that all top-level keys of `simconfig` are valid simids.
+
+    Raises :class:`~legendsimflow.exceptions.SimflowConfigError` listing every
+    invalid key if any are found.
+
+    Parameters
+    ----------
+    simconfig
+        Dictionary whose top-level keys are expected to be simids (as loaded
+        from a ``simconfig.yaml`` file).
+    block
+        Optional config block label included in the error message for context.
+    """
+    invalid_keys = [k for k in simconfig if not (isinstance(k, str) and is_simid(k))]
+    if invalid_keys:
+        msg = (
+            f"invalid simid(s) found: {', '.join(repr(k) for k in invalid_keys)}. "
+            r"simids must match the pattern [-\w]+ "
+            "(letters, digits, underscores, hyphens only — dots are forbidden)"
+        )
+        raise SimflowConfigError(msg, block)
 
 
 def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
@@ -423,7 +521,7 @@ def _get_lh5_table(
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
 
-    chmap = metadata.channelmap(timestamp)
+    chmap = metadata.channelmap(timestamp, skip_version_check=True)
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"

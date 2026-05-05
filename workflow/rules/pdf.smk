@@ -1,67 +1,66 @@
+from pathlib import Path
+
+from legendsimflow import aggregate, patterns
+from legendsimflow.metadata import get_tier_settings
+
+_pdf_settings = get_tier_settings(config, "pdf")
 
 
 rule gen_all_tier_pdf:
-    """Aggregate and produce all the pdf tier files."""
-    input:
-        aggregate.gen_list_of_all_tier_pdf_outputs(config),
-
-
-rule gen_pdf_release:
-    """Generate a compressed archive with all the PDF files.
-
-    Pack all PDF files into a `.tar.xz` archive using `tar --create --xz`,
-    renaming them to a flat `{experiment}-pdfs/` directory structure.
+    """Aggregate and produce all the `pdf` tier files.
 
     No wildcards are used.
     """
-    message:
-        "Generating pdf release"
     input:
         aggregate.gen_list_of_all_tier_pdf_outputs(config),
-    params:
-        exp=config["experiment"],
-        ro_input=lambda wildcards, input: utils.as_ro(config, input),
+
+
+rule archive_pdfs:
+    """Archive all pdf tier files into a single tarball.
+
+    Must be triggered manually with ``snakemake archive_pdfs`` — it is not
+    part of the default ``all`` target. Collects all LH5 files produced under
+    ``tier/pdf/`` and packs them into ``tarballs/<cycle>-pdfs.tar.xz``,
+    preserving the directory tree structure.
+
+    No wildcards are used.
+    """
+    localrule: True
+    input:
+        aggregate.gen_list_of_all_tier_pdf_outputs(config),
     output:
-        Path(config["paths"]["pdf_releases"]) / (config["experiment"] + "-pdfs.tar.xz"),
-    shell:
-        r"""
-        tar --create --xz \
-            --file {output} \
-            --transform 's|.*/\({params.exp}-.*-tier_pdf\..*\)|{params.exp}-pdfs/\1|g' \
-            {params.ro_input}
-        """
+        patterns.pdf_tarball_filename(config),
+    run:
+        from pathlib import Path
+        from legendsimflow.archive import create_pdfs_tarball
+
+        create_pdfs_tarball(
+            pdf_dir=config.paths.tier.pdf,
+            output=Path(output[0]),
+            prefix=Path(output[0]).name.removesuffix(".tar.xz"),
+        )
 
 
 rule build_tier_pdf:
     """Produce a `pdf` tier file.
 
-    Run the `build-pdf` command, which reads `evt` tier data and bins it into
-    histograms (the PDFs) according to the PDF configuration file.
+    Reads `cvt` tier data and bins it into histograms (the PDFs) according to
+    the PDF configuration file.
 
     Uses wildcard `simid`.
     """
     message:
         "Producing output file for job pdf.{wildcards.simid}"
     input:
-        evt_files=lambda wildcards: aggregate.gen_list_of_tier_evt_outputs(
-            config, wildcards.simid
-        ),
-        config_file=patterns.pdf_config_path(config),
+        cvt_file=patterns.output_tier_cvt_filename(config),
     params:
-        stp_files_regex=utils.as_ro(
-            config, patterns.output_simjob_regex(config, tier="stp")
-        ),
-        ro_evt_files=lambda wildcards, input: utils.as_ro(config, input.evt_files),
+        # surfaced so Snakemake invalidates outputs when the regex map changes
+        detector_groups=_pdf_settings.get("detector_groups", None),
     output:
-        patterns.output_pdf_filename(config),
+        patterns.output_tier_pdf_filename(config),
     log:
-        patterns.log_pdffile_path(config),
+        patterns.log_tier_pdf_filename(config),
     benchmark:
-        patterns.benchmark_pdffile_path(config)
-    shell:
-        execenv_pyexe(config, "build-pdf") + "--log {log} "
-        "-c {input.config_file} "
-        "-m $_/inputs "
-        "-r {params.stp_files_regex} "
-        "-o {output} "
-        "-- {input.evt_files}"
+        patterns.benchmark_tier_pdf_filename(config)
+    script:
+        "../src/legendsimflow/scripts/tier/pdf.py"

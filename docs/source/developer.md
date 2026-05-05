@@ -28,20 +28,27 @@ The test suite consists of Python tests (managed with
 [pytest](https://pytest.org)) and Julia tests. Run the full suite with:
 
 ```console
-> pixi run test
+> pixi run -e test test
 ```
 
 To run only the Python tests:
 
 ```console
-> pixi run test-python
+> pixi run -e test test-python
 ```
 
 To run only the Julia tests:
 
 ```console
-> pixi run test-julia
+> pixi run -e test test-julia
 ```
+
+:::{note}
+
+The tests should be run in the pixi "test" environment to have access to all
+test dependencies!
+
+:::
 
 To run a specific Python test or test function:
 
@@ -54,9 +61,36 @@ To run a specific Python test or test function:
 
 The Python test suite includes both unit tests (in `tests/`) and integration
 tests that exercise the Snakemake workflow with a dummy production configured in
-`tests/dummyprod`. Test data for LEGEND-200 is stored in `tests/l200data/`.
+`tests/dummyprod`. The dummy production defines three experiments:
+
+- `legend`: a generic experiment used for unit tests and DAG-building tests; its
+  runlist contains real p02 run IDs but is not intended to run an actual
+  production
+- `l1000dsg01`: used by the `test_l1000_workflow` integration test, which
+  exercises the vtx→par pipeline; runs in CI without requiring `l200data`.
+  Currently uses l200-p03 runs because l1000 hardware metadata is not yet in
+  `dummyprod`
+- `l200cfg01`: used by the `test_l200_workflow` integration test (`needs_nersc`
+  marker), which runs the full vtx→cvt pipeline and requires access to
+  `l200data`; run manually at NERSC
+
+Test data for LEGEND-200 is stored in `tests/l200data/`.
 
 :::
+
+Some integration tests require **remage**, which is only available inside the
+pixi `test` environment. The table below summarises what each test needs:
+
+| Test                  | Command                                   | Needs pixi | Needs NERSC/l200data |
+| --------------------- | ----------------------------------------- | ---------- | -------------------- |
+| `test_dag`            | `pytest tests/test_workflow.py::test_dag` | no         | no                   |
+| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow`    | **yes**    | no                   |
+| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`     | **yes**    | **yes**              |
+| unit / script tests   | `pytest tests/`                           | no         | no                   |
+
+**Always run `pixi run -e test test-l1000-workflow` before committing changes
+that touch the workflow, scripts, or metadata.** The `test_dag` dry-run alone is
+not sufficient to catch runtime failures.
 
 ## Code style and linting
 
@@ -131,8 +165,8 @@ submitting a pull request.
 ### Documentation conventions
 
 - Pages are written in Markdown using [MyST](https://myst-parser.readthedocs.io)
-  syntax. Use colon-fence (`:::`) for Sphinx admonitions (e.g. `:::{note}`,
-  `:::{tip}`, `:::{warning}`).
+  syntax. Use colon-fence directives for Sphinx admonitions (`:::` + `{note}`,
+  `{tip}`, `{warning}`, etc.).
 - Use `console` as the language tag for shell commands (enables copy-button and
   consistent rendering).
 - Python docstrings follow the
@@ -141,6 +175,76 @@ submitting a pull request.
   and then a longer description and wildcards section.
 - Every new page must be referenced in a `toctree` directive to avoid orphan
   page warnings.
+
+## Resource constraints
+
+Jobs run by Snakemake should not use more than **2 GB of memory** each. The
+workflow is designed to run many jobs in parallel on a single node, so
+individual jobs must stay within this budget. If a script needs more memory, set
+explicit `mem_mb` resources for its rule in the Snakemake profile (see the
+`nersc-compute` profile for an example with `build_hpge_drift_time_map`).
+
+## Adding a new tier script
+
+Tier scripts live in `workflow/src/legendsimflow/scripts/tier/`. Every script
+must be runnable both from Snakemake and directly from the command line (see
+{doc}`/manual/prod` for the user-facing documentation of this feature).
+
+The required pattern uses the `snakemake-argparse-bridge` library. Here is the
+minimal structure for a new script `tier/foo.py`:
+
+```python
+import argparse
+
+import legenddataflowscripts as ldfs
+from snakemake_argparse_bridge import snakemake_compatible
+
+from legendsimflow import nersc, utils
+from legendsimflow.scripts import log_script_invocation
+
+
+@snakemake_compatible(
+    mapping={
+        "input_files": "input",
+        "output_file": "output[0]",
+        "log_file": "log[0]",
+        "simflow_config": "config",
+    }
+)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the foo tier.")
+    parser.add_argument("--input-files", nargs="+", required=True)
+    parser.add_argument("--output-file", required=True)
+    parser.add_argument("--log-file", default=None)
+    parser.add_argument(
+        "--simflow-config", "--config", dest="simflow_config", required=True
+    )
+    args = parser.parse_args()
+
+    config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+    log = ldfs.utils.build_log(config.metadata.simprod.config.logging, args.log_file)
+    log_script_invocation(log, "tier-foo", parser, args)
+
+    # ... script logic ...
+
+
+if __name__ == "__main__":
+    main()
+```
+
+After adding the script, also:
+
+1. **Register the Snakemake rule** in the appropriate `workflow/rules/*.smk`
+   file, using `script: "../src/legendsimflow/scripts/tier/foo.py"` and
+   providing `input`, `output`, `log`, and `config` fields that match the
+   `@snakemake_compatible` mapping.
+2. **Add a pixi task** in `pyproject.toml` so users can run the script
+   standalone:
+   ```toml
+   tier-foo = { cmd = "python -m legendsimflow.scripts.tier.foo" }
+   ```
+3. **Add a test** in `tests/scripts/test_tier_foo.py` following the pattern in
+   `tests/scripts/test_tier_cvt.py`.
 
 ## Contributing
 
@@ -154,6 +258,9 @@ submitting a pull request.
   - `fix: correct macro generation for surface simulations`
   - `docs: update developer guide`
   - `refactor: simplify pattern matching logic`
+- **No AI authorship in commit messages**: do not include phrases such as
+  "generated by AI", "Co-authored-by: Claude", or similar. The commit message
+  should read as if written by the human developer.
 - Every commit must pass linting (`pre-commit run --all-files`) and the test
   suite (`pixi run test`).
 

@@ -22,21 +22,12 @@ from snakemake.logging import logger
 from dbetto import AttrsDict
 
 from legendsimflow import aggregate, nersc, utils
-from legendsimflow.aggregate import gen_list_of_all_hpges_valid_for_modeling
 
 
 logger.info("Initializing workflow context")
 
-SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow)
+SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow, logger=logger)
 config = SIMFLOW_CONTEXT.config
-
-# it takes a while to generate the list of good HPGes of all channels, let's do
-# it at the start and cache it for later
-SIMFLOW_CONTEXT |= {
-    "modelable_hpges": gen_list_of_all_hpges_valid_for_modeling(
-        config, write_to_file=config.paths.pars / "modelable_hpge_detectors.yaml"
-    ),
-}
 
 # sanitize the make_steps field
 make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)
@@ -62,6 +53,8 @@ wildcard_constraints:
 onstart:
     utils.setup_logdir_link(config)
 
+    utils.link_external_paths(config, workflow.basedir, logger=logger)
+
     logger.info("Starting workflow")
 
 
@@ -82,7 +75,9 @@ def gen_target_all():
     inputs = []
     logger.info("... make steps %s", make_steps)
     for step in make_steps:
-        if step == "cvt":
+        if step == "pdf":
+            inputs.extend(rules.gen_all_tier_pdf.input)
+        elif step == "cvt":
             inputs.extend(rules.gen_all_tier_cvt.input)
         elif step == "evt":
             inputs.extend(rules.gen_all_tier_evt.input)
@@ -92,8 +87,10 @@ def gen_target_all():
             inputs.extend(rules.gen_all_tier_opt.input)
         elif step == "stp":
             inputs.extend(rules.gen_all_tier_stp.input)
-        elif step in ("vtx", "par"):
+        elif step == "vtx":
             pass
+        elif step == "par":
+            inputs.extend(rules.gen_all_tier_par.input)
 
     inputs.append(patterns.plots_tarball_filename(config))
     return inputs

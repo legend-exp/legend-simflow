@@ -42,7 +42,7 @@ repos:
     rev: "v2.4.1"
     hooks:
       - id: codespell
-        args: ["-L", "nd,unparseable,compiletime,livetime,livetimes,puls"]
+        args: ["-L", "nd,unparseable,compiletime,livetime,livetimes,puls,anc"]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: "v0.11.0.1"
@@ -72,6 +72,11 @@ repos:
         language: pygrep
         entry: PyBind|Cmake|CCache|Github|PyTest
         exclude: .pre-commit-config.yaml
+      - id: disallow-end-fence
+        name: "disallow ::: fences not on their own line"
+        language: pygrep
+        entry: "[^\\n]:*:::\\n|[^\\n]:*:::\\{"
+        types_or: [markdown]
 
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: "v0.24.1"

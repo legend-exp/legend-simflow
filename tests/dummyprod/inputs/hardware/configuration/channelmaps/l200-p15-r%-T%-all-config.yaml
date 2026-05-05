@@ -1,0 +1,1460 @@
+BSLN01:
+  name: BSLN01
+  system: bsln
+  daq:
+    rawid: 1027200
+PULS01:
+  name: PULS01
+  system: puls
+  daq:
+    rawid: 1027201
+MUON01:
+  name: MUON01
+  system: auxs
+  daq:
+    rawid: 1027202
+PULS01ANA:
+  name: PULS01ANA
+  system: puls
+  daq:
+    rawid: 1027203
+BF862-06:
+  name: BF862-06
+  system: auxs
+  daq:
+    rawid: 1104000
+BF862-07:
+  name: BF862-07
+  system: auxs
+  daq:
+    rawid: 1104001
+BF862-08:
+  name: BF862-08
+  system: auxs
+  daq:
+    rawid: 1104002
+BF862-09:
+  name: BF862-09
+  system: auxs
+  daq:
+    rawid: 1104003
+V14654A:
+  name: V14654A
+  system: geds
+  daq:
+    rawid: 1104004
+  location:
+    string: 1
+    position: 1
+V14673A:
+  name: V14673A
+  system: geds
+  daq:
+    rawid: 1104005
+  location:
+    string: 1
+    position: 2
+V13044A:
+  name: V13044A
+  system: geds
+  daq:
+    rawid: 1105600
+  location:
+    string: 1
+    position: 3
+BF862-01:
+  name: BF862-01
+  system: auxs
+  daq:
+    rawid: 1105601
+BF862-02:
+  name: BF862-02
+  system: auxs
+  daq:
+    rawid: 1105603
+BF862-03:
+  name: BF862-03
+  system: auxs
+  daq:
+    rawid: 1105604
+BF862-04:
+  name: BF862-04
+  system: auxs
+  daq:
+    rawid: 1105605
+B00032C:
+  name: B00032C
+  system: geds
+  daq:
+    rawid: 1107200
+  location:
+    string: 4
+    position: 1
+V07302A:
+  name: V07302A
+  system: geds
+  daq:
+    rawid: 1107201
+  location:
+    string: 4
+    position: 2
+V00050A:
+  name: V00050A
+  system: geds
+  daq:
+    rawid: 1107202
+  location:
+    string: 4
+    position: 3
+V05267A:
+  name: V05267A
+  system: geds
+  daq:
+    rawid: 1107203
+  location:
+    string: 4
+    position: 4
+BF862-05:
+  name: BF862-05
+  system: auxs
+  daq:
+    rawid: 1107204
+V00048A:
+  name: V00048A
+  system: geds
+  daq:
+    rawid: 1107205
+  location:
+    string: 4
+    position: 5
+V00048B:
+  name: V00048B
+  system: geds
+  daq:
+    rawid: 1108800
+  location:
+    string: 4
+    position: 6
+V01240A:
+  name: V01240A
+  system: geds
+  daq:
+    rawid: 1108801
+  location:
+    string: 4
+    position: 7
+V05268A:
+  name: V05268A
+  system: geds
+  daq:
+    rawid: 1108802
+  location:
+    string: 4
+    position: 8
+V05261A:
+  name: V05261A
+  system: geds
+  daq:
+    rawid: 1105602
+  location:
+    string: 4
+    position: 9
+V03421A:
+  name: V03421A
+  system: geds
+  daq:
+    rawid: 1108803
+  location:
+    string: 5
+    position: 1
+V03422A:
+  name: V03422A
+  system: geds
+  daq:
+    rawid: 1108804
+  location:
+    string: 5
+    position: 2
+V10447B:
+  name: V10447B
+  system: geds
+  daq:
+    rawid: 1108805
+  location:
+    string: 5
+    position: 3
+V08682A:
+  name: V08682A
+  system: geds
+  daq:
+    rawid: 1110400
+  location:
+    string: 5
+    position: 4
+V09724A:
+  name: V09724A
+  system: geds
+  daq:
+    rawid: 1110401
+  location:
+    string: 5
+    position: 5
+V11924A:
+  name: V11924A
+  system: geds
+  daq:
+    rawid: 1110402
+  location:
+    string: 5
+    position: 6
+V09374A:
+  name: V09374A
+  system: geds
+  daq:
+    rawid: 1110403
+  location:
+    string: 5
+    position: 7
+V02160A:
+  name: V02160A
+  system: geds
+  daq:
+    rawid: 1110404
+  location:
+    string: 6
+    position: 1
+V02162B:
+  name: V02162B
+  system: geds
+  daq:
+    rawid: 1110405
+  location:
+    string: 6
+    position: 2
+V05612A:
+  name: V05612A
+  system: geds
+  daq:
+    rawid: 1112000
+  location:
+    string: 6
+    position: 3
+V05266A:
+  name: V05266A
+  system: geds
+  daq:
+    rawid: 1112001
+  location:
+    string: 6
+    position: 4
+V07647A:
+  name: V07647A
+  system: geds
+  daq:
+    rawid: 1112002
+  location:
+    string: 6
+    position: 5
+V07647B:
+  name: V07647B
+  system: geds
+  daq:
+    rawid: 1112003
+  location:
+    string: 6
+    position: 6
+V07302B:
+  name: V07302B
+  system: geds
+  daq:
+    rawid: 1112004
+  location:
+    string: 6
+    position: 7
+BF862-18:
+  name: BF862-18
+  system: auxs
+  daq:
+    rawid: 1112005
+V05266B:
+  name: V05266B
+  system: geds
+  daq:
+    rawid: 1113600
+  location:
+    string: 6
+    position: 8
+BF862-19:
+  name: BF862-19
+  system: auxs
+  daq:
+    rawid: 1113601
+BF862-20:
+  name: BF862-20
+  system: auxs
+  daq:
+    rawid: 1113602
+V14618A:
+  name: V14618A
+  system: geds
+  daq:
+    rawid: 1113603
+  location:
+    string: 7
+    position: 1
+V13049A:
+  name: V13049A
+  system: geds
+  daq:
+    rawid: 1113604
+  location:
+    string: 7
+    position: 2
+V13046A:
+  name: V13046A
+  system: geds
+  daq:
+    rawid: 1113605
+  location:
+    string: 7
+    position: 3
+B00000C:
+  name: B00000C
+  system: geds
+  daq:
+    rawid: 1118401
+  location:
+    string: 8
+    position: 1
+B00061B:
+  name: B00061B
+  system: geds
+  daq:
+    rawid: 1115204
+  location:
+    string: 8
+    position: 2
+B00076C:
+  name: B00076C
+  system: geds
+  daq:
+    rawid: 1115205
+  location:
+    string: 8
+    position: 3
+B00079B:
+  name: B00079B
+  system: geds
+  daq:
+    rawid: 1116801
+  location:
+    string: 8
+    position: 4
+B00079C:
+  name: B00079C
+  system: geds
+  daq:
+    rawid: 1116802
+  location:
+    string: 8
+    position: 5
+BF862-10:
+  name: BF862-10
+  system: auxs
+  daq:
+    rawid: 1116803
+BF862-11:
+  name: BF862-11
+  system: auxs
+  daq:
+    rawid: 1116804
+BF862-12:
+  name: BF862-12
+  system: auxs
+  daq:
+    rawid: 1116805
+V06649M:
+  name: V06649M
+  system: geds
+  daq:
+    rawid: 1115203
+  location:
+    string: 8
+    position: 6
+V01404A:
+  name: V01404A
+  system: geds
+  daq:
+    rawid: 1118400
+  location:
+    string: 8
+    position: 7
+BF862-21:
+  name: BF862-21
+  system: auxs
+  daq:
+    rawid: 1115200
+BF862-22:
+  name: BF862-22
+  system: auxs
+  daq:
+    rawid: 1115201
+BF862-23:
+  name: BF862-23
+  system: auxs
+  daq:
+    rawid: 1115202
+BF862-24:
+  name: BF862-24
+  system: auxs
+  daq:
+    rawid: 1116800
+B00000D:
+  name: B00000D
+  system: geds
+  daq:
+    rawid: 1118402
+  location:
+    string: 10
+    position: 1
+BF862-13:
+  name: BF862-13
+  system: auxs
+  daq:
+    rawid: 1118403
+B00002C:
+  name: B00002C
+  system: geds
+  daq:
+    rawid: 1118404
+  location:
+    string: 10
+    position: 2
+B00035A:
+  name: B00035A
+  system: geds
+  daq:
+    rawid: 1118405
+  location:
+    string: 10
+    position: 3
+B00035B:
+  name: B00035B
+  system: geds
+  daq:
+    rawid: 1120000
+  location:
+    string: 10
+    position: 4
+V00050B:
+  name: V00050B
+  system: geds
+  daq:
+    rawid: 1120001
+  location:
+    string: 10
+    position: 5
+V04549A:
+  name: V04549A
+  system: geds
+  daq:
+    rawid: 1120002
+  location:
+    string: 10
+    position: 6
+BF862-14:
+  name: BF862-14
+  system: auxs
+  daq:
+    rawid: 1120003
+V07298B:
+  name: V07298B
+  system: geds
+  daq:
+    rawid: 1120004
+  location:
+    string: 10
+    position: 7
+V06643A:
+  name: V06643A
+  system: geds
+  daq:
+    rawid: 1120005
+  location:
+    string: 10
+    position: 8
+V00074A:
+  name: V00074A
+  system: geds
+  daq:
+    rawid: 1121600
+  location:
+    string: 10
+    position: 9
+BF862-15:
+  name: BF862-15
+  system: auxs
+  daq:
+    rawid: 1121601
+BF862-16:
+  name: BF862-16
+  system: auxs
+  daq:
+    rawid: 1121602
+BF862-17:
+  name: BF862-17
+  system: auxs
+  daq:
+    rawid: 1121603
+V08682B:
+  name: V08682B
+  system: geds
+  daq:
+    rawid: 1078400
+  location:
+    string: 11
+    position: 1
+V11925A:
+  name: V11925A
+  system: geds
+  daq:
+    rawid: 1078401
+  location:
+    string: 11
+    position: 2
+V11947B:
+  name: V11947B
+  system: geds
+  daq:
+    rawid: 1078402
+  location:
+    string: 11
+    position: 3
+V09372A:
+  name: V09372A
+  system: geds
+  daq:
+    rawid: 1078403
+  location:
+    string: 11
+    position: 4
+V10784A:
+  name: V10784A
+  system: geds
+  daq:
+    rawid: 1078404
+  location:
+    string: 11
+    position: 5
+V10437B:
+  name: V10437B
+  system: geds
+  daq:
+    rawid: 1078405
+  location:
+    string: 11
+    position: 6
+V02160B:
+  name: V02160B
+  system: geds
+  daq:
+    rawid: 1080000
+  location:
+    string: 12
+    position: 1
+V04199A:
+  name: V04199A
+  system: geds
+  daq:
+    rawid: 1080001
+  location:
+    string: 12
+    position: 2
+V04545A:
+  name: V04545A
+  system: geds
+  daq:
+    rawid: 1080002
+  location:
+    string: 12
+    position: 3
+V05267B:
+  name: V05267B
+  system: geds
+  daq:
+    rawid: 1080003
+  location:
+    string: 12
+    position: 4
+V07646A:
+  name: V07646A
+  system: geds
+  daq:
+    rawid: 1080004
+  location:
+    string: 12
+    position: 5
+V02166B:
+  name: V02166B
+  system: geds
+  daq:
+    rawid: 1080005
+  location:
+    string: 12
+    position: 6
+V05261B:
+  name: V05261B
+  system: geds
+  daq:
+    rawid: 1081600
+  location:
+    string: 12
+    position: 7
+V06659A:
+  name: V06659A
+  system: geds
+  daq:
+    rawid: 1081601
+  location:
+    string: 12
+    position: 8
+S060:
+  name: S060
+  system: spms
+  daq:
+    rawid: 1052802
+  location:
+    barrel: IB
+    fiber: IB015016
+    position: top
+S061:
+  name: S061
+  system: spms
+  daq:
+    rawid: 1052803
+  location:
+    barrel: IB
+    fiber: IB015016
+    position: bottom
+S055:
+  name: S055
+  system: spms
+  daq:
+    rawid: 1052804
+  location:
+    barrel: OB
+    fiber: OB005006
+    position: top
+S093:
+  name: S093
+  system: spms
+  daq:
+    rawid: 1052805
+  location:
+    barrel: OB
+    fiber: OB005006
+    position: bottom
+S100:
+  name: S100
+  system: spms
+  daq:
+    rawid: 1054400
+  location:
+    barrel: OB
+    fiber: OB007008
+    position: top
+S017:
+  name: S017
+  system: spms
+  daq:
+    rawid: 1054401
+  location:
+    barrel: OB
+    fiber: OB007008
+    position: bottom
+S083:
+  name: S083
+  system: spms
+  daq:
+    rawid: 1054402
+  location:
+    barrel: IB
+    fiber: IB017018
+    position: top
+S073:
+  name: S073
+  system: spms
+  daq:
+    rawid: 1054403
+  location:
+    barrel: IB
+    fiber: IB017018
+    position: bottom
+S071:
+  name: S071
+  system: spms
+  daq:
+    rawid: 1054404
+  location:
+    barrel: IB
+    fiber: IB001002
+    position: top
+S070:
+  name: S070
+  system: spms
+  daq:
+    rawid: 1054405
+  location:
+    barrel: IB
+    fiber: IB001002
+    position: bottom
+S067:
+  name: S067
+  system: spms
+  daq:
+    rawid: 1056000
+  location:
+    barrel: OB
+    fiber: OB021022
+    position: top
+S068:
+  name: S068
+  system: spms
+  daq:
+    rawid: 1056001
+  location:
+    barrel: OB
+    fiber: OB021022
+    position: bottom
+S090:
+  name: S090
+  system: spms
+  daq:
+    rawid: 1056002
+  location:
+    barrel: IB
+    fiber: IB003004
+    position: top
+S029:
+  name: S029
+  system: spms
+  daq:
+    rawid: 1056003
+  location:
+    barrel: IB
+    fiber: IB003004
+    position: bottom
+S042:
+  name: S042
+  system: spms
+  daq:
+    rawid: 1056004
+  location:
+    barrel: OB
+    fiber: OB023024
+    position: top
+S041:
+  name: S041
+  system: spms
+  daq:
+    rawid: 1056005
+  location:
+    barrel: OB
+    fiber: OB023024
+    position: bottom
+S024:
+  name: S024
+  system: spms
+  daq:
+    rawid: 1057600
+  location:
+    barrel: IB
+    fiber: IB005006
+    position: top
+S023:
+  name: S023
+  system: spms
+  daq:
+    rawid: 1057601
+  location:
+    barrel: IB
+    fiber: IB005006
+    position: bottom
+S092:
+  name: S092
+  system: spms
+  daq:
+    rawid: 1057602
+  location:
+    barrel: OB
+    fiber: OB009010
+    position: top
+S031:
+  name: S031
+  system: spms
+  daq:
+    rawid: 1057603
+  location:
+    barrel: OB
+    fiber: OB009010
+    position: bottom
+S002:
+  name: S002
+  system: spms
+  daq:
+    rawid: 1057604
+  location:
+    barrel: IB
+    fiber: IB007008
+    position: top
+S003:
+  name: S003
+  system: spms
+  daq:
+    rawid: 1057605
+  location:
+    barrel: IB
+    fiber: IB007008
+    position: bottom
+S032:
+  name: S032
+  system: spms
+  daq:
+    rawid: 1059200
+  location:
+    barrel: IB
+    fiber: IB009010
+    position: top
+S036:
+  name: S036
+  system: spms
+  daq:
+    rawid: 1059201
+  location:
+    barrel: IB
+    fiber: IB009010
+    position: bottom
+S094:
+  name: S094
+  system: spms
+  daq:
+    rawid: 1059202
+  location:
+    barrel: OB
+    fiber: OB011012
+    position: top
+S054:
+  name: S054
+  system: spms
+  daq:
+    rawid: 1059203
+  location:
+    barrel: OB
+    fiber: OB011012
+    position: bottom
+S098:
+  name: S098
+  system: spms
+  daq:
+    rawid: 1059204
+  location:
+    barrel: OB
+    fiber: OB019020
+    position: top
+S008:
+  name: S008
+  system: spms
+  daq:
+    rawid: 1059205
+  location:
+    barrel: OB
+    fiber: OB019020
+    position: bottom
+S058:
+  name: S058
+  system: spms
+  daq:
+    rawid: 1060800
+  location:
+    barrel: IB
+    fiber: IB011012
+    position: top
+S057:
+  name: S057
+  system: spms
+  daq:
+    rawid: 1060801
+  location:
+    barrel: IB
+    fiber: IB011012
+    position: bottom
+S096:
+  name: S096
+  system: spms
+  daq:
+    rawid: 1060802
+  location:
+    barrel: IB
+    fiber: IB013014
+    position: top
+S095:
+  name: S095
+  system: spms
+  daq:
+    rawid: 1060803
+  location:
+    barrel: IB
+    fiber: IB013014
+    position: bottom
+S099:
+  name: S099
+  system: spms
+  daq:
+    rawid: 1060804
+  location:
+    barrel: OB
+    fiber: OB025026
+    position: top
+S065:
+  name: S065
+  system: spms
+  daq:
+    rawid: 1060805
+  location:
+    barrel: OB
+    fiber: OB025026
+    position: bottom
+S087:
+  name: S087
+  system: spms
+  daq:
+    rawid: 1062400
+  location:
+    barrel: OB
+    fiber: OB027028
+    position: top
+S082:
+  name: S082
+  system: spms
+  daq:
+    rawid: 1062401
+  location:
+    barrel: OB
+    fiber: OB027028
+    position: bottom
+S046:
+  name: S046
+  system: spms
+  daq:
+    rawid: 1062402
+  location:
+    barrel: OB
+    fiber: OB017018
+    position: top
+S047:
+  name: S047
+  system: spms
+  daq:
+    rawid: 1062403
+  location:
+    barrel: OB
+    fiber: OB017018
+    position: bottom
+S011:
+  name: S011
+  system: spms
+  daq:
+    rawid: 1062404
+  location:
+    barrel: OB
+    fiber: OB015016
+    position: top
+S012:
+  name: S012
+  system: spms
+  daq:
+    rawid: 1062405
+  location:
+    barrel: OB
+    fiber: OB015016
+    position: bottom
+S020:
+  name: S020
+  system: spms
+  daq:
+    rawid: 1064000
+  location:
+    barrel: OB
+    fiber: OB029030
+    position: top
+S080:
+  name: S080
+  system: spms
+  daq:
+    rawid: 1064001
+  location:
+    barrel: OB
+    fiber: OB029030
+    position: bottom
+S026:
+  name: S026
+  system: spms
+  daq:
+    rawid: 1064002
+  location:
+    barrel: OB
+    fiber: OB031032
+    position: top
+S025:
+  name: S025
+  system: spms
+  daq:
+    rawid: 1064003
+  location:
+    barrel: OB
+    fiber: OB031032
+    position: bottom
+S015:
+  name: S015
+  system: spms
+  daq:
+    rawid: 1064004
+  location:
+    barrel: OB
+    fiber: OB033034
+    position: top
+S089:
+  name: S089
+  system: spms
+  daq:
+    rawid: 1064005
+  location:
+    barrel: OB
+    fiber: OB033034
+    position: bottom
+S043:
+  name: S043
+  system: spms
+  daq:
+    rawid: 1065600
+  location:
+    barrel: OB
+    fiber: OB013014
+    position: top
+S040:
+  name: S040
+  system: spms
+  daq:
+    rawid: 1065601
+  location:
+    barrel: OB
+    fiber: OB013014
+    position: bottom
+S048:
+  name: S048
+  system: spms
+  daq:
+    rawid: 1065602
+  location:
+    barrel: OB
+    fiber: OB035036
+    position: top
+S049:
+  name: S049
+  system: spms
+  daq:
+    rawid: 1065603
+  location:
+    barrel: OB
+    fiber: OB035036
+    position: bottom
+S053:
+  name: S053
+  system: spms
+  daq:
+    rawid: 1065604
+  location:
+    barrel: OB
+    fiber: OB037038
+    position: top
+S052:
+  name: S052
+  system: spms
+  daq:
+    rawid: 1065605
+  location:
+    barrel: OB
+    fiber: OB037038
+    position: bottom
+S050:
+  name: S050
+  system: spms
+  daq:
+    rawid: 1067200
+  location:
+    barrel: OB
+    fiber: OB039040
+    position: top
+S051:
+  name: S051
+  system: spms
+  daq:
+    rawid: 1067201
+  location:
+    barrel: OB
+    fiber: OB039040
+    position: bottom
+S085:
+  name: S085
+  system: spms
+  daq:
+    rawid: 1067202
+  location:
+    barrel: OB
+    fiber: OB001002
+    position: top
+S086:
+  name: S086
+  system: spms
+  daq:
+    rawid: 1067203
+  location:
+    barrel: OB
+    fiber: OB001002
+    position: bottom
+S037:
+  name: S037
+  system: spms
+  daq:
+    rawid: 1067204
+  location:
+    barrel: OB
+    fiber: OB003004
+    position: top
+S007:
+  name: S007
+  system: spms
+  daq:
+    rawid: 1067205
+  location:
+    barrel: OB
+    fiber: OB003004
+    position: bottom
+PMT101:
+  name: PMT101
+  system: pmts
+  daq:
+    rawid: 2001604
+  location: pillbox
+PMT704:
+  name: PMT704
+  system: pmts
+  daq:
+    rawid: 2001605
+  location: pillbox
+PMT102:
+  name: PMT102
+  system: pmts
+  daq:
+    rawid: 2001606
+  location: pillbox
+PMT705:
+  name: PMT705
+  system: pmts
+  daq:
+    rawid: 2001607
+  location: pillbox
+PMT708:
+  name: PMT708
+  system: pmts
+  daq:
+    rawid: 2001608
+  location: pillbox
+PMT104:
+  name: PMT104
+  system: pmts
+  daq:
+    rawid: 2001609
+  location: pillbox
+PMT709:
+  name: PMT709
+  system: pmts
+  daq:
+    rawid: 2001610
+  location: pillbox
+PMT105:
+  name: PMT105
+  system: pmts
+  daq:
+    rawid: 2001611
+  location: pillbox
+PMT710:
+  name: PMT710
+  system: pmts
+  daq:
+    rawid: 2001612
+  location: pillbox
+PMT707:
+  name: PMT707
+  system: pmts
+  daq:
+    rawid: 2001613
+  location: pillbox
+PMT201:
+  name: PMT201
+  system: pmts
+  daq:
+    rawid: 2003200
+  location: floor
+PMT202:
+  name: PMT202
+  system: pmts
+  daq:
+    rawid: 2003201
+  location: floor
+PMT203:
+  name: PMT203
+  system: pmts
+  daq:
+    rawid: 2003202
+  location: floor
+PMT706:
+  name: PMT706
+  system: pmts
+  daq:
+    rawid: 2003203
+  location: floor
+PMT206:
+  name: PMT206
+  system: pmts
+  daq:
+    rawid: 2003204
+  location: floor
+PMT208:
+  name: PMT208
+  system: pmts
+  daq:
+    rawid: 2003205
+  location: floor
+PMT701:
+  name: PMT701
+  system: pmts
+  daq:
+    rawid: 2003206
+  location: floor
+PMT703:
+  name: PMT703
+  system: pmts
+  daq:
+    rawid: 2003207
+  location: floor
+PMT301:
+  name: PMT301
+  system: pmts
+  daq:
+    rawid: 2003208
+  location: floor
+PMT302:
+  name: PMT302
+  system: pmts
+  daq:
+    rawid: 2003209
+  location: floor
+PMT303:
+  name: PMT303
+  system: pmts
+  daq:
+    rawid: 2003210
+  location: floor
+PMT304:
+  name: PMT304
+  system: pmts
+  daq:
+    rawid: 2003211
+  location: floor
+PMT305:
+  name: PMT305
+  system: pmts
+  daq:
+    rawid: 2003212
+  location: floor
+PMT306:
+  name: PMT306
+  system: pmts
+  daq:
+    rawid: 2003213
+  location: floor
+PMT307:
+  name: PMT307
+  system: pmts
+  daq:
+    rawid: 2003214
+  location: floor
+PMT308:
+  name: PMT308
+  system: pmts
+  daq:
+    rawid: 2003215
+  location: floor
+PMT309:
+  name: PMT309
+  system: pmts
+  daq:
+    rawid: 2003216
+  location: floor
+PMT310:
+  name: PMT310
+  system: pmts
+  daq:
+    rawid: 2003217
+  location: floor
+PMT311:
+  name: PMT311
+  system: pmts
+  daq:
+    rawid: 2003218
+  location: floor
+PMT312:
+  name: PMT312
+  system: pmts
+  daq:
+    rawid: 2003219
+  location: floor
+PMT401:
+  name: PMT401
+  system: pmts
+  daq:
+    rawid: 2004800
+  location: wall
+PMT402:
+  name: PMT402
+  system: pmts
+  daq:
+    rawid: 2004801
+  location: wall
+PMT403:
+  name: PMT403
+  system: pmts
+  daq:
+    rawid: 2004802
+  location: wall
+PMT404:
+  name: PMT404
+  system: pmts
+  daq:
+    rawid: 2004803
+  location: wall
+PMT409:
+  name: PMT409
+  system: pmts
+  daq:
+    rawid: 2004804
+  location: wall
+PMT410:
+  name: PMT410
+  system: pmts
+  daq:
+    rawid: 2004805
+  location: wall
+PMT501:
+  name: PMT501
+  system: pmts
+  daq:
+    rawid: 2004806
+  location: wall
+PMT502:
+  name: PMT502
+  system: pmts
+  daq:
+    rawid: 2004807
+  location: wall
+PMT503:
+  name: PMT503
+  system: pmts
+  daq:
+    rawid: 2004808
+  location: wall
+PMT504:
+  name: PMT504
+  system: pmts
+  daq:
+    rawid: 2004809
+  location: wall
+PMT507:
+  name: PMT507
+  system: pmts
+  daq:
+    rawid: 2004810
+  location: wall
+PMT508:
+  name: PMT508
+  system: pmts
+  daq:
+    rawid: 2004811
+  location: wall
+PMT509:
+  name: PMT509
+  system: pmts
+  daq:
+    rawid: 2004812
+  location: wall
+PMT510:
+  name: PMT510
+  system: pmts
+  daq:
+    rawid: 2004813
+  location: wall
+PMT602:
+  name: PMT602
+  system: pmts
+  daq:
+    rawid: 2004814
+  location: wall
+PMT603:
+  name: PMT603
+  system: pmts
+  daq:
+    rawid: 2004815
+  location: wall
+PMT605:
+  name: PMT605
+  system: pmts
+  daq:
+    rawid: 2004816
+  location: wall
+PMT606:
+  name: PMT606
+  system: pmts
+  daq:
+    rawid: 2004817
+  location: wall
+PMT607:
+  name: PMT607
+  system: pmts
+  daq:
+    rawid: 2004818
+  location: wall
+PMT608:
+  name: PMT608
+  system: pmts
+  daq:
+    rawid: 2004819
+  location: wall
+PMT609:
+  name: PMT609
+  system: pmts
+  daq:
+    rawid: 2004820
+  location: wall
+PMT610:
+  name: PMT610
+  system: pmts
+  daq:
+    rawid: 2004821
+  location: wall
+PMT702:
+  name: PMT702
+  system: pmts
+  daq:
+    rawid: 2004822
+  location: wall

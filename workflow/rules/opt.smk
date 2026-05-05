@@ -4,6 +4,12 @@ from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
 
 
+def _tier_setting(tier, key):
+    return lambda wc: config.metadata.simprod.config.tier[tier][
+        config.experiment
+    ].settings[key]
+
+
 rule gen_all_tier_opt:
     """Aggregate and produce all the opt tier files."""
     input:
@@ -53,9 +59,15 @@ rule build_tier_opt:
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
     params:
-        optmap_per_sipm=True,
-        add_random_coincidences=False,
-        scintillator_volume_name="liquid_argon",
+        optmap_per_sipm=_tier_setting("opt", "optmap_per_sipm"),
+        scintillator_volume_name=_tier_setting("opt", "scintillator_volume_name"),
+        optmap_scaling_factor=_tier_setting("opt", "optmap_scaling_factor"),
+        photoelectron_resolution_sigma=_tier_setting(
+            "opt", "photoelectron_resolution_sigma"
+        ),
+        time_resolution_in_ns=_tier_setting("opt", "time_resolution_in_ns"),
+        max_pes_per_hit_per_sipm=_tier_setting("opt", "max_pes_per_hit_per_sipm"),
+        max_pes_per_hit_combined=_tier_setting("opt", "max_pes_per_hit_combined"),
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:

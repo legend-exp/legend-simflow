@@ -247,6 +247,31 @@ function build_simulation_grid_axis(boundary::T, grid_step::T)::Vector{T} where 
     return [-offset, interior_axis..., boundary + offset]
 end
 
+"""
+    spawn_points_on_grid(r_axis::Vector{T}, z_axis::Vector{T}, angle_rad::Real) where {T<:AbstractFloat}
+
+Spawn points on a cylindrical grid defined by `r_axis` and `z_axis` on crystal axis given by `angle_rad`.
+
+# Arguments
+- `r_axis`: Radial grid axis
+- `z_axis`: Z-grid axis
+- `angle_rad`: Angle in radians
+
+# Returns
+- `Tuple{Vector{CartesianPoint{T}}, Vector{CartesianIndex}}`: Spawn positions and their indices
+"""
+
+function spawn_points_on_grid(r_axis::Vector{T}, z_axis::Vector{T}, angle_rad::Real) where {T<:AbstractFloat}
+    spawn_positions = CartesianPoint{T}[]
+    idx_spawn_positions = CartesianIndex[]
+    for (i, r) in enumerate(r_axis)
+        for (k, z) in enumerate(z_axis)
+            push!(spawn_positions, CartesianPoint{T}(r * cos(angle_rad), r * sin(angle_rad), z))
+            push!(idx_spawn_positions, CartesianIndex(i, k))
+        end
+    end
+    return spawn_positions, idx_spawn_positions
+end
 
 """
     find_valid_spawn_position(candidate_idx, spawn_positions, detector; verbose=true)
@@ -319,23 +344,22 @@ checks depletion voltage, and calculates weighting potential.
 - `T`: Floating-point precision type (typically Float32)
 - `refinement_limits`: Vector of refinement thresholds for SSD
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
+- `medium`: Detector environment medium (default: "LAr")
+- `temperature`: Detector environment temperature in K (default: 87 K)
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
-    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200)::Simulation
+    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
+    temperature::Real = 87.0)::Simulation
 
-    sim = Simulation{T}(LegendData, meta, xtal)
-
-    charge_drift_model = ADLChargeDriftModel(
-        "$meta_path/simprod/config/pars/geds/ssd/adl-2016-temp-model.yaml", T = T
-    )
-    sim.detector = SolidStateDetector(sim.detector, charge_drift_model)
-    sim.detector = SolidStateDetector(
-        sim.detector,
-        contact_id = 2,
-        contact_potential = opv_val
+    sim = Simulation{T}(
+        LegendData,
+        meta,
+        xtal,
+        HPGeEnvironment(medium, temperature*u"K"),
+        operational_voltage = opv_val*u"V"
     )
 
     @info "Calculating electric potential at $(opv_val) V..."
@@ -419,18 +443,10 @@ function compute_ideal_pulse_shape_lib(
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
 
-    r_axis = build_simulation_grid_axis(radius, grid_size)
-    z_axis = build_simulation_grid_axis(height, grid_size)
+    r_axis = build_simulation_grid_axis(T(radius), T(grid_size))
+    z_axis = build_simulation_grid_axis(T(height), T(grid_size))
 
-    spawn_positions = CartesianPoint{T}[]
-    idx_spawn_positions = CartesianIndex[]
-
-    for (i, r) in enumerate(r_axis)
-        for (k, z) in enumerate(z_axis)
-            push!(spawn_positions, CartesianPoint{T}(r * cos(angle_rad), r * sin(angle_rad), z))
-            push!(idx_spawn_positions, CartesianIndex(i, k))
-        end
-    end
+    spawn_positions, idx_spawn_positions = spawn_points_on_grid(r_axis, z_axis, angle_rad)
 
 
     in_idx = findall(x -> in(x, sim.detector), spawn_positions)
@@ -475,8 +491,6 @@ function compute_ideal_pulse_shape_lib(
         # Normalize charge waveforms so that their amplitude (energy) = 1
         max_val = maximum(raw_signal)
         signal = max_val > 0 ? raw_signal ./ max_val : raw_signal
-
-        # Clip to fixed length and pad tail with last value
         wf_padded[:, idx[2], idx[1]] = signal
     end
 
@@ -524,18 +538,11 @@ function compute_drift_time_map(
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
 
-    r_axis = build_simulation_grid_axis(radius, grid_step)
-    z_axis = build_simulation_grid_axis(height, grid_step)
+    r_axis = build_simulation_grid_axis(T(radius), T(grid_step))
+    z_axis = build_simulation_grid_axis(T(height), T(grid_step))
 
     # Build spawn positions grid
-    spawn_positions = CartesianPoint{T}[]
-    idx_spawn_positions = CartesianIndex[]
-
-    for (i, r) in enumerate(r_axis), (k, z) in enumerate(z_axis)
-        point = T[r * cos(angle_rad), r * sin(angle_rad), z]
-        push!(spawn_positions, CartesianPoint(point))
-        push!(idx_spawn_positions, CartesianIndex(i, k))
-    end
+    spawn_positions, idx_spawn_positions = spawn_points_on_grid(r_axis, z_axis, angle_rad)
 
     inside_detector_idx = findall(p -> in(p, sim.detector), spawn_positions)
 

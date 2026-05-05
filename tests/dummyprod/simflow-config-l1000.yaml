@@ -1,0 +1,46 @@
+experiment: l1000dsg01
+
+runlist:
+  - l200-p03-r000-phy
+  - l200-p03-r001-phy
+
+benchmark:
+  enabled: true
+  n_primaries:
+    stp: 1000
+
+make_steps:
+  - vtx
+  - stp
+  - par
+  - hit
+  - opt
+  - evt
+  - cvt
+  - pdf
+
+paths:
+  generated: $_/generated-l1000
+  benchmarks: $_/generated-l1000/benchmarks
+  log: $_/generated-l1000/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    lar: $_/inputs/simprod/l200cfg01-optmap-dummy.lh5
+
+  pars: $_/generated-l1000/pars
+  macros: $_/generated-l1000/macros
+  tier:
+    vtx: $_/generated-l1000/tier/vtx
+    stp: $_/generated-l1000/tier/stp
+    opt: $_/generated-l1000/tier/opt
+    hit: $_/generated-l1000/tier/hit
+    evt: $_/generated-l1000/tier/evt
+    cvt: $_/generated-l1000/tier/cvt
+    pdf: $_/generated-l1000/tier/pdf
+  pdf_releases: $_/generated-l1000/releases
+
+nersc:
+  dvs_ro: false
+  scratch: false
