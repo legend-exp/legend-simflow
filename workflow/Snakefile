@@ -73,7 +73,6 @@ def gen_target_all():
         return aggregate.process_simlist(config, make_steps=make_steps)
 
     inputs = []
-    logger.info("... make steps %s", make_steps)
     for step in make_steps:
         if step == "pdf":
             inputs.extend(rules.gen_all_tier_pdf.input)

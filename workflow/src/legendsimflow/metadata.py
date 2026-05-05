@@ -425,7 +425,7 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
         LEGEND metadata instance.
     query
         expression in the form `<tag>.<datatype>.<period>` (see contents of
-        ``runlists.yaml`` in legend-datasets).
+        ``runlists.yaml`` in legend-datasets.
 
     """
     group, dtype, period = re.split(r"\W+", query)
