@@ -41,6 +41,21 @@ JOBS = 5
 ONLY_TH = True
 
 
+def _swap_tier_segment(path: str, old_tier: str, new_tier: str) -> str:
+    """Replace the rightmost path segment matching *old_tier* with *new_tier*.
+
+    This avoids mangling parent-directory names that happen to contain the tier
+    string as a substring (e.g. a root directory called ``stp-study``).
+    """
+    parts = list(Path(path).parts)
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == old_tier:
+            parts[i] = new_tier
+            return str(Path(*parts))
+    msg = f"Tier segment '{old_tier}' not found as a path component in: {path}"
+    raise ValueError(msg)
+
+
 def replace_position(config: dict, dz: float, dphi: float):
     # validate required geometry/SIS structure
     geom_extra = config.get("geom_config_extra")
@@ -114,9 +129,11 @@ def main():
         msg = "Input and output path cannot be the same!"
         raise ValueError(msg)
 
-    # also replace the hit config
-    hit_input = args.input_path.replace("stp", "hit")
-    hit_output = args.output_path.replace("stp", "hit")
+    # also replace the hit config — replace only the tier path segment, not every
+    # occurrence of "stp" in the full path string (e.g. avoid corrupting a parent
+    # directory named "stp-study")
+    hit_input = _swap_tier_segment(args.input_path, "stp", "hit")
+    hit_output = _swap_tier_segment(args.output_path, "stp", "hit")
 
     for indir, outdir in zip(
         [hit_input, args.input_path], [hit_output, args.output_path], strict=True
