@@ -128,6 +128,16 @@ def main():
 
     log.info("... editing simconfig based on z: %s and phi: %s", z, phi)
 
+    # validate that z and phi values are integers (required for simid suffix generation)
+    for val in z:
+        if val != int(val):
+            msg = f"z value {val} is not an integer; only integer z values are supported for simid naming"
+            raise ValueError(msg)
+    for val in phi:
+        if val != int(val):
+            msg = f"phi value {val} is not an integer; only integer phi values are supported for simid naming"
+            raise ValueError(msg)
+
     # now edit the simconfig
     input_simconfig = dbetto.utils.load_dict(configuration / "simconfig.yaml")
     output_simconfig = {}
