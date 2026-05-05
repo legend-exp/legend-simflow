@@ -92,7 +92,6 @@ def gen_target_all():
         elif step == "par":
             inputs.extend(rules.gen_all_tier_par.input)
 
-    inputs.append(patterns.plots_tarball_filename(config))
     return inputs
 
 
