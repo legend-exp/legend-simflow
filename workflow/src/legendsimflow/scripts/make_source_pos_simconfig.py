@@ -83,7 +83,9 @@ def replace_position(config: dict, dz: float, dphi: float):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    )
     parser = argparse.ArgumentParser(description="Process arguments.")
 
     # positional string argument
