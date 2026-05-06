@@ -192,7 +192,7 @@ depends-on = ["precompile"]
 cmd = "snakemake-nersc-batch"
 
 [tool.pixi.tasks.precompile]
-cmd = "python -c 'from dspeed.processors import *; from lgdo.compression import *; import matplotlib; import pygama; import pygeomhpges; import pygeomoptics; import pygeomtools; import reboost; import remage; import revertex' && touch .pixi/precompile.stamp"
+cmd = "python -c 'from dspeed.processors import *; from lh5.compression import *; import matplotlib; import pygama; import pygeomhpges; import pygeomoptics; import pygeomtools; import reboost; import remage; import revertex' && touch .pixi/precompile.stamp"
 outputs = [".pixi/precompile.stamp"]
 
 [tool.pixi.feature.test.tasks]
