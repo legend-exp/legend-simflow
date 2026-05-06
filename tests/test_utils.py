@@ -624,6 +624,29 @@ def test_link_external_paths_geom_dtmaps_default(link_setup, tmp_path):
     assert default_dtmaps.resolve() == ext_dtmaps.resolve()
 
 
+def test_link_external_paths_strips_dvs_ro_prefix(link_setup, tmp_path):
+    """Strip the NERSC /dvs_ro mount prefix before symlinking.
+
+    Override paths under the NERSC /dvs_ro/... read-only mount must be
+    normalized to /global/... before computing the relative symlink — otherwise
+    the link traverses all the way to / and back down through the mount.
+    """
+    workflow_basedir, cycle, config = link_setup
+
+    ext_hit = tmp_path / "external" / "hit"
+    ext_hit.mkdir(parents=True)
+    # the user's config points at the /dvs_ro mirror of the canonical /global path
+    config.paths.tier["hit"] = Path("/dvs_ro") / ext_hit.relative_to("/")
+
+    utils.link_external_paths(config, workflow_basedir)
+
+    default = cycle / "generated/tier/hit"
+    assert default.is_symlink()
+    target = default.readlink()
+    assert not target.is_absolute()
+    assert "dvs_ro" not in str(target)
+
+
 def test_link_external_paths_creates_intermediate_dirs(link_setup, tmp_path):
     workflow_basedir, cycle, config = link_setup
 
