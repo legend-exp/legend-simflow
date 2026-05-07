@@ -55,7 +55,7 @@ dependencies = [
     "legend-dataflow-scripts >=0.3.0a5",
     "legend-lh5io >=0.2",
     "legend-pydataobj >=2",
-    "legend-pygeom-l200 >=0.8",
+    "legend-pygeom-l200 >=0.8.3",
     "legend-pygeom-tools >=0.2",
     "legend-pygeom-hpges >=0.9",
     "matplotlib",
@@ -118,7 +118,7 @@ dbetto = ">=1.3.2,<1.4"
 # legend-dataflow-scripts = "..."  # not on conda-forge
 legend-lh5io = ">=0.2,<0.3"
 legend-pydataobj = ">=2,<2.1"
-legend-pygeom-l200 = ">=0.8,<0.9"
+legend-pygeom-l200 = ">=0.8.3,<0.9"
 legend-pygeom-tools = ">=0.2,<0.3"
 dspeed = ">=2.1,<2.2"
 matplotlib = "*"

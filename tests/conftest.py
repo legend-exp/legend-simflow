@@ -39,41 +39,10 @@ def dummyprod_optmap(legend_testdata):
     dst.unlink(missing_ok=True)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def dummyprod_geom_special_metadata():
-    """Inject a writable ``special_metadata`` into each public-geometry config.
-
-    All ``tests/dummyprod/inputs/simprod/config/geom/*-geom-config.yaml`` set
-    ``public_geom: true``, which triggers
-    ``pygeoml200.metadata.PublicMetadataProxy.update_special_metadata`` to
-    mutate the dict returned by ``pygeoml200.core.configs.on(...)``. Since
-    ``dbetto >=1.3.5`` returns ``TextDB.on(...)`` as read-only, this raises.
-    Pre-resolve the default extra-metadata bundle to a sibling YAML and point
-    each geom config at it via the ``special_metadata`` key, so
-    ``pygeomtools.utils.load_dict_from_config`` wraps it in a writable
-    ``AttrsDict``. Originals are restored on teardown.
-    """
-    geom_dir = testprod / "inputs/simprod/config/geom"
-    extra_meta_path = geom_dir / "special_metadata.yaml"
-    timestamp = "20230311T235840Z"
-    extra_meta_path.write_text(
-        yaml.safe_dump(core.configs.on(timestamp).to_dict(), sort_keys=False)
-    )
-    geom_configs = list(geom_dir.glob("*-geom-config.yaml"))
-    backups = {p: p.read_text() for p in geom_configs}
-    for p in geom_configs:
-        cfg = yaml.safe_load(backups[p]) or {}
-        cfg["special_metadata"] = str(extra_meta_path.resolve())
-        p.write_text(yaml.safe_dump(cfg, sort_keys=False))
-    yield
-    for p, original in backups.items():
-        p.write_text(original)
-    extra_meta_path.unlink(missing_ok=True)
-
-
 @pytest.fixture(scope="session")
 def test_generate_gdml(config):
-    geom_config = config.metadata.simprod.config.geom["legend-geom-config"].to_dict()
+    geom_config = config.metadata.simprod.config.geom["legend-geom-config"]
+
     return core.construct(
         use_detailed_fiber_model=False, config=geom_config, public_geometry=True
     )
