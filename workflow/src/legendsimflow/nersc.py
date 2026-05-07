@@ -51,6 +51,20 @@ def dvs_ro(
     return [dvs_ro(config, p) for p in path]
 
 
+def undo_dvs_ro(path: str | Path) -> str | Path:
+    """Turn ``/dvs_ro/...`` file paths back to ``/global/...``.
+
+    The inverse of :func:`dvs_ro`. The input type is preserved. Acts
+    unconditionally (no ``config.nersc.dvs_ro`` check) so it can normalize
+    paths that should never carry the read-only mount prefix, regardless of
+    where the prefix came from.
+    """
+    if isinstance(path, Path):
+        return Path(re.sub("^/dvs_ro", "/global", path.as_posix()))
+
+    return re.sub("^/dvs_ro", "/global", path)
+
+
 def dvs_ro_snakemake(snakemake: Snakemake) -> Snakemake:
     """Swap the read-only filesystem path in all Snakemake input files.
 

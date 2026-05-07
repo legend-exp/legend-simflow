@@ -185,8 +185,11 @@ def link_external_paths(
     for current_str, default_str in candidates:
         if default_str is None:
             continue
-        current = Path(current_str)
-        default = Path(default_str)
+        # normalize away the NERSC /dvs_ro read-only mount: the canonical
+        # filesystem location is /global, and using /dvs_ro here would force
+        # the relative symlink target up to / and back down through the mount.
+        current = Path(nersc.undo_dvs_ro(str(current_str)))
+        default = Path(nersc.undo_dvs_ro(str(default_str)))
 
         # compare absolute paths without resolving symlinks: otherwise a
         # symlink we just installed at `default` would make resolve() equal
