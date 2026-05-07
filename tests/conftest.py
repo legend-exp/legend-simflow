@@ -41,7 +41,13 @@ def dummyprod_optmap(legend_testdata):
 
 @pytest.fixture(scope="session")
 def test_generate_gdml(config):
-    geom_config = config.metadata.simprod.config.geom["legend-geom-config"]
+    geom_config = dict(config.metadata.simprod.config.geom["legend-geom-config"])
+    # Pre-populate `special_metadata` so that pygeoml200 wraps it in a writable
+    # AttrsDict via `load_dict_from_config`. Otherwise it falls back to
+    # `configs.on(timestamp)`, which dbetto >=1.3.5 returns as read-only and
+    # `PublicMetadataProxy.update_special_metadata` then fails to mutate.
+    timestamp = geom_config.get("metadata_timestamp", "20230311T235840Z")
+    geom_config["special_metadata"] = core.configs.on(timestamp).to_dict()
 
     return core.construct(
         use_detailed_fiber_model=False, config=geom_config, public_geometry=True
