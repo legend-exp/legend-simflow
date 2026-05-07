@@ -5,6 +5,15 @@ import pytest
 from legendsimflow import commands, confine
 
 
+@pytest.mark.xfail(
+    raises=TypeError,
+    reason=(
+        "legend-pygeom-l200 <=0.8.2 mutates a read-only AttrsDict in "
+        "PublicMetadataProxy.update_special_metadata; remove once an upstream "
+        "release is bumped here."
+    ),
+    strict=True,
+)
 def test_get_lar_minishroud_confine_commands(test_generate_gdml):
     lines = confine.get_lar_minishroud_confine_commands(test_generate_gdml, inside=True)
 
