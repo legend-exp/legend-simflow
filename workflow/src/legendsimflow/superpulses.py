@@ -19,9 +19,13 @@ from pathlib import Path
 
 import awkward as ak
 import numpy as np
+from legendmeta import LegendMetadata
 from lgdo import Array, Scalar, Struct, lh5
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
+
+from legendsimflow import metadata as mutils
+from legendsimflow import utils
 
 log = logging.getLogger(__name__)
 
@@ -178,7 +182,7 @@ class Superpulse:
 
     def to_lgdo(
         self,
-    ):  ### Is this the best way to implement it? Can I use lgdo functions directly?
+    ):
         """
         Serialise to an ``Struct`` ready for writing to LH5.
 
@@ -222,9 +226,76 @@ class Superpulse:
         )
 
 
-# ---------------------------------------------------------------------------
-# Dataset preparation (individual steps, one file at a time)
-# ---------------------------------------------------------------------------
+def lookup_superpulse_inputs(
+    l200data: str | Path,
+    metadata: LegendMetadata,
+    runid: str,
+    hpge: str,
+    max_files: int | None = None,
+) -> tuple[list[Path], list[Path], list[Path], Path, dict[str, int]]:
+    """Look up all inputs needed to build superpulses for one detector and run.
+
+    Parameters
+    ----------
+    l200data
+        Path to the L200 data production directory.
+    metadata
+        The metadata instance.
+    runid
+        LEGEND run identifier, e.g. ``"l200-p16-r008-ssc"``.
+    hpge
+        Detector name, e.g. ``"V03422A"``.
+    max_files
+        Limit the number of files per tier. Default: all.
+
+    Returns
+    -------
+    raw_files, dsp_files, evt_files
+        Sorted lists of LH5 file paths for each tier.
+    dsp_cfg_file
+        Path to the DSP configuration file.
+    tab_map
+        Mapping ``{detector_name: rawid}``.
+    """
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    _, period_int, run_int, data_type = mutils.parse_runid(runid)
+    period = f"p{period_int:02d}"
+    run = f"r{run_int:03d}"
+    df_cfg = utils.lookup_dataflow_config(l200data).paths
+
+    raw_files = sorted((df_cfg.tier_raw / data_type / period / run).glob("*.lh5"))[
+        :max_files
+    ]
+    dsp_files = sorted((df_cfg.tier_dsp / data_type / period / run).glob("*.lh5"))[
+        :max_files
+    ]
+    evt_files = sorted((df_cfg.tier_evt / data_type / period / run).glob("*.lh5"))[
+        :max_files
+    ]
+
+    if not evt_files:
+        msg = f"no EVT files found for {runid}"
+        raise FileNotFoundError(msg)
+
+    dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
+    dsp_cfg_files = list(
+        (l200data / "inputs/dataprod/config/tier_dsp").glob(dsp_cfg_regex)
+    )
+    if dsp_cfg_files == []:
+        dsp_cfg_files = list(
+            (l200data / "inputs/dataprod/config/tier/dsp").glob(dsp_cfg_regex)
+        )
+    if len(dsp_cfg_files) != 1:
+        msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
+        raise RuntimeError(msg)
+
+    tstamp = mutils.runinfo(metadata, runid).start_key
+    chmap = metadata.channelmap(tstamp)
+    tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
+
+    return raw_files, dsp_files, evt_files, dsp_cfg_files[0], tab_map
 
 
 def read_and_select_evt_data(
@@ -488,11 +559,6 @@ def select_data_in_slice(
     return slice_data
 
 
-# ---------------------------------------------------------------------------
-# Waveform extraction (one slice)
-# ---------------------------------------------------------------------------
-
-
 def get_charge_and_current_wfs_for_slice(
     raw_file: Path | str,
     lh5_group: str,
@@ -654,11 +720,6 @@ def get_charge_and_current_wfs_for_slice(
     )
 
 
-# ---------------------------------------------------------------------------
-# Superpulse computation (one slice)
-# ---------------------------------------------------------------------------
-
-
 def compute_superpulse(
     charge_times: np.ndarray,
     current_times: np.ndarray,
@@ -666,7 +727,7 @@ def compute_superpulse(
     current_wfs: np.ndarray,
     slice: Slice,
     detector: str,
-    n_events_preliminary: int,
+    n_events: int,
 ) -> Superpulse:
     """
     Compute the average charge and current waveforms for one slice.
@@ -689,10 +750,8 @@ def compute_superpulse(
         The slice this superpulse belongs to.
     detector
         Detector name.
-    n_events_preliminary
-        Total number of events before the chi2 cut. Pass
-        ``charge_wfs.shape[0]`` on the first call. On the second call, pass
-        the value from the preliminary superpulse to preserve provenance.
+    n_events
+        Total number of events.
 
     Returns
     -------
@@ -707,7 +766,7 @@ def compute_superpulse(
         current_time_axis=current_times,
         slice=slice,
         detector=detector,
-        n_events_preliminary=n_events_preliminary,
+        n_events_preliminary=n_events,
         n_events_final=charge_wfs.shape[0],
     )
 
@@ -853,11 +912,6 @@ def apply_chi2_cut(
     return charge_wfs[golden_indices], current_wfs[golden_indices], golden_indices
 
 
-# ---------------------------------------------------------------------------
-# Orchestrator
-# ---------------------------------------------------------------------------
-
-
 def trim_and_stack(
     times_list: list[np.ndarray], wfs_list: list[np.ndarray]
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -971,160 +1025,6 @@ def accumulate_wfs_for_slice(
     log.info("%s | %s | Accumulated %d waveforms.", detector, slice, len(c_stack))
 
     return c_common, i_common, c_stack, i_stack, bl_stack, ce_stack, next_idx
-
-
-def build_superpulse_for_slice(
-    slice: Slice,
-    detector: str,
-    tab_map: dict[str, int],
-    evt_files: list[str],
-    dsp_files: list[str],
-    raw_files: list[str],
-    dsp_config: Path | str,
-    dsp_fields: list[str],
-    n_target_wfs: int = 100,
-    chi2_threshold: float = 3.0,
-    charge_output: str = "wf_pz_win",
-    current_output: str = "curr_av",
-    align: str = "tp_aoe_max",
-) -> Superpulse:
-    """
-    Build the final superpulse for one slice using an adaptive loop.
-
-    Calls ``accumulate_wfs_for_slice`` then steps 7-10 (preliminary
-    superpulse -> chi2 -> cut -> final superpulse). If the chi2 cut leaves
-    fewer than ``n_target_wfs`` golden waveforms and files remain, it
-    resumes accumulation and retries.
-
-    For access to intermediate arrays (e.g. for diagnostic plots), call
-    ``accumulate_wfs_for_slice`` and steps 7-10 directly from the script.
-    """
-    _ACCUMULATION_FACTOR = 1.5
-
-    file_idx = 0
-    b_c_times, b_i_times, b_c_wfs, b_i_wfs, all_bl, all_ce = [], [], [], [], [], []
-
-    while file_idx < len(evt_files):
-        # Phase 1: accumulate more waveforms
-        n_need = max(
-            1, int(_ACCUMULATION_FACTOR * n_target_wfs) - sum(len(c) for c in b_c_wfs)
-        )
-
-        ct, it, cw, iw, bl, ce, file_idx = accumulate_wfs_for_slice(
-            slice=slice,
-            detector=detector,
-            tab_map=tab_map,
-            evt_files=evt_files,
-            dsp_files=dsp_files,
-            raw_files=raw_files,
-            dsp_config=dsp_config,
-            dsp_fields=dsp_fields,
-            start_file_idx=file_idx,
-            n_target=n_need,
-            charge_output=charge_output,
-            current_output=current_output,
-            align=align,
-        )
-
-        if cw is not None:
-            b_c_times.append(ct)
-            b_i_times.append(it)
-            b_c_wfs.append(cw)
-            b_i_wfs.append(iw)
-            if bl is not None:
-                all_bl.append(bl)
-            if ce is not None:
-                all_ce.append(ce)
-
-        if not b_c_wfs:
-            continue
-
-        # Re-trim all batches to global common window before stacking
-        charge_times, charge_stack = trim_and_stack(b_c_times, b_c_wfs)
-        current_times, current_stack = trim_and_stack(b_i_times, b_i_wfs)
-
-        bl_std_stack = np.concatenate(all_bl) if all_bl else None
-        cuspEmax_stack = np.concatenate(all_ce) if all_ce else None
-        n_preliminary = charge_stack.shape[0]
-
-        # Phase 2: superpulse + chi2 cut
-        prelim_sp = compute_superpulse(
-            charge_times,
-            current_times,
-            charge_stack,
-            current_stack,
-            slice,
-            detector,
-            n_preliminary,
-        )
-
-        chi2_values = compute_chi2_vs_superpulse(
-            charge_stack,
-            prelim_sp,
-            bl_std=bl_std_stack,
-            cuspEmax=cuspEmax_stack,
-        )
-
-        golden_charge, golden_current, _ = apply_chi2_cut(
-            charge_stack,
-            current_stack,
-            chi2_values,
-            threshold=chi2_threshold,
-        )
-        n_golden = golden_charge.shape[0]
-
-        log.info(
-            "%s | %s | golden: %d / %d (target: %d)",
-            detector,
-            slice,
-            n_golden,
-            n_preliminary,
-            n_target_wfs,
-        )
-
-        if n_golden >= n_target_wfs or file_idx >= len(evt_files):
-            if n_golden == 0:
-                log.warning(
-                    "%s | %s | no waveforms survived chi2 cut; "
-                    "returning preliminary superpulse",
-                    detector,
-                    slice,
-                )
-                return prelim_sp
-
-            if n_golden < n_target_wfs:
-                log.warning(
-                    "%s | %s | all files exhausted: %d golden waveforms "
-                    "(target was %d)",
-                    detector,
-                    slice,
-                    n_golden,
-                    n_target_wfs,
-                )
-
-            return compute_superpulse(
-                charge_times,
-                current_times,
-                golden_charge,
-                golden_current,
-                slice,
-                detector,
-                n_preliminary,
-            )
-
-        log.info(
-            "%s | %s | need more waveforms, continuing to next file...",
-            detector,
-            slice,
-        )
-
-    msg = f"no waveforms found for {detector} in {slice} across all files"
-    raise ValueError(msg)
-
-
-# ---------------------------------------------------------------------------
-# Output: all slices, one detector
-# ---------------------------------------------------------------------------
 
 
 def write_superpulses_to_lh5(
@@ -1241,11 +1141,6 @@ def read_superpulses_from_lh5(
 
     log.info("read %d slices for %s from %s", len(superpulses), detector, path)
     return superpulses
-
-
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
 
 
 def plot_wfs_and_superpulse(
