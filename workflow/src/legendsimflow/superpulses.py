@@ -20,6 +20,8 @@ from pathlib import Path
 import awkward as ak
 import numpy as np
 from lgdo import Array, Scalar, Struct, lh5
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 
 log = logging.getLogger(__name__)
 
@@ -245,7 +247,6 @@ def read_and_select_evt_data(
 
     Returns
     -------
-    ak.Array
         Filtered event data passing all quality and PSD cuts.
     """
     evt_data = lh5.read_as(
@@ -293,14 +294,13 @@ def select_detector_events(
 
     Parameters
     ----------
-    evt_data : ak.Array
+    evt_data
         Event data after quality and PSD cuts, shape ``(n_events,)``.
-    detector : str
+    detector
         Name of the target detector, e.g. ``"V03422A"``.
 
     Returns
     -------
-    ak.Array
         Filtered event data containing only events where
         ``geds.detector_name == detector``, shape ``(n_det_events,)``.
     """
@@ -335,23 +335,22 @@ def add_dsp_pars_to_evt(
 
     Parameters
     ----------
-    det_evt_data : ak.Array
+    det_evt_data
         Single-detector event data as returned by ``select_detector_events``,
         shape ``(n_det_events,)``.
-    dsp_file : str
+    dsp_file
         DSP-tier LH5 file path, corresponding to the same run segment as the
         EVT file used to produce ``det_evt_data``. Must be a single file
         because ``hit_idx`` values are row indices into this specific file.
-    tab_map : dict[str, int]
+    tab_map
         Mapping from detector name to rawid. Only the entry for ``detector``
         is used.
-    fields : list[str]
+    fields
         DSP fields to attach, e.g. ``["tp_aoe_max", "tp_0_est"]``.
         ``tp_aoe_max`` must be included for ``drift_time`` to be computed.
 
     Returns
     -------
-    ak.Array
         ``det_evt_data`` with the requested DSP fields and ``drift_time``
         added as top-level fields. Each field has shape ``(1,)`` per event,
         consistent with the multiplicity == 1 guarantee.
@@ -467,15 +466,14 @@ def select_data_in_slice(
 
     Parameters
     ----------
-    det_evt_data : ak.Array
+    det_evt_data
         Single-detector event data with DSP fields attached, as returned by
         ``add_dsp_pars_to_evt``, shape ``(n_det_events,)``.
-    slice : Slice
+    slice
         The energy-drift-time slice to select.
 
     Returns
     -------
-    ak.Array
         Events within the slice, shape ``(n_slice_events,)``.
     """
     mask = (
@@ -516,34 +514,34 @@ def get_charge_and_current_wfs_for_slice(
 
     Parameters
     ----------
-    raw_file : Path or str
+    raw_file
         Path to the raw-tier LH5 file.
-    lh5_group : str
+    lh5_group
         HDF5 group containing the waveform table, e.g. ``"ch1084803/raw"``.
-    indices : list[int]
+    indices
         Raw-tier row indices of the slice events.
-    dsp_config : Path or str
+    dsp_config
         Path to the production DSP configuration JSON file.
-    charge_output : str, optional
+    charge_output
         DSP output name for the charge waveform.
-    current_output : str, optional
+    current_output
         DSP output name for the current waveform.
-    align : str, optional
+    align
         DSP parameter used to align waveforms on the time axis.
 
     Returns
     -------
-    charge_times : np.ndarray
+    charge_times
         Common time axis for charge waveforms, shape ``(n_common_charge,)``.
-    current_times : np.ndarray
+    current_times
         Common time axis for current waveforms, shape ``(n_common_current,)``.
-    charge_wfs : np.ndarray
+    charge_wfs
         Trimmed charge waveforms, shape ``(n_valid, n_common_charge)``.
-    current_wfs : np.ndarray
+    current_wfs
         Trimmed current waveforms, shape ``(n_valid, n_common_current)``.
-    bl_std : np.ndarray or None
+    bl_std
         Baseline std (ADC) per event, shape ``(n_valid,)``.
-    cuspEmax : np.ndarray or None
+    cuspEmax
         Energy estimator (ADC) per event, shape ``(n_valid,)``.
 
     Raises
@@ -679,26 +677,25 @@ def compute_superpulse(
 
     Parameters
     ----------
-    charge_times : np.ndarray
+    charge_times
         Time axis for the charge waveforms in ns, shape ``(n_charge_samples,)``.
-    current_times : np.ndarray
+    current_times
         Time axis for the current waveforms in ns, shape ``(n_current_samples,)``.
-    charge_wfs : np.ndarray
+    charge_wfs
         2D array of shape ``(n_events, n_charge_samples)``.
-    current_wfs : np.ndarray
+    current_wfs
         2D array of shape ``(n_events, n_current_samples)``.
-    slice : Slice
+    slice
         The slice this superpulse belongs to.
-    detector : str
+    detector
         Detector name.
-    n_events_preliminary : int
+    n_events_preliminary
         Total number of events before the chi2 cut. Pass
         ``charge_wfs.shape[0]`` on the first call. On the second call, pass
         the value from the preliminary superpulse to preserve provenance.
 
     Returns
     -------
-    Superpulse
         With ``charge_wf = np.nanmean(charge_wfs, axis=0)``,
         ``current_wf = np.nanmean(current_wfs, axis=0)``,
         ``n_events_final = charge_wfs.shape[0]``.
@@ -737,25 +734,24 @@ def compute_chi2_vs_superpulse(
 
     Parameters
     ----------
-    charge_wfs : np.ndarray
+    charge_wfs
         2D array of shape ``(n_events, n_samples)``.
     superpulse : Superpulse
         Preliminary superpulse from ``compute_superpulse``.
-    baseline_region_mask : np.ndarray or None, optional
+    baseline_region_mask
         Boolean mask of shape ``(n_samples,)`` selecting the baseline region.
         If ``None``, derived from
         ``superpulse.charge_time_axis < -superpulse.slice.drift_time_range[1]``.
         Only used in fallback mode.
-    bl_std : np.ndarray or None, optional
+    bl_std
         Per-event baseline standard deviation in ADC units, shape
         ``(n_events,)``. From ``get_charge_and_current_wfs_for_slice``.
-    cuspEmax : np.ndarray or None, optional
+    cuspEmax
         Per-event energy estimator in ADC units, shape ``(n_events,)``.
         From ``get_charge_and_current_wfs_for_slice``.
 
     Returns
     -------
-    np.ndarray
         1D array of shape ``(n_events,)`` with reduced chi-squared values.
 
     Notes
@@ -826,23 +822,23 @@ def apply_chi2_cut(
 
     Parameters
     ----------
-    charge_wfs : np.ndarray
+    charge_wfs
         2D array of shape ``(n_events, n_samples)``.
-    current_wfs : np.ndarray
+    current_wfs
         2D array of shape ``(n_events, n_samples)``.
-    chi2_values : np.ndarray
+    chi2_values
         1D array of reduced chi-squared values from
         ``compute_chi2_vs_superpulse``.
-    threshold : float, optional
+    threshold
         Reduced chi-squared cut value. Default 3.0.
 
     Returns
     -------
-    golden_charge_wfs : np.ndarray
+    golden_charge_wfs
         Shape ``(n_golden, n_samples)``.
-    golden_current_wfs : np.ndarray
+    golden_current_wfs
         Shape ``(n_golden, n_samples)``.
-    golden_indices : np.ndarray
+    golden_indices
         1D integer array of shape ``(n_golden,)`` with the indices of
         surviving events in the input arrays. Retained for traceability
         back to the original ``slice_data_with_wfs``.
@@ -1161,13 +1157,13 @@ def write_superpulses_to_lh5(
 
     Parameters
     ----------
-    superpulses : dict[Slice, Superpulse]
+    superpulses
         Dictionary mapping each slice to its final superpulse, as accumulated
         in the per-slice processing loop.
-    output_path : str
+    output_path
         Path to the output LH5 file, e.g.
         ``"output/V03422A_superpulses.lh5"``.
-    detector : str
+    detector
         Detector name, used as the top-level group name in the LH5 file.
 
     Notes
@@ -1269,11 +1265,11 @@ def plot_wfs_and_superpulse(
 
     Parameters
     ----------
-    charge_times, current_times : np.ndarray
+    charge_times, current_times
         Time axes (may have different ranges).
-    golden_charge_wfs, golden_current_wfs : np.ndarray
+    golden_charge_wfs, golden_current_wfs
         Golden waveform arrays after chi2 cut, shape ``(n_events, n_samples)``.
-    superpulse : Superpulse
+    superpulse
         The final superpulse to overlay.
 
     Returns
@@ -1281,8 +1277,6 @@ def plot_wfs_and_superpulse(
     fig : matplotlib.figure.Figure
     (ax_charge, ax_current) : tuple of Axes
     """
-    import matplotlib.pyplot as plt  # noqa: PLC0415
-
     sl = superpulse.slice
 
     # Shared x range: intersection of the two time axes
@@ -1355,27 +1349,26 @@ def plot_chi2_cut(
     wfs: np.ndarray,
     final_superpulse: Superpulse,
     curve: str = "charge",
-):
+) -> tuple[Figure, tuple]:
     """
     Two-panel validation plot for the chi2 self-similarity cut.
 
     Left: histogram of reduced chi2 with threshold line.
-    Right: all waveforms color-coded by cut status (blue=pass, red=fail)
-           with the final superpulse overlaid.
+    Right: all waveforms color-coded by cut status (blue=pass, red=fail) with the final superpulse overlaid.
 
     Parameters
     ----------
-    chi2_values : np.ndarray
+    chi2_values
         Reduced chi2 per waveform, shape ``(n_events,)``.
-    chi2_threshold : float
+    chi2_threshold
         Cut threshold.
-    times : np.ndarray
+    times
         Time axis, shape ``(n_samples,)``.
-    wfs : np.ndarray
+    wfs
         All waveforms before cut, shape ``(n_events, n_samples)``.
     final_superpulse : Superpulse
         Superpulse built from golden waveforms (after cut).
-    curve : str, optional
+    curve
         ``"charge"`` or ``"current"``. Default ``"charge"``.
 
     Returns
@@ -1383,8 +1376,6 @@ def plot_chi2_cut(
     fig : matplotlib.figure.Figure
     (ax_hist, ax_wfs) : tuple of Axes
     """
-    import matplotlib.pyplot as plt  # noqa: PLC0415
-
     if curve == "charge":
         sp_times = final_superpulse.charge_time_axis
         sp_wf = final_superpulse.charge_wf
@@ -1472,15 +1463,15 @@ def plot_superpulses(
 
     Parameters
     ----------
-    lh5_file : str
+    lh5_file
         Path to the LH5 file produced by :func:`write_superpulses_to_lh5`.
-    detector : str
+    detector
         Detector name (top-level group in the file).
-    curve : str, optional
+    curve
         ``"charge"`` or ``"current"``. Default ``"charge"``.
-    xlim : tuple[float, float], optional
+    xlim
         x-axis limits in ns. Default ``(-5000, 5000)``.
-    ylim : tuple[float, float] or None, optional
+    ylim
         y-axis limits. If ``None``, matplotlib auto-scales.
 
     Returns
@@ -1489,7 +1480,6 @@ def plot_superpulses(
     ax  : matplotlib.axes.Axes
     """
     import matplotlib.colors as mcolors  # noqa: PLC0415
-    import matplotlib.pyplot as plt  # noqa: PLC0415
     from matplotlib import cm  # noqa: PLC0415
 
     if curve not in ("charge", "current"):
