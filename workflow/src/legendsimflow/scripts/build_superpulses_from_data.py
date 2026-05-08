@@ -6,100 +6,30 @@ import argparse
 import logging
 from pathlib import Path
 
-import numpy as np
 from legendmeta import LegendMetadata
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import metadata as mutils
-from legendsimflow import utils
+from legendsimflow.plot import decorate
 from legendsimflow.superpulses import (
     Slice,
     accumulate_wfs_for_slice,
     apply_chi2_cut,
-    compute_chi2_vs_superpulse,
     compute_superpulse,
+    lookup_superpulse_inputs,
     plot_chi2_cut,
     plot_superpulses,
     plot_wfs_and_superpulse,
-    trim_and_stack,
     write_superpulses_to_lh5,
 )
 
+MIN_NUMBER_WFS = 50
+TARGET_WFS = 200
+CHI2_THRESHOLD = 3.0
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
-
-
-def lookup_superpulse_inputs(
-    l200data: str | Path,
-    metadata: LegendMetadata,
-    runid: str,
-    hpge: str,
-    max_files: int | None = None,
-) -> tuple[list[Path], list[Path], list[Path], Path, dict[str, int]]:
-    """Look up all inputs needed to build superpulses for one detector and run.
-
-    Parameters
-    ----------
-    l200data
-        Path to the L200 data production directory.
-    metadata
-        The metadata instance.
-    runid
-        LEGEND run identifier, e.g. ``"l200-p16-r008-ssc"``.
-    hpge
-        Detector name, e.g. ``"V03422A"``.
-    max_files
-        Limit the number of files per tier. Default: all.
-
-    Returns
-    -------
-    raw_files, dsp_files, evt_files
-        Sorted lists of LH5 file paths for each tier.
-    dsp_cfg_file
-        Path to the DSP configuration file.
-    tab_map
-        Mapping ``{detector_name: rawid}``.
-    """
-    if isinstance(l200data, str):
-        l200data = Path(l200data)
-
-    _, period_int, run_int, data_type = mutils.parse_runid(runid)
-    period = f"p{period_int:02d}"
-    run = f"r{run_int:03d}"
-    df_cfg = utils.lookup_dataflow_config(l200data).paths
-
-    raw_files = sorted((df_cfg.tier_raw / data_type / period / run).glob("*.lh5"))[
-        :max_files
-    ]
-    dsp_files = sorted((df_cfg.tier_dsp / data_type / period / run).glob("*.lh5"))[
-        :max_files
-    ]
-    evt_files = sorted((df_cfg.tier_evt / data_type / period / run).glob("*.lh5"))[
-        :max_files
-    ]
-
-    if not evt_files:
-        msg = f"no EVT files found for {runid}"
-        raise FileNotFoundError(msg)
-
-    dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
-    dsp_cfg_files = list(
-        (l200data / "inputs/dataprod/config/tier_dsp").glob(dsp_cfg_regex)
-    )
-    if dsp_cfg_files == []:
-        dsp_cfg_files = list(
-            (l200data / "inputs/dataprod/config/tier/dsp").glob(dsp_cfg_regex)
-        )
-    if len(dsp_cfg_files) != 1:
-        msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
-        raise RuntimeError(msg)
-
-    tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.channelmap(tstamp)
-    tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
-
-    return raw_files, dsp_files, evt_files, dsp_cfg_files[0], tab_map
 
 
 def main():
@@ -160,11 +90,6 @@ def main():
         for dt_start in range(900, 1900, 50)
     ]
 
-    # Configuration
-    n_target_wfs = 100
-    chi2_threshold = 3.0
-    _ACCUMULATION_FACTOR = 1.5
-
     # Common arguments for accumulate_wfs_for_slice
     file_args = {
         "detector": args.detector,
@@ -185,120 +110,47 @@ def main():
 
     with PdfPages(str(output_pdf)) as pdf:
         for current_slice in slices:
-            logger.info("processing %s...", current_slice)
-            file_idx, final_sp = 0, None
-            b_c_times, b_i_times, b_c_wfs, b_i_wfs, all_bl, all_ce = (
-                [],
-                [],
-                [],
-                [],
-                [],
-                [],
+            msg = f"processing {current_slice} ... "
+            logger.info(msg)
+
+            # extract the waveforms
+            charge_times, current_times, charge_wfs, current_wfs = (
+                accumulate_wfs_for_slice(
+                    slice=current_slice, n_target=TARGET_WFS, **file_args
+                )
             )
 
-            while file_idx < len(evt_files):
-                n_need = max(
-                    1,
-                    int(_ACCUMULATION_FACTOR * n_target_wfs)
-                    - sum(len(c) for c in b_c_wfs),
-                )
+            # get a preliminary superpulse
+            prelim_sp = compute_superpulse(
+                charge_times,
+                current_times,
+                charge_wfs,
+                current_wfs,
+                slice=current_slice,
+                detector=args.detector,
+                n_events=charge_wfs.shape[0],
+            )
 
-                ct, it, cw, iw, bl, ce, file_idx = accumulate_wfs_for_slice(
-                    slice=current_slice,
-                    start_file_idx=file_idx,
-                    n_target=n_need,
-                    **file_args,
-                )
+            # chi2 cut
+            chi2_values, sel_charge_wfs, sel_current_wfs = apply_chi2_cut(
+                prelim_sp, charge_wfs, current_wfs, chi2_threshold=CHI2_THRESHOLD
+            )
 
-                if cw is not None:
-                    b_c_times.append(ct)
-                    b_i_times.append(it)
-                    b_c_wfs.append(cw)
-                    b_i_wfs.append(iw)
-                    if bl is not None:
-                        all_bl.append(bl)
-                    if ce is not None:
-                        all_ce.append(ce)
+            n_sel = len(sel_charge_wfs)
 
-                if not b_c_wfs:
-                    continue
+            final_sp = compute_superpulse(
+                charge_times,
+                current_times,
+                sel_charge_wfs,
+                sel_current_wfs,
+                slice=current_slice,
+                detector=args.detector,
+                n_events=n_sel,
+            )
 
-                # Re-trim all batches and stack using the helper
-                charge_times, charge_stack = trim_and_stack(b_c_times, b_c_wfs)
-                current_times, current_stack = trim_and_stack(b_i_times, b_i_wfs)
-
-                bl_std_stack = np.concatenate(all_bl) if all_bl else None
-                cuspEmax_stack = np.concatenate(all_ce) if all_ce else None
-                n_preliminary = charge_stack.shape[0]
-
-                # preliminary superpulse
-                prelim_sp = compute_superpulse(
-                    charge_times,
-                    current_times,
-                    charge_stack,
-                    current_stack,
-                    current_slice,
-                    args.detector,
-                    n_preliminary,
-                )
-
-                # chi2
-                chi2_values = compute_chi2_vs_superpulse(
-                    charge_stack,
-                    prelim_sp,
-                    bl_std=bl_std_stack,
-                    cuspEmax=cuspEmax_stack,
-                )
-
-                golden_charge, golden_current, _ = apply_chi2_cut(
-                    charge_stack,
-                    current_stack,
-                    chi2_values,
-                    threshold=chi2_threshold,
-                )
-                n_golden = golden_charge.shape[0]
-
-                logger.info(
-                    "golden waveforms: %d/%d (target: %d)",
-                    n_golden,
-                    n_preliminary,
-                    n_target_wfs,
-                )
-
-                if n_golden >= n_target_wfs or file_idx >= len(evt_files):
-                    if n_golden == 0:
-                        logger.warning(
-                            "no waveforms survived chi2 cut; "
-                            "using preliminary superpulse"
-                        )
-                        final_sp = prelim_sp
-                        golden_charge = charge_stack
-                        golden_current = current_stack
-                        break
-
-                    if n_golden < n_target_wfs:
-                        logger.warning(
-                            "all files exhausted: %d golden (target: %d)",
-                            n_golden,
-                            n_target_wfs,
-                        )
-
-                    # final superpulse
-                    final_sp = compute_superpulse(
-                        charge_times,
-                        current_times,
-                        golden_charge,
-                        golden_current,
-                        current_slice,
-                        args.detector,
-                        n_preliminary,
-                    )
-                    break
-
-                logger.info("need more waveforms, continuing...")
-
-            if final_sp is None:
-                logger.warning("no waveforms found for %s, skipping", current_slice)
+            if n_sel < MIN_NUMBER_WFS:
+                msg = f"... not enough waveforms {n_sel} found for {current_slice} skipping"
+                logger.warning(msg)
                 continue
 
             superpulses[current_slice] = final_sp
@@ -307,39 +159,43 @@ def main():
             fig, _ = plot_wfs_and_superpulse(
                 charge_times,
                 current_times,
-                golden_charge,
-                golden_current,
+                sel_charge_wfs,
+                sel_current_wfs,
                 final_sp,
             )
+            decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
 
             fig, _ = plot_chi2_cut(
                 chi2_values,
-                chi2_threshold,
+                CHI2_THRESHOLD,
                 charge_times,
-                charge_stack,
+                charge_wfs,
                 final_sp,
                 "charge",
             )
+
+            decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
 
             fig, _ = plot_chi2_cut(
                 chi2_values,
-                chi2_threshold,
+                CHI2_THRESHOLD,
                 current_times,
-                current_stack,
+                current_wfs,
                 final_sp,
                 "current",
             )
-
+            decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
 
         # Write superpulses to disk
         if superpulses:
-            logger.info("writing to %s...", output_lh5)
+            msg = f"writing to {output_lh5} ..."
+            logger.info(msg)
             write_superpulses_to_lh5(superpulses, str(output_lh5), args.detector)
         else:
             logger.warning("no superpulses produced — nothing to write.")
@@ -351,6 +207,7 @@ def main():
         pdf.savefig(fig)
         plt.close(fig)
 
+        # plot current superpulses
         fig, _ = plot_superpulses(str(output_lh5), args.detector, curve="current")
         pdf.savefig(fig)
         plt.close(fig)
