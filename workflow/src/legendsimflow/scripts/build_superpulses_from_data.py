@@ -137,6 +137,10 @@ def main():
                 dsp_config=dsp_config,
                 norm="cuspEmax",
             )
+            if (wf_data is None):
+                msg = f"... no valid waveforms found for {current_slice} skipping"
+                logger.warning(msg)
+                continue
 
             # get a preliminary superpulse
             prelim_sp = Superpulse(
