@@ -123,7 +123,7 @@ def main():
             msg = f"processing {current_slice} ... "
             logger.info(msg)
 
-            if len(slice_wfs_indices.n_sel) < MIN_NUMBER_WFS:
+            if slice_wfs_indices.n_sel < MIN_NUMBER_WFS:
                 msg = f"... not enough waveforms {len(slice_wfs_indices.n_sel)} found for {current_slice} skipping"
                 logger.warning(msg)
                 continue
@@ -137,7 +137,7 @@ def main():
                 dsp_config=dsp_config,
                 norm="cuspEmax",
             )
-            if (wf_data is None):
+            if wf_data is None:
                 msg = f"... no valid waveforms found for {current_slice} skipping"
                 logger.warning(msg)
                 continue
@@ -158,13 +158,13 @@ def main():
             chi2_values = compute_chi2(
                 wf_data.charge_wfs,
                 prelim_sp,
-                bl_std=wf_data.charge_bl_std,
-                cuspEmax=wf_data.charge_cuspEmax,
+                bl_std=wf_data.bl_std,
+                cuspEmax=wf_data.energy,
             )
 
             # cut waveforms above threshold
-            sel_charge_wfs = wf_data.charge_wfs[chi2_values.charge < CHI2_THRESHOLD]
-            sel_current_wfs = wf_data.current_wfs[chi2_values.current < CHI2_THRESHOLD]
+            sel_charge_wfs = wf_data.charge_wfs[chi2_values < CHI2_THRESHOLD]
+            sel_current_wfs = wf_data.current_wfs[chi2_values < CHI2_THRESHOLD]
 
             n_sel = len(sel_charge_wfs)
 
@@ -172,7 +172,7 @@ def main():
                 np.nanmean(sel_charge_wfs, axis=0),
                 np.nanmean(sel_current_wfs, axis=0),
                 wf_data.charge_times,
-                wf_data.wf_datacurrent_times,
+                wf_data.current_times,
                 slice=current_slice,
                 detector=args.detector,
                 n_events_final=n_sel,
