@@ -6,6 +6,8 @@ import argparse
 import logging
 from pathlib import Path
 
+import numpy as np
+from dbetto import AttsDict
 from legendmeta import LegendMetadata
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -14,10 +16,11 @@ from legendsimflow import metadata as mutils
 from legendsimflow.plot import decorate
 from legendsimflow.superpulses import (
     Slice,
-    accumulate_wfs_for_slice,
-    apply_chi2_cut,
-    compute_superpulse,
+    Superpulse,
+    compute_chi2,
+    get_wfs_for_slice,
     lookup_superpulse_inputs,
+    lookup_wfs_indices,
     plot_chi2_cut,
     plot_superpulses,
     plot_wfs_and_superpulse,
@@ -27,6 +30,9 @@ from legendsimflow.superpulses import (
 MIN_NUMBER_WFS = 50
 TARGET_WFS = 200
 CHI2_THRESHOLD = 3.0
+
+CHARGE_OUTPUT = "wf_pz_bl_sub"
+CURR_OUTPUT = "curr_av"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -74,8 +80,14 @@ def main():
         hpge=args.detector,
         max_files=args.max_files,
     )
-
-    logger.info("found %d files per tier", len(evt_files))
+    file_info = AttsDict(
+        {
+            "raw": [str(f) for f in raw_files],
+            "evt": [str(f) for f in evt_files],
+            "dsp": [str(f) for f in dsp_files],
+        }
+    )
+    logger.info("found %d files per tier", len(file_info.evt))
     logger.info("DSP config: %s", dsp_config)
 
     _, period_int, run_int, _ = mutils.parse_runid(args.runid)
@@ -90,16 +102,14 @@ def main():
         for dt_start in range(900, 1900, 50)
     ]
 
-    # Common arguments for accumulate_wfs_for_slice
-    file_args = {
-        "detector": args.detector,
-        "tab_map": tab_map,
-        "evt_files": [str(f) for f in evt_files],
-        "dsp_files": [str(f) for f in dsp_files],
-        "raw_files": [str(f) for f in raw_files],
-        "dsp_config": dsp_config,
-        "dsp_fields": ["tp_aoe_max"],
-    }
+    # extract the indices of waveforms
+    # returns a list of indices for each slice
+    # for each we have a AttrsDict with fields
+    # "hit_idx", "file_idx", "n_sel"
+
+    wf_indices = lookup_wfs_indices(
+        slices, detector=args.detector, evt_files=file_info.evt, n_target=TARGET_WFS
+    )
 
     # Output paths
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -109,47 +119,64 @@ def main():
     superpulses = {}
 
     with PdfPages(str(output_pdf)) as pdf:
-        for current_slice in slices:
+        for current_slice, slice_wfs_indices in zip(slices, wf_indices, strict=True):
             msg = f"processing {current_slice} ... "
             logger.info(msg)
 
-            # extract the waveforms
-            charge_times, current_times, charge_wfs, current_wfs = (
-                accumulate_wfs_for_slice(
-                    slice=current_slice, n_target=TARGET_WFS, **file_args
-                )
+            if len(slice_wfs_indices.n_sel) < MIN_NUMBER_WFS:
+                msg = f"... not enough waveforms {len(slice_wfs_indices.n_sel)} found for {current_slice} skipping"
+                logger.warning(msg)
+                continue
+
+            # extract the waveform
+            wf_data = get_wfs_for_slice(
+                file_info.raw,
+                f"ch{tab_map[args.detector]}/raw",
+                hit_indices=slice_wfs_indices.hit_idx,
+                file_indices=slice_wfs_indices.file_idx,
+                dsp_config=dsp_config,
+                norm="cuspEmax",
             )
 
             # get a preliminary superpulse
-            prelim_sp = compute_superpulse(
-                charge_times,
-                current_times,
-                charge_wfs,
-                current_wfs,
+            prelim_sp = Superpulse(
+                np.nanmean(wf_data.charge_wfs, axis=0),
+                np.nanmean(wf_data.current_wfs, axis=0),
+                wf_data.charge_times,
+                wf_data.current_times,
                 slice=current_slice,
                 detector=args.detector,
-                n_events=charge_wfs.shape[0],
+                n_events_final=wf_data.charge_wfs.shape[0],
+                n_events_preliminary=wf_data.charge_wfs.shape[0],
             )
 
             # chi2 cut
-            chi2_values, sel_charge_wfs, sel_current_wfs = apply_chi2_cut(
-                prelim_sp, charge_wfs, current_wfs, chi2_threshold=CHI2_THRESHOLD
+            chi2_values = compute_chi2(
+                wf_data.charge_wfs,
+                prelim_sp,
+                bl_std=wf_data.charge_bl_std,
+                cuspEmax=wf_data.charge_cuspEmax,
             )
+
+            # cut waveforms above threshold
+            sel_charge_wfs = wf_data.charge_wfs[chi2_values.charge < CHI2_THRESHOLD]
+            sel_current_wfs = wf_data.current_wfs[chi2_values.current < CHI2_THRESHOLD]
 
             n_sel = len(sel_charge_wfs)
 
-            final_sp = compute_superpulse(
-                charge_times,
-                current_times,
-                sel_charge_wfs,
-                sel_current_wfs,
+            final_sp = Superpulse(
+                np.nanmean(sel_charge_wfs, axis=0),
+                np.nanmean(sel_current_wfs, axis=0),
+                wf_data.charge_times,
+                wf_data.wf_datacurrent_times,
                 slice=current_slice,
                 detector=args.detector,
-                n_events=n_sel,
+                n_events_final=n_sel,
+                n_events_preliminary=wf_data.charge_wfs.shape[0],
             )
 
             if n_sel < MIN_NUMBER_WFS:
-                msg = f"... not enough waveforms {n_sel} found for {current_slice} skipping"
+                msg = f"... not enough waveforms {n_sel} selected for {current_slice} skipping"
                 logger.warning(msg)
                 continue
 
@@ -157,8 +184,8 @@ def main():
 
             # Plots
             fig, _ = plot_wfs_and_superpulse(
-                charge_times,
-                current_times,
+                wf_data.charge_times,
+                wf_data.current_times,
                 sel_charge_wfs,
                 sel_current_wfs,
                 final_sp,
@@ -170,8 +197,8 @@ def main():
             fig, _ = plot_chi2_cut(
                 chi2_values,
                 CHI2_THRESHOLD,
-                charge_times,
-                charge_wfs,
+                wf_data.charge_times,
+                wf_data.charge_wfs,
                 final_sp,
                 "charge",
             )
@@ -183,8 +210,8 @@ def main():
             fig, _ = plot_chi2_cut(
                 chi2_values,
                 CHI2_THRESHOLD,
-                current_times,
-                current_wfs,
+                wf_data.current_times,
+                wf_data.current_wfs,
                 final_sp,
                 "current",
             )
@@ -196,7 +223,9 @@ def main():
         if superpulses:
             msg = f"writing to {output_lh5} ..."
             logger.info(msg)
-            write_superpulses_to_lh5(superpulses, str(output_lh5), args.detector)
+            write_superpulses_to_lh5(
+                superpulses, str(output_lh5), args.detector, wo_mode="of"
+            )
         else:
             logger.warning("no superpulses produced — nothing to write.")
 
@@ -204,11 +233,13 @@ def main():
         fig, _ = plot_superpulses(
             str(output_lh5), args.detector, curve="charge", xlim=(-2000, 1000)
         )
+        decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)
 
         # plot current superpulses
         fig, _ = plot_superpulses(str(output_lh5), args.detector, curve="current")
+        decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)
 
