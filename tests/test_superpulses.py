@@ -2,19 +2,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from lgdo import Array, Scalar, Struct
+from lgdo import Array, Scalar, Struct, lh5
 
+from legendsimflow.scripts.build_superpulses_from_data import (
+    plot_chi2_cut,
+    plot_wfs_and_superpulse,
+)
 from legendsimflow.superpulses import (
     Slice,
     Superpulse,
+    compute_chi2,
     get_wfs_for_slice,
     lookup_wfs_indices,
+    write_superpulses_to_lh5,
 )
 
 dsp = {
-    
     "wf_mean , wf_std, wf_slope, wf_intercept": {
         "description": "finds mean and rms of whole waveform",
         "function": "linear_slope_fit",
@@ -33,11 +39,8 @@ dsp = {
             "ADC",
         ],
     },
-
     "wf_slope_diff , wf_slope_rms": {
-        "description": (
-            "finds mean and rms relative to linear fit of the waveform"
-        ),
+        "description": ("finds mean and rms relative to linear fit of the waveform"),
         "function": "linear_slope_diff",
         "module": "dspeed.processors",
         "args": [
@@ -52,7 +55,6 @@ dsp = {
             "ADC",
         ],
     },
-
     "tp_min, tp_max, wf_min, wf_max": {
         "description": (
             "find max and min of windowed waveform with corresponding time points"
@@ -73,7 +75,6 @@ dsp = {
             "ADC",
         ],
     },
-
     "bl_mean_win , bl_std_win, bl_slope_win, bl_intercept_win": {
         "description": (
             "finds mean and rms of windowed waveform baseline (first 3us) "
@@ -169,7 +170,7 @@ def test_get_wfs_for_slice(legend_testdata):
         dsp_config=dsp,
         charge_output="waveform",
         current_output="waveform",
-        energy_output = "wf_max",
+        energy_output="wf_max",
         align=None,
     )
 
@@ -334,3 +335,129 @@ def test_to_lgdo_waveform_values(test_make_superpulse):
     np.testing.assert_array_equal(
         result["current_wf"].view_as("np"), test_make_superpulse.current_wf
     )
+
+
+# ===========================================================================
+# chi2
+# ===========================================================================
+
+
+def test_compute_chi2_returns_array():
+    n_events = 20
+    bl_std = np.ones(n_events) * 2.0
+    cuspEmax = np.ones(n_events) * 1000.0
+    wfs = np.random.default_rng(0).random((n_events, 100))
+
+    sp = Superpulse(
+        charge_wf=np.random.default_rng(0).random(100),
+        current_wf=np.random.default_rng(0).random(80),
+        charge_time_axis=np.linspace(-500.0, 500.0, 100),
+        current_time_axis=np.linspace(-500.0, 500.0, 80),
+        slice=Slice((1500.0, 2000.0), (900.0, 1100.0)),
+        detector="V03422A",
+        n_events_preliminary=n_events,
+        n_events_final=n_events,
+    )
+    chi2 = compute_chi2(wfs, sp, bl_std=bl_std, cuspEmax=cuspEmax)
+    assert isinstance(chi2, np.ndarray)
+    assert chi2.shape == (n_events,)
+
+
+# ===========================================================================
+# write_superpulses_to_lh5
+# ===========================================================================
+
+
+def test_write_superpulses_creates_file(test_make_superpulse, tmp_path):
+    output_path = str(tmp_path / "test_superpulses.lh5")
+    superpulses = {test_make_superpulse.slice: test_make_superpulse}
+    write_superpulses_to_lh5(superpulses, output_path, detector="V03422A")
+    assert (tmp_path / "test_superpulses.lh5").exists()
+
+
+def test_write_superpulses_lh5_structure(test_make_superpulse, tmp_path):
+    output_path = str(tmp_path / "test_superpulses.lh5")
+    write_superpulses_to_lh5(
+        {test_make_superpulse.slice: test_make_superpulse},
+        output_path,
+        detector="V03422A",
+    )
+
+    # The expected group path is V03422A/dt_900_1100_ns
+    result = lh5.read("V03422A/dt_900_1100_ns", output_path)
+    assert isinstance(result, Struct)
+
+    assert "charge_wf" in result
+    assert "current_wf" in result
+    assert "dt_center" in result
+    assert "e_lo" in result
+    assert "e_hi" in result
+    assert "n_events_preliminary" in result
+    assert "n_events_final" in result
+
+
+def test_read_superpulses_from_lh5(test_make_superpulse, tmp_path):
+    output_path = str(tmp_path / "test_superpulses.lh5")
+    write_superpulses_to_lh5(
+        {test_make_superpulse.slice: test_make_superpulse},
+        output_path,
+        detector="V03422A",
+    )
+
+    # Read back the file and check contents
+    result = lh5.read("V03422A/dt_900_1100_ns", output_path)
+    assert isinstance(result, Struct)
+    assert (
+        result["n_events_preliminary"].view_as()
+        == test_make_superpulse.n_events_preliminary
+    )
+    assert result["n_events_final"].view_as() == test_make_superpulse.n_events_final
+    np.testing.assert_array_equal(
+        result["charge_wf"].view_as("np"), test_make_superpulse.charge_wf
+    )
+    np.testing.assert_array_equal(
+        result["current_wf"].view_as("np"), test_make_superpulse.current_wf
+    )
+
+
+def test_plot(test_make_superpulse):
+    # Just test that the plotting functions run without error on a valid superpulse
+    # Detailed tests of the plot contents would require image comparison which is beyond scope here
+
+    fig, _ = plot_wfs_and_superpulse(
+        test_make_superpulse.charge_time_axis,
+        test_make_superpulse.current_time_axis,
+        np.random.default_rng(0).random(
+            (
+                test_make_superpulse.n_events_preliminary,
+                len(test_make_superpulse.charge_time_axis),
+            )
+        ),
+        np.random.default_rng(0).random(
+            (
+                test_make_superpulse.n_events_preliminary,
+                len(test_make_superpulse.current_time_axis),
+            )
+        ),
+        test_make_superpulse,
+    )
+    plt.close(fig)
+
+    chi2_values = (
+        np.random.default_rng(0).random(test_make_superpulse.n_events_preliminary) * 5
+    )  # some above and some below threshold
+
+    fig, _ = plot_chi2_cut(
+        chi2_values,
+        5,
+        test_make_superpulse.charge_time_axis,
+        np.random.default_rng(0).random(
+            (
+                test_make_superpulse.n_events_preliminary,
+                len(test_make_superpulse.charge_time_axis),
+            )
+        ),
+        test_make_superpulse,
+        "charge",
+    )
+    plt.close(fig)

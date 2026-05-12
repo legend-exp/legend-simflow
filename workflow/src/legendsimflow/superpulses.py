@@ -2,12 +2,6 @@
 Module to implement the dataset preparation and average ("superpulse") construction to characterize the pulse shape response of HPGe detectors.
 
 This is an important step in tuning the pulse shape discrimination (PSD) simulations
-
-Conventions
------------
-- All times are in nanoseconds and energies in keV unless otherwise stated.
-- The ``tab_map`` convention follows the format:
-  ``{detector_name: rawid}`` e.g. ``{"V03422A": 1084803}``
 """
 
 from __future__ import annotations
@@ -382,13 +376,13 @@ def lookup_wfs_indices(
     output = [AttrsDict({"file_idx": [], "hit_idx": [], "n_sel": 0}) for _ in slices]
 
     for file_idx, evt_file in enumerate(evt_files):
-        if any(out.n_sel > n_target for out in output):
+        if all(out.n_sel >= n_target for out in output):
             break
 
         evts = _read_and_sel_evts(evt_file, detector=detector)
 
         for out_tmp, drift_slice in zip(output, slices, strict=True):
-            if out_tmp.n_sel > n_target:
+            if out_tmp.n_sel >= n_target:
                 continue
 
             # evts in our slice
@@ -489,7 +483,6 @@ def get_wfs_for_slice(
 
         bl_std_vals = browser.lines.get(bl_output, [])
         energy_vals = browser.lines.get(energy_output, [])
-
 
         # First pass: collect valid events with their x- and y-data
         for i, (cl, il) in enumerate(zip(charge_lines, current_lines, strict=True)):
@@ -677,6 +670,13 @@ def write_superpulses_to_lh5(
     """
     for sl, sp in superpulses.items():
         # Build group name: {detector}/dt_{lo}_{hi}_ns
+
+        for v in sl.drift_time_range:
+            value_float = float(v)
+            if not np.isfinite(value_float) or not value_float.is_integer():
+                msg = f"drift time bounds must be finite integers, got {sl.drift_time_range}"
+                raise ValueError(msg)
+
         dt_lo = int(sl.drift_time_range[0])
         dt_hi = int(sl.drift_time_range[1])
         group = f"{detector}/dt_{dt_lo}_{dt_hi}_ns"
@@ -879,10 +879,13 @@ def plot_chi2_cut(
         sp_times = final_superpulse.charge_time_axis
         sp_wf = final_superpulse.charge_wf
         ylabel = "ADC / cuspEmax"
-    else:
+    elif curve == "current":
         sp_times = final_superpulse.current_time_axis
         sp_wf = final_superpulse.current_wf
         ylabel = "d(ADC/cuspEmax)/dt"
+    else:
+        msg = f"invalid curve '{curve}'; expected one of ('charge', 'current')"
+        raise ValueError(msg)
 
     sl = final_superpulse.slice
     mask_pass = chi2_values < chi2_threshold
