@@ -393,7 +393,16 @@ def lookup_wfs_indices(
             out_tmp.file_idx.extend(list(np.full_like(hit_indices, file_idx)))
             out_tmp.n_sel += len(hit_indices)
 
-    return output
+    return [
+        AttrsDict(
+            {
+                "file_idx": out.file_idx[::n_target],
+                "hit_idx": out.hit_idx[::n_target],
+                "n_sel": len(out.hit_idx[::n_target]),
+            }
+        )
+        for out in output
+    ]
 
 
 def get_wfs_for_slice(
