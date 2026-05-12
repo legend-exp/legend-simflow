@@ -418,7 +418,7 @@ def get_wfs_for_slice(
     energy_output: str = "cuspEmax",
     align: str = "tp_aoe_max",
     norm: str | None = None,
-) -> AttrsDict:
+) -> AttrsDict | None:
     """Extract aligned charge and current waveforms for a set of slice events.
 
     Uses the DSP processing chain via ``WaveformBrowser``. After alignment each
@@ -453,7 +453,7 @@ def get_wfs_for_slice(
 
     Returns
     -------
-    A dictionary with the following fields:
+    A dictionary with the following fields (or None if no valid waveforms found):
         charge_times
             Common time axis for charge waveforms, shape ``(n_common_charge,)``.
         current_times
@@ -512,6 +512,9 @@ def get_wfs_for_slice(
             entry["energy"] = float(energy_vals[i].get_ydata()[0])
 
             waveforms.append(entry)
+
+    if len(waveforms) == 0:
+        return None
 
     # Find the common time window (max of left edges, min of right edges)
     charge_t_min = max(e["charge_t"][0] for e in waveforms)
