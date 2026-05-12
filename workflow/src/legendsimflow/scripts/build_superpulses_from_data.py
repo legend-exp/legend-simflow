@@ -1,4 +1,4 @@
-"""Script to generate HPGe superpulses using the legend-simflow API."""
+"""Script to generate HPGe superpulses using legend-simflow."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
-from dbetto import AttsDict
+from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -80,7 +80,7 @@ def main():
         hpge=args.detector,
         max_files=args.max_files,
     )
-    file_info = AttsDict(
+    file_info = AttrsDict(
         {
             "raw": [str(f) for f in raw_files],
             "evt": [str(f) for f in evt_files],
@@ -215,6 +215,7 @@ def main():
                 final_sp,
                 "current",
             )
+
             decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
