@@ -2,22 +2,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import awkward as ak
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from lgdo import Array, Scalar, Struct, lh5
 
-from legendsimflow.scripts.build_superpulses_from_data import (
-    plot_chi2_cut,
-    plot_wfs_and_superpulse,
-)
 from legendsimflow.superpulses import (
     Slice,
     Superpulse,
+    _get_nested_field,
     compute_chi2,
     get_wfs_for_slice,
     lookup_wfs_indices,
-    write_superpulses_to_lh5,
+    plot_chi2_cut,
+    plot_wfs_and_superpulse,
+    read_superpulses,
+    write_superpulses,
 )
 
 dsp = {
@@ -132,6 +133,13 @@ def test_slice_is_frozen():
         sl.energy_range = (0.0, 1.0)
 
 
+def test_read_nested_field():
+    data = ak.Array({"geds": {"energy": [1, 2, 3]}, "spms_pe": [10, 2, 3]})
+
+    assert ak.all(_get_nested_field(data, "geds/energy") == ak.Array([1, 2, 3]))
+    assert ak.all(_get_nested_field(data, "spms_pe") == ak.Array([10, 2, 3]))
+
+
 def test_lookup_wfs_indices(legend_testdata):
     ref_path = legend_testdata.get_path("lh5/")
     path = ref_path / Path("l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5")
@@ -146,7 +154,12 @@ def test_lookup_wfs_indices(legend_testdata):
     ]
 
     file_idx = lookup_wfs_indices(
-        slices, evt_files=files, n_target=10, detector="V07302A"
+        slices,
+        evt_files=files,
+        n_target=10,
+        detector="V07302A",
+        t0_field="spms/first_t0",
+        end_time_field="geds/psd/drift_time",
     )
 
     assert isinstance(file_idx, list)
@@ -286,11 +299,11 @@ def test_to_lgdo_fields_present(test_make_superpulse):
         "current_wf",
         "charge_time_axis",
         "current_time_axis",
-        "dt_center",
-        "dt_lo",
-        "dt_hi",
-        "e_lo",
-        "e_hi",
+        "drift_time_center",
+        "drift_time_lo",
+        "drift_time_hi",
+        "energy_lo",
+        "energy_hi",
         "detector",
         "n_events_preliminary",
         "n_events_final",
@@ -309,11 +322,11 @@ def test_to_lgdo_array_types(test_make_superpulse):
 def test_to_lgdo_scalar_types(test_make_superpulse):
     result = test_make_superpulse.to_lgdo()
     for key in (
-        "dt_center",
-        "dt_lo",
-        "dt_hi",
-        "e_lo",
-        "e_hi",
+        "drift_time_center",
+        "drift_time_lo",
+        "drift_time_hi",
+        "energy_lo",
+        "energy_hi",
         "detector",
         "n_events_preliminary",
         "n_events_final",
@@ -364,20 +377,20 @@ def test_compute_chi2_returns_array():
 
 
 # ===========================================================================
-# write_superpulses_to_lh5
+# write_superpulses
 # ===========================================================================
 
 
 def test_write_superpulses_creates_file(test_make_superpulse, tmp_path):
     output_path = str(tmp_path / "test_superpulses.lh5")
     superpulses = {test_make_superpulse.slice: test_make_superpulse}
-    write_superpulses_to_lh5(superpulses, output_path, detector="V03422A")
+    write_superpulses(superpulses, output_path, detector="V03422A")
     assert (tmp_path / "test_superpulses.lh5").exists()
 
 
 def test_write_superpulses_lh5_structure(test_make_superpulse, tmp_path):
     output_path = str(tmp_path / "test_superpulses.lh5")
-    write_superpulses_to_lh5(
+    write_superpulses(
         {test_make_superpulse.slice: test_make_superpulse},
         output_path,
         detector="V03422A",
@@ -389,35 +402,25 @@ def test_write_superpulses_lh5_structure(test_make_superpulse, tmp_path):
 
     assert "charge_wf" in result
     assert "current_wf" in result
-    assert "dt_center" in result
-    assert "e_lo" in result
-    assert "e_hi" in result
+    assert "drift_time_center" in result
+    assert "energy_lo" in result
+    assert "energy_hi" in result
     assert "n_events_preliminary" in result
     assert "n_events_final" in result
 
 
-def test_read_superpulses_from_lh5(test_make_superpulse, tmp_path):
+def test_read_superpulses(test_make_superpulse, tmp_path):
     output_path = str(tmp_path / "test_superpulses.lh5")
-    write_superpulses_to_lh5(
+    write_superpulses(
         {test_make_superpulse.slice: test_make_superpulse},
         output_path,
         detector="V03422A",
     )
 
     # Read back the file and check contents
-    result = lh5.read("V03422A/dt_900_1100_ns", output_path)
-    assert isinstance(result, Struct)
-    assert (
-        result["n_events_preliminary"].view_as()
-        == test_make_superpulse.n_events_preliminary
-    )
-    assert result["n_events_final"].view_as() == test_make_superpulse.n_events_final
-    np.testing.assert_array_equal(
-        result["charge_wf"].view_as("np"), test_make_superpulse.charge_wf
-    )
-    np.testing.assert_array_equal(
-        result["current_wf"].view_as("np"), test_make_superpulse.current_wf
-    )
+    result = read_superpulses(output_path, detector="V03422A")
+    assert isinstance(result, dict)
+    assert all(isinstance(v, Superpulse) for v in result.values())
 
 
 def test_plot(test_make_superpulse):

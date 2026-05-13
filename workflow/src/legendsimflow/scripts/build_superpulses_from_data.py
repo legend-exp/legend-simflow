@@ -24,7 +24,7 @@ from legendsimflow.superpulses import (
     plot_chi2_cut,
     plot_superpulses,
     plot_wfs_and_superpulse,
-    write_superpulses_to_lh5,
+    write_superpulses,
 )
 
 MIN_NUMBER_WFS = 50
@@ -87,6 +87,7 @@ def main():
             "dsp": [str(f) for f in dsp_files],
         }
     )
+
     logger.info("found %d files per tier", len(file_info.evt))
     logger.info("DSP config: %s", dsp_config)
 
@@ -108,7 +109,12 @@ def main():
     # "hit_idx", "file_idx", "n_sel"
 
     wf_indices = lookup_wfs_indices(
-        slices, detector=args.detector, evt_files=file_info.evt, n_target=TARGET_WFS
+        slices,
+        detector=args.detector,
+        evt_files=file_info.evt,
+        n_target=TARGET_WFS,
+        t0_field="spms/first_t0",
+        end_time_field="geds/psd/low_aoe/time",
     )
 
     # Output paths
@@ -225,14 +231,13 @@ def main():
             plt.close(fig)
 
         # Write superpulses to disk
-        if superpulses:
-            msg = f"writing to {output_lh5} ..."
-            logger.info(msg)
-            write_superpulses_to_lh5(
-                superpulses, str(output_lh5), args.detector, wo_mode="of"
-            )
-        else:
-            logger.warning("no superpulses produced — nothing to write.")
+        if len(superpulses) == 0:
+            msg = "No superpulses have been produced!"
+            raise RuntimeError(msg)
+
+        msg = f"writing to {output_lh5} ..."
+        logger.info(msg)
+        write_superpulses(superpulses, str(output_lh5), args.detector, wo_mode="of")
 
         # Plot superpulses comparison
         fig, _ = plot_superpulses(
