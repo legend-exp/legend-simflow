@@ -1,0 +1,1650 @@
+outputs:
+  - baseline
+  - timestamp
+  - daqenergy
+  - t_sat_lo
+  - t_sat_hi
+  - tp_min
+  - tp_max
+  - wf_min
+  - wf_max
+  - t_discharge
+  - tp_min_win
+  - tp_max_win
+  - wf_min_win
+  - wf_max_win
+  - wf_mean
+  - wf_std
+  - wf_slope
+  - wf_intercept
+  - wf_slope_diff
+  - wf_slope_rms
+  - bl_mean
+  - bl_std
+  - bl_slope
+  - bl_intercept
+  - bl_slope_diff
+  - bl_slope_rms
+  - bl_poly_rms
+  - bl_poly_diff
+  - tail_pars
+  - tail_slope
+  - tail_diff
+  - tail_rms
+  - pz_mean
+  - pz_std
+  - pz_slope
+  - pz_intercept
+  - pz_slope_diff
+  - pz_slope_rms
+  - baselineEmax
+  - tailEmax
+  - trapTmax
+  - trapTmin
+  - trapTftp
+  - trapSmax
+  - trapEmax
+  - trapEftp
+  - cuspEmax
+  - cuspEmin
+  - cuspEftp
+  - zacEmax
+  - zacEftp
+  - dplmsEmax
+  - dplmsEftp
+  - baselineEmax
+  - tailEmax
+  - rc_cr2_pileup_polarity
+  - rc_cr2_pileup_idxs
+  - svm_label
+  - tp_trapTmax
+  - tp_trapTmin
+  - tp_0_est
+  - tp_0_atrap
+  - tp_01
+  - tp_10
+  - tp_20
+  - tp_50
+  - tp_80
+  - tp_90
+  - tp_95
+  - tp_99
+  - tp_100
+  - A_max
+  - tp_aoe_max
+  - QDrift
+  - dt_eff
+  - tp_80_lq
+  - lq80
+  - tp_95_lq
+  - lq95
+  - lq_amax
+  - A_max_tri
+  - A_min
+  - aoe_t_min
+  # - A_min_upslope200
+  # - A_max_upslope200
+  - A_min_slope200
+  - A_max_slope200
+  - tp_curr_min
+  - tp_curr_max
+  - curr_min
+  - curr_max
+  - dcrRaw_tpk_1
+  - dcrRaw_tpk_2
+  - dcrRaw_tpk_3
+  - dcrRaw_tpk_4
+  - dcrRaw_lsf_slope_1
+  - dcrRaw_lsf_slope_2
+  - dcrRaw_lsf_slope_3
+  - dcrRaw_lsf_slope_4
+  - dt_eff_invert
+  - trapTmax_invert
+  - trapTftp_invert
+  - cuspEftp_invert
+  - tp_0_invert
+  - tp_100_invert
+  - tp_99_invert
+  - tp_90_invert
+  - tp_80_invert
+  - tp_50_invert
+  - tp_20_invert
+  - tp_10_invert
+  - dt_eff_invert
+
+processors:
+  wf_presum:
+    description: divide waveform by presum factor
+    function: divide
+    module: numpy
+    args:
+      - waveform_presummed
+      - presum_rate
+      - wf_presum(len(waveform_presummed), 'float32')
+    unit:
+      - ADC
+  tp_min, tp_max, wf_min, wf_max:
+    description: find max and min of presummed waveform with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_presum
+      - tp_min
+      - tp_max
+      - wf_min
+      - wf_max
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+  wf_mean , wf_std, wf_slope, wf_intercept:
+    description: finds mean and rms of whole presummed waveform
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_presum
+      - wf_mean
+      - wf_std
+      - wf_slope
+      - wf_intercept
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  wf_slope_diff , wf_slope_rms:
+    description: finds mean and rms relative to linear fit of the waveform
+    function: linear_slope_diff
+    module: dspeed.processors
+    args:
+      - wf_presum
+      - wf_slope
+      - wf_intercept
+      - wf_slope_diff
+      - wf_slope_rms
+    unit:
+      - ADC
+      - ADC
+  tp_min_win, tp_max_win, wf_min_win, wf_max_win:
+    description: find max and min of windowed waveform with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - waveform_windowed(len(waveform_windowed),'f')
+      - tp_min_win
+      - tp_max_win
+      - wf_min_win
+      - wf_max_win
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+  bl_mean_win , bl_std_win, bl_slope_win, bl_intercept_win:
+    description:
+      finds mean and rms of windowed waveform baseline (first 3us) as well as
+      linear fit to this
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - "waveform_windowed(len(waveform_windowed),'H')[0: 187]"
+      - bl_mean_win
+      - bl_std_win
+      - bl_slope_win
+      - bl_intercept_win
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  wf_blsub_win:
+    description: baseline subtraction using mean of windowed baseline
+    function: bl_subtract
+    module: dspeed.processors
+    args:
+      - waveform_windowed(len(waveform_windowed),'H')
+      - bl_mean
+      - wf_blsub_win(len(waveform_windowed),'f')
+    unit: ADC
+  wf_pz_win:
+    description: pole zero correction using value from database
+    function: double_pole_zero
+    module: dspeed.processors
+    args:
+      - wf_blsub_win
+      - db.pz.tau1
+      - db.pz.tau2
+      - db.pz.frac
+      - wf_pz_win
+    unit: ADC
+    defaults:
+      db.pz.tau1: 450*us
+      db.pz.tau2: 1*us
+      db.pz.frac: 0
+  t0_kernel:
+    description: build modified asymmetric trap filter for t0 estimation
+    function: t0_filter
+    module: dspeed.processors
+    args:
+      - 128*ns/wf_pz_win.period
+      - 2*us/wf_pz_win.period
+      - t0_kernel(round((128*ns+2*us)/wf_pz_win.period), 'f')
+    unit: ADC
+  wf_t0_filter:
+    description:
+      modified asymmetric trap filter which is convolved with waveform to remove
+      noise while preserving leading edge
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - t0_kernel
+      - "'f'"
+      - wf_t0_filter(len(wf_pz_win)+round((128*ns+2*us)/wf_pz_win.period)-1,
+        'f', grid=wf_pz_win.grid)
+    unit: ADC
+  wf_atrap:
+    description: asymmetric trap filter for t0 estimation
+    function: asym_trap_filter
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - 128*ns
+      - 64*ns
+      - 2*us
+      - wf_atrap
+    unit: ADC
+  wf_t0_smooth:
+    description: apply moving windows to smooth t0 filter
+    function: moving_window_multi
+    module: dspeed.processors
+    args:
+      - wf_t0_filter
+      - "32"
+      - 2
+      - 0
+      - wf_t0_smooth
+    unit: ADC/sample
+  conv_tmin ,tp_start, conv_min, conv_max:
+    description: max of t0_filtered waveform to start backwards walk
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_t0_smooth[:1400]
+      - conv_tmin
+      - tp_start
+      - conv_min
+      - conv_max
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+  tp_0_atrap:
+    description:
+      walks backwards through asymmetric trap convolved waveform until below
+      threshold which defines t0
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_atrap
+      - bl_std_win
+      - tp_start
+      - 0
+      - tp_0_atrap
+    unit: ns
+  tp_0_est:
+    description:
+      walks backwards through t0_filter convolved waveform until below threshold
+      which defines t0
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_t0_filter
+      - bl_std_win
+      - tp_start
+      - 0
+      - tp_0_est(unit=ns)
+    unit: ns
+  bl_mean , bl_std, bl_slope, bl_intercept:
+    description:
+      finds mean and rms of presummed waveform baseline (first 44.5us) as well
+      as linear fit to this
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - "wf_presum[0: round(44.5*us, wf_presum.period)]"
+      - bl_mean
+      - bl_std
+      - bl_slope
+      - bl_intercept
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  bl_slope_diff , bl_slope_rms:
+    description: finds mean and rms relative to linear fit of the baseline section
+    function: linear_slope_diff
+    module: dspeed.processors
+    args:
+      - "wf_presum[0: round(44.5*us, wf_presum.period)]"
+      - bl_slope
+      - bl_intercept
+      - bl_slope_diff
+      - bl_slope_rms
+    unit:
+      - ADC
+      - ADC
+
+  bl_pars:
+    description: "finds "
+    function: poly_fit
+    module: dspeed.processors
+    args:
+      - "wf_presum[: round(44.5*us, wf_presum.period)]"
+      - bl_pars(4, 'f')
+    init_args:
+      - "len(wf_presum[0: round(44.5*us, wf_presum.period)])"
+      - "3"
+    unit: ADC
+  bl_poly_diff, bl_poly_rms:
+    description: finds residual of quadratic fit of the logged tail
+    function: poly_diff
+    module: dspeed.processors
+    args:
+      - "wf_presum[: round(44.5*us, wf_presum.period)]"
+      - bl_pars
+      - bl_poly_diff
+      - bl_poly_rms
+    unit:
+      - ADC
+      - ADC
+
+  wf_logged:
+    function: log_check
+    module: dspeed.processors
+    args:
+      - wf_presum
+      - wf_logged
+    unit: ADC
+  wf_blsub:
+    description: baseline subtraction using mean of presummed baseline
+    function: bl_subtract
+    module: dspeed.processors
+    args:
+      - wf_presum
+      - bl_mean
+      - wf_blsub
+    unit: ADC
+  tail_pars:
+    description: "finds "
+    function: poly_fit
+    module: dspeed.processors
+    args:
+      - wf_logged[round(60*us, wf_logged.period):]
+      - tail_pars(5, 'f')
+    init_args:
+      - len(wf_logged[round(60*us, wf_logged.period):])
+      - "4"
+    unit: ADC
+  tail_slope: tail_pars[1]
+  tail_diff, tail_rms:
+    description: finds residual of quadratic fit of the logged tail
+    function: poly_exp_rms
+    module: dspeed.processors
+    args:
+      - wf_presum[round(60*us, wf_logged.period):]
+      - tail_pars
+      - tail_diff
+      - tail_rms
+    unit:
+      - ADC
+      - ADC
+  wf_pz:
+    description: pole zero correction using value from database
+    function: double_pole_zero
+    module: dspeed.processors
+    args:
+      - wf_blsub
+      - db.pz.tau1
+      - db.pz.tau2
+      - db.pz.frac
+      - wf_pz
+    unit: ADC
+    defaults:
+      db.pz.tau1: 450*us
+      db.pz.tau2: 1*us
+      db.pz.frac: 0
+  pz_mean , pz_std, pz_slope, pz_intercept:
+    description:
+      finds mean and rms of presummed waveform decay tail after pz correction
+      (last 48us) as well as linear fit to this, should be far enough in to
+      avoid short exponential term
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_pz[round(len(wf_pz) - 30*us/wf_pz.period):]
+      - pz_mean
+      - pz_std
+      - pz_slope
+      - pz_intercept
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  pz_slope_diff, pz_slope_rms:
+    description: finds mean and rms relative to linear fit of the pole zero corrected tail
+    function: linear_slope_diff
+    module: dspeed.processors
+    args:
+      - wf_pz[round(len(wf_pz) - 30*us/wf_pz.period):]
+      - pz_slope
+      - pz_intercept
+      - pz_slope_diff
+      - pz_slope_rms
+    unit:
+      - ADC
+      - ADC
+  dwt_haar:
+    description:
+      performs a DWT with Haar wavelets and 2 levels on baseline subtracted
+      waveform
+    function: discrete_wavelet_transform
+    module: dspeed.processors
+    args:
+      - wf_blsub
+      - 2
+      - "'h'"
+      - "'a'"
+      - dwt_haar( -(-len(wf_blsub)//4) , 'f')
+    unit: ADC
+  dwt_tp_min, dwt_tp_max, dwt_min, dwt_max:
+    description: finds min/max and corresponding timepoints of the DWT
+    function: min_max
+    module: dspeed.processors
+    args:
+      - dwt_haar
+      - dwt_tp_min
+      - dwt_tp_max
+      - dwt_min
+      - dwt_max
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+  dwt_norm:
+    description: normalizes DWT by its min/max, whichever us greater in absolute value
+    function: min_max_norm
+    module: dspeed.processors
+    args:
+      - dwt_haar
+      - dwt_min
+      - dwt_max
+      - dwt_norm
+    unit:
+      - ADC
+  svm_label:
+    description: loads a SVM model and predicts a data cleaning label on the normalized DWT
+    function: svm_predict
+    module: dspeed.processors
+    args:
+      - dwt_norm
+      - svm_label
+    unit: ADC
+    prereqs:
+      - dwt_norm
+    init_args:
+      - db.svm.model_file
+    defaults:
+      db.svm.model_file: "0"
+  wf_trap:
+    description: fixed length trap filter with long integration time run over all detectors
+    function: trap_norm
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - db.ttrap.rise
+      - db.ttrap.flat
+      - wf_trap
+    unit: ADC
+    defaults:
+      db.ttrap.rise: 10*us
+      db.ttrap.flat: 3.008*us
+  tp_trapTmin, tp_trapTmax, trapTmin, trapTmax:
+    description: max of fixed length long trap filter
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_trap[round(2*db.ttrap.rise+db.ttrap.flat,
+        wf_pz.period):]
+      - tp_trapTmin
+      - tp_trapTmax
+      - trapTmin
+      - trapTmax
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+    defaults:
+      db.ttrap.rise: 10*us
+      db.ttrap.flat: 3.008*us
+  trapTftp:
+    description: sample trap filter on waveform to get measure of  energy
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_trap
+      - round(tp_0_est+db.ttrap.rise+db.ttrap.flat*db.ttrap.sample,
+        wf_trap.grid)
+      - "'n'"
+      - trapTftp
+    defaults:
+      db.ttrap.rise: 10*us
+      db.ttrap.flat: 3.008*us
+      db.ttrap.sample: "0.8"
+    unit: ADC
+  wf_trap_short:
+    description:
+      fixed length trap filter with short integration time run over all
+      detectors
+    function: trap_norm
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - db.strap.rise
+      - db.strap.flat
+      - wf_trap_short
+    unit: ADC
+    defaults:
+      db.strap.rise: 4*us
+      db.strap.flat: 3.008*us
+  trapSmax:
+    description: max of fixed length short trap filter
+    function: amax
+    module: numpy
+    args:
+      - wf_trap_short[round(2*db.strap.rise+db.strap.flat,
+        wf_pz.period):]
+      - 1
+      - trapSmax
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    defaults:
+      db.strap.rise: 4*us
+      db.strap.flat: 3.008*us
+    unit: ADC
+  wf_pileup_trap:
+    description:
+      trap filter with short flat top and integration time used for finding
+      pileup
+    function: trap_norm
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - 1.024*us
+      - "0"
+      - wf_pileup_trap
+    unit: ADC
+  baselineEmax:
+    description: find max of baseline section after pileup filter for pileup cut
+    function: amax
+    module: numpy
+    args:
+      - wf_pileup_trap[round(2.048*us, wf_pileup_trap.period):round(45*us,
+        wf_pileup_trap.period)]
+      - "1"
+      - baselineEmax
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    unit: ADC
+  tailEmax:
+    description: find max of tail section after pileup filter for pileup cut
+    function: amax
+    module: numpy
+    args:
+      - wf_pileup_trap[round(55*us, wf_pileup_trap.period):]
+      - "1"
+      - tailEmax
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    unit: ADC
+  wf_rc_cr2:
+    description: apply RC-CR^2 filter to the waveform to determine pileup
+    function: rc_cr2
+    module: dspeed.processors
+    args:
+      - wf_blsub
+      - 300*ns
+      - wf_rc_cr2
+    unit: ADC
+  bl_mean_rc_cr2 , bl_std_rc_cr2, bl_slope_rc_cr2, bl_intercept_rc_cr2:
+    description:
+      finds mean and rms of presummed waveform baseline (first 44.5us) as well
+      as linear fit to this
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_rc_cr2[-100:]
+      - bl_mean_rc_cr2
+      - bl_std_rc_cr2
+      - bl_slope_rc_cr2
+      - bl_intercept_rc_cr2
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  pos_rc_cr2_thresh:
+    description:
+      positive threshold for the bi_level_zero_crossing_time_points function to
+      look for pileup in RC-CR^2 waveform
+    function: multiply
+    module: numpy
+    args:
+      - bl_std_rc_cr2
+      - 6
+      - pos_rc_cr2_thresh
+  neg_rc_cr2_thresh:
+    description:
+      negative threshold for the bi_level_zero_crossing_time_points function to
+      look for pileup in RC-CR^2 waveform
+    function: multiply
+    module: numpy
+    args:
+      - bl_std_rc_cr2
+      - -5
+      - neg_rc_cr2_thresh
+  rc_cr2_pileup_n_crossings, rc_cr2_pileup_polarity, rc_cr2_pileup_idxs:
+    description:
+      extract arrays of pileup event indices and polarities from RC-CR^2
+      waveform
+    function: bi_level_zero_crossing_time_points
+    module: dspeed.processors
+    args:
+      - wf_rc_cr2
+      - pos_rc_cr2_thresh
+      - neg_rc_cr2_thresh
+      - 2.5*us
+      - 0
+      - rc_cr2_pileup_n_crossings
+      - rc_cr2_pileup_polarity(shape = 5)
+      - rc_cr2_pileup_idxs(shape = 5)
+  wf_etrap:
+    description: optimised trap filter uses filter parameters from database
+    function: trap_norm
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - db.etrap.rise
+      - db.etrap.flat
+      - wf_etrap
+    unit: ADC
+    defaults:
+      db.etrap.rise: 10*us
+      db.etrap.flat: 3.008*us
+  trapEmax:
+    description: max of optimised trap filter
+    function: amax
+    module: numpy
+    args:
+      - wf_etrap[round(2*db.etrap.rise+db.etrap.flat,
+        wf_pz.period):]
+      - 1
+      - trapEmax
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    defaults:
+      db.etrap.rise: 10*us
+      db.etrap.flat: 3.008*us
+    unit: ADC
+  trapEftp:
+    description: samples optimised trap filter at time point 80% of way into flat top
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_etrap
+      - round(tp_0_est+db.etrap.rise+db.etrap.flat*db.etrap.sample,
+        wf_etrap.grid)
+      - "'i'"
+      - trapEftp
+    unit: ADC
+    defaults:
+      db.etrap.rise: 10*us
+      db.etrap.flat: 3*us
+      db.etrap.sample: "0.8"
+  cusp_kernel:
+    description: optimised cusp filter uses filter parameters from database
+    function: cusp_filter
+    module: dspeed.processors
+    args:
+      - db.cusp.sigma/wf_pz.period
+      - round(db.cusp.flat/wf_pz.period)
+      - .inf
+      - cusp_kernel(round((97.536*us/wf_pz.period)-(4.8*us/wf_pz.period)),
+        'f')
+    defaults:
+      db.cusp.sigma: 20*us
+      db.cusp.flat: 3*us
+    unit: ADC
+  wf_cusp:
+    description: convolve optimised cusp filter
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_pz[:(97.536*us/wf_pz.period)]
+      - cusp_kernel
+      - "'v'"
+      - wf_cusp(round((4.8*us/wf_pz.period)+2), 'f')
+    unit: ADC
+  cuspTmin, cuspTmax, cuspEmin, cuspEmax:
+    description: max of optimised cusp filter
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_cusp
+      - cuspTmin
+      - cuspTmax
+      - cuspEmin
+      - cuspEmax
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+  cuspEftp:
+    description: samples optimised cusp filter at fixed point
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_cusp
+      - round(2.1*us/wf_blsub.period)
+      - "'n'"
+      - cuspEftp
+    unit: ADC
+    defaults:
+      db.cusp.flat: 3*us
+  zac_kernel:
+    description: optimised zac filter uses filter parameters from database
+    function: zac_filter
+    module: dspeed.processors
+    args:
+      - db.zac.sigma/wf_pz.period
+      - round(db.zac.flat/wf_pz.period)
+      - .inf
+      - zac_kernel(round((97.536*us/wf_pz.period)-(4.8*us/wf_pz.period)),
+        'f')
+    defaults:
+      db.zac.sigma: 20*us
+      db.zac.flat: 3*us
+    unit: ADC
+  wf_zac:
+    description: convolves optimised zac filter
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_pz[:(97.536*us/wf_pz.period)]
+      - zac_kernel
+      - "'v'"
+      - wf_zac(round((4.8*us/wf_pz.period)+2), 'f')
+    unit: ADC
+  zacEmax:
+    description: max of optimised zac filter
+    function: amax
+    module: numpy
+    args:
+      - wf_zac
+      - 1
+      - zacEmax
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    unit: ADC
+  zacEftp:
+    description: samples optimised zac filter at fixed point
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_zac
+      - round(2.1*us/wf_blsub.period)
+      - "'n'"
+      - zacEftp
+    unit: ADC
+    defaults:
+      db.zac.flat: 3*us
+  step_kernel:
+    description: step filter
+    function: step
+    module: dspeed.processors
+    args:
+      - round(11.52*us/wf_blsub.period)
+      - step_kernel(round(11.52*us/wf_blsub.period), 'f')
+    unit: ADC
+  wf_step:
+    description: convolves with step
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_blsub
+      - step_kernel
+      - "'v'"
+      - wf_step(round(len(wf_blsub)-11.52*us/wf_blsub.period)+1, 'f')
+    unit: ADC
+  centroid:
+    function: get_wf_centroid
+    module: dspeed.processors
+    args:
+      - wf_step
+      - round((len(wf_blsub)-len(wf_step)+1)/2)
+      - centroid
+    unit: ADC
+  wf_align:
+    function: wf_alignment
+    module: dspeed.processors
+    args:
+      - wf_blsub
+      - centroid
+      - "20"
+      - round(97.536*us/wf_pz.period)
+      - wf_align(round(97.536*us/wf_pz.period), 'f')
+    unit: ADC
+  wf_dplms:
+    description: convolves dplms filter
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_align
+      - db.dplms.coefficients
+      - "'v'"
+      - wf_dplms(len(wf_align)-db.dplms.length+1, 'f')
+    unit: ADC
+    defaults:
+      db.dplms.length: 2
+      db.dplms.coefficients: "[1,1]"
+  dplmsEmax:
+    function: amax
+    module: numpy
+    args:
+      - wf_dplms
+      - 1
+      - dplmsEmax
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    unit: ADC
+  dplmsEftp:
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_dplms
+      - db.dplms.pickoff
+      - "'i'"
+      - dplmsEftp
+    unit: ADC
+    defaults:
+      db.dplms.pickoff: round(len(wf_dplms)/2)
+  tp_100:
+    description:
+      time point where waveform reaches 100% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax
+      - tp_0_est
+      - 1
+      - tp_100
+    unit: ns
+  tp_99:
+    description:
+      time point where waveform reaches 99% of energy from long fixed trap
+      filter (tends to be safer than 100%)
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - 0.99*trapTmax
+      - tp_0_est
+      - 1
+      - tp_99
+    unit: ns
+  tp_95:
+    description:
+      time point where waveform reaches 95% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.95
+      - tp_0_est
+      - 1
+      - tp_95
+    unit: ns
+  tp_90:
+    description:
+      time point where waveform reaches 90% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.9
+      - tp_0_est
+      - 1
+      - tp_90
+    unit: ns
+  tp_80:
+    description:
+      time point where waveform reaches 80% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.8
+      - tp_0_est
+      - 1
+      - tp_80
+    unit: ns
+  tp_50:
+    description:
+      time point where waveform reaches 50% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.5
+      - tp_0_est
+      - 1
+      - tp_50
+    unit: ns
+  tp_20:
+    description:
+      time point where waveform reaches 20% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.2
+      - tp_50
+      - 0
+      - tp_20
+    unit: ns
+  tp_10:
+    description:
+      time point where waveform reaches 10% of energy from long fixed trap
+      filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.1
+      - tp_50
+      - 0
+      - tp_10
+    unit: ns
+  tp_01:
+    description: time point where waveform reaches 1% of energy from long fixed trap filter
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapTmax*0.01
+      - tp_50
+      - 0
+      - tp_01
+    unit: ns
+  wf_qtrap:
+    description:
+      trap filter with short flat top and longer integration for Qdrift
+      estimation
+    function: trap_filter
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - db.qtrap.rise
+      - db.qtrap.flat
+      - wf_qtrap
+    defaults:
+      db.qtrap.rise: 4.0*us
+      db.qtrap.flat: 96*ns
+    unit: ADC
+  trapQftp:
+    description:
+      pickoff for qdrift when rise on decay tail, fall contains entire leading
+      edge
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_qtrap
+      - (tp_0_est + 2*db.qtrap.rise + db.qtrap.flat)
+      - "'n'"
+      - trapQftp
+    defaults:
+      db.qtrap.rise: 4.0*us
+      db.qtrap.flat: 96*ns
+    unit: ADC
+  QDrift: trapQftp*16
+  dt_eff:
+    function: QDrift/trapTmax
+    unit: ns
+  wf_curr_window:
+    description: window around leading edge for current estimation
+    function: windower
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - tp_0_est
+      - wf_curr_window(shape=200, period=wf_pz_win.period,
+        offset=tp_0_est/wf_pz_win.period)
+    unit:
+      - ADC
+  curr:
+    description: differentiate waveform
+    function: avg_current
+    module: dspeed.processors
+    args:
+      - wf_curr_window
+      - 1
+      - curr(shape=len(wf_curr_window)-1,  period=wf_curr_window.period,offset=wf_curr_window.offset)
+    unit: ADC/sample
+  tp_curr_min, tp_curr_max, curr_min, curr_max:
+    description: find max, min of differentiated waveform with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - curr
+      - tp_curr_min
+      - tp_curr_max
+      - curr_min
+      - curr_max
+    unit:
+      - ns
+      - ns
+      - ADC/sample
+      - ADC/sample
+  curr_up:
+    description: upsample differentiated waveform to 1ns sampling rate
+    function: upsampler
+    module: dspeed.processors
+    args:
+      - curr
+      - "16"
+      - curr_up((len(curr)-1)*16, period=curr.period/16, offset=curr.offset)
+    unit: ADC/sample
+  curr_av:
+    description: apply moving windows to upsampled current to smooth
+    function: moving_window_multi
+    module: dspeed.processors
+    args:
+      - curr_up
+      - "48"
+      - 3
+      - 0
+      - curr_av
+    unit: ADC/sample
+  aoe_t_min, tp_aoe_max, A_min, A_max:
+    description: find max, min of upsampled current with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - curr_av
+      - aoe_t_min
+      - tp_aoe_max
+      - A_min
+      - A_max
+    unit:
+      - ns
+      - ns
+      - ADC/sample
+      - ADC/sample
+  wf_tri:
+    description:
+      alternate current estimator using short trap filter with no flat top
+      (triangle filter)
+    function: trap_norm
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - 96*ns
+      - 0*ns
+      - wf_tri
+    unit: ADC
+  aoe_t_min_tri, tp_aoe_max_tri, A_min_tri, A_max_tri:
+    description: find max, min of current triangle filter with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_tri
+      - aoe_t_min_tri
+      - tp_aoe_max_tri
+      - A_min_tri
+      - A_max_tri
+    unit:
+      - ns
+      - ns
+      - ADC/sample
+      - ADC/sample
+  slope200_kernel:
+    description: alternate current estimator using a moving slope estimator
+    function: moving_slope
+    module: dspeed.processors
+    args:
+      - slope200_kernel(12, 'f')
+    unit: ADC
+  wf_slope200:
+    description: alternate current estimator using a moving slope estimator
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - slope200_kernel
+      - "'s'"
+      - wf_slope200(len(wf_pz_win), 'f', grid=wf_pz_win.grid)
+    unit: ADC
+  aoe_t_min_slope200, tp_aoe_max_slope200, A_min_slope200, A_max_slope200:
+    description: find max, min of moving slope with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_slope200
+      - aoe_t_min_slope200
+      - tp_aoe_max_slope200
+      - A_min_slope200
+      - A_max_slope200
+    unit:
+      - ns
+      - ns
+      - ADC/sample
+      - ADC/sample
+  wf_up:
+    description: alternate current estimator using an upsampled moving slope estimator
+    function: upsampler
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - "16"
+      - wf_up((len(wf_pz_win)-1)*16, period=wf_pz_win.period/16,
+        offset=wf_pz_win.offset)
+    unit: ADC/sample
+  wf_av:
+    description: moving windows to smooth upsampled leading edge
+    function: moving_window_multi
+    module: dspeed.processors
+    args:
+      - wf_up
+      - "48"
+      - 3
+      - 0
+      - wf_av
+    unit: ADC/sample
+  upslope200_kernel:
+    description: alternate current estimator using a moving slope estimator
+    function: moving_slope
+    module: dspeed.processors
+    args:
+      - upslope200_kernel(200, 'f')
+    unit: ADC
+  wf_upslope200:
+    description: alternate current estimator using a moving slope estimator
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_av
+      - upslope200_kernel
+      - "'s'"
+      - wf_upslope200(len(wf_av), 'f')
+    unit: ADC
+  ? tp_aoe_min_upslope200, tp_aoe_max_upslope200, A_min_upslope200,
+    A_max_upslope200
+  : description: find max, min of upsampled moving slope with corresponding time points
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_upslope200
+      - tp_aoe_min_upslope200
+      - tp_aoe_max_upslope200
+      - A_min_upslope200
+      - A_max_upslope200
+    unit:
+      - ns
+      - ns
+      - ADC/sample
+      - ADC/sample
+  tp_80_lq:
+    description:
+      find time point where waveform reaches 80% of maximum energy interpolating
+      between samples
+    function: interpolated_time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapEmax*0.8
+      - tp_0_est
+      - 1
+      - "'l'"
+      - tp_80_lq
+    unit: ns
+  wf_trap_lq:
+    description: run trap filter for lq estimation
+    function: trap_filter
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - db.lq_trap.rise
+      - db.lq_trap.flat
+      - wf_trap_lq
+    defaults:
+      db.lq_trap.rise: 1.0*us
+      db.lq_trap.flat: 1.0*us
+    unit: ADC
+  lq80:
+    description: sample lq trap filter with start at t80
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_trap_lq
+      - 2*db.lq_trap.rise + db.lq_trap.flat+ tp_80_lq
+      - "'l'"
+      - lq80
+    defaults:
+      db.lq_trap.rise: 1.0*us
+      db.lq_trap.flat: 1.0*us
+    unit: ADC
+
+  tp_95_lq:
+    description: find time point where waveform reaches 95% of maximum energy interpolating between samples
+    function: interpolated_time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_pz_win
+      - trapEmax*0.95
+      - tp_0_est
+      - 1
+      - "'l'"
+      - tp_95_lq
+    unit: ns
+
+  lq95:
+    description: sample lq trap filter with start at t95
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_trap_lq
+      - 2*db.lq_trap.rise + db.lq_trap.flat+ tp_95_lq
+      - "'l'"
+      - lq95
+    defaults:
+      db.lq_trap.rise: 1.0*us
+      db.lq_trap.flat: 1.0*us
+    unit: ADC
+
+  lq_amax:
+    description: sample lq trap filter with start at tp_aoe_max
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_trap_lq
+      - 2*db.lq_trap.rise + db.lq_trap.flat+ tp_aoe_max
+      - "'l'"
+      - lq_amax
+    defaults:
+      db.lq_trap.rise: 2.0*us
+      db.lq_trap.flat: 1.0*us
+    unit: ADC
+
+  wf_invert: -wf_pz
+  wf_win_invert: -wf_pz_win
+  t_discharge:
+    description: look for any samples above threshold which are likely discharges
+    function: time_over_threshold
+    module: dspeed.processors
+    args:
+      - wf_invert
+      - "2000"
+      - t_discharge
+    unit: ns
+  wf_t0_invert:
+    description:
+      modified asymmetric trap filter which is convolved with waveform to remove
+      noise while preserving leading edge
+    function: fft_convolve_wf
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - t0_kernel
+      - "'f'"
+      - wf_t0_invert(len(wf_pz_win)+round((128*ns+2*us)/wf_pz_win.period)-1,
+        'f', grid=wf_pz_win.grid)
+    unit: ADC
+  wf_t0_invert_smooth:
+    description: apply moving windows to smooth t0 filter
+    function: moving_window_multi
+    module: dspeed.processors
+    args:
+      - wf_t0_invert
+      - "32"
+      - 2
+      - 0
+      - wf_t0_invert_smooth
+    unit: ADC/sample
+  conv_tmin_invert ,tp_start_invert, conv_min_invert, conv_max_invert:
+    description: max of inverted t0 filter to start backwards walk
+    function: min_max
+    module: dspeed.processors
+    args:
+      - wf_t0_invert_smooth[:1400]
+      - conv_tmin_invert
+      - tp_start_invert
+      - conv_min_invert
+      - conv_max_invert
+    unit:
+      - ns
+      - ns
+      - ADC
+      - ADC
+  tp_0_invert:
+    description: backwards walks on t0_filtered inverted waveform to get t0 estimate
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_t0_invert
+      - bl_std
+      - tp_start_invert
+      - 0
+      - tp_0_invert(unit=ns)
+    unit: ns
+  wf_trap_invert:
+    description: trap filter on inverted waveform to get measure of inverted energy
+    function: trap_norm
+    module: dspeed.processors
+    args:
+      - wf_invert
+      - db.intrap.rise
+      - db.intrap.flat
+      - wf_trap_invert
+    unit: ADC
+    defaults:
+      db.intrap.rise: 10*us
+      db.intrap.flat: 0*us
+  trapTmax_invert:
+    description: max of trap filter on inverted waveform to get measure of inverted energy
+    function: amax
+    module: numpy
+    args:
+      - wf_trap_invert[round(2*db.intrap.rise+db.intrap.flat,
+        wf_pz.period):-round(2*db.intrap.rise+db.intrap.flat, wf_pz.period)]
+      - 1
+      - trapTmax_invert
+    kwargs:
+      signature: (n),()->()
+      types:
+        - fi->f
+    defaults:
+      db.intrap.rise: 10*us
+      db.intrap.flat: 0*us
+    unit: ADC
+  trapTftp_invert:
+    description: sample trap filter on inverted waveform to get measure of inverted energy
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_trap_invert
+      - round(tp_0_invert+db.intrap.rise+db.intrap.flat*db.intrap.sample,
+        wf_trap_invert.grid)
+      - "'n'"
+      - trapTftp_invert
+    defaults:
+      db.intrap.rise: 10*us
+      db.intrap.flat: 0*us
+      db.intrap.sample: "0.8"
+    unit: ADC
+  cuspEftp_invert:
+    description: samples optimised cusp filter at fixed point
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_cusp
+      - round(tp_0_invert, wf_blsub.grid) - round((len(wf_blsub)-((36.8*us +
+        db.cusp.flat)/wf_blsub.period))/2)
+      - "'n'"
+      - cuspEftp_invert
+    unit: ADC
+    defaults:
+      db.cusp.flat: 3*us
+  tp_100_invert:
+    description: time point where inverted waveform reaches 100% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert
+      - tp_0_invert
+      - 1
+      - tp_100_invert
+    unit: ns
+  tp_99_invert:
+    description: time point where inverted waveform reaches 99% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - 0.99*trapTmax_invert
+      - tp_0_invert
+      - 1
+      - tp_99_invert
+    unit: ns
+  tp_95_invert:
+    description: time point where inverted waveform reaches 95% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert*0.95
+      - tp_99_invert
+      - 0
+      - tp_95_invert
+    unit: ns
+  tp_90_invert:
+    description: time point where inverted waveform reaches 90% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert*0.9
+      - tp_95_invert
+      - 0
+      - tp_90_invert
+    unit: ns
+  tp_80_invert:
+    description: time point where inverted waveform reaches 80% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert*0.8
+      - tp_90_invert
+      - 0
+      - tp_80_invert
+    unit: ns
+  tp_50_invert:
+    description: time point where inverted waveform reaches 50% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert*0.5
+      - tp_80_invert
+      - 0
+      - tp_50_invert
+    unit: ns
+  tp_20_invert:
+    description: time point where inverted waveform reaches 20% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert*0.2
+      - tp_50_invert
+      - 0
+      - tp_20_invert
+    unit: ns
+  tp_10_invert:
+    description: time point where inverted waveform reaches 10% of inverted energy
+    function: time_point_thresh
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - trapTmax_invert*0.1
+      - tp_20_invert
+      - 0
+      - tp_10_invert
+    unit: ns
+  wf_qdrift_invert:
+    description: run qdrift trap filter on inverted waveform
+    function: trap_filter
+    module: dspeed.processors
+    args:
+      - wf_win_invert
+      - 4*us
+      - 96*ns
+      - wf_qdrift_invert
+    unit: ADC
+  trapQftp_invert:
+    description: sample qdrift trap filter run on inverted waveform starting at inverted t0
+    function: fixed_time_pickoff
+    module: dspeed.processors
+    args:
+      - wf_qdrift_invert
+      - tp_0_invert + 8.096*us
+      - "'n'"
+      - trapQftp_invert
+    unit: ADC
+  QDrift_invert: trapQftp_invert*16
+  dt_eff_invert:
+    function: QDrift_invert/trapTmax_invert
+    unit: ns
+  dcrRaw_tpk_1:
+    function: trap_pickoff
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - 2.5*us
+      - 15*us
+      - round(((tp_95)+(22.5*us)),wf_pz.grid)
+      - dcrRaw_tpk_1
+    unit: ADC
+  dcrRaw_tpk_2:
+    function: trap_pickoff
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - 2.5*us
+      - 30*us
+      - round(((tp_95)+(37.5*us)),wf_pz.grid)
+      - dcrRaw_tpk_2
+    unit: ADC
+  dcrRaw_tpk_3:
+    function: trap_pickoff
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - 2.5*us
+      - 45*us
+      - round(((tp_95)+(52.5*us)),wf_pz.grid)
+      - dcrRaw_tpk_3
+    unit: ADC
+  dcrRaw_tpk_4:
+    function: trap_pickoff
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - 2.5*us
+      - 60*us
+      - round(((tp_95)+(67.5*us)),wf_pz.grid)
+      - dcrRaw_tpk_4
+    unit: ADC
+  wf_lsf:
+    function: windower
+    module: dspeed.processors
+    args:
+      - wf_pz
+      - (tp_95 + 2.5*us)
+      - wf_lsf(shape=round(65*us/wf_pz.period), period=wf_pz.period,
+        offset=((tp_95 + 2.5*us)/wf_pz.period))
+    unit:
+      - ADC
+  dcrRaw_lsf_mean_1,dcrRaw_lsf_std_1,dcrRaw_lsf_slope_1,dcrRaw_lsf_intercept_1:
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_lsf[0:156]
+      - dcrRaw_lsf_mean_1
+      - dcrRaw_lsf_std_1
+      - dcrRaw_lsf_slope_1
+      - dcrRaw_lsf_intercept_1
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  dcrRaw_lsf_mean_2,dcrRaw_lsf_std_2,dcrRaw_lsf_slope_2,dcrRaw_lsf_intercept_2:
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_lsf[0:273]
+      - dcrRaw_lsf_mean_2
+      - dcrRaw_lsf_std_2
+      - dcrRaw_lsf_slope_2
+      - dcrRaw_lsf_intercept_2
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  dcrRaw_lsf_mean_3,dcrRaw_lsf_std_3,dcrRaw_lsf_slope_3,dcrRaw_lsf_intercept_3:
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_lsf[0:391]
+      - dcrRaw_lsf_mean_3
+      - dcrRaw_lsf_std_3
+      - dcrRaw_lsf_slope_3
+      - dcrRaw_lsf_intercept_3
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
+  dcrRaw_lsf_mean_4,dcrRaw_lsf_std_4,dcrRaw_lsf_slope_4,dcrRaw_lsf_intercept_4:
+    function: linear_slope_fit
+    module: dspeed.processors
+    args:
+      - wf_lsf
+      - dcrRaw_lsf_mean_4
+      - dcrRaw_lsf_std_4
+      - dcrRaw_lsf_slope_4
+      - dcrRaw_lsf_intercept_4
+    unit:
+      - ADC
+      - ADC
+      - ADC
+      - ADC
