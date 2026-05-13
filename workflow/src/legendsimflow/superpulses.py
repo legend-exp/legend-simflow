@@ -32,10 +32,10 @@ class Slice:
 
     Parameters
     ----------
-    energy_range : tuple[float, float]
+    energy_range
         Lower and upper bounds of the energy slice, in keV.
         Example: ``(1500.0, 2000.0)``
-    drift_time_range : tuple[float, float]
+    drift_time_range
         Lower and upper bounds of the drift time slice, in ns.
         Example: ``(900.0, 1100.0)``
 
@@ -69,33 +69,6 @@ class Superpulse:
     full preprocessing and chi2 self-similarity cut. It carries both waveforms
     together with the metadata needed to identify the slice, write to LH5, and
     perform the subsequent electronics parameter optimisation.
-
-    Parameters
-    ----------
-    charge_wf : np.ndarray
-        Average normalised charge waveform, shape ``(n_charge_samples,)``.
-        Amplitude is dimensionless (ADC / cuspEmax, normalised to 1 at
-        plateau).
-    current_wf : np.ndarray
-        Average current waveform after MWA, shape ``(n_current_samples,)``.
-        Units: ``(ADC / cuspEmax) / ns * dt_data``, matching the convention
-        in ``psl.py``.
-    charge_time_axis : np.ndarray
-        Time axis for the charge waveform in ns, shape ``(n_charge_samples,)``,
-        aligned so that ``tp_aoe_max = 0``.
-    current_time_axis : np.ndarray
-        Time axis for the current waveform in ns, shape ``(n_current_samples,)``,
-        aligned so that ``tp_aoe_max = 0``.
-    slice : Slice
-        The energy-drift-time slice this superpulse represents.
-    detector : str
-        Detector name, e.g. ``"V03422A"``.
-    n_events_preliminary : int
-        Number of waveforms used to build the preliminary superpulse (before
-        the chi2 cut).
-    n_events_final : int
-        Number of waveforms surviving the chi2 cut, used to build this
-        superpulse.
 
     Examples
     --------
@@ -132,6 +105,35 @@ class Superpulse:
         n_events_preliminary: int,
         n_events_final: int,
     ) -> None:
+        """Construct the superpulse.
+
+        Parameters
+        ----------
+        charge_wf
+            Average normalised charge waveform, shape ``(n_charge_samples,)``.
+            Amplitude is dimensionless (ADC / cuspEmax, normalised to 1 at
+            plateau).
+        current_wf
+            Average current waveform, shape ``(n_current_samples,)``.
+            Units: ``(ADC / cuspEmax) / ns * dt_data``, matching the convention
+            in ``psl.py``.
+        charge_time_axis
+            Time axis for the charge waveform in ns, shape ``(n_charge_samples,)``,
+            aligned so that ``tp_aoe_max = 0``.
+        current_time_axis
+            Time axis for the current waveform in ns, shape ``(n_current_samples,)``,
+            aligned so that ``tp_aoe_max = 0``.
+        slice
+            The energy-drift-time slice this superpulse represents.
+        detector
+            Detector name, e.g. ``"V03422A"``.
+        n_events_preliminary
+            Number of waveforms used to build the preliminary superpulse (before
+            the chi2 cut).
+        n_events_final
+            Number of waveforms surviving the chi2 cut, used to build this
+            superpulse.
+        """
         if len(charge_wf) != len(charge_time_axis):
             msg = (
                 f"charge_wf ({len(charge_wf)}) and charge_time_axis "
@@ -185,11 +187,11 @@ class Superpulse:
             - ``current_wf``           : ``Array``, shape ``(n_current_samples,)``
             - ``charge_time_axis``     : ``Array``, shape ``(n_charge_samples,)``, attrs ``{"units": "ns"}``
             - ``current_time_axis``    : ``Array``, shape ``(n_current_samples,)``, attrs ``{"units": "ns"}``
-            - ``dt_center``            : ``Scalar``, drift time center [ns]
-            - ``dt_lo``                : ``Scalar``, drift time lower bound [ns]
-            - ``dt_hi``                : ``Scalar``, drift time upper bound [ns]
-            - ``e_lo``                 : ``Scalar``, energy lower bound [keV]
-            - ``e_hi``                 : ``Scalar``, energy upper bound [keV]
+            - ``drift_time_center``    : ``Scalar``, drift time center [ns]
+            - ``drift_time_lo``        : ``Scalar``, drift time lower bound [ns]
+            - ``drift_time_hi``        : ``Scalar``, drift time upper bound [ns]
+            - ``energy_lo``            : ``Scalar``, energy lower bound [keV]
+            - ``energy_hi``            : ``Scalar``, energy upper bound [keV]
             - ``detector``             : ``Scalar``, detector name string
             - ``n_events_preliminary`` : ``Scalar``
             - ``n_events_final``       : ``Scalar``
@@ -202,13 +204,13 @@ class Superpulse:
                 "current_time_axis": Array(
                     self.current_time_axis, attrs={"units": "ns"}
                 ),
-                "dt_center": Scalar(
+                "drift_time_center": Scalar(
                     self.slice.drift_time_center, attrs={"units": "ns"}
                 ),
-                "dt_lo": Scalar(self.slice.drift_time_range[0], attrs={"units": "ns"}),
-                "dt_hi": Scalar(self.slice.drift_time_range[1], attrs={"units": "ns"}),
-                "e_lo": Scalar(self.slice.energy_range[0], attrs={"units": "keV"}),
-                "e_hi": Scalar(self.slice.energy_range[1], attrs={"units": "keV"}),
+                "drift_time_lo": Scalar(self.slice.drift_time_range[0], attrs={"units": "ns"}),
+                "drift_time_hi": Scalar(self.slice.drift_time_range[1], attrs={"units": "ns"}),
+                "energy_lo": Scalar(self.slice.energy_range[0], attrs={"units": "keV"}),
+                "energy_hi": Scalar(self.slice.energy_range[1], attrs={"units": "keV"}),
                 "detector": Scalar(self.detector),
                 "n_events_preliminary": Scalar(self.n_events_preliminary),
                 "n_events_final": Scalar(self.n_events_final),
@@ -328,17 +330,25 @@ def _read_and_sel_evts(
     return evt_data[psd_mask]
 
 
+def _get_nested_field(data: ak.Array, field: str) -> ak.Array:
+    tmp = data
+    for field_tmp in field.split("/"):
+        tmp = tmp[field_tmp]
+    return tmp
+
+
 def _select_data_in_slice(
     det_evt_data: ak.Array,
     drift_slice: Slice,
-    drift_time_field: str = "geds/psd/drift_time",
+    end_time_field: str = "geds/psd/drift_time",
+    t0_field: str | None = None,
 ) -> ak.Array:
     """Filter single-detector event data to one energy-drift-time slice."""
     # read the drift time
-    tmp = det_evt_data
-    for field in drift_time_field.split("/"):
-        tmp = tmp[field]
-    drift_time = tmp
+    end_time = _get_nested_field(det_evt_data, end_time_field)
+
+    if t0_field is not None:
+        drift_time = end_time - _get_nested_field(det_evt_data, t0_field)
 
     return det_evt_data[
         (
@@ -351,7 +361,13 @@ def _select_data_in_slice(
 
 
 def lookup_wfs_indices(
-    slices: list[Slice], *, evt_files: list[str], n_target: int, detector: str
+    slices: list[Slice],
+    *,
+    evt_files: list[str],
+    n_target: int,
+    detector: str,
+    t0_field: str | None = "spms/first_t0",
+    end_time_field: str = "geds/psd/low_aoe/time",
 ) -> list[AttrsDict]:
     """Extract the indices of the waveforms to use in superpulse construction.
 
@@ -365,6 +381,10 @@ def lookup_wfs_indices(
         The maximum number of waveforms to select.
     detector
         The detector to use.
+    t0_field
+        Field for the start time, if `None` will be set to 0.
+    end_time_field
+        Field for the end-time of the drift time calculation.
 
     Returns
     -------
@@ -386,7 +406,12 @@ def lookup_wfs_indices(
                 continue
 
             # evts in our slice
-            evts_slice = _select_data_in_slice(evts, drift_slice=drift_slice)
+            evts_slice = _select_data_in_slice(
+                evts,
+                drift_slice=drift_slice,
+                end_time_field=end_time_field,
+                t0_field=t0_field,
+            )
             hit_indices = ak.flatten(evts_slice.geds.hit_idx).to_list()
 
             out_tmp.hit_idx.extend(hit_indices)
@@ -596,14 +621,13 @@ def compute_chi2(
     ----------
     charge_wfs
         2D array of shape ``(n_events, n_samples)``.
-    superpulse : Superpulse
-        Preliminary superpulse from ``compute_superpulse``.
+    superpulse
+        Preliminary superpulse.
     bl_std
         Per-event baseline standard deviation in ADC units, shape
-        ``(n_events,)``. From ``get_charge_and_current_wfs_for_slice``.
+        ``(n_events,)``.
     cuspEmax
         Per-event energy estimator in ADC units, shape ``(n_events,)``.
-        From ``get_charge_and_current_wfs_for_slice``.
 
     Returns
     -------
@@ -634,7 +658,7 @@ def compute_chi2(
     return chi2 / n_samples
 
 
-def write_superpulses_to_lh5(
+def write_superpulses(
     superpulses: dict[Slice, Superpulse],
     output_path: str,
     detector: str,
@@ -655,11 +679,11 @@ def write_superpulses_to_lh5(
                 current_wf            [Array, n_current_samples]
                 charge_time_axis      [Array, n_charge_samples, units=ns]
                 current_time_axis     [Array, n_current_samples, units=ns]
-                dt_center             [Scalar, ns]
-                dt_lo                 [Scalar, ns]
-                dt_hi                 [Scalar, ns]
-                e_lo                  [Scalar, keV]
-                e_hi                  [Scalar, keV]
+                drift_time_center     [Scalar, ns]
+                drift_time_lo         [Scalar, ns]
+                drift_time_hi         [Scalar, ns]
+                energy_lo             [Scalar, keV]
+                energy_hi             [Scalar, keV]
                 detector              [Scalar, str]
                 n_events_preliminary  [Scalar]
                 n_events_final        [Scalar]
@@ -706,11 +730,11 @@ def write_superpulses_to_lh5(
     )
 
 
-def read_superpulses_from_lh5(
+def read_superpulses(
     path: str,
     detector: str,
 ) -> dict[Slice, Superpulse]:
-    """Read superpulses written by :func:`write_superpulses_to_lh5`.
+    """Read superpulses written by :func:`write_superpulses`.
 
     Parameters
     ----------
@@ -738,8 +762,14 @@ def read_superpulses_from_lh5(
         group = lh5.read(f"{detector}/{key}", path)
 
         sl = Slice(
-            energy_range=(float(group["e_lo"].value), float(group["e_hi"].value)),
-            drift_time_range=(float(group["dt_lo"].value), float(group["dt_hi"].value)),
+            energy_range=(
+                float(group["energy_lo"].value),
+                float(group["energy_hi"].value),
+            ),
+            drift_time_range=(
+                float(group["drift_time_lo"].value),
+                float(group["drift_time_hi"].value),
+            ),
         )
 
         sp = Superpulse(
@@ -978,7 +1008,7 @@ def plot_superpulses(
     Parameters
     ----------
     lh5_file
-        Path to the LH5 file produced by :func:`write_superpulses_to_lh5`.
+        Path to the LH5 file produced by :func:`write_superpulses`.
     detector
         Detector name (top-level group in the file).
     curve
@@ -1016,12 +1046,12 @@ def plot_superpulses(
         struct = lh5.read(group, lh5_file)
 
         if e_lo is None:
-            e_lo = struct["e_lo"].value
-            e_hi = struct["e_hi"].value
+            e_lo = struct["energy_lo"].value
+            e_hi = struct["energy_hi"].value
 
-        dt_center = struct["dt_center"].value
-        dt_lo = struct["dt_lo"].value
-        dt_hi = struct["dt_hi"].value
+        dt_center = struct["drift_time_center"].value
+        dt_lo = struct["drift_time_lo"].value
+        dt_hi = struct["drift_time_hi"].value
         n_events = struct["n_events_final"].value
         times = struct[f"{curve}_time_axis"].nda
         wf = struct[f"{curve}_wf"].nda
