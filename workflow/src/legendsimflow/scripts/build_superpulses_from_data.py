@@ -1,6 +1,19 @@
-"""Script to generate HPGe superpulses using legend-simflow."""
+# ruff: noqa: I002
 
-from __future__ import annotations
+# Copyright (C) 2026 Giovanna Saleh
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
 import logging
@@ -29,16 +42,18 @@ from legendsimflow.superpulses import (
 
 MIN_NUMBER_WFS = 50
 TARGET_WFS = 200
-CHI2_THRESHOLD = 3.0
+CHI2_THRESHOLD = 3
 
-CHARGE_OUTPUT = "wf_pz_bl_sub"
+EVT_TIER_NAME = "pet"
+
+CHARGE_OUTPUT = "wf_pz_win"
 CURR_OUTPUT = "curr_av"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--detector", type=str, required=True, help="Detector name (e.g., V03422A)"
@@ -65,7 +80,7 @@ def main():
         help="limit number of files per tier (default: all)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     logger.info(
         "--- Starting Superpulse Generation for %s (%s) ---", args.detector, args.runid
@@ -73,18 +88,18 @@ def main():
 
     lmeta = LegendMetadata(str(args.meta))
 
-    raw_files, dsp_files, evt_files, dsp_config, tab_map = lookup_superpulse_inputs(
+    raw_files, evt_files, dsp_config, tab_map = lookup_superpulse_inputs(
         l200data=args.l200data,
         metadata=lmeta,
         runid=args.runid,
         hpge=args.detector,
         max_files=args.max_files,
+        evt_tier_name=EVT_TIER_NAME,
     )
     file_info = AttrsDict(
         {
             "raw": [str(f) for f in raw_files],
             "evt": [str(f) for f in evt_files],
-            "dsp": [str(f) for f in dsp_files],
         }
     )
 
@@ -117,7 +132,6 @@ def main():
         end_time_field="geds/psd/low_aoe/time",
     )
 
-    # Output paths
     args.outdir.mkdir(parents=True, exist_ok=True)
     output_lh5 = args.outdir / f"{args.detector}_{period}_{run}_superpulses.lh5"
     output_pdf = args.outdir / f"{args.detector}_{period}_{run}_superpulses.pdf"
@@ -130,7 +144,7 @@ def main():
             logger.info(msg)
 
             if slice_wfs_indices.n_sel < MIN_NUMBER_WFS:
-                msg = f"... not enough waveforms {len(slice_wfs_indices.n_sel)} found for {current_slice} skipping"
+                msg = f"... not enough waveforms {slice_wfs_indices.n_sel} found for {current_slice} skipping"
                 logger.warning(msg)
                 continue
 
@@ -141,8 +155,12 @@ def main():
                 hit_indices=slice_wfs_indices.hit_idx,
                 file_indices=slice_wfs_indices.file_idx,
                 dsp_config=dsp_config,
-                norm="cuspEmax",
+                charge_output=CHARGE_OUTPUT,
+                current_output=CURR_OUTPUT,
+                energy_output="cuspEmax",
+                bl_output="bl_std_win",
             )
+
             if wf_data is None:
                 msg = f"... no valid waveforms found for {current_slice} skipping"
                 logger.warning(msg)
@@ -255,6 +273,8 @@ def main():
 
     logger.info("summary plots saved to %s", args.outdir)
     logger.info("done!")
+
+    return 0
 
 
 if __name__ == "__main__":

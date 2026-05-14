@@ -22,81 +22,85 @@ from legendsimflow.superpulses import (
 )
 
 dsp = {
-    "wf_mean , wf_std, wf_slope, wf_intercept": {
-        "description": "finds mean and rms of whole waveform",
-        "function": "linear_slope_fit",
-        "module": "dspeed.processors",
-        "args": [
-            "waveform",
-            "wf_mean",
-            "wf_std",
-            "wf_slope",
-            "wf_intercept",
-        ],
-        "unit": [
-            "ADC",
-            "ADC",
-            "ADC",
-            "ADC",
-        ],
-    },
-    "wf_slope_diff , wf_slope_rms": {
-        "description": ("finds mean and rms relative to linear fit of the waveform"),
-        "function": "linear_slope_diff",
-        "module": "dspeed.processors",
-        "args": [
-            "waveform",
-            "wf_slope",
-            "wf_intercept",
-            "wf_slope_diff",
-            "wf_slope_rms",
-        ],
-        "unit": [
-            "ADC",
-            "ADC",
-        ],
-    },
-    "tp_min, tp_max, wf_min, wf_max": {
-        "description": (
-            "find max and min of windowed waveform with corresponding time points"
-        ),
-        "function": "min_max",
-        "module": "dspeed.processors",
-        "args": [
-            "waveform(len(waveform),'f')",
-            "tp_min",
-            "tp_max",
-            "wf_min",
-            "wf_max",
-        ],
-        "unit": [
-            "ns",
-            "ns",
-            "ADC",
-            "ADC",
-        ],
-    },
-    "bl_mean_win , bl_std_win, bl_slope_win, bl_intercept_win": {
-        "description": (
-            "finds mean and rms of windowed waveform baseline (first 3us) "
-            "as well as linear fit to this"
-        ),
-        "function": "linear_slope_fit",
-        "module": "dspeed.processors",
-        "args": [
-            "waveform(len(waveform),'H')[0: 187]",
-            "bl_mean_win",
-            "bl_std_win",
-            "bl_slope_win",
-            "bl_intercept_win",
-        ],
-        "unit": [
-            "ADC",
-            "ADC",
-            "ADC",
-            "ADC",
-        ],
-    },
+    "processors": {
+        "wf_mean , wf_std, wf_slope, wf_intercept": {
+            "description": "finds mean and rms of whole waveform",
+            "function": "linear_slope_fit",
+            "module": "dspeed.processors",
+            "args": [
+                "waveform",
+                "wf_mean",
+                "wf_std",
+                "wf_slope",
+                "wf_intercept",
+            ],
+            "unit": [
+                "ADC",
+                "ADC",
+                "ADC",
+                "ADC",
+            ],
+        },
+        "wf_slope_diff , wf_slope_rms": {
+            "description": (
+                "finds mean and rms relative to linear fit of the waveform"
+            ),
+            "function": "linear_slope_diff",
+            "module": "dspeed.processors",
+            "args": [
+                "waveform",
+                "wf_slope",
+                "wf_intercept",
+                "wf_slope_diff",
+                "wf_slope_rms",
+            ],
+            "unit": [
+                "ADC",
+                "ADC",
+            ],
+        },
+        "tp_min, tp_max, wf_min, wf_max": {
+            "description": (
+                "find max and min of windowed waveform with corresponding time points"
+            ),
+            "function": "min_max",
+            "module": "dspeed.processors",
+            "args": [
+                "waveform(len(waveform),'f')",
+                "tp_min",
+                "tp_max",
+                "wf_min",
+                "wf_max",
+            ],
+            "unit": [
+                "ns",
+                "ns",
+                "ADC",
+                "ADC",
+            ],
+        },
+        "bl_mean_win , bl_std_win, bl_slope_win, bl_intercept_win": {
+            "description": (
+                "finds mean and rms of windowed waveform baseline (first 3us) "
+                "as well as linear fit to this"
+            ),
+            "function": "linear_slope_fit",
+            "module": "dspeed.processors",
+            "args": [
+                "waveform(len(waveform),'H')[0: 187]",
+                "bl_mean_win",
+                "bl_std_win",
+                "bl_slope_win",
+                "bl_intercept_win",
+            ],
+            "unit": [
+                "ADC",
+                "ADC",
+                "ADC",
+                "ADC",
+            ],
+        },
+    }
 }
 
 # ===========================================================================

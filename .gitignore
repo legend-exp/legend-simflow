@@ -9,6 +9,7 @@ tests/dummyprod/generated
 tests/dummyprod/generated-l200
 tests/dummyprod/generated-l1000
 tests/dummyprod/inputs/simprod/l200cfg01-optmap-dummy.lh5
+tests/l200data/*/generated/tier/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
