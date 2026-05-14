@@ -63,7 +63,7 @@ dependencies = [
     "numpy",
     "psutil",
     "pyg4ometry",
-    "dspeed",
+    "dspeed >= 2.1.4",
     "pygama >=2.3.6",
     "pylegendmeta >=1.4.4",
     "pyyaml",
@@ -120,7 +120,7 @@ legend-lh5io = ">=0.2,<0.3"
 legend-pydataobj = ">=2,<2.1"
 legend-pygeom-l200 = ">=0.8.3,<0.9"
 legend-pygeom-tools = ">=0.2,<0.3"
-dspeed = ">=2.1,<2.2"
+dspeed = ">=2.1.4,<2.2"
 matplotlib = "*"
 numpy = "*"
 pylegendmeta = ">=1.4.4,<1.5"
