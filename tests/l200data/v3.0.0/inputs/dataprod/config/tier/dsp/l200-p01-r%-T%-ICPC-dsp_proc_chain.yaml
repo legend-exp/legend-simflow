@@ -119,7 +119,7 @@ processors:
     module: numpy
     args:
       - waveform_presummed
-      - presum_rate
+      - 8
       - wf_presum(len(waveform_presummed), 'float32')
     unit:
       - ADC
@@ -1062,9 +1062,9 @@ processors:
     function: avg_current
     module: dspeed.processors
     args:
-      - wf_curr_window
+      - wf_pz_win
       - 1
-      - curr(shape=len(wf_curr_window)-1,  period=wf_curr_window.period,offset=wf_curr_window.offset)
+      - curr(shape=len(wf_pz_win)-1,  period=wf_pz_win.period,offset=wf_pz_win.offset)
     unit: ADC/sample
   tp_curr_min, tp_curr_max, curr_min, curr_max:
     description: find max, min of differentiated waveform with corresponding time points

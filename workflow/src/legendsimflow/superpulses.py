@@ -12,10 +12,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import awkward as ak
+import dbetto
 import numpy as np
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from lgdo import Array, Scalar, Struct, lh5
+from matplotlib import colormaps
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
@@ -207,8 +209,12 @@ class Superpulse:
                 "drift_time_center": Scalar(
                     self.slice.drift_time_center, attrs={"units": "ns"}
                 ),
-                "drift_time_lo": Scalar(self.slice.drift_time_range[0], attrs={"units": "ns"}),
-                "drift_time_hi": Scalar(self.slice.drift_time_range[1], attrs={"units": "ns"}),
+                "drift_time_lo": Scalar(
+                    self.slice.drift_time_range[0], attrs={"units": "ns"}
+                ),
+                "drift_time_hi": Scalar(
+                    self.slice.drift_time_range[1], attrs={"units": "ns"}
+                ),
                 "energy_lo": Scalar(self.slice.energy_range[0], attrs={"units": "keV"}),
                 "energy_hi": Scalar(self.slice.energy_range[1], attrs={"units": "keV"}),
                 "detector": Scalar(self.detector),
@@ -224,6 +230,8 @@ def lookup_superpulse_inputs(
     runid: str,
     hpge: str,
     max_files: int | None = None,
+    *,
+    evt_tier_name: str = "evt",
 ) -> tuple[list[Path], list[Path], list[Path], Path, dict[str, int]]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
@@ -239,6 +247,8 @@ def lookup_superpulse_inputs(
         Detector name, e.g. ``"V03422A"``.
     max_files
         Limit the number of files per tier. Default: all.
+    evt_tier_name
+        Name of the evt tier to look for, e.g. "evt" or "pet". Default: "evt".
 
     Returns
     -------
@@ -260,15 +270,12 @@ def lookup_superpulse_inputs(
     raw_files = sorted((df_cfg.tier_raw / data_type / period / run).glob("*.lh5"))[
         :max_files
     ]
-    dsp_files = sorted((df_cfg.tier_dsp / data_type / period / run).glob("*.lh5"))[
-        :max_files
-    ]
-    evt_files = sorted((df_cfg.tier_evt / data_type / period / run).glob("*.lh5"))[
-        :max_files
-    ]
+    evt_files = sorted(
+        (df_cfg[f"tier_{evt_tier_name}"] / data_type / period / run).glob("*.lh5")
+    )[:max_files]
 
     if not evt_files:
-        msg = f"no EVT files found for {runid}"
+        msg = f"no evt tier files found for {runid}."
         raise FileNotFoundError(msg)
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
@@ -284,10 +291,10 @@ def lookup_superpulse_inputs(
         raise RuntimeError(msg)
 
     tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.channelmap(tstamp)
+    chmap = metadata.channelmap(tstamp, skip_version_check=True)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
-    return raw_files, dsp_files, evt_files, dsp_cfg_files[0], tab_map
+    return raw_files, evt_files, dsp_cfg_files[0], tab_map
 
 
 def _read_and_sel_evts(
@@ -421,13 +428,37 @@ def lookup_wfs_indices(
     return [
         AttrsDict(
             {
-                "file_idx": out.file_idx[::n_target],
-                "hit_idx": out.hit_idx[::n_target],
-                "n_sel": len(out.hit_idx[::n_target]),
+                "file_idx": out.file_idx[:n_target],
+                "hit_idx": out.hit_idx[:n_target],
+                "n_sel": len(out.hit_idx[:n_target]),
             }
         )
         for out in output
     ]
+
+
+def _get_dsp_config(dsp_config: str | dict | Path) -> dict:
+    if isinstance(dsp_config, dict):
+        config_dict = dsp_config
+    elif isinstance(dsp_config, (str, Path)):
+        config_dict = dbetto.utils.load_dict(dsp_config)
+    else:
+        msg = "dsp_config must be a dict or a path to a file"
+        raise ValueError(msg)
+
+    # modify the current so that the output is not cut
+    config_dict["processors"]["curr"] = {
+        "description": "differentiate waveform",
+        "function": "avg_current",
+        "module": "dspeed.processors",
+        "args": [
+            "wf_curr_window",
+            "1",
+            "curr(shape=len(wf_curr_window)-1,  period=wf_curr_window.period,offset=wf_curr_window.offset)",
+        ],
+        "unit": "ADC/sample",
+    }
+    return config_dict
 
 
 def get_wfs_for_slice(
@@ -436,13 +467,12 @@ def get_wfs_for_slice(
     hit_indices: list[int],
     file_indices: list[int],
     *,
-    dsp_config: str | dict,
+    dsp_config: str | dict | Path,
     charge_output: str = "wf_pz_win",
     current_output: str = "curr_av",
     bl_output: str = "bl_std_win",
     energy_output: str = "cuspEmax",
     align: str = "tp_aoe_max",
-    norm: str | None = None,
 ) -> AttrsDict | None:
     """Extract aligned charge and current waveforms for a set of slice events.
 
@@ -473,8 +503,6 @@ def get_wfs_for_slice(
         DSP output name for the energy,
     align
         DSP parameter used to align waveforms on the time axis.
-    norm
-        Field to normalise the waveform by.
 
     Returns
     -------
@@ -496,17 +524,21 @@ def get_wfs_for_slice(
 
     waveforms = []
     for file_idx in np.unique(file_indices):
-        indices = np.array(hit_indices)[np.array(file_indices) == file_idx]
+        indices = [
+            int(idx)
+            for idx in np.array(hit_indices)[np.array(file_indices) == file_idx]
+        ]
 
         if len(indices) == 0:
             continue
 
+        dsp = _get_dsp_config(dsp_config)
+
         browser = WaveformBrowser(
             str(raw_files[file_idx]),
             lh5_group,
-            dsp_config=dsp_config,
+            dsp_config=dsp,
             lines=[charge_output, current_output, bl_output, energy_output],
-            norm=norm,
             align=align,
         )
 
@@ -519,12 +551,20 @@ def get_wfs_for_slice(
         energy_vals = browser.lines.get(energy_output, [])
 
         # First pass: collect valid events with their x- and y-data
-        for i, (cl, il) in enumerate(zip(charge_lines, current_lines, strict=True)):
-            charge_y = cl.get_ydata()
-            current_y = il.get_ydata()
+        for i, (cl, il, el) in enumerate(
+            zip(charge_lines, current_lines, energy_vals, strict=True)
+        ):
+            charge_y = cl.get_ydata() / float(el.get_ydata()[0])
+            current_y = il.get_ydata() / float(el.get_ydata()[0])
 
             if np.any(np.isnan(charge_y)) or np.any(np.isnan(current_y)):
                 log.debug("event %d: NaN in waveform, skipping", i)
+                continue
+
+            # alignment failed (skipped)
+            if align is not None and (
+                cl.get_xdata()[0] == 0.0 or il.get_xdata()[0] == 0.0
+            ):
                 continue
 
             entry = {
@@ -533,8 +573,9 @@ def get_wfs_for_slice(
                 "current_t": il.get_xdata(),
                 "current_y": current_y,
             }
+
             entry["bl_std"] = float(bl_std_vals[i].get_ydata()[0])
-            entry["energy"] = float(energy_vals[i].get_ydata()[0])
+            entry["energy"] = float(el.get_ydata()[0])
 
             waveforms.append(entry)
 
@@ -542,10 +583,23 @@ def get_wfs_for_slice(
         return None
 
     # Find the common time window (max of left edges, min of right edges)
-    charge_t_min = max(e["charge_t"][0] for e in waveforms)
-    charge_t_max = min(e["charge_t"][-1] for e in waveforms)
-    current_t_min = max(e["current_t"][0] for e in waveforms)
-    current_t_max = min(e["current_t"][-1] for e in waveforms)
+    charge_t_min = max((e["charge_t"][0] for e in waveforms), default=-1000.0)
+    charge_t_max = min((e["charge_t"][-1] for e in waveforms), default=3000.0)
+
+    current_t_min = max((e["current_t"][0] for e in waveforms), default=-1000.0)
+    current_t_max = min((e["current_t"][-1] for e in waveforms), default=3000.0)
+
+    if (current_t_max <= current_t_min) or (charge_t_max <= charge_t_min):
+        log.warning(
+            "No overlapping time window found for waveforms (current: [%f, %f], charge: [%f, %f]), skipping",
+            current_t_min,
+            current_t_max,
+            charge_t_min,
+            charge_t_max,
+        )
+        return None
+
+    charge_times = np.arange(charge_t_min, charge_t_max)
 
     # Trim each event to the common window
     charge_list = []
@@ -554,10 +608,12 @@ def get_wfs_for_slice(
     energy_list = []
 
     for e in waveforms:
-        c_mask = (e["charge_t"] >= charge_t_min) & (e["charge_t"] <= charge_t_max)
-        i_mask = (e["current_t"] >= current_t_min) & (e["current_t"] <= current_t_max)
+        # interpolate charge to 1 ns
+        charge_wf = np.interp(charge_times, e["charge_t"], e["charge_y"])
 
-        charge_list.append(np.array(e["charge_y"][c_mask]))
+        i_mask = (e["current_t"] > current_t_min) & (e["current_t"] < current_t_max)
+
+        charge_list.append(charge_wf)
         curr_list.append(np.array(e["current_y"][i_mask]))
 
         bl_std_list.append(e["bl_std"])
@@ -566,11 +622,8 @@ def get_wfs_for_slice(
     # Common time axes from the first event's trimmed region
     e0 = waveforms[0]
 
-    charge_times = e0["charge_t"][
-        (e0["charge_t"] >= charge_t_min) & (e0["charge_t"] <= charge_t_max)
-    ]
     current_times = e0["current_t"][
-        (e0["current_t"] >= current_t_min) & (e0["current_t"] <= current_t_max)
+        (e0["current_t"] > current_t_min) & (e0["current_t"] < current_t_max)
     ]
 
     charge_stack = np.vstack(charge_list)
@@ -815,12 +868,13 @@ def plot_wfs_and_superpulse(
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-    (ax_charge, ax_current) : tuple of Axes
+    fig
+    (ax_charge, ax_current) axes for the two panels.
     """
     sl = superpulse.slice
 
     # Shared x range: intersection of the two time axes
+
     x_min = max(charge_times[0], current_times[0])
     x_max = min(charge_times[-1], current_times[-1])
 
@@ -988,6 +1042,7 @@ def plot_chi2_cut(
     ax2.set_xlabel("Time [ns]")
     ax2.set_ylabel(ylabel)
     ax2.set_xlim(-1000, 500)
+
     ax2.grid(alpha=0.3, linestyle="--")
     ax2.legend(loc="upper left")
 
@@ -1024,7 +1079,6 @@ def plot_superpulses(
     ax  : matplotlib.axes.Axes
     """
     import matplotlib.colors as mcolors  # noqa: PLC0415
-    from matplotlib import cm  # noqa: PLC0415
 
     if curve not in ("charge", "current"):
         msg = f"curve must be 'charge' or 'current', got {curve!r}"
@@ -1036,7 +1090,8 @@ def plot_superpulses(
     )
 
     norm = mcolors.Normalize(vmin=0, vmax=2500)
-    viridis = cm.get_cmap("viridis")
+    viridis = colormaps["viridis"]
+
     ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
 
     fig, ax = plt.subplots(figsize=(12, 6))
