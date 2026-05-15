@@ -10,99 +10,16 @@ from __future__ import annotations
 
 import logging
 
-import awkward as ak
 import numpy as np
 from iminuit import Minuit
-from scipy.interpolate import interp1d
-
+from matplotlib import pyplot as plt
 from reboost import units
+from scipy.interpolate import interp1d
 
 from legendsimflow import psl
 from legendsimflow.superpulses import Slice, Superpulse
 
 log = logging.getLogger(__name__)
-
-# Match make_hpge_realistic_pulse_shape_lib defaults
-DT_DATA: float = 16.0
-MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
-
-
-def process_ideal_waveforms(  ### Merge this with psl.make_realistic_pulse_shape_lib to ensure consistency!!
-    ideal_wfs: np.ndarray,
-    rf_kernel: np.ndarray,
-    dt: float,
-    alignment_idx: int,
-    nsamples_output: int,
-) -> np.ndarray:
-    """Apply the electronics chain to ideal charge waveforms.
-
-    Mirrors the data DSP current estimation chain:
-    convolve - downsample to data sampling (16 ns) - differentiate -
-    upsample back to 1 ns - moving-window average - align to current peak.
-
-    The downsample/upsample ensures the simulated current
-    waveform has the same effective bandwidth as the data, where the
-    charge waveform is acquired at 16 ns and the current is upsampled
-    to 1 ns before smoothing.
-
-    Parameters
-    ----------
-    ideal_wfs
-        Ideal charge waveforms, shape ``(n_wfs, n_samples)``.
-    rf_kernel
-        System response kernel from
-        :func:`psl.build_electronics_response_kernel`.
-    dt
-        Time step of the ideal waveforms in ns.
-    alignment_idx
-        Sample index where the current peak is placed after alignment.
-    nsamples_output
-        Length of the output waveforms.
-
-    Returns
-    -------
-    aligned
-        Aligned current waveforms, shape ``(n_wfs, nsamples_output)``.
-
-    """
-    from dspeed.processors import moving_window_multi, upsampler  # noqa: PLC0415
-
-    convolved = ak.to_numpy(psl.apply_electronics_response(ideal_wfs, rf_kernel))
-
-    # Downsample to data sampling rate (16 ns)
-    downsample_factor = round(DT_DATA / dt)
-    n_wfs, n_samples = convolved.shape
-    # Trim to a length divisible by the downsample factor
-    n_trim = (n_samples // downsample_factor) * downsample_factor
-    convolved_trimmed = convolved[:, :n_trim]
-    # Average bins
-    charge_16ns = convolved_trimmed.reshape(n_wfs, -1, downsample_factor).mean(axis=-1)
-
-    # Differentiate at 16 ns
-    current_16ns = np.diff(charge_16ns, axis=-1, prepend=0)
-
-    # Upsample x16 back to 1 ns
-    n_samples_16 = current_16ns.shape[-1]
-    n_samples_up = (n_samples_16 - 1) * downsample_factor
-    current_1ns = np.zeros((n_wfs, n_samples_up), dtype=float)
-    upsampler(
-        current_16ns.astype(float, copy=False),
-        downsample_factor,
-        current_1ns,
-    )
-
-    # Moving window average
-    mwa_out = np.zeros_like(current_1ns)
-    moving_window_multi(
-        current_1ns,
-        MW_PARS["length"],
-        MW_PARS["num_mw"],
-        MW_PARS["mw_type"],
-        mwa_out,
-    )
-
-    aligned, _ = psl.align_waveforms_to_peak(mwa_out, alignment_idx, nsamples_output)
-    return aligned
 
 
 def select_ideal_wfs_in_slice(
@@ -193,7 +110,8 @@ def compute_rms_in_slice(
     data_wf = data_wf[valid]
 
     if len(data_wf) == 0:
-        return 1e6
+        msg = "no valid samples in comparison region"
+        raise ValueError(msg)
 
     return float(np.sqrt(np.mean((sim_on_data - data_wf) ** 2)))
 
@@ -238,17 +156,20 @@ def build_cost_function(
         if sigma <= 0 or tau <= 0:
             return 1e6
 
-        try:
-            rf = psl.build_electronics_response_kernel(
-                dt, mu_bandwidth=0.0, sigma_bandwidth=sigma, tau_rc=tau
-            )
-        except ValueError:
-            return 1e6
+        rf = psl.build_electronics_response_kernel(
+            dt, mu_bandwidth=0.0, sigma_bandwidth=sigma, tau_rc=tau
+        )
 
         total = 0.0
         for sl, ideal_wfs in ideal_wfs_slice.items():
-            processed = process_ideal_waveforms(
-                ideal_wfs, rf, dt, alignment_idx, nsamples_output
+            processed, _ = psl.process_ideal_waveforms(
+                ideal_wfs,
+                rf,
+                dt,
+                alignment_idx,
+                nsamples_output,
+                mw_pars=psl.MW_PARS,
+                dt_data=psl.DT_DATA,
             )
             sim_avg = np.mean(processed, axis=0)
             sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
@@ -260,7 +181,7 @@ def build_cost_function(
     return cost
 
 
-def get_ideal_wfs_in_slices(
+def get_ideal_wfs_all_slices(
     ideal_pulse_shape_lib,
     data_superpulses: dict[Slice, Superpulse],
     angle: str = "000",
@@ -291,8 +212,7 @@ def get_ideal_wfs_in_slices(
         - ``alignment_idx`` : sample index for current-peak alignment
         - ``nsamples_output`` : output waveform length (from data)
 
-    """  
-
+    """
     wf_key = f"waveform_{angle}_deg"
     ideal_wfs_full = ideal_pulse_shape_lib[wf_key].view_as("np")
     dt = ideal_pulse_shape_lib["dt"].value * units.units_convfact(
@@ -328,7 +248,6 @@ def get_ideal_wfs_in_slices(
         "alignment_idx": alignment_idx,
         "nsamples_output": nsamples_output,
     }
-
 
 
 def fit_electronics_parameters(
@@ -446,8 +365,6 @@ def plot_convergence(result: dict) -> tuple:
     fig : matplotlib.figure.Figure
     axes : tuple of matplotlib.axes.Axes
     """
-    from matplotlib import pyplot as plt  # noqa: PLC0415
-
     history = result["cost_history"]
     calls = np.arange(len(history))
     params = np.array([h[0] for h in history])  # (N, 2) - sigma, tau
@@ -542,8 +459,6 @@ def plot_best_fit(
     fig : matplotlib.figure.Figure
     axes : array of matplotlib.axes.Axes
     """
-    from matplotlib import pyplot as plt  # noqa: PLC0415
-
     sigma = result["sigma"]
     tau = result["tau"]
     ideal_wfs_slice = result["ideal_wfs_slice"]
@@ -575,8 +490,14 @@ def plot_best_fit(
         data_sp = data_superpulses[sl]
 
         # Produce sim superpulse at best-fit parameters
-        processed = process_ideal_waveforms(
-            ideal_wfs_slice[sl], rf, dt, alignment_idx, nsamples_output
+        processed, _ = psl.process_ideal_waveforms(
+            ideal_wfs_slice[sl],
+            rf,
+            dt,
+            alignment_idx,
+            nsamples_output,
+            mw_pars=psl.MW_PARS,
+            dt_data=psl.DT_DATA,
         )
         sim_avg = np.mean(processed, axis=0)
         sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
