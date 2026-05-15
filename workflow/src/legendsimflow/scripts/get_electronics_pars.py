@@ -21,11 +21,12 @@ from matplotlib.backends.backend_pdf import PdfPages
 from legendsimflow.plot import decorate
 
 
-from legendsimflow.superpulses import read_superpulses_from_lh5
-from legendsimflow.tuning import (
+from legendsimflow.superpulses import read_superpulses
+from legendsimflow.electronics_tuning import (
     fit_electronics_parameters,
     plot_best_fit,
     plot_convergence,
+    get_ideal_wfs_in_slices,
 )
  
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -123,17 +124,20 @@ def main():
     ideal_lib = lh5.read(args.detector, args.ideal_lib)
  
     logger.info("reading data superpulses from %s ...", args.superpulses)
-    data_superpulses = read_superpulses_from_lh5(args.superpulses, args.detector)
+    data_superpulses = read_superpulses(args.superpulses, args.detector)
     logger.info("loaded %d drift-time slices", len(data_superpulses))
  
     comparison_window = tuple(args.comparison_window) if args.comparison_window else None
  
+    # Prepare ideal waveforms
+    logger.info("selecting ideal waveforms per slice ...")
+    ideal_wfs = get_ideal_wfs_in_slices(ideal_lib, data_superpulses, angle=args.angle)
+
     # Run fit
     logger.info("starting fit (sigma0=%.1f, tau0=%.1f) ...", args.sigma_start, args.tau_start)
     result = fit_electronics_parameters(
-        ideal_pulse_shape_lib=ideal_lib,
+        **ideal_wfs,
         data_superpulses=data_superpulses,
-        angle=args.angle,
         sigma_start=args.sigma_start,
         tau_start=args.tau_start,
         sigma_limits=tuple(args.sigma_limits),
@@ -141,7 +145,7 @@ def main():
         comparison_window=comparison_window,
         max_calls=args.max_calls,
     )
- 
+
     # Print summary
     logger.info("")
     logger.info("=" * 50)

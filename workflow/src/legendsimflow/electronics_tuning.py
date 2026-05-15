@@ -15,6 +15,8 @@ import numpy as np
 from iminuit import Minuit
 from scipy.interpolate import interp1d
 
+from reboost import units
+
 from legendsimflow import psl
 from legendsimflow.superpulses import Slice, Superpulse
 
@@ -258,71 +260,39 @@ def build_cost_function(
     return cost
 
 
-def fit_electronics_parameters(
+def get_ideal_wfs_in_slices(
     ideal_pulse_shape_lib,
     data_superpulses: dict[Slice, Superpulse],
     angle: str = "000",
-    *,
-    sigma_start: float = 10.0,
-    tau_start: float = 50.0,
-    sigma_limits: tuple[float, float] = (0.1, 100),
-    tau_limits: tuple[float, float] = (1, 500),
-    comparison_window: tuple[float, float] | None = None,
-    max_calls: int = 5000,
 ) -> dict:
-    """Fit the electronics response parameters sigma and tau.
+    """Select ideal waveforms per drift-time slice.
 
-    Selects ideal waveforms from the pulse shape library in the same
-    drift-time slices as the data superpulses, then minimises the mean
-    RMS across slices using Minuit (MIGRAD + HESSE).
+    Reads the ideal pulse shape library, flattens the (r, z) grid,
+    and selects waveforms whose drift time falls in each data
+    superpulse slice.
 
     Parameters
     ----------
     ideal_pulse_shape_lib
-        Ideal waveform map (LGDO Struct) as read from LH5. Must contain
-        ``waveform_{angle}_deg`` and ``dt``.
+        Ideal waveform map (LGDO Struct) as read from LH5. Must
+        contain ``waveform_{angle}_deg`` and ``dt``.
     data_superpulses
-        Data superpulses keyed by slice, as returned by
-        :func:`superpulses.read_superpulses_from_lh5`.
+        Data superpulses keyed by slice.
     angle
         Crystal axis angle tag, e.g. ``"000"``.
-    sigma_start
-        Initial value for the Gaussian sigma in ns.
-    tau_start
-        Initial value for the exponential tau in ns.
-    sigma_limits
-        Hard bounds ``(lo, hi)`` for sigma in ns.
-    tau_limits
-        Hard bounds ``(lo, hi)`` for tau in ns.
-    comparison_window
-        ``(t_min, t_max)`` in ns relative to the current peak.
-        If ``None``, the full waveform overlap is used.
-    max_calls
-        Maximum number of Minuit function evaluations.
-    run_minos
-        If True, compute asymmetric profile-likelihood errors after HESSE.
 
     Returns
     -------
-    result
-        Dictionary with keys:
+    dict
+        Keys:
 
-        - ``sigma``, ``tau`` : best-fit values in ns
-        - ``best_rms`` : cost function value at the minimum
-        - ``ideal_wfs_slice`` : ``dict[Slice, np.ndarray]`` of ideal
-          charge waveforms selected in each drift-time slice
-        - ``dt`` : time step of the ideal waveforms in ns
-        - ``alignment_idx`` : sample index used for current-peak alignment
-        - ``nsamples_output`` : length of the output current waveforms
-          (derived from data superpulses; assumes all slices have the
-          same current waveform length)
-        - ``minuit`` : the :class:`iminuit.Minuit` object
-        - ``cost_history`` : list of ``((sigma, tau), rms)`` per evaluation
+        - ``ideal_wfs_slice`` : ``dict[Slice, np.ndarray]``
+        - ``dt`` : time step in ns
+        - ``alignment_idx`` : sample index for current-peak alignment
+        - ``nsamples_output`` : output waveform length (from data)
 
-    """
-    from reboost import units  # noqa: PLC0415
+    """  
 
-    # Read library
     wf_key = f"waveform_{angle}_deg"
     ideal_wfs_full = ideal_pulse_shape_lib[wf_key].view_as("np")
     dt = ideal_pulse_shape_lib["dt"].value * units.units_convfact(
@@ -337,11 +307,9 @@ def fit_electronics_parameters(
 
     alignment_idx = orig_shape[-1] // 2
 
-    # Derive nsamples_output from data superpulses
     first_sp = next(iter(data_superpulses.values()))
     nsamples_output = len(first_sp.current_wf)
 
-    # Slice ideal waveforms to match data superpulses
     ideal_wfs_slice: dict[Slice, np.ndarray] = {}
     for sl in data_superpulses:
         wfs = select_ideal_wfs_in_slice(ideal_wfs_flat, dt, sl)
@@ -354,7 +322,69 @@ def fit_electronics_parameters(
 
     log.info("prepared %d slices", len(ideal_wfs_slice))
 
-    # Build cost
+    return {
+        "ideal_wfs_slice": ideal_wfs_slice,
+        "dt": dt,
+        "alignment_idx": alignment_idx,
+        "nsamples_output": nsamples_output,
+    }
+
+
+
+def fit_electronics_parameters(
+    ideal_wfs_slice: dict[Slice, np.ndarray],
+    data_superpulses: dict[Slice, Superpulse],
+    dt: float,
+    alignment_idx: int,
+    nsamples_output: int,
+    *,
+    sigma_start: float,
+    tau_start: float,
+    sigma_limits: tuple[float, float],
+    tau_limits: tuple[float, float],
+    comparison_window: tuple[float, float] | None = None,
+    max_calls: int = 5000,
+) -> dict:
+    """Fit the electronics response parameters sigma and tau.
+
+    Minimises the mean RMS between simulated and measured current
+    superpulses across drift-time slices using Minuit (MIGRAD).
+
+    Parameters
+    ----------
+    ideal_wfs_slice
+        Ideal charge waveforms per slice, as returned by
+        :func:`get_ideal_wfs_in_slice`.
+    data_superpulses
+        Data superpulses keyed by the same slices.
+    dt
+        Time step of the ideal waveforms in ns.
+    alignment_idx
+        Sample index for current-peak alignment.
+    nsamples_output
+        Length of the output waveforms.
+    sigma_start
+        Initial value for the Gaussian sigma in ns.
+    tau_start
+        Initial value for the exponential tau in ns.
+    sigma_limits
+        Hard bounds ``(lo, hi)`` for sigma in ns.
+    tau_limits
+        Hard bounds ``(lo, hi)`` for tau in ns.
+    comparison_window
+        ``(t_min, t_max)`` in ns relative to the current peak.
+        If ``None``, the full waveform overlap is used.
+    max_calls
+        Maximum number of Minuit function evaluations.
+
+    Returns
+    -------
+    dict
+        Keys: ``sigma``, ``tau``, ``best_rms``,
+        ``ideal_wfs_slice``, ``dt``, ``alignment_idx``,
+        ``nsamples_output``, ``minuit``, ``cost_history``.
+
+    """
     cost_fn = build_cost_function(
         ideal_wfs_slice,
         data_superpulses,
@@ -371,7 +401,6 @@ def fit_electronics_parameters(
         history.append(((sigma, tau), val))
         return val
 
-    # Minuit
     m = Minuit(tracked_cost, sigma=sigma_start, tau=tau_start)
     m.errors = (5.0, 10.0)
     m.limits["sigma"] = sigma_limits
