@@ -26,6 +26,9 @@ from scipy.signal import convolve, fftconvolve
 
 logger = logging.getLogger(__name__)
 
+DT_DATA: float = 16.0
+MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
+
 
 def build_electronics_response_kernel(
     dt: float,
@@ -245,6 +248,75 @@ def _check_pulse_shape_lib_keys(
             raise TypeError(msg)
 
 
+def process_ideal_waveforms(
+    wfs: np.ndarray,
+    rf_kernel: np.ndarray,
+    dt: float,
+    alignment_idx: int,
+    nsamples_output: int,
+    mw_pars: dict[str, int],
+    dt_data: float = 16.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply electronics response and DSP chain to ideal charge waveforms.
+
+    Convolve -> differentiate -> MWA -> align to peak.
+
+    Parameters
+    ----------
+    wfs
+        Charge waveforms, shape ``(n_wfs, n_samples)``.
+    rf_kernel
+        System response kernel from
+        :func:`build_electronics_response_kernel`.
+    dt
+        Time step of the ideal waveforms in ns.
+    alignment_idx
+        Sample index where the current peak is placed after alignment.
+    nsamples_output
+        Length of the output waveforms.
+    mw_pars
+        MWA parameters: ``length``, ``num_mw``, ``mw_type``.
+    dt_data
+        Data sampling time step in ns.
+
+    Returns
+    -------
+    aligned_currents
+        Aligned current waveforms, shape ``(n_wfs, nsamples_output)``.
+    current_peak_indices
+        Index of the current peak for each waveform before MWA
+        and alignment, shape ``(n_wfs,)``.
+
+    """
+    # Moving Window Average
+    # NOTE: import is intentionally deferred here to work around a bug in dspeed
+    # where importing it at module level causes a pint unit registry conflict.
+    from dspeed.processors import moving_window_multi  # noqa: PLC0415
+
+    convolved = ak.to_numpy(apply_electronics_response(wfs, rf_kernel))
+
+    # Derivative (charge -> current), scaled to data sampling units
+    current = np.diff(convolved, axis=-1, prepend=0) * (dt_data / dt)
+
+    # Record peak indices before MWA
+    current_peak_indices = np.argmax(current, axis=1)
+
+    # Moving window average
+    mwa_out = np.zeros_like(current, dtype=float)
+    moving_window_multi(
+        current.astype(float, copy=False),
+        mw_pars["length"],
+        mw_pars["num_mw"],
+        mw_pars["mw_type"],
+        mwa_out,
+    )
+
+    aligned_currents, _ = align_waveforms_to_peak(
+        mwa_out, alignment_idx, nsamples_output
+    )
+    return aligned_currents, current_peak_indices
+
+
 def make_realistic_pulse_shape_lib(
     ideal_pulse_shape_lib_obj: Mapping[str, Array | Scalar],
     rf_kernel: np.ndarray,
@@ -353,15 +425,18 @@ def make_realistic_pulse_shape_lib(
         original_shape = ideal_wfs_arr.shape
         wfs_flat = ideal_wfs_arr.reshape(-1, original_shape[-1])
 
-        # Convolution electronics
-        convolved_ak = apply_electronics_response(wfs_flat, rf_kernel)
-        wfs_convolved = ak.to_numpy(convolved_ak)
+        # Full processing chain: convolve -> differentiate -> MWA -> align
+        curr_aligned, current_peak_indices = process_ideal_waveforms(
+            wfs_flat,
+            rf_kernel,
+            dt,
+            alignment_idx,
+            nsamples_output_current_wfs,
+            mw_pars,
+            dt_data,
+        )
 
-        # Derivative (Charge -> Current)
-        wfs_current = np.diff(wfs_convolved, axis=-1, prepend=0) * (dt_data / dt)
-
-        # Calculate drift time from Amax
-        current_peak_indices = np.argmax(wfs_current, axis=1)
+        # Calculate drift time from current peak position
         drift_indices = current_peak_indices - kernel_delay_idx
         drift_times_flat = drift_indices * dt
         drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(
@@ -373,26 +448,10 @@ def make_realistic_pulse_shape_lib(
         dt_key = key.replace("waveform", "drift_time")
         realistic_pulse_shape_lib[dt_key] = Array(drift_times_2d, attrs={"units": "ns"})
 
-        # Moving Window Average
-        # NOTE: import is intentionally deferred here to work around a bug in dspeed
-        # where importing it at module level causes a pint unit registry conflict.
-        from dspeed.processors import moving_window_multi  # noqa: PLC0415
-
-        wf_in = wfs_current.astype(float, copy=False)
-        wfs_mwa = np.zeros_like(wf_in)
-        moving_window_multi(
-            wf_in, mw_pars["length"], mw_pars["num_mw"], mw_pars["mw_type"], wfs_mwa
-        )
-
-        # Align current waveforms to Amax
-        wfs_aligned, _ = align_waveforms_to_peak(
-            wfs_mwa, alignment_idx, nsamples_output_current_wfs
-        )
-
         # Reshape
-        new_length = wfs_aligned.shape[-1]
+        new_length = curr_aligned.shape[-1]
         new_shape = (*original_shape[:-1], new_length)
-        wfs_out = wfs_aligned.reshape(new_shape).astype(np.float64)
+        wfs_out = curr_aligned.reshape(new_shape).astype(np.float64)
 
         # Restore NaN for invalid pixels in waveforms
         wfs_out[nan_mask] = np.nan

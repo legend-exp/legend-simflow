@@ -33,12 +33,10 @@ ALIGNMENT_IDX = 3000  # Index to align current waveforms to Amax
 NSAMPLES_OUTPUT_CURRENT_WFS = (
     5001  # Final length of the realistic current waveforms in the map
 )
-DT_DATA = 16.0  # Time step of the original data waveforms in ns (used to scale the derivative)
-MW_PARS = {
-    "length": 48,
-    "num_mw": 3,
-    "mw_type": 0,
-}  # Parameters for the moving window average step
+DT_DATA = (
+    psl.DT_DATA
+)  # Time step of the original data waveforms in ns (used to scale the derivative)
+MW_PARS = psl.MW_PARS  # Parameters for the moving window average step
 
 
 def main():
