@@ -73,8 +73,8 @@ rule make_simstat_partition_file:
         "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
 
-def smk_hpge_drift_time_map_inputs(wildcards):
-    """Prepare inputs for the HPGe drift time map rule."""
+def smk_hpge_psd_simulation_inputs(wildcards):
+    """Prepare inputs for the HPGe PSD simulation (SSD) rules."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
     ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
     crystal_name = (
@@ -89,8 +89,8 @@ def smk_hpge_drift_time_map_inputs(wildcards):
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
-        "dtmap_settings": _m
-        / f"simprod/config/pars/{config.experiment}/geds/dtmap/settings.yaml",
+        "ssd_settings": _m
+        / f"simprod/config/pars/{config.experiment}/geds/ssd/settings.yaml",
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -107,7 +107,7 @@ rule build_hpge_drift_time_map:
     message:
         "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
-        unpack(smk_hpge_drift_time_map_inputs),
+        unpack(smk_hpge_psd_simulation_inputs),
     params:
         metadata_path=config.paths.metadata,
     output:
@@ -123,7 +123,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
-        "    --dtmap-settings {input.dtmap_settings}"
+        "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 
@@ -187,6 +187,82 @@ rule plot_hpge_drift_time_maps:
         patterns.plot_dtmap_filename(config),
     script:
         "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
+
+
+rule build_hpge_pulse_shape_library:
+    """Produce an HPGe pulse shape library.
+
+    Run a Julia script based on a pulse shape simulation performed with the
+    `SolidStateDetectors.jl` package, using crystal geometry information from
+    `legend-metadata`.
+
+    Uses wildcards `hpge_detector` and `hpge_voltage`.
+    """
+    message:
+        "Generating pulse shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+    input:
+        unpack(smk_hpge_psd_simulation_inputs),
+    params:
+        metadata_path=config.paths.metadata,
+    output:
+        patterns.output_psl_filename(config),
+    log:
+        patterns.log_psl_filename(config),
+    benchmark:
+        patterns.benchmark_psl_filename(config)
+    # NOTE: not using the `script` directive here since Snakemake has no nice
+    # way to handle package dependencies nor Project.toml
+    shell:
+        "julia --project=workflow/src/LegendSimflow.jl --threads 1"
+        "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
+        "    --detector {wildcards.hpge_detector}"
+        f"   --metadata {config.paths.metadata}"
+        "    --ssd-settings {input.ssd_settings}"
+        "    --opv {wildcards.hpge_voltage}"
+        "    --output-file {output} &> {log}"
+
+
+rule merge_hpge_pulse_shape_libraries:
+    """Merge HPGe pulse shape libraries in a single file.
+
+    Copy the top-level LH5 objects from each individual detector pulse shape libraries
+    file into a single merged file using `h5copy`.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Merging HPGe pulse shape libraries files for {wildcards.runid}"
+    input:
+        lambda wc: aggregate.gen_list_of_dtmaps(
+            config, wc.runid, cache=smk_load_hpge_cache()
+        ),
+    output:
+        patterns.output_psl_merged_filename(config),
+    shell:
+        r"""
+        shopt -s nullglob
+        out={output}
+
+        # expand input files
+        set -- {input}
+
+        # if no matches, create an empty hdf5 file
+        if [ "$#" -eq 0 ]; then
+          python -c "import h5py; h5py.File('$out', 'w')"
+          exit 0
+        fi
+
+        # seed with the first file
+        cp "$1" "$out"
+        shift
+
+        # merge top-level objects from the rest
+        for f in "$@"; do
+          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
+            h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
+          done
+        done
+        """
 
 
 def smk_extract_current_pulse_model_inputs(wildcards):

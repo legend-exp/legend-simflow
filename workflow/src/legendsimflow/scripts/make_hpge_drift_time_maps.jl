@@ -63,8 +63,8 @@ function main()
         help = "detector operational voltage in V (defaults to metadata value)"
     end
     @add_arg_table s begin
-        "--dtmap-settings"
-        help = "Path to dtmap settings YAML file (optional; built-in defaults used if absent or missing)"
+        "-ssd-settings"
+        help = "Path to ssd settings YAML file (optional; built-in defaults used if absent or missing)"
         default = nothing
     end
 
@@ -83,10 +83,10 @@ function main()
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
     # Load optional simulation settings, falling back to built-in defaults.
-    # The settings file path is passed via --dtmap-settings and applies globally
+    # The settings file path is passed via --ssd-settings and applies globally
     # to all detectors and voltages.
-    dtmap_settings = parsed_args["dtmap-settings"]
-    sim_cfg = (!isnothing(dtmap_settings) && isfile(dtmap_settings)) ? readprops(dtmap_settings) : PropDict()
+    ssd_settings = parsed_args["ssd_-settings"]
+    sim_cfg = (!isnothing(ssd_settings) && isfile(ssd_settings)) ? readprops(ssd_settings) : PropDict()
     grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)
