@@ -75,8 +75,8 @@ rule make_simstat_partition_file:
         "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
 
-def smk_hpge_drift_time_map_inputs(wildcards):
-    """Prepare inputs for the HPGe drift time map rule."""
+def smk_hpge_psd_simulation_inputs(wildcards):
+    """Prepare inputs for the HPGe PSD simulation (SSD) rules."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
     ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
     crystal_name = (
@@ -91,8 +91,8 @@ def smk_hpge_drift_time_map_inputs(wildcards):
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
-        "dtmap_settings": _m
-        / f"simprod/config/pars/{config.experiment}/geds/dtmap/settings.yaml",
+        "ssd_settings": _m
+        / f"simprod/config/pars/{config.experiment}/geds/ssd/settings.yaml",
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -109,7 +109,7 @@ rule build_hpge_drift_time_map:
     message:
         "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
-        unpack(smk_hpge_drift_time_map_inputs),
+        unpack(smk_hpge_psd_simulation_inputs),
     params:
         metadata_path=config.paths.metadata,
     output:
@@ -125,7 +125,7 @@ rule build_hpge_drift_time_map:
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
-        "    --dtmap-settings {input.dtmap_settings}"
+        "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 
@@ -191,28 +191,8 @@ rule plot_hpge_drift_time_maps:
         "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
 
 
-def smk_hpge_ideal_pulse_shape_lib_inputs(wildcards):
-    """Prepare inputs for the HPGe ideal pulse shape library rule."""
-    meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
-    ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
-    crystal_name = (
-        ids[meta.type] + format(meta.production.order, "02d") + meta.production.crystal
-    )
-
-    _m = Path(config.paths.metadata)
-
-    diode = _m / f"hardware/detectors/germanium/diodes/{wildcards.hpge_detector}.yaml"
-    crystal = _m / f"hardware/detectors/germanium/crystals/{crystal_name}.yaml"
-
-    return {
-        "detdb_file": diode,
-        "crydb_file": crystal,
-        "_dummy": rules._init_julia_env.output,
-    }
-
-
-rule build_hpge_ideal_pulse_shape_lib:
-    """Produce an HPGe ideal pulse shape library.
+rule build_hpge_pulse_shape_library:
+    """Produce an HPGe pulse shape library.
 
     Run a Julia script based on a pulse shape simulation performed with the
     `SolidStateDetectors.jl` package, using crystal geometry information from
@@ -221,24 +201,25 @@ rule build_hpge_ideal_pulse_shape_lib:
     Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Generating ideal pulse shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+        "Generating pulse shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
-        unpack(smk_hpge_ideal_pulse_shape_lib_inputs),
+        unpack(smk_hpge_psd_simulation_inputs),
     params:
         metadata_path=config.paths.metadata,
     output:
-        patterns.output_ideal_psl_filename(config),
+        patterns.output_psl_filename(config),
     log:
-        patterns.log_ideal_psl_filename(config),
+        patterns.log_psl_filename(config),
     benchmark:
-        patterns.benchmark_ideal_psl_filename(config)
+        patterns.benchmark_psl_filename(config)
     # NOTE: not using the `script` directive here since Snakemake has no nice
     # way to handle package dependencies nor Project.toml
     shell:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
         "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
         "    --detector {wildcards.hpge_detector}"
-        f"    --metadata {config.paths.metadata}"
+        f"   --metadata {config.paths.metadata}"
+        "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 

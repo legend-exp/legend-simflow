@@ -262,6 +262,49 @@ def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(config.paths.dtmaps / "{runid}-hpge-drift-time-maps.lh5", **kwargs)
 
 
+def output_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the HPGe psl file for a detector and voltage."""
+    return _expand(
+        config.paths.pulse_shape_lib
+        / "singles/{hpge_detector}-{hpge_voltage}V-hpge-pulse-shape-library.lh5",
+        **kwargs,
+    )
+
+
+def output_psl_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the merged HPGe psl file for a `runid`."""
+    return _expand(
+        config.paths.pulse_shape_lib / "{runid}-hpge-pulse-shape-library.lh5", **kwargs
+    )
+
+
+def log_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for drift time map generation for a detector and voltage."""
+    pat = (
+        log_dirname(config)
+        / "hpge/pulse_shape_lib/{hpge_detector}-{hpge_voltage}V-drift-time-map.log"
+    )
+    return _expand(pat, **kwargs)
+
+
+def plot_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the pulse shape library validation plot for a detector and voltage."""
+    pat = (
+        config.paths.pulse_shape_lib
+        / "singles/plots/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
+    )
+    return _expand(pat, **kwargs)
+
+
+def benchmark_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The benchmark file path for pulse shape library generation for a detector and voltage."""
+    pat = (
+        config.paths.benchmarks
+        / "hpge/pulse_shape_lib/{hpge_detector}-{hpge_voltage}V-drift-time-map.tsv"
+    )
+    return _expand(pat, **kwargs)
+
+
 def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for drift time map generation for a detector and voltage."""
     pat = (
