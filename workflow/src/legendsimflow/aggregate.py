@@ -137,9 +137,6 @@ def gen_list_of_all_plots(config: SimflowConfig, **kwargs) -> list[Path]:
     return files
 
 
-# drift time maps
-
-
 def crystal_meta(config: SimflowConfig, diode_meta: AttrsDict) -> AttrsDict:
     """Get the crystal metadata starting from the diode metadata."""
     ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
@@ -340,6 +337,32 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
 
 
 def gen_list_of_dtmaps(
+    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+) -> list[Path]:
+    """Generate the list of HPGe drift time map files for a `runid`."""
+    if cache is None:
+        hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+        return [
+            patterns.output_dtmap_filename(
+                config,
+                hpge_detector=hpge,
+                hpge_voltage=get_hpge_voltage(config, hpge, runid),
+            )
+            for hpge in hpges
+        ]
+    # use the cache to avoid calling get_hpge_voltage()
+    hpge_voltages = cache[runid]
+    return [
+        patterns.output_dtmap_filename(
+            config,
+            hpge_detector=hpge,
+            hpge_voltage=voltage,
+        )
+        for hpge, voltage in hpge_voltages.items()
+    ]
+
+
+def gen_list_of_psls(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
     """Generate the list of HPGe drift time map files for a `runid`."""

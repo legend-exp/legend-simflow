@@ -101,6 +101,8 @@ def apply_path_defaults(paths: dict) -> None:
         paths["geom"] = paths["pars"] / "geom"
     if "dtmaps" not in paths:
         paths["dtmaps"] = paths["pars"] / "hpge/dtmaps"
+    if "pulse_shape_lib" not in paths:
+        paths["pulse_shape_lib"] = paths["pars"] / "hpge/pulse_shape_lib"
 
 
 def link_external_paths(
