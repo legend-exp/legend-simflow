@@ -23,6 +23,7 @@ import dbetto
 import lh5
 from lgdo import Struct
 from reboost import units
+from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import psl
 
@@ -40,6 +41,14 @@ DT_DATA = (
 MW_PARS = psl.MW_PARS  # Parameters for the moving window average step
 
 
+@snakemake_compatible(
+    mapping={
+        "detector": "wildcards.hpge_detector",
+        "currmod_file": "input.currmod",
+        "input_file": "input.ideal_psl",
+        "output_file": "output[0]",
+    }
+)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--detector", required=True, help="Detector name (LH5 group)")
