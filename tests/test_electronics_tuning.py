@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from legendsimflow import psl
 from legendsimflow.electronics_tuning import (
     build_cost_function,
     compute_rms_in_slice,
@@ -113,9 +114,13 @@ def test_build_cost_function_penalty():
     sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
     sp = _make_superpulse(sl, np.zeros(10), np.arange(10, dtype=float))
     dummy_wfs = np.zeros((2, 100))
- 
+
     cost = build_cost_function(
-        {sl: dummy_wfs}, {sl: sp}, dt=1.0, alignment_idx=50, nsamples_output=10,
+        {sl: dummy_wfs},
+        {sl: sp},
+        dt=1.0,
+        alignment_idx=50,
+        nsamples_output=10,
     )
     assert cost(-1, 30) == 1e6
     assert cost(5, -1) == 1e6
@@ -125,7 +130,6 @@ def test_build_cost_function_penalty():
 @pytest.fixture
 def cost_fixture():
     """Cost function and true parameters built from synthetic step waveforms."""
-    from legendsimflow import psl
     sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
     dt = 1.0
     n_samples = 6000
@@ -138,18 +142,30 @@ def cost_fixture():
 
     sigma_true, tau_true = 5.0, 40.0
     rf_true = psl.build_electronics_response_kernel(
-        dt, mu_bandwidth=0.0, sigma_bandwidth=sigma_true, tau_rc=tau_true,
+        dt,
+        mu_bandwidth=0.0,
+        sigma_bandwidth=sigma_true,
+        tau_rc=tau_true,
     )
     processed, _ = psl.process_ideal_waveforms(
-        ideal_wfs, rf_true, dt, alignment_idx, n_out,
-        mw_pars=psl.MW_PARS, dt_data=psl.DT_DATA,
+        ideal_wfs,
+        rf_true,
+        dt,
+        alignment_idx,
+        n_out,
+        mw_pars=psl.MW_PARS,
+        dt_data=psl.DT_DATA,
     )
     data_wf = np.mean(processed, axis=0)
     data_time = (np.arange(n_out) - alignment_idx) * dt
     sp = _make_superpulse(sl, data_wf, data_time)
 
     cost = build_cost_function(
-        {sl: ideal_wfs}, {sl: sp}, dt, alignment_idx, n_out,
+        {sl: ideal_wfs},
+        {sl: sp},
+        dt,
+        alignment_idx,
+        n_out,
     )
     return cost, sigma_true, tau_true
 
