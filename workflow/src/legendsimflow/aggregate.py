@@ -376,7 +376,11 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
 def gen_list_of_ideal_psls(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of ideal HPGe pulse shape library files for a `runid`."""
+    """Generate the list of ideal HPGe pulse shape library files for a `runid`.
+
+    If ``cache`` is provided, it must be the modelable-HPGe cache mapping
+    ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
+    """
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         return [
@@ -402,7 +406,11 @@ def gen_list_of_ideal_psls(
 def gen_list_of_realistic_psls(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of realistic HPGe pulse shape library files for a `simid`."""
+    """Generate the list of realistic HPGe pulse shape library files for a `simid`.
+
+    If ``cache`` is provided, it must be the modelable-HPGe cache mapping
+    ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
+    """
     files = []
     for runid in get_runlist(config, simid):
         hpges = (
