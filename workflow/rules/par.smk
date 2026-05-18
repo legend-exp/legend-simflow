@@ -362,11 +362,19 @@ rule extract_electronics_model_pars:
         out_dict = {}
 
         for hpge_detector, detector_pars in currmod.items():
-            current_pulse_pars = detector_pars["current_pulse_pars"]
-            out_dict[hpge_detector] = {
-                "sigma": current_pulse_pars["sigma"],
-                "tau": current_pulse_pars["tau"],
-            }
+            try:
+                current_pulse_pars = detector_pars["current_pulse_pars"]
+                out_dict[hpge_detector] = {
+                    "sigma": current_pulse_pars["sigma"],
+                    "tau": current_pulse_pars["tau"],
+                }
+            except KeyError as e:
+                missing_key = str(e)
+                msg = (
+                    f"missing key {missing_key} in current model parameters for detector "
+                    f"{hpge_detector} in {input[0]}"
+                )
+                raise KeyError(msg) from e
 
         dbetto.utils.write_dict(out_dict, output[0])
 

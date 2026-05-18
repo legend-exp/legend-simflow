@@ -415,7 +415,7 @@ def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def output_electronics_model_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the merged HPGe electronics model parameter file for a `runid`."""
+    """The path to the HPGe electronics model file extracted from merged current model parameters for a `runid`."""
     return _expand(
         config.paths.pars / "hpge/electronics_model/{runid}-model.yaml",
         **kwargs,
