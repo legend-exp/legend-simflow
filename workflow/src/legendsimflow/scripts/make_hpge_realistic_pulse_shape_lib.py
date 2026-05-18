@@ -69,7 +69,7 @@ def main():
     if args.currmod_file:
         currmod = dbetto.utils.load_dict(args.currmod_file)
         if args.detector not in currmod:
-            msg = f"detector {args.detector} not found in '{args.currmod_file}'"
+            msg = f"Detector {args.detector} not found in '{args.currmod_file}'"
             raise KeyError(msg)
         try:
             currmod_pars = currmod[args.detector]["current_pulse_pars"]
@@ -82,7 +82,10 @@ def main():
             )
             raise KeyError(msg) from e
     elif args.sigma_conv is None or args.tau_conv is None:
-        msg = "provide either --currmod-file or both --sigma-conv and --tau-conv"
+        msg = (
+            "missing required arguments: provide either --currmod-file "
+            "or both --sigma-conv and --tau-conv"
+        )
         raise ValueError(msg)
 
     # 1. Load data
