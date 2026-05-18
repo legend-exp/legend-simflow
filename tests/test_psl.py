@@ -305,3 +305,32 @@ def test_make_realistic_pulse_shape_lib_3d():
 
     assert output["waveform_0"].view_as("np").shape == (n_r, n_z, n_samples)
     assert output["drift_time_0"].view_as("np").shape == (n_r, n_z)
+
+
+def test_process_ideal_waveforms():
+ 
+    dt = 1.0
+    n_samples = 6000
+    alignment_idx = n_samples // 2
+    n_out = 3000
+ 
+    # Step functions with transitions at different samples
+    wfs = np.zeros((3, n_samples))
+    for i, t_step in enumerate([980, 1000, 1020]):
+        wfs[i, t_step:] = 1.0
+ 
+    rf = psl.build_electronics_response_kernel(
+        dt, mu_bandwidth=0.0, sigma_bandwidth=5.0, tau_rc=40.0,
+    )
+    aligned, peak_indices = psl.process_ideal_waveforms(
+        wfs, rf, dt, alignment_idx, n_out,
+        mw_pars=psl.MW_PARS, dt_data=psl.DT_DATA,
+    )
+ 
+    assert aligned.shape == (3, n_out)
+    assert len(peak_indices) == 3
+    # Peaks should be near the alignment index after alignment
+    output_peaks = np.argmax(aligned, axis=1)
+    assert np.all(np.abs(output_peaks - alignment_idx) <= 1)
+    # Each waveform should have nonzero amplitude
+    assert np.all(np.max(aligned, axis=1) > 0)
