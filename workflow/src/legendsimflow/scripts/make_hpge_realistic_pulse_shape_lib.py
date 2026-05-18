@@ -44,7 +44,7 @@ MW_PARS = psl.MW_PARS  # Parameters for the moving window average step
 @snakemake_compatible(
     mapping={
         "detector": "wildcards.hpge_detector",
-        "currmod_file": "input.currmod",
+        "electronics_model_file": "input.electronics_model",
         "input_file": "input.ideal_psl",
         "output_file": "output[0]",
     }
@@ -53,21 +53,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--detector", required=True, help="Detector name (LH5 group)")
     parser.add_argument(
-        "--sigma-conv",
-        type=float,
-        default=None,
-        help="Sigma of the gaussian component of the convolution kernel in ns",
-    )
-    parser.add_argument(
-        "--tau-conv",
-        type=float,
-        default=None,
-        help="Tau of the exponential component of the convolution kernel in ns",
-    )
-    parser.add_argument(
-        "--currmod-file",
+        "--electronics-model-file",
+        required=True,
         help=(
-            "YAML file with current-pulse model parameters keyed by detector; "
+            "YAML file with electronics-model parameters keyed by detector; "
             "used to look up sigma/tau for the selected detector"
         ),
     )
@@ -75,39 +64,32 @@ def main():
     parser.add_argument("--output-file", required=True)
     args = parser.parse_args()
 
-    if args.currmod_file:
-        currmod = dbetto.utils.load_dict(args.currmod_file)
-        if args.detector not in currmod:
-            msg = f"Detector {args.detector} not found in '{args.currmod_file}'"
-            raise KeyError(msg)
-        try:
-            currmod_pars = currmod[args.detector]["current_pulse_pars"]
-            args.sigma_conv = currmod_pars["sigma"]
-            args.tau_conv = currmod_pars["tau"]
-        except KeyError as e:
-            missing_key = str(e)
-            msg = (
-                f"missing key {missing_key} in current pulse parameters for detector "
-                f"{args.detector} in {args.currmod_file}"
-            )
-            raise KeyError(msg) from e
-    elif args.sigma_conv is None or args.tau_conv is None:
+    electronics_model = dbetto.utils.load_dict(args.electronics_model_file)
+    if args.detector not in electronics_model:
+        msg = f"Detector {args.detector} not found in '{args.electronics_model_file}'"
+        raise KeyError(msg)
+    try:
+        detector_model = electronics_model[args.detector]
+        sigma_conv = detector_model["sigma"]
+        tau_conv = detector_model["tau"]
+    except KeyError as e:
+        missing_key = str(e)
         msg = (
-            "missing required arguments: provide either --currmod-file "
-            "or both --sigma-conv and --tau-conv"
+            f"missing key {missing_key} in electronics-model parameters for detector "
+            f"{args.detector} in {args.electronics_model_file}"
         )
-        raise ValueError(msg)
+        raise KeyError(msg) from e
 
     # 1. Load data
     ideal_map_obj = lh5.read(args.detector, args.input_file)
     dt = ideal_map_obj["dt"].value * units.units_convfact(ideal_map_obj["dt"], "ns")
 
-    # 2. Setup Physics Kernel (mu=0, sigma=sigma-conv ns, tau=tau-conv ns)
+    # 2. Setup Physics Kernel (mu=0, sigma=sigma ns, tau=tau ns)
     rf_kernel = psl.build_electronics_response_kernel(
         dt,
         mu_bandwidth=0,
-        sigma_bandwidth=args.sigma_conv,
-        tau_rc=args.tau_conv,
+        sigma_bandwidth=sigma_conv,
+        tau_rc=tau_conv,
     )
 
     # 3. Process

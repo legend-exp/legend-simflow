@@ -229,8 +229,8 @@ rule convolve_hpge_ideal_pulse_shape_lib:
 
     Produces one realistic pulse shape library per detector and run by selecting
     the ideal library for the detector operational voltage in that run and
-    convolving it with electronics parameters from the merged current model
-    parameter YAML file.
+    convolving it with electronics parameters from a merged electronics-model
+    YAML file.
 
     Uses wildcards `runid` and `hpge_detector`.
     """
@@ -242,7 +242,7 @@ rule convolve_hpge_ideal_pulse_shape_lib:
             hpge_detector=wc.hpge_detector,
             hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector],
         ),
-        currmod=patterns.output_currmod_merged_filename(config),
+        electronics_model=patterns.output_electronics_model_filename(config),
     output:
         patterns.output_realistic_psl_filename(config),
     log:
@@ -336,6 +336,37 @@ rule merge_current_pulse_model_pars:
         out_dict = {}
         for i, f in enumerate(input):
             out_dict[hpges[i]] = dbetto.utils.load_dict(f)
+
+        dbetto.utils.write_dict(out_dict, output[0])
+
+
+rule extract_electronics_model_pars:
+    """Extract merged HPGe electronics model parameters in a single file per `runid`.
+
+    Reads the merged current model parameter YAML and stores a dedicated YAML
+    file containing only the electronics response model parameters (``sigma``
+    and ``tau``) keyed by detector name.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Extracting electronics model parameters in {wildcards.runid}"
+    input:
+        patterns.output_currmod_merged_filename(config),
+    output:
+        patterns.output_electronics_model_filename(config),
+    run:
+        import dbetto
+
+        currmod = dbetto.utils.load_dict(input[0])
+        out_dict = {}
+
+        for hpge_detector, detector_pars in currmod.items():
+            current_pulse_pars = detector_pars["current_pulse_pars"]
+            out_dict[hpge_detector] = {
+                "sigma": current_pulse_pars["sigma"],
+                "tau": current_pulse_pars["tau"],
+            }
 
         dbetto.utils.write_dict(out_dict, output[0])
 

@@ -502,6 +502,14 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
+def gen_list_of_electronics_models(config: SimflowConfig, simid: str) -> list[Path]:
+    r"""Generate the list of HPGe electronics model parameter files for all requested `runid`\ s."""
+    return [
+        patterns.output_electronics_model_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
+
+
 def gen_list_of_currmod_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
@@ -556,6 +564,7 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
         files.extend(gen_list_of_merged_dtmaps(config, simid))
         files.extend(gen_list_of_realistic_psls(config, simid))
         files.extend(gen_list_of_merged_currmods(config, simid))
+        files.extend(gen_list_of_electronics_models(config, simid))
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
         files.extend(gen_list_of_psdcuts(config, simid))
