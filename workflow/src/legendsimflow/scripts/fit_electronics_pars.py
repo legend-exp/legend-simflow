@@ -1,3 +1,20 @@
+# ruff: noqa: I002
+
+# Copyright (C) 2026 Giovanna Saleh <giovanna.saleh@phd.unipd.it>,
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """Tune the electronics response parameters (sigma, tau) against data superpulses.
 
 Reads an ideal pulse shape library and data superpulses from LH5, fits the
@@ -6,8 +23,6 @@ the mean RMS between simulated and measured current superpulses, and writes
 the best-fit parameters to a YAML file.
 
 """
-
-from __future__ import annotations
 
 import argparse
 import logging
@@ -20,7 +35,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import metadata as mutils
 from legendsimflow import utils
-from legendsimflow.electronics_tuning import (
+from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
     plot_best_fit,
@@ -29,7 +44,6 @@ from legendsimflow.electronics_tuning import (
 from legendsimflow.plot import decorate
 from legendsimflow.superpulses import read_superpulses
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 DT_RANGE_TUNING: tuple[float, float] = (1000.0, 2000.0)

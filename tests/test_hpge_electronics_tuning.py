@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from legendsimflow import psl
-from legendsimflow.electronics_tuning import (
+from legendsimflow.hpge_electronics_tuning import (
     build_cost_function,
     compute_rms_in_slice,
     select_ideal_wfs_in_slice,
