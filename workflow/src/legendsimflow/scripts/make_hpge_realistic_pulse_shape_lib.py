@@ -76,7 +76,7 @@ def main():
             args.sigma_conv = currmod_pars["sigma"]
             args.tau_conv = currmod_pars["tau"]
         except KeyError as e:
-            missing_key = e.args[0]
+            missing_key = str(e)
             msg = (
                 f"missing key {missing_key} in current pulse parameters for detector "
                 f"{args.detector} in {args.currmod_file}"
