@@ -15,6 +15,7 @@ from iminuit import Minuit
 from matplotlib import pyplot as plt
 from reboost import units
 from scipy.interpolate import interp1d
+from collections.abc import Callable
 
 from legendsimflow import psl
 from legendsimflow.superpulses import Slice, Superpulse
@@ -123,7 +124,7 @@ def build_cost_function(
     alignment_idx: int,
     nsamples_output: int,
     comparison_window: tuple[float, float] | None = None,
-) -> callable:
+) -> Callable:
     """Build the scalar cost function for the Minuit minimiser.
 
     The returned function has signature ``cost(sigma, tau) -> float``
@@ -273,7 +274,7 @@ def fit_electronics_parameters(
     ----------
     ideal_wfs_slice
         Ideal charge waveforms per slice, as returned by
-        :func:`get_ideal_wfs_in_slice`.
+        :func:`get_ideal_wfs_all_slices`.
     data_superpulses
         Data superpulses keyed by the same slices.
     dt

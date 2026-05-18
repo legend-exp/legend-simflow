@@ -20,6 +20,7 @@ from collections.abc import Mapping
 
 import awkward as ak
 import numpy as np
+from dspeed.processors import moving_window_multi
 from lgdo import Array, Scalar
 from reboost import units
 from scipy.signal import convolve, fftconvolve
@@ -255,7 +256,7 @@ def process_ideal_waveforms(
     alignment_idx: int,
     nsamples_output: int,
     mw_pars: dict[str, int],
-    dt_data: float = 16.0,
+    dt_data: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply electronics response and DSP chain to ideal charge waveforms.
 
@@ -288,11 +289,6 @@ def process_ideal_waveforms(
         and alignment, shape ``(n_wfs,)``.
 
     """
-    # Moving Window Average
-    # NOTE: import is intentionally deferred here to work around a bug in dspeed
-    # where importing it at module level causes a pint unit registry conflict.
-    from dspeed.processors import moving_window_multi  # noqa: PLC0415
-
     convolved = ak.to_numpy(apply_electronics_response(wfs, rf_kernel))
 
     # Derivative (charge -> current), scaled to data sampling units

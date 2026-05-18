@@ -3,7 +3,7 @@
 Reads an ideal pulse shape library and data superpulses from LH5, fits the
 Gaussian sigma and exponential tau of the system response kernel by minimising
 the mean RMS between simulated and measured current superpulses, and writes
-the best-fit parameters to a JSON file.
+the best-fit parameters to a YAML file.
 
 """
 
@@ -18,6 +18,8 @@ from lgdo import lh5
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from legendsimflow import metadata as mutils
+from legendsimflow import utils
 from legendsimflow.electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
@@ -57,6 +59,20 @@ def main():
     )
 
     # Optional settings
+    parser.add_argument(
+        "--simflow-config",
+        type=str,
+        default=None,
+        help="Simflow config YAML path. If provided and metadata contains "
+        "default electronics parameters, the fit is skipped.",
+    )
+    parser.add_argument(
+        "--runid",
+        type=str,
+        default=None,
+        help="LEGEND run identifier (e.g. l200-p03-r000-phy). "
+        "Required when --simflow-config is given.",
+    )
     parser.add_argument(
         "--angle", type=str, default="000", help="Crystal axis angle tag (default: 000)"
     )
@@ -118,6 +134,35 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Check for metadata defaults; if present, skip the fit
+    if args.simflow_config is not None:
+        if args.runid is None:
+            parser.error("--runid is required when --simflow-config is given")
+
+        config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+        metadata = config.metadata
+
+        raw_epars = mutils.simpars(
+            metadata,
+            "geds.electronics_pars",
+            args.runid,
+            config.experiment,
+            default=None,
+        )
+        epars_default = (
+            raw_epars.get("default", None) if raw_epars is not None else None
+        )
+
+        if epars_default is not None:
+            logger.info(
+                "using electronics_pars metadata defaults for %s", args.detector
+            )
+            entry = raw_epars.get(args.detector, epars_default)
+            with Path(args.output_file).open("w") as f:
+                yaml.dump(entry.to_dict(), f, default_flow_style=False)
+            logger.info("results written to %s", args.output_file)
+            return
 
     # Load inputs
     logger.info("reading ideal library from %s ...", args.ideal_lib)
