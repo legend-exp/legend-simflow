@@ -362,32 +362,6 @@ def gen_list_of_dtmaps(
     ]
 
 
-def gen_list_of_psls(
-    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
-) -> list[Path]:
-    """Generate the list of HPGe pulse shape library files for a `runid`."""
-    if cache is None:
-        hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
-        return [
-            patterns.output_psl_filename(
-                config,
-                hpge_detector=hpge,
-                hpge_voltage=get_hpge_voltage(config, hpge, runid),
-            )
-            for hpge in hpges
-        ]
-    # use the cache to avoid calling get_hpge_voltage()
-    hpge_voltages = cache[runid]
-    return [
-        patterns.output_psl_filename(
-            config,
-            hpge_detector=hpge,
-            hpge_voltage=voltage,
-        )
-        for hpge, voltage in hpge_voltages.items()
-    ]
-
-
 def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
     r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
     return [
@@ -502,10 +476,25 @@ def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
-def gen_list_of_electronics_models(config: SimflowConfig, simid: str) -> list[Path]:
+def gen_list_of_elecmods(
+    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+) -> list[Path]:
+    """Generate the list of HPGe electronics model parameter files for a `runid`."""
+    hpges = (
+        gen_list_of_hpges_valid_for_modeling(config, runid)
+        if cache is None
+        else cache[runid].keys()
+    )
+    return [
+        patterns.output_elecmod_filename(config, hpge_detector=hpge, runid=runid)
+        for hpge in hpges
+    ]
+
+
+def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]:
     r"""Generate the list of HPGe electronics model parameter files for all requested `runid`\ s."""
     return [
-        patterns.output_electronics_model_filename(config, runid=runid)
+        patterns.output_elecmod_merged_filename(config, runid=runid)
         for runid in get_runlist(config, simid)
     ]
 
@@ -564,7 +553,7 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
         files.extend(gen_list_of_merged_dtmaps(config, simid))
         files.extend(gen_list_of_realistic_psls(config, simid))
         files.extend(gen_list_of_merged_currmods(config, simid))
-        files.extend(gen_list_of_electronics_models(config, simid))
+        files.extend(gen_list_of_merged_elecmods(config, simid))
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
         files.extend(gen_list_of_psdcuts(config, simid))

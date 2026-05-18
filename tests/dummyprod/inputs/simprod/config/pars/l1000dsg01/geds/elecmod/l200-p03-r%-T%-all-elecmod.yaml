@@ -1,0 +1,7 @@
+default:
+  sigma: 40.0
+  tau: 150.0
+
+V02160A:
+  sigma: 50.0
+  tau: 120.0

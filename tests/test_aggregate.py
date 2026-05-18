@@ -169,7 +169,8 @@ def test_currmod_stuff(config):
 
     assert len(agg.gen_list_of_currmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_currmods(config, simid)) == 1
-    assert len(agg.gen_list_of_electronics_models(config, simid)) == 1
+    assert len(agg.gen_list_of_elecmods(config, runid)) == 1
+    assert len(agg.gen_list_of_merged_elecmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
 
 
