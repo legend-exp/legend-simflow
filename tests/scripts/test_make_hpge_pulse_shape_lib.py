@@ -25,7 +25,7 @@ def test_make_hpge_pulse_shape_lib_l1000(tmp_path):
             "1",
             str(
                 repo_root
-                / "workflow/src/legendsimflow/scripts/make_hpge_pulse_shape_lib.jl"
+                / "workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
             ),
             "--detector",
             "V05261B",

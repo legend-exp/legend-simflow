@@ -78,7 +78,7 @@ function main()
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
     # Load optional simulation settings, falling back to built-in defaults.
-    # The settings file path is passed via --dtmap-settings and applies globally
+    # The settings file path is passed via --ssd-settings and applies globally
     # to all detectors and voltages.
     ssd_settings = parsed_args["ssd-settings"]
     sim_cfg = (!isnothing(ssd_settings) && isfile(ssd_settings)) ? readprops(ssd_settings) : PropDict()
