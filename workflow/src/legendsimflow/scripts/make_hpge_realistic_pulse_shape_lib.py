@@ -69,7 +69,7 @@ def main():
     if args.currmod_file:
         currmod = dbetto.utils.load_dict(args.currmod_file)
         if args.detector not in currmod:
-            msg = f"detector {args.detector} not found in {args.currmod_file}"
+            msg = f"detector {args.detector} not found in '{args.currmod_file}'"
             raise KeyError(msg)
         try:
             currmod_pars = currmod[args.detector]["current_pulse_pars"]
