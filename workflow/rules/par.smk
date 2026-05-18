@@ -238,7 +238,7 @@ rule build_hpge_ideal_pulse_shape_lib:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
         "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
         "    --detector {wildcards.hpge_detector}"
-        f"   --metadata {config.paths.metadata}"
+        f"    --metadata {config.paths.metadata}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 
