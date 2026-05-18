@@ -1,0 +1,4 @@
+# no "default" key — used to test case 2: l200data base + per-detector overrides
+V02160A:
+  sigma: 60.0
+  tau: 100.0

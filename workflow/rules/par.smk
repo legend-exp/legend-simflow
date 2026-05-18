@@ -207,11 +207,11 @@ rule build_hpge_pulse_shape_library:
     params:
         metadata_path=config.paths.metadata,
     output:
-        patterns.output_psl_filename(config),
+        patterns.output_ideal_psl_filename(config),
     log:
-        patterns.log_psl_filename(config),
+        patterns.log_ideal_psl_filename(config),
     benchmark:
-        patterns.benchmark_psl_filename(config)
+        patterns.benchmark_ideal_psl_filename(config)
     # NOTE: not using the `script` directive here since Snakemake has no nice
     # way to handle package dependencies nor Project.toml
     shell:
@@ -242,7 +242,9 @@ rule convolve_hpge_ideal_pulse_shape_lib:
             hpge_detector=wc.hpge_detector,
             hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector],
         ),
-        electronics_model=patterns.output_electronics_model_filename(config),
+        electronics_model=lambda wc: patterns.output_elecmod_merged_filename(
+            config, runid=wc.runid
+        ),
     output:
         patterns.output_realistic_psl_filename(config),
     log:
@@ -341,40 +343,52 @@ rule merge_current_pulse_model_pars:
 
 
 rule extract_electronics_model_pars:
-    """Extract merged HPGe electronics model parameters in a single file per `runid`.
+    """Extract the HPGe electronics signal model.
 
-    Reads the merged current model parameter YAML and stores a dedicated YAML
-    file containing only the electronics response model parameters (``sigma``
-    and ``tau``) keyed by detector name.
+
+    Uses wildcards `runid` and `hpge_detector`.
+    """
+    message:
+        "Extracting electronics model for detector {wildcards.hpge_detector} in {wildcards.runid}"
+    # NOTE: we don't list the file dependencies here because they are
+    # dynamically generated, and that would slow down the DAG generation
+    output:
+        pars_file=temp(patterns.output_elecmod_filename(config)),
+    log:
+        patterns.log_elecmod_filename(config),
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_elec_response_model.py"
+
+
+rule merge_electronics_model_pars:
+    """Merge the HPGe electronics signal model parameters in a single file per `runid`.
+
+    Collect the individual best-fit parameter files (one per detector) and
+    write them into a single YAML file keyed by detector name.
 
     Uses wildcard `runid`.
     """
     message:
-        "Extracting electronics model parameters in {wildcards.runid}"
+        "Merging electronics model parameters in {wildcards.runid}"
     input:
-        patterns.output_currmod_merged_filename(config),
+        lambda wc: aggregate.gen_list_of_elecmods(
+            config, wc.runid, cache=smk_load_hpge_cache()
+        ),
+    params:
+        # materialize the HPGe list here so the run: block can map file
+        # indices back to detector names without calling back into the cache
+        hpges=lambda wc: list(smk_load_hpge_cache()[wc.runid]),
     output:
-        patterns.output_electronics_model_filename(config),
+        patterns.output_elecmod_merged_filename(config),
     run:
         import dbetto
 
-        currmod = dbetto.utils.load_dict(input[0])
-        out_dict = {}
+        # NOTE: this is guaranteed to be sorted as in the input file list
+        hpges = params.hpges
 
-        for hpge_detector, detector_pars in currmod.items():
-            try:
-                current_pulse_pars = detector_pars["current_pulse_pars"]
-                out_dict[hpge_detector] = {
-                    "sigma": current_pulse_pars["sigma"],
-                    "tau": current_pulse_pars["tau"],
-                }
-            except KeyError as e:
-                missing_key = str(e)
-                msg = (
-                    f"missing key {missing_key} in current model parameters for detector "
-                    f"{hpge_detector} in {input[0]}"
-                )
-                raise KeyError(msg) from e
+        out_dict = {}
+        for i, f in enumerate(input):
+            out_dict[hpges[i]] = dbetto.utils.load_dict(f)
 
         dbetto.utils.write_dict(out_dict, output[0])
 

@@ -17,12 +17,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # grid spacing in meters
-const GRID_SIZE = 0.005
+const DEFAULT_GRID_SIZE = 0.005
 # crystal axis angles in degrees (<001> and <110>)
 const CRYSTAL_AXIS_ANGLES = [0, 45]
 # SSD adaptive-mesh refinement thresholds as fractions of the crystal radius
 # matches current SSD behaviour
-const REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
+const DEFAULT_REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
 
 using LegendHDF5IO
 using ArgParse
@@ -86,10 +86,9 @@ function main()
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
 
     sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
-
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
-        result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, false, grid_size)
+        result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size)
 
         key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
         if output === nothing

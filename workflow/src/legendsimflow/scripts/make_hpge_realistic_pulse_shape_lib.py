@@ -1,3 +1,5 @@
+# ruff: noqa: I002
+
 # Copyright (C) 2026 Giovanna Saleh <giovanna.saleh@phd.unipd.it>,
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -13,23 +15,18 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
-from __future__ import annotations
-
 import argparse
-import logging
 
 import dbetto
+import legenddataflowscripts as ldfs
+import legenddataflowscripts.utils
 import lh5
 from lgdo import Struct
 from reboost import units
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import psl
-
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger(__name__)
-
+from legendsimflow import psl, utils
+from legendsimflow.scripts import log_script_invocation
 
 ALIGNMENT_IDX = 3000  # Index to align current waveforms to Amax
 NSAMPLES_OUTPUT_CURRENT_WFS = (
@@ -47,6 +44,8 @@ MW_PARS = psl.MW_PARS  # Parameters for the moving window average step
         "electronics_model_file": "input.electronics_model",
         "input_file": "input.ideal_psl",
         "output_file": "output[0]",
+        "log_file": "log[0]",
+        "simflow_config": "config",
     }
 )
 def main():
@@ -62,7 +61,23 @@ def main():
     )
     parser.add_argument("--input-file", required=True)
     parser.add_argument("--output-file", required=True)
+    parser.add_argument("--log-file", default=None, help="log file")
+    parser.add_argument(
+        "--simflow-config",
+        "--config",
+        dest="simflow_config",
+        required=True,
+        help="simflow config YAML path",
+    )
     args = parser.parse_args()
+
+    config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+    metadata = config.metadata
+
+    log_file = args.log_file
+
+    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log_script_invocation(log, "realistic-psl", parser, args)
 
     electronics_model = dbetto.utils.load_dict(args.electronics_model_file)
     if args.detector not in electronics_model:
@@ -108,7 +123,7 @@ def main():
         obj=out_struct, name=args.detector, lh5_file=args.output_file, wo_mode="of"
     )
 
-    logger.info("Realistic library created successfully: %s", args.output_file)
+    log.info("Realistic library created successfully: %s", args.output_file)
 
 
 if __name__ == "__main__":
