@@ -45,6 +45,7 @@ def _plot_currmod_from_metadata(
     ax.set_ylabel("current [a.u.]")
     ax.set_title(f"{hpge} in {runid}: current pulse model (from metadata)")
     with PdfPages(plot_file) as pdf:
+        decorate(fig)
         pdf.savefig(fig)
     plt.close(fig)
 
