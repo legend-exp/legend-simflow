@@ -289,6 +289,63 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+# hpge pulse shape libraries
+
+
+def output_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the ideal HPGe pulse shape library for a detector and voltage."""
+    pat = (
+        config.paths.pars
+        / "hpge/psl/ideal/singles/{hpge_detector}-{hpge_voltage}V-ideal-pulse-shape-lib.lh5"
+    )
+    return _expand(pat, **kwargs)
+
+
+def log_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for ideal pulse shape library generation for a detector and voltage."""
+    pat = (
+        log_dirname(config)
+        / "hpge/psl/ideal/{hpge_detector}-{hpge_voltage}V-ideal-pulse-shape-lib.log"
+    )
+    return _expand(pat, **kwargs)
+
+
+def benchmark_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The benchmark file path for ideal pulse shape library generation for a detector and voltage."""
+    pat = (
+        config.paths.benchmarks
+        / "hpge/psl/ideal/{hpge_detector}-{hpge_voltage}V-ideal-pulse-shape-lib.tsv"
+    )
+    return _expand(pat, **kwargs)
+
+
+def output_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the realistic HPGe pulse shape library for a detector and run."""
+    pat = (
+        config.paths.pars
+        / "hpge/psl/realistic/{runid}-{hpge_detector}-pulse-shape-lib.lh5"
+    )
+    return _expand(pat, **kwargs)
+
+
+def log_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for realistic pulse shape library generation for a detector and run."""
+    pat = (
+        log_dirname(config)
+        / "hpge/psl/realistic/{runid}-{hpge_detector}-pulse-shape-lib.log"
+    )
+    return _expand(pat, **kwargs)
+
+
+def benchmark_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The benchmark file path for realistic pulse shape library generation for a detector and run."""
+    pat = (
+        config.paths.benchmarks
+        / "hpge/psl/realistic/{runid}-{hpge_detector}-pulse-shape-lib.tsv"
+    )
+    return _expand(pat, **kwargs)
+
+
 # hpge current model
 
 

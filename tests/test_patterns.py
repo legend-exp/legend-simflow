@@ -244,6 +244,53 @@ def test_currmod_filenames(config):
     assert result.parent.name == "plots"
 
 
+def test_psl_filenames(config):
+    result = p.output_ideal_psl_filename(
+        config, hpge_detector=DET, hpge_voltage=VOLTAGE
+    )
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert f"{VOLTAGE}V" in str(result)
+    assert result.suffix == ".lh5"
+    assert "ideal" in str(result)
+    assert "singles" in str(result)
+
+    result = p.log_ideal_psl_filename(config, hpge_detector=DET, hpge_voltage=VOLTAGE)
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".log"
+    assert "ideal" in str(result)
+
+    result = p.benchmark_ideal_psl_filename(
+        config, hpge_detector=DET, hpge_voltage=VOLTAGE
+    )
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".tsv"
+    assert "ideal" in str(result)
+
+    result = p.output_realistic_psl_filename(config, runid=RUNID, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert RUNID in str(result)
+    assert DET in str(result)
+    assert result.suffix == ".lh5"
+    assert "realistic" in str(result)
+
+    result = p.log_realistic_psl_filename(config, runid=RUNID, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert RUNID in str(result)
+    assert DET in str(result)
+    assert result.suffix == ".log"
+    assert "realistic" in str(result)
+
+    result = p.benchmark_realistic_psl_filename(config, runid=RUNID, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert RUNID in str(result)
+    assert DET in str(result)
+    assert result.suffix == ".tsv"
+    assert "realistic" in str(result)
+
+
 def test_hpge_obs_model_filenames(config):
     result = p.output_eresmod_filename(config, runid=RUNID)
     assert isinstance(result, Path)

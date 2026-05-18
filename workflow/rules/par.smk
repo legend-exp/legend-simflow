@@ -15,6 +15,8 @@
 
 """Rules to compute the simulation parameters (`par` step)."""
 
+from pathlib import Path
+
 from legendsimflow import aggregate, hpge_pars, patterns
 
 
@@ -187,6 +189,92 @@ rule plot_hpge_drift_time_maps:
         patterns.plot_dtmap_filename(config),
     script:
         "../src/legendsimflow/scripts/plots/hpge_drift_time_maps.py"
+
+
+def smk_hpge_ideal_pulse_shape_lib_inputs(wildcards):
+    """Prepare inputs for the HPGe ideal pulse shape library rule."""
+    meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
+    ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
+    crystal_name = (
+        ids[meta.type] + format(meta.production.order, "02d") + meta.production.crystal
+    )
+
+    _m = Path(config.paths.metadata)
+
+    diode = _m / f"hardware/detectors/germanium/diodes/{wildcards.hpge_detector}.yaml"
+    crystal = _m / f"hardware/detectors/germanium/crystals/{crystal_name}.yaml"
+
+    return {
+        "detdb_file": diode,
+        "crydb_file": crystal,
+        "_dummy": rules._init_julia_env.output,
+    }
+
+
+rule build_hpge_ideal_pulse_shape_lib:
+    """Produce an HPGe ideal pulse shape library.
+
+    Run a Julia script based on a pulse shape simulation performed with the
+    `SolidStateDetectors.jl` package, using crystal geometry information from
+    `legend-metadata`.
+
+    Uses wildcards `hpge_detector` and `hpge_voltage`.
+    """
+    message:
+        "Generating ideal pulse shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+    input:
+        unpack(smk_hpge_ideal_pulse_shape_lib_inputs),
+    params:
+        metadata_path=config.paths.metadata,
+    output:
+        patterns.output_ideal_psl_filename(config),
+    log:
+        patterns.log_ideal_psl_filename(config),
+    benchmark:
+        patterns.benchmark_ideal_psl_filename(config)
+    # NOTE: not using the `script` directive here since Snakemake has no nice
+    # way to handle package dependencies nor Project.toml
+    shell:
+        "julia --project=workflow/src/LegendSimflow.jl --threads 1"
+        "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
+        "    --detector {wildcards.hpge_detector}"
+        f"   --metadata {config.paths.metadata}"
+        "    --opv {wildcards.hpge_voltage}"
+        "    --output-file {output} &> {log}"
+
+
+rule convolve_hpge_ideal_pulse_shape_lib:
+    """Convolve ideal HPGe pulse shape libraries with electronics response.
+
+    Produces one realistic pulse shape library per detector and run by selecting
+    the ideal library for the detector operational voltage in that run and
+    convolving it with electronics parameters from the merged current model
+    parameter YAML file.
+
+    Uses wildcards `runid` and `hpge_detector`.
+    """
+    message:
+        "Convolving ideal pulse shape library for detector {wildcards.hpge_detector} in {wildcards.runid}"
+    input:
+        ideal_psl=lambda wc: patterns.output_ideal_psl_filename(
+            config,
+            hpge_detector=wc.hpge_detector,
+            hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector],
+        ),
+        currmod=patterns.output_currmod_merged_filename(config),
+    output:
+        patterns.output_realistic_psl_filename(config),
+    log:
+        patterns.log_realistic_psl_filename(config),
+    benchmark:
+        patterns.benchmark_realistic_psl_filename(config)
+    shell:
+        "python workflow/src/legendsimflow/scripts/make_hpge_realistic_pulse_shape_lib.py"
+        " --detector {wildcards.hpge_detector}"
+        " --input-file {input.ideal_psl}"
+        " --currmod-file {input.currmod}"
+        " --output-file {output}"
+        " &> {log}"
 
 
 def smk_extract_current_pulse_model_inputs(wildcards):

@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+import dbetto
 import lh5
 from lgdo import Struct
 from reboost import units
@@ -45,18 +46,44 @@ def main():
     parser.add_argument(
         "--sigma-conv",
         type=float,
-        required=True,
+        default=None,
         help="Sigma of the gaussian component of the convolution kernel in ns",
     )
     parser.add_argument(
         "--tau-conv",
         type=float,
-        required=True,
+        default=None,
         help="Tau of the exponential component of the convolution kernel in ns",
+    )
+    parser.add_argument(
+        "--currmod-file",
+        help=(
+            "YAML file with current-pulse model parameters keyed by detector; "
+            "used to look up sigma/tau for the selected detector"
+        ),
     )
     parser.add_argument("--input-file", required=True)
     parser.add_argument("--output-file", required=True)
     args = parser.parse_args()
+
+    if args.currmod_file:
+        currmod = dbetto.utils.load_dict(args.currmod_file)
+        if args.detector not in currmod:
+            msg = f"detector {args.detector} not found in {args.currmod_file}"
+            raise KeyError(msg)
+        try:
+            currmod_pars = currmod[args.detector]["current_pulse_pars"]
+            args.sigma_conv = currmod_pars["sigma"]
+            args.tau_conv = currmod_pars["tau"]
+        except KeyError as e:
+            msg = (
+                f"missing key {e!s} in current pulse parameters for detector "
+                f"{args.detector} in {args.currmod_file}"
+            )
+            raise KeyError(msg) from e
+    elif args.sigma_conv is None or args.tau_conv is None:
+        msg = "provide either --currmod-file or both --sigma-conv and --tau-conv"
+        raise ValueError(msg)
 
     # 1. Load data
     ideal_map_obj = lh5.read(args.detector, args.input_file)
