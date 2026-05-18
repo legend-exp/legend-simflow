@@ -14,7 +14,7 @@ repo_root = Path(__file__).parent.parent.parent
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_l1000(tmp_path):
-    """Run the Julia drift time map script and verify the output LH5 structure."""
+    """Run the Julia pulse shape library script and verify the output LH5 structure."""
     psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-lib.lh5"
 
     subprocess.run(

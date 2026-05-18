@@ -89,7 +89,7 @@ function main()
 
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
-        result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, false, GRID_SIZE)
+        result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, false, grid_size)
 
         key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
         if output === nothing
