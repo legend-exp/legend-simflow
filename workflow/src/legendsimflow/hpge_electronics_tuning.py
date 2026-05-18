@@ -1,21 +1,35 @@
+# Copyright (C) 2026 Giovanna Saleh <giovanna.saleh@studenti.unipd.it>
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Tune the electronics response parameters of the simulation against data superpulses.
 
 Fits the Gaussian sigma and exponential tau of the system response kernel
 by minimising the mean RMS between simulated and measured current
 superpulses across drift-time slices.
-
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import numpy as np
 from iminuit import Minuit
 from matplotlib import pyplot as plt
+from numpy.typing import NDArray
 from reboost import units
 from scipy.interpolate import interp1d
-from collections.abc import Callable
 
 from legendsimflow import psl
 from legendsimflow.superpulses import Slice, Superpulse
@@ -23,9 +37,7 @@ from legendsimflow.superpulses import Slice, Superpulse
 log = logging.getLogger(__name__)
 
 
-def select_ideal_wfs_in_slice(
-    ideal_wfs: np.ndarray, dt: float, sl: Slice
-) -> np.ndarray:
+def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArray:
     """Select ideal waveforms whose drift time falls in a slice.
 
     Drift times are computed on the fly for the provided waveforms.
@@ -63,8 +75,8 @@ def select_ideal_wfs_in_slice(
 
 
 def compute_rms_in_slice(
-    sim_avg: np.ndarray,
-    sim_time: np.ndarray,
+    sim_avg: NDArray,
+    sim_time: NDArray,
     data_sp: Superpulse,
     comparison_window: tuple[float, float] | None = None,
 ) -> float:
@@ -118,7 +130,7 @@ def compute_rms_in_slice(
 
 
 def build_cost_function(
-    ideal_wfs_slice: dict[Slice, np.ndarray],
+    ideal_wfs_slice: dict[Slice, NDArray],
     data_superpulses: dict[Slice, Superpulse],
     dt: float,
     alignment_idx: int,
@@ -208,7 +220,7 @@ def get_ideal_wfs_all_slices(
     dict
         Keys:
 
-        - ``ideal_wfs_slice`` : ``dict[Slice, np.ndarray]``
+        - ``ideal_wfs_slice`` : ``dict[Slice, NDArray]``
         - ``dt`` : time step in ns
         - ``alignment_idx`` : sample index for current-peak alignment
         - ``nsamples_output`` : output waveform length (from data)
@@ -231,7 +243,7 @@ def get_ideal_wfs_all_slices(
     first_sp = next(iter(data_superpulses.values()))
     nsamples_output = len(first_sp.current_wf)
 
-    ideal_wfs_slice: dict[Slice, np.ndarray] = {}
+    ideal_wfs_slice: dict[Slice, NDArray] = {}
     for sl in data_superpulses:
         wfs = select_ideal_wfs_in_slice(ideal_wfs_flat, dt, sl)
         if len(wfs) > 0:
@@ -252,7 +264,7 @@ def get_ideal_wfs_all_slices(
 
 
 def fit_electronics_parameters(
-    ideal_wfs_slice: dict[Slice, np.ndarray],
+    ideal_wfs_slice: dict[Slice, NDArray],
     data_superpulses: dict[Slice, Superpulse],
     dt: float,
     alignment_idx: int,
