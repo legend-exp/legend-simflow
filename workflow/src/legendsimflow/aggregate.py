@@ -373,6 +373,52 @@ def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
     ]
 
 
+def gen_list_of_ideal_psls(
+    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+) -> list[Path]:
+    """Generate the list of ideal HPGe pulse shape library files for a `runid`."""
+    if cache is None:
+        hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+        return [
+            patterns.output_ideal_psl_filename(
+                config,
+                hpge_detector=hpge,
+                hpge_voltage=get_hpge_voltage(config, hpge, runid),
+            )
+            for hpge in hpges
+        ]
+    # use the cache to avoid calling get_hpge_voltage()
+    hpge_voltages = cache[runid]
+    return [
+        patterns.output_ideal_psl_filename(
+            config,
+            hpge_detector=hpge,
+            hpge_voltage=voltage,
+        )
+        for hpge, voltage in hpge_voltages.items()
+    ]
+
+
+def gen_list_of_realistic_psls(
+    config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
+) -> list[Path]:
+    """Generate the list of realistic HPGe pulse shape library files for a `simid`."""
+    files = []
+    for runid in get_runlist(config, simid):
+        hpges = (
+            gen_list_of_hpges_valid_for_modeling(config, runid)
+            if cache is None
+            else cache[runid].keys()
+        )
+        for hpge in hpges:
+            files.append(
+                patterns.output_realistic_psl_filename(
+                    config, runid=runid, hpge_detector=hpge
+                )
+            )
+    return files
+
+
 def gen_list_of_dtmap_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
@@ -477,6 +523,7 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
     for simid in gen_list_of_all_simids(config):
         files.append(patterns.simstat_part_filename(config, simid=simid))
         files.extend(gen_list_of_merged_dtmaps(config, simid))
+        files.extend(gen_list_of_realistic_psls(config, simid))
         files.extend(gen_list_of_merged_currmods(config, simid))
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
