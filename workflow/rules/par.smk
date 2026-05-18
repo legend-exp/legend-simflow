@@ -268,13 +268,8 @@ rule convolve_hpge_ideal_pulse_shape_lib:
         patterns.log_realistic_psl_filename(config),
     benchmark:
         patterns.benchmark_realistic_psl_filename(config)
-    shell:
-        "python workflow/src/legendsimflow/scripts/make_hpge_realistic_pulse_shape_lib.py"
-        " --detector {wildcards.hpge_detector}"
-        " --input-file {input.ideal_psl}"
-        " --currmod-file {input.currmod}"
-        " --output-file {output}"
-        " &> {log}"
+    script:
+        "../src/legendsimflow/scripts/make_hpge_realistic_pulse_shape_lib.py"
 
 
 def smk_extract_current_pulse_model_inputs(wildcards):
