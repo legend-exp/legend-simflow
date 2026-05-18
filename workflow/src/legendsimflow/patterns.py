@@ -414,6 +414,14 @@ def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def output_electronics_model_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the merged HPGe electronics model parameter file for a `runid`."""
+    return _expand(
+        config.paths.pars / "hpge/electronics_model/{runid}-model.yaml",
+        **kwargs,
+    )
+
+
 def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for current pulse model extraction for a detector and `runid`."""
     pat = log_dirname(config) / "hpge/currmod/{runid}-{hpge_detector}-model.log"

@@ -230,6 +230,12 @@ def test_currmod_filenames(config):
     assert RUNID in str(result)
     assert result.suffix == ".yaml"
 
+    result = p.output_electronics_model_filename(config, runid=RUNID)
+    assert isinstance(result, Path)
+    assert RUNID in str(result)
+    assert result.suffix == ".yaml"
+    assert "electronics_model" in str(result)
+
     result = p.log_currmod_filename(config, runid=RUNID, hpge_detector=DET)
     assert isinstance(result, Path)
     assert RUNID in str(result)
