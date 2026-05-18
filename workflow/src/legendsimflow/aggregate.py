@@ -365,11 +365,11 @@ def gen_list_of_dtmaps(
 def gen_list_of_psls(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map files for a `runid`."""
+    """Generate the list of HPGe pulse shape library files for a `runid`."""
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         return [
-            patterns.output_dtmap_filename(
+            patterns.output_psl_filename(
                 config,
                 hpge_detector=hpge,
                 hpge_voltage=get_hpge_voltage(config, hpge, runid),
@@ -379,7 +379,7 @@ def gen_list_of_psls(
     # use the cache to avoid calling get_hpge_voltage()
     hpge_voltages = cache[runid]
     return [
-        patterns.output_dtmap_filename(
+        patterns.output_psl_filename(
             config,
             hpge_detector=hpge,
             hpge_voltage=voltage,
