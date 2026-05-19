@@ -50,6 +50,13 @@ def _build_argv(tmp_path: Path, runid: str, hpge_detector: str) -> list[str]:
 
 def test_metadata_default_written_for_detector(tmp_path, monkeypatch):
     """p03 + a detector without its own override must get the metadata default."""
+    decorate_calls = []
+
+    monkeypatch.setattr(
+        extract_hpge_current_pulse_model,
+        "decorate",
+        lambda fig: decorate_calls.append(fig),
+    )
     monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, RUNID_P03, DET_DEFAULT))
 
     extract_hpge_current_pulse_model.main()
@@ -67,6 +74,7 @@ def test_metadata_default_written_for_detector(tmp_path, monkeypatch):
     assert result["current_pulse_pars"]["sigma"] == pytest.approx(45.0)
     assert result["mean_aoe"] == pytest.approx(0.72)
     assert result["current_reso"] == pytest.approx(4.1)
+    assert len(decorate_calls) == 1
 
 
 def test_metadata_override_wins_for_v02160a(tmp_path, monkeypatch):

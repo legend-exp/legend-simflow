@@ -79,6 +79,9 @@ style, and Snakemake rule docstring conventions.
 
 See [`workflow/AGENTS.md`](workflow/AGENTS.md).
 
+- For plotting code, always call `legendsimflow.plot.decorate(fig)` before any
+  `savefig`/`pdf.savefig` call.
+
 ## Git Workflow
 
 - Commit style: Conventional Commits (https://www.conventionalcommits.org)

@@ -224,4 +224,5 @@ ax.legend()
 
 fig.suptitle(f"{simid}: evt tier")
 
+plot.decorate(fig)
 fig.savefig(output_pdf)

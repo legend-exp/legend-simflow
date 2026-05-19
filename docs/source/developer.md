@@ -127,6 +127,12 @@ pull requests.
 
 :::
 
+## Plotting convention
+
+When creating plots in the workflow scripts, always call
+`legendsimflow.plot.decorate(fig)` before writing the figure to disk (for
+example, before `fig.savefig(...)` or `pdf.savefig(fig)`).
+
 ## Building the documentation
 
 The documentation is built with [Sphinx](https://www.sphinx-doc.org) and written
