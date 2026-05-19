@@ -110,6 +110,8 @@ def main() -> int:
 
     plot_file = Path(args.plot_file)
     output_lh5 = Path(args.output_file)
+    plot_file.parent.mkdir(parents=True, exist_ok=True)
+    output_lh5.parent.mkdir(parents=True, exist_ok=True)
 
     simflow_config = utils.init_simflow_context(
         args.simflow_config, workflow=None
@@ -342,7 +344,7 @@ def main() -> int:
         pdf.savefig(fig)
         plt.close(fig)
 
-    log.info("summary plots saved to %s", args.outdir)
+    log.info("summary plots saved to %s", plot_file)
     log.info("done!")
 
     return 0
