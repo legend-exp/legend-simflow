@@ -342,7 +342,6 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
-
 rule build_superpulses_from_data:
     """Build HPGe superpulses by accumulating all runs in the configured runlists.
 
@@ -415,7 +414,6 @@ rule merge_electronics_model_pars:
             out_dict[hpges[i]] = dbetto.utils.load_dict(f)
 
         dbetto.utils.write_dict(out_dict, output[0])
-
 
 
 rule extract_hpge_observables_models:
