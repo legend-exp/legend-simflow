@@ -135,7 +135,8 @@ def test_all_savefig_calls_are_preceded_by_decorate():
                 continue
 
             prior_lines = [
-                ln.split("#", 1)[0] for ln in lines[max(0, lineno - lookback) : lineno]
+                ln.split("#", 1)[0]
+                for ln in lines[max(0, lineno - 1 - lookback) : lineno - 1]
             ]
             assert decorate_pattern.search("\n".join(prior_lines)), (
                 f"{file}:{lineno} has savefig call without decorate in previous "
