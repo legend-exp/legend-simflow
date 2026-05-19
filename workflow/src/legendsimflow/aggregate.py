@@ -564,14 +564,10 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
     for simid in gen_list_of_all_simids(config):
         files.append(patterns.simstat_part_filename(config, simid=simid))
         files.extend(gen_list_of_merged_dtmaps(config, simid))
-        files.extend(gen_list_of_realistic_psls(config, simid))
         files.extend(gen_list_of_merged_currmods(config, simid))
-        files.extend(gen_list_of_merged_elecmods(config, simid))
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
         files.extend(gen_list_of_psdcuts(config, simid))
-    if getattr(config.paths, "l200data", None) is not None:
-        files.extend(gen_list_of_superpulses(config))
     return files
 
 
