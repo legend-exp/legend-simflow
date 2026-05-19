@@ -396,6 +396,30 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+def output_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the HPGe superpulses file for a detector."""
+    return _expand(
+        config.paths.pars / "hpge/superpulses/{hpge_detector}-superpulses.lh5",
+        **kwargs,
+    )
+
+
+def plot_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the HPGe superpulses diagnostic plot file for a detector."""
+    return _expand(
+        config.paths.pars / "hpge/superpulses/{hpge_detector}-superpulses.pdf",
+        **kwargs,
+    )
+
+
+def log_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for HPGe superpulse generation for a detector."""
+    return _expand(
+        log_dirname(config) / "hpge/superpulses/{hpge_detector}-superpulses.log",
+        **kwargs,
+    )
+
+
 def log_elecmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for elec pulse model extraction for a detector and `runid`."""
     pat = log_dirname(config) / "hpge/elecmod/{runid}-{hpge_detector}-model.log"

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import awkward as ak
 import numpy as np
+import yaml
 from legendmeta import LegendMetadata
 from lgdo import Table, WaveformTable, lh5
 from scipy.stats import norm
@@ -167,18 +169,26 @@ def test_lookup_inputs():
     assert tab_map["V03422A"] == 1108804
 
 
-def test_cli(tmp_path):
-    main(
+def test_cli(tmp_path, monkeypatch):
+    config_path = tmp_path / "simflow-config.yaml"
+    raw_cfg = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
+    raw_cfg["paths"]["metadata"] = str(dummyprod / "inputs")
+    raw_cfg["paths"]["l200data"] = str(l200data)
+    config_path.write_text(yaml.safe_dump(raw_cfg))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
         [
-            "--l200data",
-            str(l200data),
-            "--meta",
-            str(dummyprod / "inputs"),
+            "build-superpulses-from-data",
             "--runid",
             "l200-p16-r008-ssc",
             "--detector",
             "V03422A",
             "--outdir",
             str(tmp_path / "outputs"),
-        ]
+            "--simflow-config",
+            str(config_path),
+        ],
     )
+    main()

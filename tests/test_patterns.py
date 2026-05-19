@@ -236,6 +236,24 @@ def test_currmod_filenames(config):
     assert result.suffix == ".yaml"
     assert "elecmod" in str(result)
 
+    result = p.output_superpulses_filename(config, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".lh5"
+    assert "superpulses" in str(result)
+
+    result = p.plot_superpulses_filename(config, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".pdf"
+    assert "superpulses" in str(result)
+
+    result = p.log_superpulses_filename(config, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".log"
+    assert "superpulses" in str(result)
+
     result = p.log_currmod_filename(config, runid=RUNID, hpge_detector=DET)
     assert isinstance(result, Path)
     assert RUNID in str(result)

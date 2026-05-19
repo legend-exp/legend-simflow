@@ -16,17 +16,20 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
-import logging
 from pathlib import Path
 
+import legenddataflowscripts as ldfs
+import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import numpy as np
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import metadata as mutils
+from legendsimflow import patterns, utils
 from legendsimflow.plot import decorate
+from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
     Slice,
     Superpulse,
@@ -49,25 +52,39 @@ EVT_TIER_NAME = "pet"
 CHARGE_OUTPUT = "wf_pz_win"
 CURR_OUTPUT = "curr_av"
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger(__name__)
 
-
-def main(argv=None):
-    parser = argparse.ArgumentParser()
+@snakemake_compatible(
+    mapping={
+        "detector": "wildcards.hpge_detector",
+        "runid": "params.runids",
+        "meta": "config.paths.metadata",
+        "l200data": "config.paths.l200data",
+        "outdir": "params.output_dir",
+        "log_file": "log[0]",
+        "simflow_config": "config",
+    }
+)
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Build HPGe data superpulses from LEGEND-200 data."
+    )
     parser.add_argument(
         "--detector", type=str, required=True, help="Detector name (e.g., V03422A)"
     )
     parser.add_argument(
-        "--runid", type=str, required=True, help="Run ID (e.g., l200-p16-r006-ssc)"
+        "--runid",
+        type=str,
+        nargs="+",
+        required=True,
+        help="One or more run IDs (e.g., l200-p16-r006-ssc)",
     )
     parser.add_argument(
-        "--meta", type=Path, required=True, help="Path to legend-metadata"
+        "--meta", type=Path, default=None, help="Path to legend-metadata"
     )
     parser.add_argument(
         "--l200data",
         type=Path,
-        required=True,
+        default=None,
         help="Path to L200 data production directory",
     )
     parser.add_argument(
@@ -79,23 +96,76 @@ def main(argv=None):
         default=None,
         help="limit number of files per tier (default: all)",
     )
+    parser.add_argument("--log-file", default=None, help="log file")
+    parser.add_argument(
+        "--simflow-config",
+        "--config",
+        dest="simflow_config",
+        required=True,
+        help="simflow config YAML path",
+    )
+    args = parser.parse_args()
 
-    args = parser.parse_args(argv)
+    simflow_config = utils.init_simflow_context(
+        args.simflow_config, workflow=None
+    ).config
+    log = ldfs.utils.build_log(
+        simflow_config.metadata.simprod.config.logging, args.log_file
+    )
+    log_script_invocation(log, "build-superpulses-from-data", parser, args)
 
-    logger.info(
-        "--- Starting Superpulse Generation for %s (%s) ---", args.detector, args.runid
+    meta = (
+        Path(args.meta)
+        if args.meta is not None
+        else Path(simflow_config.paths.metadata)
+    )
+    l200data = (
+        Path(args.l200data)
+        if args.l200data is not None
+        else getattr(simflow_config.paths, "l200data", None)
+    )
+    if l200data is None:
+        msg = "l200data is not configured and no --l200data path was provided"
+        raise RuntimeError(msg)
+
+    runids = list(dict.fromkeys(args.runid))
+    log.info(
+        "building superpulses for %s from %d runs",
+        args.detector,
+        len(runids),
     )
 
-    lmeta = LegendMetadata(str(args.meta))
-
-    raw_files, evt_files, dsp_config, tab_map = lookup_superpulse_inputs(
-        l200data=args.l200data,
-        metadata=lmeta,
-        runid=args.runid,
-        hpge=args.detector,
-        max_files=args.max_files,
-        evt_tier_name=EVT_TIER_NAME,
-    )
+    lmeta = LegendMetadata(str(meta))
+    raw_files = []
+    evt_files = []
+    dsp_config = None
+    tab_map = {}
+    for runid in runids:
+        raw_run_files, evt_run_files, dsp_cfg_file, tab_map_run = (
+            lookup_superpulse_inputs(
+                l200data=l200data,
+                metadata=lmeta,
+                runid=runid,
+                hpge=args.detector,
+                max_files=args.max_files,
+                evt_tier_name=EVT_TIER_NAME,
+            )
+        )
+        raw_files.extend(raw_run_files)
+        evt_files.extend(evt_run_files)
+        if dsp_config is None:
+            dsp_config = dsp_cfg_file
+        elif dsp_config != dsp_cfg_file:
+            log.warning(
+                "multiple DSP configs found across runs (%s, %s); using %s",
+                dsp_config,
+                dsp_cfg_file,
+                dsp_config,
+            )
+        tab_map.update(tab_map_run)
+    if dsp_config is None:
+        msg = f"no superpulse input files found for detector {args.detector}"
+        raise RuntimeError(msg)
     file_info = AttrsDict(
         {
             "raw": [str(f) for f in raw_files],
@@ -103,12 +173,12 @@ def main(argv=None):
         }
     )
 
-    logger.info("found %d files per tier", len(file_info.evt))
-    logger.info("DSP config: %s", dsp_config)
-
-    _, period_int, run_int, _ = mutils.parse_runid(args.runid)
-    period = f"p{period_int:02d}"
-    run = f"r{run_int:03d}"
+    log.info(
+        "found %d raw files and %d evt files",
+        len(file_info.raw),
+        len(file_info.evt),
+    )
+    log.info("using DSP config: %s", dsp_config)
 
     slices = [
         Slice(
@@ -133,19 +203,29 @@ def main(argv=None):
     )
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    output_lh5 = args.outdir / f"{args.detector}_{period}_{run}_superpulses.lh5"
-    output_pdf = args.outdir / f"{args.detector}_{period}_{run}_superpulses.pdf"
+    output_lh5 = (
+        args.outdir
+        / patterns.output_superpulses_filename(
+            simflow_config, hpge_detector=args.detector
+        ).name
+    )
+    output_pdf = (
+        args.outdir
+        / patterns.plot_superpulses_filename(
+            simflow_config, hpge_detector=args.detector
+        ).name
+    )
 
     superpulses = {}
 
     with PdfPages(str(output_pdf)) as pdf:
         for current_slice, slice_wfs_indices in zip(slices, wf_indices, strict=True):
             msg = f"processing {current_slice} ... "
-            logger.info(msg)
+            log.info(msg)
 
             if slice_wfs_indices.n_sel < MIN_NUMBER_WFS:
                 msg = f"... not enough waveforms {slice_wfs_indices.n_sel} found for {current_slice} skipping"
-                logger.warning(msg)
+                log.warning(msg)
                 continue
 
             # extract the waveform
@@ -163,7 +243,7 @@ def main(argv=None):
 
             if wf_data is None:
                 msg = f"... no valid waveforms found for {current_slice} skipping"
-                logger.warning(msg)
+                log.warning(msg)
                 continue
 
             # get a preliminary superpulse
@@ -205,7 +285,7 @@ def main(argv=None):
 
             if n_sel < MIN_NUMBER_WFS:
                 msg = f"... not enough waveforms {n_sel} selected for {current_slice} skipping"
-                logger.warning(msg)
+                log.warning(msg)
                 continue
 
             superpulses[current_slice] = final_sp
@@ -254,7 +334,7 @@ def main(argv=None):
             raise RuntimeError(msg)
 
         msg = f"writing to {output_lh5} ..."
-        logger.info(msg)
+        log.info(msg)
         write_superpulses(superpulses, str(output_lh5), args.detector, wo_mode="of")
 
         # Plot superpulses comparison
@@ -271,8 +351,8 @@ def main(argv=None):
         pdf.savefig(fig)
         plt.close(fig)
 
-    logger.info("summary plots saved to %s", args.outdir)
-    logger.info("done!")
+    log.info("summary plots saved to %s", args.outdir)
+    log.info("done!")
 
     return 0
 
