@@ -14,6 +14,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import matplotlib as mpl
 
 mpl.use("Agg")
@@ -111,3 +114,31 @@ def test_read_concat_wempty_missing_table(tmp_path):
 
     result = plot.read_concat_wempty([f], "detectors")
     assert result is None
+
+
+def test_all_savefig_calls_are_preceded_by_decorate():
+    repo_root = Path(__file__).resolve().parents[1]
+    files = [
+        repo_root / "workflow/src/legendsimflow/plot.py",
+        *sorted((repo_root / "workflow/src/legendsimflow/scripts").rglob("*.py")),
+    ]
+
+    decorate_pattern = re.compile(r"\b(?:plot\.)?decorate\(")
+    lookback = 8
+
+    for file in files:
+        lines = file.read_text().splitlines()
+
+        for lineno, line in enumerate(lines, start=1):
+            code_only = line.split("#", 1)[0]
+            if "savefig(" not in code_only:
+                continue
+
+            prior_lines = [
+                ln.split("#", 1)[0]
+                for ln in lines[max(0, lineno - lookback - 1) : lineno]
+            ]
+            assert decorate_pattern.search("\n".join(prior_lines)), (
+                f"{file}:{lineno} has savefig call without decorate in previous "
+                f"{lookback} lines"
+            )
