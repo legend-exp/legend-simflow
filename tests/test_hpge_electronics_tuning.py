@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from lgdo import Array, Scalar
 
 from legendsimflow import psl
 from legendsimflow.hpge_electronics_tuning import (
     build_cost_function,
     compute_rms_in_slice,
+    get_ideal_wfs_all_slices,
     select_ideal_wfs_in_slice,
 )
 from legendsimflow.superpulses import Slice, Superpulse
@@ -180,3 +182,29 @@ def test_build_cost_function_off_truth(cost_fixture):
     """Cost increases away from the true parameters."""
     cost, sigma_true, tau_true = cost_fixture
     assert cost(20.0, 100.0) > cost(sigma_true, tau_true)
+
+
+def test_get_ideal_wfs_all_slices():
+    """Test that ideal waveforms are correctly selected for multiple slices."""
+    dt = 1.0
+    wfs = _make_step_waveforms(dt, [500, 1000, 1500, 2000])
+    time_axis = np.arange(wfs.shape[1], dtype=float)
+    ideal_lib = {"waveform_000_deg": Array(wfs), "dt": Scalar(dt)}
+
+    sp1 = _make_superpulse(Slice((0, 1e6), (400, 600)), wfs[0], time_axis)
+    sp2 = _make_superpulse(Slice((0, 1e6), (900, 1100)), wfs[1], time_axis)
+    data_superpulses = {sp1.slice: sp1, sp2.slice: sp2}
+
+    ideal_wfs = get_ideal_wfs_all_slices(ideal_lib, data_superpulses)
+
+    assert isinstance(ideal_wfs, dict)
+    assert "ideal_wfs_slice" in ideal_wfs
+
+    assert sp1.slice in ideal_wfs["ideal_wfs_slice"]
+    assert sp2.slice in ideal_wfs["ideal_wfs_slice"]
+
+    assert "dt" in ideal_wfs
+    assert ideal_wfs["dt"] == dt
+
+    assert "alignment_idx" in ideal_wfs
+    assert "nsamples_output" in ideal_wfs

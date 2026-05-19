@@ -26,6 +26,7 @@ from collections.abc import Callable
 
 import numpy as np
 from iminuit import Minuit
+from lgdo import Struct
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 from reboost import units
@@ -195,7 +196,7 @@ def build_cost_function(
 
 
 def get_ideal_wfs_all_slices(
-    ideal_pulse_shape_lib,
+    ideal_pulse_shape_lib: Struct,
     data_superpulses: dict[Slice, Superpulse],
     angle: str = "000",
 ) -> dict:
@@ -208,8 +209,8 @@ def get_ideal_wfs_all_slices(
     Parameters
     ----------
     ideal_pulse_shape_lib
-        Ideal waveform map (LGDO Struct) as read from LH5. Must
-        contain ``waveform_{angle}_deg`` and ``dt``.
+        Ideal waveform map (LGDO Struct) as read from lh5. Must
+        contain ``waveform_{angle}_deg`` (an Array) and ``dt`` (time step), a Scalar.
     data_superpulses
         Data superpulses keyed by slice.
     angle
