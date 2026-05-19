@@ -27,7 +27,7 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import patterns, utils
+from legendsimflow import utils
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
@@ -59,7 +59,8 @@ CURR_OUTPUT = "curr_av"
         "runid": "params.runids",
         "meta": "config.paths.metadata",
         "l200data": "config.paths.l200data",
-        "outdir": "params.output_dir",
+        "output_file": "output.superpulses",
+        "plot_file": "output.plots",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -88,8 +89,9 @@ def main() -> int:
         help="Path to L200 data production directory",
     )
     parser.add_argument(
-        "--outdir", type=Path, required=True, help="Directory to save output files"
+        "--output-file", required=True, help="Path to save output files"
     )
+    parser.add_argument("--plot-file", required=True, help="Path to save plot files.")
     parser.add_argument(
         "--max-files",
         type=int,
@@ -105,6 +107,9 @@ def main() -> int:
         help="simflow config YAML path",
     )
     args = parser.parse_args()
+
+    plot_file = Path(args.plot_file)
+    output_lh5 = Path(args.output_file)
 
     simflow_config = utils.init_simflow_context(
         args.simflow_config, workflow=None
@@ -202,23 +207,9 @@ def main() -> int:
         end_time_field="geds/psd/low_aoe/time",
     )
 
-    args.outdir.mkdir(parents=True, exist_ok=True)
-    output_lh5 = (
-        args.outdir
-        / patterns.output_superpulses_filename(
-            simflow_config, hpge_detector=args.detector
-        ).name
-    )
-    output_pdf = (
-        args.outdir
-        / patterns.plot_superpulses_filename(
-            simflow_config, hpge_detector=args.detector
-        ).name
-    )
-
     superpulses = {}
 
-    with PdfPages(str(output_pdf)) as pdf:
+    with PdfPages(str(plot_file)) as pdf:
         for current_slice, slice_wfs_indices in zip(slices, wf_indices, strict=True):
             msg = f"processing {current_slice} ... "
             log.info(msg)
