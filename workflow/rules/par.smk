@@ -369,7 +369,11 @@ rule extract_electronics_model_pars:
     message:
         "Extracting electronics model for detector {wildcards.hpge_detector} in {wildcards.runid}"
     input:
-        superpulses=patterns.output_superpulses_filename(config),
+        superpulses=lambda wc: (
+            patterns.output_superpulses_filename(config)
+            if patterns.compute_superpulses(config,runid = wc.runid)
+            else []
+        ),
         ideal_psl=lambda wc: patterns.output_ideal_psl_filename(
             config,
             hpge_detector=wc.hpge_detector,

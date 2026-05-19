@@ -401,7 +401,10 @@ def gen_list_of_ideal_psls(
 
 
 def gen_list_of_realistic_psls(
-    config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    simid: str,
+    cache: dict[str, dict[str, int]] | None = None,
+    has_detailed_psd: bool = True,
 ) -> list[Path]:
     """Generate the list of realistic HPGe pulse shape library files for a `simid`.
 
@@ -409,6 +412,9 @@ def gen_list_of_realistic_psls(
     ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
     """
     files = []
+    if not has_detailed_psd:
+        return []
+
     for runid in get_runlist(config, simid):
         hpges = (
             gen_list_of_hpges_valid_for_modeling(config, runid)
