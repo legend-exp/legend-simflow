@@ -370,8 +370,13 @@ rule extract_electronics_model_pars:
     """
     message:
         "Extracting electronics model for detector {wildcards.hpge_detector} in {wildcards.runid}"
-    # NOTE: we don't list the file dependencies here because they are
-    # dynamically generated, and that would slow down the DAG generation
+    input:
+        superpulses=patterns.output_superpulses_filename(config),
+        ideal_psl=lambda wc: patterns.output_ideal_psl_filename(
+            config,
+            hpge_detector=wc.hpge_detector,
+            hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector],
+        ),
     output:
         pars_file=temp(patterns.output_elecmod_filename(config)),
     log:
