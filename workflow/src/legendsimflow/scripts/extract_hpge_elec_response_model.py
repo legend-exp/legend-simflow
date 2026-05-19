@@ -30,7 +30,7 @@ from pathlib import Path
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
-from lgdo import lh5
+import lh5
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
@@ -88,12 +88,17 @@ def main() -> None:
         help="HPGe detector name",
     )
     parser.add_argument(
-        "--ideal-lib", type=str, required=True, help="Path to ideal psl file"
+        "--ideal-lib",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to ideal psl file",
     )
     parser.add_argument(
         "--superpulses",
         type=str,
-        required=True,
+        required=False,
+        default=None,
         help="Path to data superpulses file",
     )
     parser.add_argument(
@@ -113,13 +118,15 @@ def main() -> None:
     parser.add_argument(
         "--settings",
         type=str,
+        required=False,
         default=None,
         help="Path to YAML file with settings for the fit (e.g. initial values, limits, comparison window); ",
     )
     parser.add_argument(
         "--plot-file",
         type=str,
-        required=True,
+        required=False,
+        default=None,
         help="Directory for diagnostic plots (default: no plots)",
     )
 
@@ -150,7 +157,11 @@ def main() -> None:
         raw_elecmod.get("default", None) if raw_elecmod is not None else None
     )
 
-    if elecmod_default is not None:
+    if (
+        elecmod_default is not None
+        and (args.superpulses is None)
+        and (args.ideal_lib is None)
+    ):
         log.info("... using elecmod metadata defaults for %s in %s", hpge, runid)
         entry = raw_elecmod.get(hpge, elecmod_default)
         dbetto.utils.write_dict(entry.to_dict(), pars_file)
@@ -225,26 +236,27 @@ def main() -> None:
     log.info("... results written to %s", args.output_file)
 
     # Plots
-    plot_dir = Path(args.plot_file).parent
-    plot_dir.mkdir(parents=True, exist_ok=True)
+    if args.plot_file is not None:
+        plot_dir = Path(args.plot_file).parent
+        plot_dir.mkdir(parents=True, exist_ok=True)
 
-    with PdfPages(str(args.plot_file)) as pdf:
-        fig, _ = plot_convergence(result)
-        decorate(fig)
-        pdf.savefig(fig)
-        plt.close(fig)
+        with PdfPages(str(args.plot_file)) as pdf:
+            fig, _ = plot_convergence(result)
+            decorate(fig)
+            pdf.savefig(fig)
+            plt.close(fig)
 
-        fig, _ = plot_best_fit(
-            result,
-            data_superpulses,
-            comparison_window=comparison_window,
-            plot_window=None,
-        )
-        decorate(fig)
-        pdf.savefig(fig)
-        plt.close(fig)
+            fig, _ = plot_best_fit(
+                result,
+                data_superpulses,
+                comparison_window=comparison_window,
+                plot_window=None,
+            )
+            decorate(fig)
+            pdf.savefig(fig)
+            plt.close(fig)
 
-    log.info("... saved diagnostic plots to %s", args.plot_file)
+        log.info("... saved diagnostic plots to %s", args.plot_file)
 
 
 if __name__ == "__main__":
