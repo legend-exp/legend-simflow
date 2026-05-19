@@ -1,5 +1,6 @@
 dead_layer_fraction: 0.5
 buffer_len: 500*MB
+has_detailed_psd: false
 
 eresmod_default:
   expression: FWHMLinear

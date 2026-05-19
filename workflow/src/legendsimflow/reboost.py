@@ -31,6 +31,8 @@ import reboost.hpge.utils
 import reboost.units
 from lgdo import LGDO
 
+from legendsimflow import utils
+
 from . import patterns
 from .utils import SimflowConfig
 
@@ -288,6 +290,102 @@ def get_remage_hit_range(
         n_entries = 0
 
     return i_start, n_entries
+
+
+def extract_psd_observables(
+    chunk: ak.Array,
+    edep_active: ak.Array,
+    energy: ak.Array,
+    dt_map: dict[str, reboost.hpge.utils.HPGeRZField],
+    currmod_pars: Mapping,
+    det_loc: pyg4ometry.gdml.Defines.Position,
+    det_name: str,
+    *,
+    aoe_res: float,
+    psdcuts: Mapping,
+    current_reso: float,
+    mean_aoe: float,
+) -> ak.Array:
+    """Extract PSD observables for a chunk of events in an HPGe detector.
+
+    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift time maps and current model parameters.
+
+    Parameters
+    ----------
+    chunk
+        Awkward array containing the events to process. Must have fields 'xloc', 'yloc', 'zloc'.
+    edep_active
+        Energy deposited in the active volume per hit, used for A/E calculation.
+    energy
+        Energy deposited in the active volume, used for A/E calculation.
+    dt_map
+        Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
+    currmod_pars
+        Dictionary of parameters for the current model, (see
+        :func:`reboost.hpge.psd.get_current_template`)
+    det_loc
+        Position of the detector in the global coordinate system, used for drift time correction.
+    det_name
+        Name of the detector.
+    aoe_res
+        A/E resolution (sigma) used for A/E classifier calculation, typically determined from data.
+    psdcuts
+        Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
+    current_reso
+        Standard deviation of the Gaussian noise to smear the maximum current, representing the current resolution of the detector.
+    mean_aoe
+        Mean A/E value at the energy of interest, used for normalizing the current resolution smearing.
+
+    Returns
+    -------
+    an `ak.Array` with fields:
+        - aoe: A/E observable for each event.
+        - aoe_class: A/E classifier (normalized to resolution) for each event.
+        - is_single_site: boolean flag indicating whether the event is classified as single-site based on A/E cuts.
+        - t_max: drift time at the position of maximum current, useful for further PSD or analysis.
+    """
+    _drift_time = hpge_corrected_drift_time(chunk, dt_map, det_loc[det_name])
+    utils.check_nans_leq(_drift_time, "_drift_time", 0.01, min_entries=1000)
+
+    _a_max_true = hpge_max_current(edep_active, _drift_time, currmod_pars)
+
+    utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
+
+    # Apply current resolution smearing based on configured A/E noise parameters
+    _a_max = gauss_smear(_a_max_true, current_reso / mean_aoe)
+
+    # finally calculate A/E, comparable to the A/E in data
+    # corrected for energy dependence
+    aoe = _a_max / energy
+
+    # ...and A/E classifier
+    # NOTE: we use the resolution determined from data here instead
+    # of the intrinsic simulated ones due to noise
+    aoe_class = (aoe - 1) / aoe_res
+
+    # ...and PSD flag
+    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
+        aoe_class < psdcuts.aoe.high_side
+    )
+
+    # also calculate drift time at A position
+    # FIXME: this is wasting compute resources, max_current should
+    # return (maxA, t_maxA)
+    t_max = hpge_max_current(
+        edep_active,
+        _drift_time,
+        currmod_pars,
+        return_mode="max_time",
+    )
+
+    return ak.Array(
+        {
+            "aoe": aoe,
+            "aoe_class": aoe_class,
+            "is_single_sit": is_single_site,
+            "t_max": t_max,
+        }
+    )
 
 
 def hpge_corrected_drift_time(

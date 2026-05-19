@@ -157,11 +157,7 @@ def main() -> None:
         raw_elecmod.get("default", None) if raw_elecmod is not None else None
     )
 
-    if (
-        elecmod_default is not None
-        and (args.superpulses is None)
-        and (args.ideal_lib is None)
-    ):
+    if elecmod_default is not None:
         log.info("... using elecmod metadata defaults for %s in %s", hpge, runid)
         entry = raw_elecmod.get(hpge, elecmod_default)
         dbetto.utils.write_dict(entry.to_dict(), pars_file)

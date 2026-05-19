@@ -33,6 +33,8 @@ from pathlib import Path
 from legendmeta.police import validate_dict_schema
 from snakemake.io import expand
 
+from legendsimflow import metadata as mutils
+
 from . import SimflowConfig
 from . import metadata as metautils
 
@@ -394,6 +396,20 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
         config.paths.pars / "hpge/elecmod/{runid}-model.yaml",
         **kwargs,
     )
+
+
+def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
+    raw_elecmod = mutils.simpars(
+        config.metadata,
+        "geds.elecmod",
+        kwargs["runid"],
+        config.experiment,
+        default=None,
+    )
+    elecmod_default = (
+        raw_elecmod.get("default", None) if raw_elecmod is not None else None
+    )
+    return elecmod_default is None
 
 
 def output_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:

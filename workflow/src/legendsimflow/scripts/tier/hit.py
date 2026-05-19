@@ -113,6 +113,11 @@ def main() -> None:
     # default resolutions/cuts for non-ON detectors, sourced from hit tier settings
     tier_hit_settings = get_tier_settings(config, "hit")
     dead_layer_fraction = tier_hit_settings.dead_layer_fraction
+
+    # whether to use the more detailed PSD modeling based on realistic pulse shape libraries (if False, PSD is still modeled but with a more simplified approach based on drift time maps and current models, without event-by-event drift time correction or realistic pulse shapes)
+
+    has_detailed_psd = tier_hit_settings.has_detailed_psd
+
     buffer_len = tier_hit_settings.buffer_len
     eresmod_default = hpge_pars.build_energy_res_func_from_entry(
         tier_hit_settings.eresmod_default
@@ -272,6 +277,11 @@ def main() -> None:
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
             dt_map = reboost_utils.load_hpge_dtmaps(config, det_name, runid)
 
+            if has_detailed_psd:
+                realistic_psl = reboost_utils.load_realistic_psl(
+                    config, det_name, runid
+                )
+
             # load parameters of the current model
             pars = currmod_pars_all.get(det_name, None)
             currmod_pars = (
@@ -382,60 +392,40 @@ def main() -> None:
                 # way
 
                 # default to NaN
-                _drift_time = ak.full_like(chunk.xloc, fill_value=np.nan)
-                aoe = np.full(len(chunk), np.nan)
-                aoe_class = np.full(len(chunk), np.nan)
-                is_single_site = np.full(len(chunk), False)
-                t_max = np.full(len(chunk), np.nan)
+                psd_fields = ak.Array(
+                    {
+                        "aoe": np.full(len(chunk), np.nan),
+                        "aoe_class": np.full(len(chunk), np.nan),
+                        "is_single_site": np.full(len(chunk), np.nan),
+                        "t_max": np.full(len(chunk), np.nan),
+                    }
+                )
 
-                if dt_map is not None and currmod_pars is not None:
-                    log.info("computing PSD observables")
+                if can_model_psd:
+                    log.info("computing standard PSD observables")
 
-                    with perf_block("hpge_corrected_drift_time()"):
-                        _drift_time = reboost_utils.hpge_corrected_drift_time(
-                            chunk, dt_map, det_loc[det_name]
-                        )
-                    utils.check_nans_leq(
-                        _drift_time, "_drift_time", 0.01, min_entries=1000
-                    )
-
-                    with perf_block("hpge_max_current()"):
-                        _a_max_true = reboost_utils.hpge_max_current(
-                            edep_active, _drift_time, currmod_pars
-                        )
-                    utils.check_nans_leq(
-                        _a_max_true, "_a_max_true", 0.01, min_entries=1000
-                    )
-
-                    # Apply current resolution smearing based on configured A/E noise parameters
-                    _a_max = reboost_utils.gauss_smear(
-                        _a_max_true, pars.current_reso / pars.mean_aoe
-                    )
-
-                    # finally calculate A/E, comparable to the A/E in data
-                    # corrected for energy dependence
-                    aoe = _a_max / energy
-
-                    # ...and A/E classifier
-                    # NOTE: we use the resolution determined from data here instead
-                    # of the intrinsic simulated ones due to noise
-                    aoe_class = (aoe - 1) / aoe_res
-
-                    # ...and PSD flag
-                    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
-                        aoe_class < psdcuts.aoe.high_side
-                    )
-
-                    # also calculate drift time at A position
-                    # FIXME: this is wasting compute resources, max_current should
-                    # return (maxA, t_maxA)
-                    with perf_block("hpge_max_current()"):
-                        t_max = reboost_utils.hpge_max_current(
+                    # extract observables related to PSD.
+                    with perf_block("extract_psd_observables()"):
+                        psd_fields = reboost_utils.extract_psd_observables(
+                            chunk,
                             edep_active,
-                            _drift_time,
+                            energy,
+                            dt_map,
                             currmod_pars,
-                            return_mode="max_time",
+                            det_loc[det_name],
+                            det_name,
+                            aoe_res=aoe_res,
+                            psdcuts=psdcuts,
+                            mean_aoe=pars.mean_aoe,
+                            current_reso=pars.current_reso,
                         )
+
+                if has_detailed_psd and (realistic_psl is not None):
+                    log.info(
+                        "computing detailed PSD observables based on realistic pulse shape libraries"
+                    )
+                    msg = "detailed PSD modeling not implemented yet"
+                    raise NotImplementedError(msg)
 
                 out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
@@ -445,19 +435,44 @@ def main() -> None:
                         np.asarray(energy, dtype=np.float32), attrs={"units": "keV"}
                     ),
                 )
+                # save psd fields
                 out_table.add_field(
                     "drift_time_amax",
                     lgdo.Array(
-                        np.asarray(t_max, dtype=np.float32), attrs={"units": "ns"}
+                        np.asarray(psd_fields.t_max, dtype=np.float32),
+                        attrs={"units": "ns"},
                     ),
                 )
                 out_table.add_field(
-                    "aoe_raw", lgdo.Array(np.asarray(aoe, dtype=np.float32))
+                    "aoe_raw", lgdo.Array(np.asarray(psd_fields.aoe, dtype=np.float32))
                 )
                 out_table.add_field(
-                    "aoe", lgdo.Array(np.asarray(aoe_class, dtype=np.float32))
+                    "aoe",
+                    lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
                 )
-                out_table.add_field("is_single_site", lgdo.Array(is_single_site))
+                out_table.add_field(
+                    "is_single_site", lgdo.Array(psd_fields.is_single_site)
+                )
+
+                if has_detailed_psd and (realistic_psl is not None):
+                    out_table.add_field(
+                        "drift_time_amax_detailed",
+                        lgdo.Array(
+                            np.asarray(psd_fields.t_max, dtype=np.float32),
+                            attrs={"units": "ns"},
+                        ),
+                    )
+                    out_table.add_field(
+                        "aoe_raw_detailed",
+                        lgdo.Array(np.asarray(psd_fields.aoe, dtype=np.float32)),
+                    )
+                    out_table.add_field(
+                        "aoe_detailed",
+                        lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
+                    )
+                    out_table.add_field(
+                        "is_single_site_detailed", lgdo.Array(psd_fields.is_single_site)
+                    )
 
                 _, period, run, _ = mutils.parse_runid(runid)
                 field_vals = [period, run, mutils.encode_usability(usability)]
