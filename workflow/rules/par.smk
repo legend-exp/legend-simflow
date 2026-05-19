@@ -353,11 +353,6 @@ if getattr(config.paths, "l200data", None) is not None:
             "Building data superpulses for detector {wildcards.hpge_detector}"
         params:
             runids=sorted(aggregate.gen_list_of_all_runids(config)),
-            output_dir=lambda wc: str(
-                patterns.output_superpulses_filename(
-                    config, hpge_detector=wc.hpge_detector
-                ).parent
-            ),
         output:
             superpulses=patterns.output_superpulses_filename(config),
             plots=patterns.plot_superpulses_filename(config),
