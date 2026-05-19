@@ -342,24 +342,23 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
-if getattr(config.paths, "l200data", None) is not None:
 
-    rule build_superpulses_from_data:
-        """Build HPGe superpulses by accumulating all runs in the configured runlists.
+rule build_superpulses_from_data:
+    """Build HPGe superpulses by accumulating all runs in the configured runlists.
 
-        Uses wildcard `hpge_detector`.
-        """
-        message:
-            "Building data superpulses for detector {wildcards.hpge_detector}"
-        params:
-            runids=sorted(aggregate.gen_list_of_all_runids(config)),
-        output:
-            superpulses=patterns.output_superpulses_filename(config),
-            plots=patterns.plot_superpulses_filename(config),
-        log:
-            patterns.log_superpulses_filename(config),
-        script:
-            "../src/legendsimflow/scripts/build_superpulses_from_data.py"
+    Uses wildcard `hpge_detector`.
+    """
+    message:
+        "Building data superpulses for detector {wildcards.hpge_detector}"
+    params:
+        runids=sorted(aggregate.gen_list_of_all_runids(config)),
+    output:
+        superpulses=patterns.output_superpulses_filename(config),
+        plots=patterns.plot_superpulses_filename(config),
+    log:
+        patterns.log_superpulses_filename(config),
+    script:
+        "../src/legendsimflow/scripts/build_superpulses_from_data.py"
 
 
 rule extract_electronics_model_pars:
