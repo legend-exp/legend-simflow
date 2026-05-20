@@ -198,7 +198,7 @@ def test_make_ssc_data():
     wf_full = np.cumsum(norm.pdf(t, loc=mu, scale=sigma))
 
     wf_win = wf_full[2625:4025]
-    wf_presum = wf_full[::8][:-1]
+    wf_presum = wf_full[::8][:-1] * 8
 
     energy = ak.flatten(energy).to_numpy()
 

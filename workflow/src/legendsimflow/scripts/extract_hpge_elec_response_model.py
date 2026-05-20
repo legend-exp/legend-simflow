@@ -48,12 +48,12 @@ from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import read_superpulses
 
 DEFAULT_SETTINGS = {
-    "angle": 0.0,
+    "angle": "000",
     "sigma_start": 10.0,
     "tau_start": 50.0,
-    "sigma_limits": (0.0, 50.0),
+    "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
-    "comparison_window": (0.0, 4000.0),
+    "comparison_window": (-500.0, 500.0),
     "max_calls": 100,
     "dt_range_tuning": (1000.0, 2000.0),
 }
@@ -127,7 +127,7 @@ def main() -> None:
         type=str,
         required=False,
         default=None,
-        help="Directory for diagnostic plots (default: no plots)",
+        help="File name for diagnostic plots.",
     )
 
     args = parser.parse_args()
@@ -150,6 +150,7 @@ def main() -> None:
     # check for metadata-driven defaults first; if present, bypass the
     # superpulse fitting entirely (enables LEGEND-1000 simulations without
     # l200data)
+
     raw_elecmod = mutils.simpars(
         metadata, "geds.elecmod", runid, config.experiment, default=None
     )
@@ -164,12 +165,12 @@ def main() -> None:
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
-
     log.info("... reading ideal library from %s ...", args.ideal_lib)
-    ideal_lib = lh5.read(args.detector, args.ideal_lib)
+
+    ideal_lib = lh5.read(args.hpge_detector, args.ideal_lib)
 
     log.info("... reading data superpulses from %s ...", args.superpulses)
-    data_superpulses = read_superpulses(args.superpulses, args.detector)
+    data_superpulses = read_superpulses(args.superpulses, args.hpge_detector)
     data_superpulses = {
         sl: sp
         for sl, sp in data_superpulses.items()
@@ -221,17 +222,18 @@ def main() -> None:
 
     # Write output
     output = {
-        "detector": args.detector,
+        "detector": args.hpge_detector,
         "angle": settings.angle,
         "sigma": result["sigma"],
         "tau": result["tau"],
     }
 
-    dbetto.utils.write_dict(output.to_dict(), pars_file)
+    dbetto.utils.write_dict(output, pars_file)
 
-    log.info("... results written to %s", args.output_file)
+    log.info("... results written to %s", args.pars_file)
 
     # Plots
+
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)

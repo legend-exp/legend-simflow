@@ -112,11 +112,10 @@ def main() -> None:
 
     # default resolutions/cuts for non-ON detectors, sourced from hit tier settings
     tier_hit_settings = get_tier_settings(config, "hit")
+
     dead_layer_fraction = tier_hit_settings.dead_layer_fraction
-
-    # whether to use the more detailed PSD modeling based on realistic pulse shape libraries (if False, PSD is still modeled but with a more simplified approach based on drift time maps and current models, without event-by-event drift time correction or realistic pulse shapes)
-
-    has_detailed_psd = tier_hit_settings.has_detailed_psd
+    simulate_psd = tier_hit_settings.get("simulate_psd", True)
+    simulate_psd_with_psl = tier_hit_settings.get("simulate_psd_with_psl", False)
 
     buffer_len = tier_hit_settings.buffer_len
     eresmod_default = hpge_pars.build_energy_res_func_from_entry(
@@ -277,7 +276,7 @@ def main() -> None:
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
             dt_map = reboost_utils.load_hpge_dtmaps(config, det_name, runid)
 
-            if has_detailed_psd:
+            if simulate_psd_with_psl:
                 psl_dt_maps, realistic_psl = reboost_utils.load_hpge_realistic_psl(
                     config, det_name, runid
                 )
@@ -288,7 +287,12 @@ def main() -> None:
                 pars.get("current_pulse_pars", None) if pars is not None else None
             )
 
-            can_model_psd = dt_map is not None and currmod_pars is not None
+            can_model_psd = (
+                dt_map is not None and currmod_pars is not None
+            ) and simulate_psd
+            can_model_psd_with_psl = simulate_psd_with_psl and (
+                realistic_psl is not None
+            )
 
             if not can_model_psd and usability == "on" and psd_usability == "valid":
                 log.warning(
@@ -419,7 +423,7 @@ def main() -> None:
                             current_reso=pars.current_reso,
                         )
 
-                if has_detailed_psd and (realistic_psl is not None):
+                if can_model_psd_with_psl:
                     log.info(
                         "computing detailed PSD observables based on realistic pulse shape libraries"
                     )
@@ -466,7 +470,7 @@ def main() -> None:
                     "is_single_site", lgdo.Array(psd_fields.is_single_site)
                 )
 
-                if has_detailed_psd and (realistic_psl is not None):
+                if can_model_psd_with_psl:
                     out_table.add_field(
                         "drift_time_amax_detailed",
                         lgdo.Array(

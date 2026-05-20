@@ -424,6 +424,7 @@ rule extract_electronics_model_pars:
         ),
     output:
         pars_file=temp(patterns.output_elecmod_filename(config)),
+        plot_file=temp(patterns.plot_elecmod_filename(config)),
     log:
         patterns.log_elecmod_filename(config),
     script:

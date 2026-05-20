@@ -452,9 +452,9 @@ def _get_dsp_config(dsp_config: str | dict | Path) -> dict:
         "function": "avg_current",
         "module": "dspeed.processors",
         "args": [
-            "wf_curr_window",
+            "wf_pz_win",
             "1",
-            "curr(shape=len(wf_curr_window)-1,  period=wf_curr_window.period,offset=wf_curr_window.offset)",
+            "curr(shape=len(wf_pz_win)-1,  period=wf_pz_win.period,offset=wf_pz_win.offset)",
         ],
         "unit": "ADC/sample",
     }
@@ -588,6 +588,9 @@ def get_wfs_for_slice(
 
     current_t_min = max((e["current_t"][0] for e in waveforms), default=-1000.0)
     current_t_max = min((e["current_t"][-1] for e in waveforms), default=3000.0)
+
+    log.info("Current range across events: [%f, %f] ns", current_t_min, current_t_max)
+    log.info("Charge range across events: [%f, %f] ns", charge_t_min, charge_t_max)
 
     if (current_t_max <= current_t_min) or (charge_t_max <= charge_t_min):
         log.warning(
@@ -751,13 +754,10 @@ def write_superpulses(
         ``"output/V03422A_superpulses.lh5"``.
     detector
         Detector name, used as the top-level group name in the LH5 file.
-
-    Notes
-    -----
-    Uses ``lgdo.lh5.write`` with ``wo_mode="write_safe"`` to avoid silently
-    overwriting existing files.
+    wo_mode
+        Write mode for lh5 files. Default: "write_safe".
     """
-    for sl, sp in superpulses.items():
+    for idx, (sl, sp) in enumerate(superpulses.items()):
         # Build group name: {detector}/dt_{lo}_{hi}_ns
 
         for v in sl.drift_time_range:
@@ -771,7 +771,9 @@ def write_superpulses(
         group = f"{detector}/dt_{dt_lo}_{dt_hi}_ns"
 
         lgdo_struct = sp.to_lgdo()
-        lh5.write(lgdo_struct, group, output_path, wo_mode=wo_mode)
+        lh5.write(
+            lgdo_struct, group, output_path, wo_mode=wo_mode if idx == 0 else "append"
+        )
 
         log.debug("wrote %s to %s", group, output_path)
 
@@ -848,6 +850,8 @@ def plot_wfs_and_superpulse(
     golden_charge_wfs: np.ndarray,
     golden_current_wfs: np.ndarray,
     superpulse: Superpulse,
+    *,
+    xlims=(-1000, 3000),
 ):
     """
     Plot golden charge and current waveforms with the final superpulse.
@@ -875,10 +879,7 @@ def plot_wfs_and_superpulse(
 
     # Shared x range: intersection of the two time axes
 
-    x_min = max(charge_times[0], current_times[0])
-    x_max = min(charge_times[-1], current_times[-1])
-
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
     fig.suptitle(
         f"{superpulse.detector} - {sl}  ({superpulse.n_events_final} events)",
         fontsize=14,
@@ -904,7 +905,7 @@ def plot_wfs_and_superpulse(
         label="superpulse",
     )
     ax1.set_ylabel("ADC / cuspEmax")
-    ax1.set_xlim(x_min, x_max)
+    ax1.set_xlim(*xlims)
     ax1.legend()
     ax1.grid(alpha=0.3, linestyle="--")
 
@@ -929,7 +930,7 @@ def plot_wfs_and_superpulse(
     )
     ax2.set_xlabel("Time [ns]")
     ax2.set_ylabel("d(ADC/cuspEmax)/dt")
-    ax2.set_xlim(x_min, x_max)
+    ax2.set_xlim(*xlims)
     ax2.legend()
     ax2.grid(alpha=0.3, linestyle="--")
 
@@ -1124,10 +1125,12 @@ def plot_superpulses(
     ax.set_title(f"{detector} - {curve} superpulses  |  E = [{e_lo}, {e_hi}] keV")
     ax.set_xlabel("Time [ns]")
     ax.set_ylabel(ylabel)
+
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
         ax.set_ylim(*ylim)
+
     ax.grid(visible=True, which="both", linestyle="--", alpha=0.5)
 
     sm = plt.cm.ScalarMappable(cmap=viridis, norm=norm)

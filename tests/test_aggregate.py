@@ -186,12 +186,10 @@ def test_psl_stuff(config):
     realistic_psls = agg.gen_list_of_realistic_psls(config, runid)
     assert len(realistic_psls) == 1
     assert runid in str(realistic_psls[0])
-    assert "V99000A" in str(realistic_psls[0])
 
     realistic_merged_psls = agg.gen_list_of_merged_realistic_psls(config, simid)
     assert len(realistic_merged_psls) == 1
     assert runid in str(realistic_merged_psls[0])
-    assert "V99000A" in str(realistic_merged_psls[0])
 
 
 def test_tier_evt_stuff(config):

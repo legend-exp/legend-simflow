@@ -591,8 +591,6 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
 
 
 # tier cvt
-
-
 def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
     """Generate the list of all ``cvt`` tier files in the Simflow."""
     return [
@@ -602,8 +600,6 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
 
 
 # tier pdf
-
-
 def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
     """Generate the list of all ``pdf`` tier files in the Simflow."""
     return [
