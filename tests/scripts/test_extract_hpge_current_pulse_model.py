@@ -110,7 +110,7 @@ def test_raises_without_default_and_no_l200data(tmp_path, monkeypatch):
         extract_hpge_current_pulse_model.main()
 
 
-def test_runs_with_l200data_and_writes_outputs(tmp_path, monkeypatch, test_make_ssc_data):
+def test_l200data_path_creates_valid_outputs(tmp_path, monkeypatch, test_make_ssc_data):
     monkeypatch.setattr(
         sys,
         "argv",
