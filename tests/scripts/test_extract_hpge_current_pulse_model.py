@@ -143,5 +143,5 @@ def test_l200data_path_creates_valid_outputs(tmp_path, monkeypatch, test_make_ss
             f"missing current_pulse_pars.{field}"
         )
 
-    assert isinstance(result["mean_aoe"], int | float)
-    assert isinstance(result["current_reso"], int | float)
+    assert isinstance(result["mean_aoe"], (int, float))
+    assert isinstance(result["current_reso"], (int, float))
