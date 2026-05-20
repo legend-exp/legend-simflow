@@ -12,7 +12,7 @@ import yaml
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendtestdata import LegendTestData
-from lgdo import Table, WaveformTable, lh5
+from lgdo import Array, Table, WaveformTable, lh5
 from pygeoml200 import core
 from scipy.stats import norm
 
@@ -224,22 +224,61 @@ def test_make_ssc_data():
         {"raw": {"waveform_presummed": wfs_presum, "waveform_windowed": wfs_win}}
     )
 
-    Path(l200data / "generated" / "tier" / "raw" / "ssc" / "p16" / "r008").mkdir(
-        parents=True, exist_ok=True
+    raw_ssc_dir = l200data / "generated" / "tier" / "raw" / "ssc" / "p16" / "r008"
+    raw_cal_dir = l200data / "generated" / "tier" / "raw" / "cal" / "p16" / "r007"
+    raw_ssc_dir.mkdir(parents=True, exist_ok=True)
+    raw_cal_dir.mkdir(parents=True, exist_ok=True)
+
+    raw_ssc_file = raw_ssc_dir / "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
+    raw_cal_file = raw_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_raw.lh5"
+    lh5.write(
+        out,
+        f"ch{rawid}",
+        str(raw_ssc_file),
+        wo_mode="of",
     )
     lh5.write(
         out,
         f"ch{rawid}",
-        str(
-            l200data
-            / "generated"
-            / "tier"
-            / "raw"
-            / "ssc"
-            / "p16"
-            / "r008"
-            / "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
-        ),
+        str(raw_cal_file),
+        wo_mode="of",
+    )
+
+    # hit-tier inputs needed by extract_hpge_current_pulse_model when l200data
+    # is configured.
+    cusp_emax_ctc_cal = energy.astype(np.float32)
+    # ensure there are events in the fit window with |AoE| < 1.5
+    cusp_emax_ctc_cal[:20] = np.linspace(1589, 1597, 20, dtype=np.float32)
+    aoe_classifier = rng.normal(0, 0.3, size=size).astype(np.float32)
+    dt_eff = rng.uniform(100, 3000, size=size).astype(np.float32)
+    # only a small subset below threshold to keep runtime short in noise scan
+    cusp_emax_cal = np.full(size, 100, dtype=np.float32)
+    cusp_emax_cal[:200] = 1
+
+    hit_tab = Table(
+        {
+            "cuspEmax_ctc_cal": Array(cusp_emax_ctc_cal),
+            "AoE_Classifier": Array(aoe_classifier),
+            "dt_eff": Array(dt_eff),
+            "cuspEmax_cal": Array(cusp_emax_cal),
+        }
+    )
+
+    hit_ssc_dir = l200data / "generated" / "tier" / "hit" / "ssc" / "p16" / "r008"
+    hit_cal_dir = l200data / "generated" / "tier" / "hit" / "cal" / "p16" / "r007"
+    hit_ssc_dir.mkdir(parents=True, exist_ok=True)
+    hit_cal_dir.mkdir(parents=True, exist_ok=True)
+
+    lh5.write(
+        hit_tab,
+        "hit/V03422A",
+        str(hit_ssc_dir / "l200-p16-r008-ssc-20230322T170202Z-tier_hit.lh5"),
+        wo_mode="of",
+    )
+    lh5.write(
+        hit_tab,
+        "hit/V03422A",
+        str(hit_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_hit.lh5"),
         wo_mode="of",
     )
     return dummyprod
