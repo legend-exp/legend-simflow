@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import awkward as ak
@@ -394,8 +395,16 @@ def test_write_superpulses_creates_file(test_make_superpulse, tmp_path):
 
 def test_write_superpulses_lh5_structure(test_make_superpulse, tmp_path):
     output_path = str(tmp_path / "test_superpulses.lh5")
+
+    other_superpulse = copy.deepcopy(test_make_superpulse)
+    other_superpulse.slice = Slice((2000.0, 2500.0), (1100.0, 1300.0))
+
+    superpulses = {
+        test_make_superpulse.slice: test_make_superpulse,
+        other_superpulse.slice: other_superpulse,
+    }
     write_superpulses(
-        {test_make_superpulse.slice: test_make_superpulse},
+        superpulses,
         output_path,
         detector="V03422A",
     )
@@ -412,9 +421,20 @@ def test_write_superpulses_lh5_structure(test_make_superpulse, tmp_path):
     assert "n_events_preliminary" in result
     assert "n_events_final" in result
 
+    result_other = lh5.read("V03422A/dt_1100_1300_ns", output_path)
+    assert isinstance(result_other, Struct)
+    assert "charge_wf" in result_other
+    assert "current_wf" in result_other
+    assert "drift_time_center" in result_other
+    assert "energy_lo" in result_other
+    assert "energy_hi" in result_other
+    assert "n_events_preliminary" in result_other
+    assert "n_events_final" in result_other
+
 
 def test_read_superpulses(test_make_superpulse, tmp_path):
     output_path = str(tmp_path / "test_superpulses.lh5")
+
     write_superpulses(
         {test_make_superpulse.slice: test_make_superpulse},
         output_path,

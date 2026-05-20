@@ -439,6 +439,14 @@ def log_elecmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+def plot_elecmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the electronics  fit validation plot for a detector and `runid`."""
+    pat = (
+        config.paths.pars / "hpge/elecmod/plots/{runid}-{hpge_detector}-fit-result.pdf"
+    )
+    return _expand(pat, **kwargs)
+
+
 def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for current pulse model extraction for a detector and `runid`."""
     pat = log_dirname(config) / "hpge/currmod/{runid}-{hpge_detector}-model.log"

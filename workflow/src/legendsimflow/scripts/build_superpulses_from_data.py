@@ -339,7 +339,9 @@ def main() -> int:
         plt.close(fig)
 
         # plot current superpulses
-        fig, _ = plot_superpulses(str(output_lh5), args.detector, curve="current")
+        fig, _ = plot_superpulses(
+            str(output_lh5), args.detector, curve="current", xlim=(-2000, 1000)
+        )
         decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)

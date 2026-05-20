@@ -1,10 +1,5 @@
 from legendsimflow import aggregate, patterns
-
-
-def _tier_setting(tier, key):
-    return lambda wc: config.metadata.simprod.config.tier[tier][
-        config.experiment
-    ].settings[key]
+from legendsimflow.metadata import get_tier_settings
 
 
 rule gen_all_tier_hit:
@@ -54,16 +49,17 @@ rule build_tier_hit:
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
         hpges_realistic_psls=lambda wc: aggregate.gen_list_of_merged_realistic_psls(
-            config, wc.simid, has_detailed_psd=_tier_setting("hit", "has_detailed_psd")
+            config,
+            wc.simid,
+            has_detailed_psd=get_tier_settings(config, "hit").get(
+                "simulate_psd_with_psl", False
+            ),
         ),
         hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
         detector_usabilities=rules.cache_detector_usabilities.output,
-    params:
-        dead_layer_fraction=_tier_setting("hit", "dead_layer_fraction"),
-        has_detailed_psd=_tier_setting("hit", "has_detailed_psd"),
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
