@@ -33,8 +33,6 @@ from pathlib import Path
 from legendmeta.police import validate_dict_schema
 from snakemake.io import expand
 
-from legendsimflow import metadata as mutils
-
 from . import SimflowConfig
 from . import metadata as metautils
 
@@ -264,15 +262,6 @@ def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(config.paths.dtmaps / "{runid}-hpge-drift-time-maps.lh5", **kwargs)
 
 
-def output_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the HPGe psl file for a detector and voltage."""
-    return _expand(
-        config.paths.pulse_shape_lib
-        / "singles/{hpge_detector}-{hpge_voltage}V-hpge-pulse-shape-library.lh5",
-        **kwargs,
-    )
-
-
 def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for drift time map generation for a detector and voltage."""
     pat = (
@@ -334,9 +323,17 @@ def output_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the realistic HPGe pulse shape library for a detector and run."""
     pat = (
         config.paths.pars
-        / "hpge/psl/realistic/{runid}-{hpge_detector}-hpge-pulse-shape-lib.lh5"
+        / "hpge/psl/realistic/singles/{runid}-{hpge_detector}-hpge-pulse-shape-lib.lh5"
     )
     return _expand(pat, **kwargs)
+
+
+def output_realistic_psl_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the merged realistic PSL file for a `runid`."""
+    return _expand(
+        config.paths.pars / "hpge/psl/realistic/{runid}-hpge-pulse-shape-lib.lh5",
+        **kwargs,
+    )
 
 
 def log_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
@@ -399,7 +396,7 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
-    raw_elecmod = mutils.simpars(
+    raw_elecmod = metautils.simpars(
         config.metadata,
         "geds.elecmod",
         kwargs["runid"],

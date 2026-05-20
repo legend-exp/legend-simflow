@@ -53,7 +53,7 @@ rule build_tier_hit:
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
-        hpges_realistic_psls=lambda wc: aggregate.gen_list_of_realistic_psls(
+        hpges_realistic_psls=lambda wc: aggregate.gen_list_of_merged_realistic_psls(
             config, wc.simid, has_detailed_psd=_tier_setting("hit", "has_detailed_psd")
         ),
         hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),

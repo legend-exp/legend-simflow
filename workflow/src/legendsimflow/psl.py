@@ -451,7 +451,7 @@ def make_realistic_pulse_shape_lib(
 
         # Restore NaN for invalid pixels in waveforms
         wfs_out[nan_mask] = np.nan
-        realistic_pulse_shape_lib[key] = Array(wfs_out)
+        realistic_pulse_shape_lib[key] = Array(wfs_out, attrs={"units": ""})
 
     _check_pulse_shape_lib_keys(realistic_pulse_shape_lib)
     return realistic_pulse_shape_lib

@@ -255,6 +255,49 @@ rule convolve_hpge_ideal_pulse_shape_lib:
         "../src/legendsimflow/scripts/make_hpge_realistic_pulse_shape_lib.py"
 
 
+rule merge_hpge_realistic_psls:
+    """Merge HPGe realistic PSL in a single file.
+
+    Copy the top-level LH5 objects from each individual detector drift time map
+    file into a single merged file using `h5copy`.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Merging HPGe realistic psl files for {wildcards.runid}"
+    input:
+        lambda wc: aggregate.gen_list_of_realistic_psls(
+            config, wc.runid, cache=smk_load_hpge_cache()
+        ),
+    output:
+        patterns.output_realistic_psl_merged_filename(config),
+    shell:
+        r"""
+        shopt -s nullglob
+        out={output}
+
+        # expand input files
+        set -- {input}
+
+        # if no matches, create an empty hdf5 file
+        if [ "$#" -eq 0 ]; then
+          python -c "import h5py; h5py.File('$out', 'w')"
+          exit 0
+        fi
+
+        # seed with the first file
+        cp "$1" "$out"
+        shift
+
+        # merge top-level objects from the rest
+        for f in "$@"; do
+          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
+            h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
+          done
+        done
+        """
+
+
 def smk_extract_current_pulse_model_inputs(wildcards):
     """Prepare inputs for the HPGe current model extraction rule."""
     raw_file, wf_idx, dsp_cfg_file = hpge_pars.find_current_pulse_model_inputs(
@@ -371,7 +414,7 @@ rule extract_electronics_model_pars:
     input:
         superpulses=lambda wc: (
             patterns.output_superpulses_filename(config)
-            if patterns.compute_superpulses(config,runid = wc.runid)
+            if patterns.compute_superpulses(config, runid=wc.runid)
             else []
         ),
         ideal_psl=lambda wc: patterns.output_ideal_psl_filename(

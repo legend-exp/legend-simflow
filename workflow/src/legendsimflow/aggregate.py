@@ -402,11 +402,11 @@ def gen_list_of_ideal_psls(
 
 def gen_list_of_realistic_psls(
     config: SimflowConfig,
-    simid: str,
+    runid: str,
     cache: dict[str, dict[str, int]] | None = None,
     has_detailed_psd: bool = True,
 ) -> list[Path]:
-    """Generate the list of realistic HPGe pulse shape library files for a `simid`.
+    """Generate the list of realistic HPGe pulse shape library files for a `runid`.
 
     If ``cache`` is provided, it must be the modelable-HPGe cache mapping
     ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
@@ -415,19 +415,32 @@ def gen_list_of_realistic_psls(
     if not has_detailed_psd:
         return []
 
-    for runid in get_runlist(config, simid):
-        hpges = (
-            gen_list_of_hpges_valid_for_modeling(config, runid)
-            if cache is None
-            else cache[runid].keys()
-        )
-        for hpge in hpges:
-            files.append(
-                patterns.output_realistic_psl_filename(
-                    config, runid=runid, hpge_detector=hpge
-                )
+    hpges = (
+        gen_list_of_hpges_valid_for_modeling(config, runid)
+        if cache is None
+        else cache[runid].keys()
+    )
+    for hpge in hpges:
+        files.append(
+            patterns.output_realistic_psl_filename(
+                config, runid=runid, hpge_detector=hpge
             )
+        )
+
     return files
+
+
+def gen_list_of_merged_realistic_psls(
+    config: SimflowConfig, simid: str, has_detailed_psd: bool = True
+) -> list[Path]:
+    r"""Generate the list of (merged) HPGe PSL files for all requested `runid`\ s."""
+    if not has_detailed_psd:
+        return []
+
+    return [
+        patterns.output_realistic_psl_merged_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
+    ]
 
 
 def gen_list_of_dtmap_plots_outputs(
