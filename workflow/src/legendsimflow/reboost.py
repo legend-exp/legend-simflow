@@ -185,6 +185,72 @@ def get_senstables(
     return list(sensvols.keys())
 
 
+def load_hpge_realistic_psl(
+    config: SimflowConfig, det_name: str, runid: str
+) -> (
+    tuple[
+        dict[str, reboost.hpge.utils.HPGeRZField],
+        dict[str, reboost.hpge.utils.HPGePulseShapeLibrary],
+    ]
+    | None
+):
+    """Load HPGe PSL from disk.
+
+    Loads the waveforms as well as drift time maps for
+    both coordinates.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    det_name
+        HPGe detector name.
+    runid
+        Run identifier.
+
+    Returns
+    -------
+    A tuple of two dictionaries: the first contains the drift time maps for different crystal axes, keyed by angle.
+    The second contains the corresponding pulse shape libraries.
+    If no valid maps are found, ``None`` is returned for both.
+
+    Note
+    ----
+    This function will be moved to :mod:`reboost`.
+
+    """
+    psl_file = patterns.output_realistic_psl_merged_filename(
+        config,
+        runid=runid,
+    )
+
+    if len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2:
+        log.debug("loading drift time maps from %s", psl_file)
+        dt_map = {}
+        waveform_map = {}
+        for angle in ("000", "045"):
+            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
+                psl_file,
+                det_name,
+                f"drift_time_{angle}_deg",
+                bounds_error=False,
+            )
+            waveform_map[angle] = reboost.hpge.utils.get_hpge_pulse_shape_library(
+                psl_file, det_name, f"waveform_{angle}_deg", out_of_bounds_val=0
+            )
+
+    else:
+        msg = (
+            f"no valid time maps found for {det_name} in {psl_file}, "
+            "drift time will be set to NaN"
+        )
+        log.warning(msg)
+        dt_map = None
+        waveform_map = None
+
+    return dt_map, waveform_map
+
+
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
 ) -> dict[str, reboost.hpge.utils.HPGeRZField] | None:
@@ -299,7 +365,6 @@ def extract_psd_observables(
     dt_map: dict[str, reboost.hpge.utils.HPGeRZField],
     currmod_pars: Mapping,
     det_loc: pyg4ometry.gdml.Defines.Position,
-    det_name: str,
     *,
     aoe_res: float,
     psdcuts: Mapping,
@@ -344,7 +409,7 @@ def extract_psd_observables(
         - is_single_site: boolean flag indicating whether the event is classified as single-site based on A/E cuts.
         - t_max: drift time at the position of maximum current, useful for further PSD or analysis.
     """
-    _drift_time = hpge_corrected_drift_time(chunk, dt_map, det_loc[det_name])
+    _drift_time = hpge_corrected_drift_time(chunk, dt_map, det_loc)
     utils.check_nans_leq(_drift_time, "_drift_time", 0.01, min_entries=1000)
 
     _a_max_true = hpge_max_current(edep_active, _drift_time, currmod_pars)
@@ -382,7 +447,132 @@ def extract_psd_observables(
         {
             "aoe": aoe,
             "aoe_class": aoe_class,
-            "is_single_sit": is_single_site,
+            "is_single_site": is_single_site,
+            "t_max": t_max,
+        }
+    )
+
+
+def extract_detailed_psd_observables(
+    chunk: ak.Array,
+    edep_active: ak.Array,
+    energy: ak.Array,
+    dt_map: dict[str, reboost.hpge.utils.HPGeRZField],
+    pulse_shape_lib: reboost.hpge.utils.HPGePulseShapeLibrary,
+    det_loc: pyg4ometry.gdml.Defines.Position,
+    *,
+    aoe_res: float,
+    psdcuts: Mapping,
+    current_reso: float,
+    mean_aoe: float,
+) -> ak.Array:
+    """Extract PSD observables for a chunk of events in an HPGe detector.
+
+    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift time maps and current model parameters.
+
+    Parameters
+    ----------
+    chunk
+        Awkward array containing the events to process. Must have fields 'xloc', 'yloc', 'zloc'.
+    edep_active
+        Energy deposited in the active volume per hit, used for A/E calculation.
+    energy
+        Energy deposited in the active volume, used for A/E calculation.
+    dt_map
+        Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
+    waveforms
+        Dictionary of waveform templates for different crystal axes, as returned by `load_hpge_realistic_psl()`.
+    det_loc
+        Position of the detector in the global coordinate system, used for drift time correction.
+    det_name
+        Name of the detector.
+    aoe_res
+        A/E resolution (sigma) used for A/E classifier calculation, typically determined from data.
+    psdcuts
+        Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
+    current_reso
+        Standard deviation of the Gaussian noise to smear the maximum current, representing the current resolution of the detector.
+    mean_aoe
+        Mean A/E value at the energy of interest, used for normalizing the current resolution smearing.
+
+    Returns
+    -------
+    an `ak.Array` with fields:
+        - aoe: A/E observable for each event.
+        - aoe_class: A/E classifier (normalized to resolution) for each event.
+        - is_single_site: boolean flag indicating whether the event is classified as single-site based on A/E cuts.
+        - t_max: drift time at the position of maximum current, useful for further PSD or analysis.
+    """
+    # Convert det_loc to pint Quantity
+    det_loc_pint = reboost.units.pg4_to_pint(det_loc)
+
+    # Use reboost.units to get conversion factors for chunk coordinates
+    # This handles the case when chunk has units attached (with_units=True)
+    xloc_conv = reboost.units.units_convfact(chunk.xloc, det_loc_pint.units)
+    yloc_conv = reboost.units.units_convfact(chunk.yloc, det_loc_pint.units)
+    zloc_conv = reboost.units.units_convfact(chunk.zloc, det_loc_pint.units)
+
+    # Unwrap LGDO/pint if present
+    xloc, _ = reboost.units.unwrap_lgdo(chunk.xloc)
+    yloc, _ = reboost.units.unwrap_lgdo(chunk.yloc)
+    zloc, _ = reboost.units.unwrap_lgdo(chunk.zloc)
+
+    _x = xloc * xloc_conv - det_loc_pint[0].m
+    _y = yloc * yloc_conv - det_loc_pint[1].m
+    _z = zloc * zloc_conv - det_loc_pint[2].m
+
+    _r = np.sqrt(_x**2 + _y**2)
+
+    _drift_time = hpge_corrected_drift_time(chunk, dt_map, det_loc)
+    utils.check_nans_leq(_drift_time, "_drift_time", 0.01, min_entries=1000)
+
+    _a_max_true = reboost.hpge.psd.maximum_current(
+        edep_active,
+        _drift_time,
+        times=None,
+        r=_r,
+        z=_z,
+        template=pulse_shape_lib,
+        return_mode="current",
+    )
+
+    utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
+
+    # Apply current resolution smearing based on configured A/E noise parameters
+    _a_max = gauss_smear(_a_max_true, current_reso / mean_aoe)
+
+    # finally calculate A/E, comparable to the A/E in data
+    # corrected for energy dependence
+    aoe = _a_max / energy
+
+    # ...and A/E classifier
+    # NOTE: we use the resolution determined from data here instead
+    # of the intrinsic simulated ones due to noise
+    aoe_class = (aoe - 1) / aoe_res
+
+    # ...and PSD flag
+    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
+        aoe_class < psdcuts.aoe.high_side
+    )
+
+    # also calculate drift time at A position
+    # FIXME: this is wasting compute resources, max_current should
+    # return (maxA, t_maxA)
+    t_max = reboost.hpge.psd.maximum_current(
+        edep_active,
+        _drift_time,
+        times=None,
+        r=_r,
+        z=_z,
+        template=pulse_shape_lib,
+        return_mode="max_time",
+    )
+
+    return ak.Array(
+        {
+            "aoe": aoe,
+            "aoe_class": aoe_class,
+            "is_single_site": is_single_site,
             "t_max": t_max,
         }
     )

@@ -278,7 +278,7 @@ def main() -> None:
             dt_map = reboost_utils.load_hpge_dtmaps(config, det_name, runid)
 
             if has_detailed_psd:
-                realistic_psl = reboost_utils.load_realistic_psl(
+                psl_dt_maps, realistic_psl = reboost_utils.load_hpge_realistic_psl(
                     config, det_name, runid
                 )
 
@@ -396,7 +396,7 @@ def main() -> None:
                     {
                         "aoe": np.full(len(chunk), np.nan),
                         "aoe_class": np.full(len(chunk), np.nan),
-                        "is_single_site": np.full(len(chunk), np.nan),
+                        "is_single_site": np.full(len(chunk), False),
                         "t_max": np.full(len(chunk), np.nan),
                     }
                 )
@@ -413,7 +413,6 @@ def main() -> None:
                             dt_map,
                             currmod_pars,
                             det_loc[det_name],
-                            det_name,
                             aoe_res=aoe_res,
                             psdcuts=psdcuts,
                             mean_aoe=pars.mean_aoe,
@@ -424,8 +423,21 @@ def main() -> None:
                     log.info(
                         "computing detailed PSD observables based on realistic pulse shape libraries"
                     )
-                    msg = "detailed PSD modeling not implemented yet"
-                    raise NotImplementedError(msg)
+                    with perf_block("extract_detailed_psd_observables()"):
+                        psd_fields_detailed = (
+                            reboost_utils.extract_detailed_psd_observables(
+                                chunk,
+                                edep_active,
+                                energy,
+                                psl_dt_maps,
+                                realistic_psl["000"],
+                                det_loc[det_name],
+                                aoe_res=aoe_res,
+                                psdcuts=psdcuts,
+                                mean_aoe=pars.mean_aoe,
+                                current_reso=pars.current_reso,
+                            )
+                        )
 
                 out_table = reboost_utils.make_output_chunk(lgdo_chunk)
 
@@ -458,20 +470,25 @@ def main() -> None:
                     out_table.add_field(
                         "drift_time_amax_detailed",
                         lgdo.Array(
-                            np.asarray(psd_fields.t_max, dtype=np.float32),
+                            np.asarray(psd_fields_detailed.t_max, dtype=np.float32),
                             attrs={"units": "ns"},
                         ),
                     )
                     out_table.add_field(
                         "aoe_raw_detailed",
-                        lgdo.Array(np.asarray(psd_fields.aoe, dtype=np.float32)),
+                        lgdo.Array(
+                            np.asarray(psd_fields_detailed.aoe, dtype=np.float32)
+                        ),
                     )
                     out_table.add_field(
                         "aoe_detailed",
-                        lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
+                        lgdo.Array(
+                            np.asarray(psd_fields_detailed.aoe_class, dtype=np.float32)
+                        ),
                     )
                     out_table.add_field(
-                        "is_single_site_detailed", lgdo.Array(psd_fields.is_single_site)
+                        "is_single_site_detailed",
+                        lgdo.Array(psd_fields_detailed.is_single_site),
                     )
 
                 _, period, run, _ = mutils.parse_runid(runid)
