@@ -246,9 +246,9 @@ def test_make_ssc_data():
 
     # hit-tier inputs needed by extract_hpge_current_pulse_model when l200data
     # is configured.
-    cusp_emax_ctc_cal = energy.astype(np.float32)
+    cusp_emax_ctc_cal_array = energy.astype(np.float32)
     # ensure there are events in the fit window with |AoE| < 1.5
-    cusp_emax_ctc_cal[:20] = np.linspace(1589, 1597, 20, dtype=np.float32)
+    cusp_emax_ctc_cal_array[:20] = np.linspace(1589, 1597, 20, dtype=np.float32)
     aoe_classifier = rng.normal(0, 0.3, size=size).astype(np.float32)
     dt_eff = rng.uniform(100, 3000, size=size).astype(np.float32)
     # only a small subset below threshold to keep runtime short in noise scan
@@ -257,7 +257,7 @@ def test_make_ssc_data():
 
     hit_tab = Table(
         {
-            "cuspEmax_ctc_cal": Array(cusp_emax_ctc_cal),
+            "cuspEmax_ctc_cal": Array(cusp_emax_ctc_cal_array),
             "AoE_Classifier": Array(aoe_classifier),
             "dt_eff": Array(dt_eff),
             "cuspEmax_cal": Array(cusp_emax_cal),
