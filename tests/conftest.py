@@ -225,30 +225,18 @@ def test_make_ssc_data():
     )
 
     raw_ssc_dir = l200data / "generated" / "tier" / "raw" / "ssc" / "p16" / "r008"
-    raw_cal_dir = l200data / "generated" / "tier" / "raw" / "cal" / "p16" / "r007"
     raw_ssc_dir.mkdir(parents=True, exist_ok=True)
-    raw_cal_dir.mkdir(parents=True, exist_ok=True)
 
     raw_ssc_file = raw_ssc_dir / "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
-    raw_cal_file = raw_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_raw.lh5"
     lh5.write(
         out,
         f"ch{rawid}",
         str(raw_ssc_file),
         wo_mode="of",
     )
-    lh5.write(
-        out,
-        f"ch{rawid}",
-        str(raw_cal_file),
-        wo_mode="of",
-    )
 
     # hit-tier inputs needed by extract_hpge_current_pulse_model when l200data
-    # is configured.
-    cusp_emax_ctc_cal_array = energy.astype(np.float32)
-    # ensure there are events in the 1593 ± 5 keV fit window with |AoE| < 1.5
-    cusp_emax_ctc_cal_array[:20] = np.linspace(1589, 1597, 20, dtype=np.float32)
+    # is configured (noise-waveform selection uses cuspEmax_cal < threshold).
     aoe_classifier = rng.normal(0, 0.3, size=size).astype(np.float32)
     dt_eff = rng.uniform(100, 3000, size=size).astype(np.float32)
     # keep most entries well above threshold and only a small low-energy subset
@@ -258,7 +246,7 @@ def test_make_ssc_data():
 
     hit_tab = Table(
         {
-            "cuspEmax_ctc_cal": Array(cusp_emax_ctc_cal_array),
+            "cuspEmax_ctc_cal": Array(energy.astype(np.float32)),
             "AoE_Classifier": Array(aoe_classifier),
             "dt_eff": Array(dt_eff),
             "cuspEmax_cal": Array(cusp_emax_cal),
@@ -266,9 +254,7 @@ def test_make_ssc_data():
     )
 
     hit_ssc_dir = l200data / "generated" / "tier" / "hit" / "ssc" / "p16" / "r008"
-    hit_cal_dir = l200data / "generated" / "tier" / "hit" / "cal" / "p16" / "r007"
     hit_ssc_dir.mkdir(parents=True, exist_ok=True)
-    hit_cal_dir.mkdir(parents=True, exist_ok=True)
 
     lh5.write(
         hit_tab,
@@ -276,10 +262,82 @@ def test_make_ssc_data():
         str(hit_ssc_dir / "l200-p16-r008-ssc-20230322T170202Z-tier_hit.lh5"),
         wo_mode="of",
     )
+    return dummyprod
+
+
+@pytest.fixture(scope="session")
+def make_cal_data():
+    """Generate synthetic calibration raw + hit LH5 files for p16/r007.
+
+    The raw waveforms are scaled by the same energy array that is written into
+    the hit tier, so the two tiers are internally consistent.  A subset of
+    events is placed in the 1593 ± 5 keV fit window required by
+    ``lookup_currmod_fit_data``.
+    """
+    size = 100000
+    rawid = 1108804
+
+    rng = np.random.default_rng(seed=123)
+
+    # cal hit energies: fresh array with events in the 1593 keV fit window
+    cal_energy = rng.uniform(25, 5000, size=size).astype(np.float32)
+    cal_energy[:20] = np.linspace(1589, 1597, 20).astype(np.float32)
+
+    aoe_classifier = rng.normal(0, 0.3, size=size).astype(np.float32)
+    dt_eff = rng.uniform(100, 3000, size=size).astype(np.float32)
+    cusp_emax_cal = np.full(size, 100, dtype=np.float32)
+    cusp_emax_cal[:200] = 1
+
+    hit_tab = Table(
+        {
+            "cuspEmax_ctc_cal": Array(cal_energy),
+            "AoE_Classifier": Array(aoe_classifier),
+            "dt_eff": Array(dt_eff),
+            "cuspEmax_cal": Array(cusp_emax_cal),
+        }
+    )
+
+    # raw waveforms based on the cal hit energies
+    mu = 51 * 10**3
+    sigma = 100
+    t = np.linspace(0, 99968, 6249)
+    wf_full = np.cumsum(norm.pdf(t, loc=mu, scale=sigma))
+    wf_win = wf_full[2625:4025]
+    wf_presum = wf_full[::8][:-1] * 8
+
+    noise_win = rng.normal(-2, 2, size=(size, len(wf_win)))
+    noise_ps = rng.normal(-2, 2, size=(size, len(wf_presum)))
+
+    wf_win_tabl = np.vstack([wf_win] * size) * cal_energy[:, np.newaxis] + noise_win
+    wf_presum_tabl = (
+        np.vstack([wf_presum] * size) * cal_energy[:, np.newaxis] + noise_ps
+    )
+
+    wfs_win = WaveformTable(
+        t0=42000.0, dt=16.0, t0_units="ns", dt_units="ns", values=wf_win_tabl
+    )
+    wfs_presum = WaveformTable(
+        t0=0.0, t0_units="ns", dt=128.0, dt_units="ns", values=wf_presum_tabl
+    )
+    raw_out = Table(
+        {"raw": {"waveform_presummed": wfs_presum, "waveform_windowed": wfs_win}}
+    )
+
+    hit_cal_dir = l200data / "generated" / "tier" / "hit" / "cal" / "p16" / "r007"
+    raw_cal_dir = l200data / "generated" / "tier" / "raw" / "cal" / "p16" / "r007"
+    hit_cal_dir.mkdir(parents=True, exist_ok=True)
+    raw_cal_dir.mkdir(parents=True, exist_ok=True)
+
     lh5.write(
         hit_tab,
         "hit/V03422A",
         str(hit_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_hit.lh5"),
         wo_mode="of",
     )
-    return dummyprod
+    lh5.write(
+        raw_out,
+        f"ch{rawid}",
+        str(raw_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_raw.lh5"),
+        wo_mode="of",
+    )
+    return l200data
