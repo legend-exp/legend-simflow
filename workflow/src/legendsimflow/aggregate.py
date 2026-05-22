@@ -67,7 +67,7 @@ def gen_list_of_simid_outputs(
     return patterns.output_simid_filenames(config, n_jobs, tier=tier, simid=simid)
 
 
-def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kwargs):
+def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
     """Generate the list of plots files for a `tier.simid`."""
     if tier == "cvt":
         return [
@@ -76,8 +76,6 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
     if tier == "hit":
         return [
             patterns.plot_tier_hit_observables_filename(config, simid=simid),
-            *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
-            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
         ]
     if tier == "opt":
         return [
@@ -85,11 +83,6 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str, **kw
         ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
-    if tier == "par":
-        return [
-            *gen_list_of_dtmap_plots_outputs(config, simid, **kwargs),
-            *gen_list_of_currmod_plots_outputs(config, simid, **kwargs),
-        ]
     return []
 
 
@@ -362,8 +355,13 @@ def gen_list_of_dtmaps(
     ]
 
 
-def gen_list_of_merged_dtmaps(config: SimflowConfig, simid: str) -> list[Path]:
+def gen_list_of_merged_dtmaps(
+    config: SimflowConfig, simid: str, has_psd=True
+) -> list[Path]:
     r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
+    if not has_psd:
+        return []
+
     return [
         patterns.output_dtmap_merged_filename(config, runid=runid)
         for runid in get_runlist(config, simid)
@@ -487,8 +485,13 @@ def gen_list_of_currmods(
     ]
 
 
-def gen_list_of_merged_currmods(config: SimflowConfig, simid: str) -> list[Path]:
+def gen_list_of_merged_currmods(
+    config: SimflowConfig, simid: str, has_psd: bool = True
+) -> list[Path]:
     r"""Generate the list of (merged) HPGe current model parameter files for all requested `runid`\ s."""
+    if not has_psd:
+        return []
+
     return [
         patterns.output_currmod_merged_filename(config, runid=runid)
         for runid in get_runlist(config, simid)
@@ -582,8 +585,8 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
     ]
     for simid in gen_list_of_all_simids(config):
         files.append(patterns.simstat_part_filename(config, simid=simid))
-        files.extend(gen_list_of_merged_dtmaps(config, simid))
-        files.extend(gen_list_of_merged_currmods(config, simid))
+        # files.extend(gen_list_of_merged_dtmaps(config, simid))
+        # files.extend(gen_list_of_merged_currmods(config, simid))
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
         files.extend(gen_list_of_psdcuts(config, simid))
@@ -653,7 +656,7 @@ def process_simlist(
         if tier in _non_simid_steps:
             msg = (
                 "simflow-config.simlist",
-                f"step {tier!r} does not produce simid-scoped outputs and cannot be used in the simlist",
+                f"step {tier!r} does not produce simid-scoped outputs and cannot be used in the ssimlist",
             )
             raise SimflowConfigError(*msg)
 

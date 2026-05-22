@@ -356,6 +356,8 @@ def _select_data_in_slice(
 
     if t0_field is not None:
         drift_time = end_time - _get_nested_field(det_evt_data, t0_field)
+    else:
+        drift_time = end_time
 
     return det_evt_data[
         (
@@ -403,8 +405,14 @@ def lookup_wfs_indices(
     output = [AttrsDict({"file_idx": [], "hit_idx": [], "n_sel": 0}) for _ in slices]
 
     for file_idx, evt_file in enumerate(evt_files):
-        if all(out.n_sel >= n_target for out in output):
+        # early break to speed up
+        m = np.mean([out.n_sel for out in output])
+        if all(out.n_sel >= n_target for out in output) or (m >= 3 * n_target):
             break
+
+        if file_idx % 100 == 0:
+            msg = f"Reading file {file_idx} out of {len(evt_files)} {m} target ({n_target})"
+            log.info(msg)
 
         evts = _read_and_sel_evts(evt_file, detector=detector)
 
@@ -583,11 +591,11 @@ def get_wfs_for_slice(
         return None
 
     # Find the common time window (max of left edges, min of right edges)
-    charge_t_min = max((e["charge_t"][0] for e in waveforms), default=-1000.0)
-    charge_t_max = min((e["charge_t"][-1] for e in waveforms), default=3000.0)
+    charge_t_min = max(-1000, *(e["charge_t"][0] for e in waveforms))
+    charge_t_max = min(3000.0, *(e["charge_t"][-1] for e in waveforms))
 
-    current_t_min = max((e["current_t"][0] for e in waveforms), default=-1000.0)
-    current_t_max = min((e["current_t"][-1] for e in waveforms), default=3000.0)
+    current_t_min = max(-1000, *(e["current_t"][0] for e in waveforms))
+    current_t_max = min(3000.0, *(e["current_t"][-1] for e in waveforms))
 
     log.info("Current range across events: [%f, %f] ns", current_t_min, current_t_max)
     log.info("Charge range across events: [%f, %f] ns", charge_t_min, charge_t_max)
@@ -1095,7 +1103,7 @@ def plot_superpulses(
 
     ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6), layout="constrained")
 
     e_lo, e_hi = None, None
     for group in groups:
@@ -1137,6 +1145,6 @@ def plot_superpulses(
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.8)
     cbar.set_label("Drift Time [ns]", rotation=270, labelpad=20)
-    fig.tight_layout()
+    # fig.tight_layout()
 
     return fig, ax

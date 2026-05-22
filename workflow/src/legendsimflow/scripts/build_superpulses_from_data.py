@@ -43,8 +43,8 @@ from legendsimflow.superpulses import (
     write_superpulses,
 )
 
-MIN_NUMBER_WFS = 50
-TARGET_WFS = 200
+MIN_NUMBER_WFS = 10
+TARGET_WFS = 100
 CHI2_THRESHOLD = 3
 
 EVT_TIER_NAME = "pet"
@@ -75,7 +75,6 @@ def main() -> int:
     parser.add_argument(
         "--runid",
         type=str,
-        nargs="+",
         required=True,
         help="One or more run IDs (e.g., l200-p16-r006-ssc)",
     )
@@ -135,10 +134,16 @@ def main() -> int:
         msg = "l200data is not configured and no --l200data path was provided"
         raise RuntimeError(msg)
 
-    runids = list(dict.fromkeys(args.runid))
+    runids = args.runid
+    runids = runids.strip("[]")
+
+    if "," in runids:
+        runids = [r.strip(" '\"") for r in runids.split(",")]
+
     log.info(
-        "building superpulses for %s from %d runs",
+        "building superpulses for %s from %s runs (%d in total)",
         args.detector,
+        runids,
         len(runids),
     )
 
@@ -170,6 +175,7 @@ def main() -> int:
                 dsp_config,
             )
         tab_map.update(tab_map_run)
+
     if dsp_config is None:
         msg = f"no superpulse input files found for detector {args.detector}"
         raise RuntimeError(msg)
@@ -187,12 +193,13 @@ def main() -> int:
     )
     log.info("using DSP config: %s", dsp_config)
 
+    step = 200
     slices = [
         Slice(
             energy_range=(1500.0, 2000.0),
-            drift_time_range=(float(dt_start), float(dt_start + 50)),
+            drift_time_range=(float(dt_start), float(dt_start + step)),
         )
-        for dt_start in range(900, 1900, 50)
+        for dt_start in range(500, 2000, step)
     ]
 
     # extract the indices of waveforms
@@ -205,11 +212,14 @@ def main() -> int:
         detector=args.detector,
         evt_files=file_info.evt,
         n_target=TARGET_WFS,
-        t0_field="spms/first_t0",
-        end_time_field="geds/psd/low_aoe/time",
+        t0_field=None,
+        end_time_field="geds/psd/drift_time",
     )
 
     superpulses = {}
+
+    Path(output_lh5).parent.mkdir(parents=True, exist_ok=True)
+    Path(plot_file).parent.mkdir(parents=True, exist_ok=True)
 
     with PdfPages(str(plot_file)) as pdf:
         for current_slice, slice_wfs_indices in zip(slices, wf_indices, strict=True):

@@ -42,10 +42,16 @@ rule build_tier_hit:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        # NOTE: we pass here the full list of maps/current models, but likely
-        # not all of them will be used. room for improvement
-        hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
-        hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
+        hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(
+            config,
+            wc.simid,
+            has_psd=get_tier_settings(config, "hit").get("simulate_psd", False),
+        ),
+        hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(
+            config,
+            wc.simid,
+            has_psd=get_tier_settings(config, "hit").get("simulate_psd", False),
+        ),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
         hpges_realistic_psls=lambda wc: aggregate.gen_list_of_merged_realistic_psls(

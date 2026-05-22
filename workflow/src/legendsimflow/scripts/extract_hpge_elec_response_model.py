@@ -55,7 +55,7 @@ DEFAULT_SETTINGS = {
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
     "max_calls": 100,
-    "dt_range_tuning": (1000.0, 2000.0),
+    "dt_range_tuning": (600.0, 2000.0),
 }
 
 

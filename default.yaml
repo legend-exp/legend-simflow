@@ -1,0 +1,66 @@
+# reserved first-level fields:
+#   - metadata
+
+experiment: l200cfg09
+
+# simflow_rng_seed: 0
+
+# runlist:
+# - l200-p03-r000-phy
+# - l200-p03-r001-phy
+# - l200-p03-r002-phy
+# - l200-p03-r005-phy
+# - l200-p04-r000-phy
+# - l200-p04-r001-phy
+
+simlist: all
+
+make_steps:
+  - vtx
+  - stp
+  - par
+  - opt
+  - hit
+  - evt
+  - cvt
+  - pdf
+
+# legend_metadata_version: main
+
+benchmark:
+  enabled: false
+  n_primaries:
+    stp: 10_000
+
+paths:
+  generated: $_/generated
+  l200data: <...>/public/prodenv/prod-blind/ref-v1.0.0
+  benchmarks: $_/generated/benchmarks
+  log: $_/generated/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    fiber: $_/inputs/simprod/l200a-optical-map-fiber.lh5
+    lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
+    pen: $_/inputs/simprod/l200a-optical-map-pen.lh5
+
+  pars: $_/generated/pars
+  macros: $_/generated/macros
+  # geom: $_/generated/pars/geom
+  # dtmaps: $_/generated/pars/hpge/dtmaps
+  tier:
+    vtx: $_/generated/tier/vtx
+    stp: $_/generated/tier/stp
+    opt: $_/generated/tier/opt
+    hit: $_/generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
+#
+# runcmd:
+#   remage: apptainer run --cleanenv /home/gipert/sw/apptainer/remage_latest.sif
+#
+# nersc:
+#   dvs_ro: true
+#   scratch: $SCRATCH/legend-simflow
