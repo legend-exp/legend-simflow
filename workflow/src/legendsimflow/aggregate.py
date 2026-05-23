@@ -656,7 +656,7 @@ def process_simlist(
         if tier in _non_simid_steps:
             msg = (
                 "simflow-config.simlist",
-                f"step {tier!r} does not produce simid-scoped outputs and cannot be used in the ssimlist",
+                f"step {tier!r} does not produce simid-scoped outputs and cannot be used in the simlist",
             )
             raise SimflowConfigError(*msg)
 
