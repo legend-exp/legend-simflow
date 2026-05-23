@@ -21,7 +21,6 @@ LegendHDF5IO = "0.1"
 RadiationDetectorDSP = "0.2"
 SolidStateDetectors = "0.11.3 - 0.12"
 
-
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
