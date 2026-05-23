@@ -107,18 +107,16 @@ def gen_list_of_all_simid_outputs(config: SimflowConfig, tier: str) -> list[Path
     return mlist
 
 
-def gen_list_of_all_plots_outputs(
-    config: SimflowConfig, tier: str, **kwargs
-) -> list[Path]:
+def gen_list_of_all_plots_outputs(config: SimflowConfig, tier: str) -> list[Path]:
     r"""Generate a list of all plot files that belong to a `tier`."""
     mlist = []
     for simid in gen_list_of_all_simids(config):
-        mlist += gen_list_of_plots_outputs(config, tier, simid, **kwargs)
+        mlist += gen_list_of_plots_outputs(config, tier, simid)
 
     return mlist
 
 
-def gen_list_of_all_plots(config: SimflowConfig, **kwargs) -> list[Path]:
+def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
     r"""Generate a list of all plot files across all active `make_steps`.
 
     Extra keyword arguments (e.g. ``cache``) are forwarded to
@@ -126,7 +124,7 @@ def gen_list_of_all_plots(config: SimflowConfig, **kwargs) -> list[Path]:
     """
     files = []
     for tier in config.make_steps:
-        files.extend(gen_list_of_all_plots_outputs(config, tier, **kwargs))
+        files.extend(gen_list_of_all_plots_outputs(config, tier))
     return files
 
 

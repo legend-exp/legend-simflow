@@ -139,7 +139,8 @@ def main() -> int:
 
     if "," in runids:
         runids = [r.strip(" '\"") for r in runids.split(",")]
-
+    else:
+        runids = [runids]
     log.info(
         "building superpulses for %s from %s runs (%d in total)",
         args.detector,
