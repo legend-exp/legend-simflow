@@ -494,6 +494,8 @@ def plot_rz_scan(
         ``"z"`` to scan over axial positions at fixed R.
     step
         Stride for subsampling spatial positions (default: plot every position).
+     xlim
+        x-axis limits in ns. If ``None``, matplotlib auto-scales.
 
 
     Returns
