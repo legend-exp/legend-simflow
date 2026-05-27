@@ -470,7 +470,7 @@ def plot_rz_scan(
     scan: str = "r",
     step: int = 1,
     xlim: tuple[float, float] | None = None,
-) -> tuple[Figure, any]:
+) -> tuple[Figure,  plt.Axes]:
     """Plot an R or Z scan of waveforms from a pulse shape library.
 
     For a given azimuthal angle, produces one figure scanning over
@@ -494,7 +494,7 @@ def plot_rz_scan(
         ``"z"`` to scan over axial positions at fixed R.
     step
         Stride for subsampling spatial positions (default: plot every position).
-     xlim
+    xlim
         x-axis limits in ns. If ``None``, matplotlib auto-scales.
 
 
