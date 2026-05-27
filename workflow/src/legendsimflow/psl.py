@@ -470,7 +470,7 @@ def plot_rz_scan(
     scan: str = "r",
     step: int = 1,
     xlim: tuple[float, float] | None = None,
-) -> tuple[Figure,  plt.Axes]:
+) -> tuple[Figure, plt.Axes]:
     """Plot an R or Z scan of waveforms from a pulse shape library.
 
     For a given azimuthal angle, produces one figure scanning over
