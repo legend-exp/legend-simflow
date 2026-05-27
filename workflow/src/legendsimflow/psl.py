@@ -551,7 +551,7 @@ def plot_rz_scan(
         ax.set_xlim(xlim)
     ax.set_title(f"{detector_id} - {title_ctx} ({angle_deg}°)")
     ax.set_xlabel("Time [ns]")
-    ax.set_ylabel("Current [A.U.]")
+    ax.set_ylabel("Signal [A.U.]")
     ax.grid(visible=True, which="both", axis="both", linestyle="--", alpha=0.5)
 
     sm = cm.ScalarMappable(norm=norm, cmap=cmap_obj)
