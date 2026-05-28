@@ -65,7 +65,7 @@ dependencies = [
     "pyg4ometry",
     "dspeed >= 2.1.4",
     "pygama >=2.3.6",
-    "pylegendmeta >=1.4.2",
+    "pylegendmeta >=1.4.4",
     "pyyaml",
     "reboost >=0.10.3,<0.11",
     "revertex >=0.1.2",
