@@ -344,29 +344,30 @@ def _get_nested_field(data: ak.Array, field: str) -> ak.Array:
     return tmp
 
 
-def _select_data_in_slice(
-    det_evt_data: ak.Array,
-    drift_slice: Slice,
-    end_time_field: str = "geds/psd/drift_time",
-    t0_field: str | None = None,
-) -> ak.Array:
-    """Filter single-detector event data to one energy-drift-time slice."""
-    # read the drift time
-    end_time = _get_nested_field(det_evt_data, end_time_field)
+def get_drift_time(data: ak.Array, end_time_field: str, t0_field: str) -> ak.Array:
+    """Get the drift time."""
+    end_time = _get_nested_field(data, end_time_field)
 
     if t0_field is not None:
-        drift_time = end_time - _get_nested_field(det_evt_data, t0_field)
+        drift_time = end_time - _get_nested_field(data, t0_field)
     else:
         drift_time = end_time
 
-    return det_evt_data[
-        (
-            ak.all(det_evt_data.geds.energy >= drift_slice.energy_range[0], axis=-1)
-            & ak.all(det_evt_data.geds.energy <= drift_slice.energy_range[1], axis=-1)
-            & ak.all(drift_time >= drift_slice.drift_time_range[0], axis=-1)
-            & ak.all(drift_time <= drift_slice.drift_time_range[1], axis=-1)
-        )
-    ]
+    return drift_time
+
+
+def _select_data_in_slice(
+    drift_time: ak.Array,
+    energy: ak.Array,
+    drift_slice: Slice,
+) -> ak.Array:
+    """Filter single-detector event data to one energy-drift-time slice."""
+    return (
+        ak.all(energy >= drift_slice.energy_range[0], axis=-1)
+        & ak.all(energy <= drift_slice.energy_range[1], axis=-1)
+        & ak.all(drift_time >= drift_slice.drift_time_range[0], axis=-1)
+        & ak.all(drift_time <= drift_slice.drift_time_range[1], axis=-1)
+    )
 
 
 def lookup_wfs_indices(
@@ -397,13 +398,16 @@ def lookup_wfs_indices(
 
     Returns
     -------
-    a list with the same length as "slices", each element is an `AttrsDict` with three fields
-    - "file_idx": the indice of the file lists containing the selected waveforms,
-    - "hit_idx": the row of the files,
-    - "n_sel": the number of selected waveforms.
+    a tuple of:
+        a list with the same length as "slices", each element is an `AttrsDict` with three fields
+        - "file_idx": the indice of the file lists containing the selected waveforms,
+        - "hit_idx": the row of the files,
+        - "n_sel": the number of selected waveforms.
+        and a list of all drift times (of considered files)
     """
     output = [AttrsDict({"file_idx": [], "hit_idx": [], "n_sel": 0}) for _ in slices]
 
+    all_drift_times = None
     for file_idx, evt_file in enumerate(evt_files):
         # early break to speed up
         m = np.mean([out.n_sel for out in output])
@@ -416,17 +420,24 @@ def lookup_wfs_indices(
 
         evts = _read_and_sel_evts(evt_file, detector=detector)
 
+        drift_time = get_drift_time(evts, end_time_field, t0_field)
+
+        all_drift_times = (
+            np.concatenate((all_drift_times, ak.flatten(drift_time)))
+            if all_drift_times is not None
+            else ak.flatten(drift_time)
+        )
+
         for out_tmp, drift_slice in zip(output, slices, strict=True):
             if out_tmp.n_sel >= n_target:
                 continue
 
             # evts in our slice
-            evts_slice = _select_data_in_slice(
-                evts,
-                drift_slice=drift_slice,
-                end_time_field=end_time_field,
-                t0_field=t0_field,
-            )
+            evts_slice = evts[
+                _select_data_in_slice(
+                    drift_time, evts.geds.energy, drift_slice=drift_slice
+                )
+            ]
             hit_indices = ak.flatten(evts_slice.geds.hit_idx).to_list()
 
             out_tmp.hit_idx.extend(hit_indices)
@@ -442,7 +453,7 @@ def lookup_wfs_indices(
             }
         )
         for out in output
-    ]
+    ], all_drift_times
 
 
 def _get_dsp_config(dsp_config: str | dict | Path) -> dict:

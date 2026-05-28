@@ -6,9 +6,7 @@ rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
-        lambda wc: aggregate.gen_list_of_all_plots_outputs(
-            config, tier="hit", cache=smk_load_hpge_cache()
-        ),
+        lambda wc: aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.

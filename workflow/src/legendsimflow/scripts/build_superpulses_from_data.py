@@ -18,6 +18,8 @@
 import argparse
 from pathlib import Path
 
+import dbetto
+import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import numpy as np
@@ -28,6 +30,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import utils
+from legendsimflow.metadata import get_par_settings
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
@@ -43,14 +46,37 @@ from legendsimflow.superpulses import (
     write_superpulses,
 )
 
-MIN_NUMBER_WFS = 10
-TARGET_WFS = 100
-CHI2_THRESHOLD = 3
+DEFAULT_SETTINGS = {
+    "min_number_wfs": 10,
+    "target_wfs": 100,
+    "chi2_threshold": 3,
+    "max_files": None,
+    "evt_tier_name": "pet",
+    "charge_output": "wf_pz_win",
+    "curr_output": "curr_av",
+    "energy_output": "cuspEmax",
+    "drift_time_slices": "1000:200:2000",
+    "t0_field": "spms/first_t0",
+    "end_time_field": "geds/psd/low_aoe/time",
+}
 
-EVT_TIER_NAME = "pet"
 
-CHARGE_OUTPUT = "wf_pz_win"
-CURR_OUTPUT = "curr_av"
+def plot_drift_times(dts, slices, tit):
+    max_dt = max(cslice.drift_time_range[1] for cslice in slices)
+
+    h = hist.new.Reg(1000, 0, max_dt + 100).Double().fill(dts)
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.set_xlabel("Drift time [ns]")
+    ax.set_ylabel("counts")
+
+    h.plot(ax=ax, yerr=False, histtype="step")
+
+    for cslice in slices:
+        ax.axvline(cslice.drift_time_range[0], linestyle="--", color="grey")
+    ax.axvline(slices[-1].drift_time_range[1], linestyle="--", color="grey")
+    ax.set_title(tit)
+    return fig, ax
 
 
 @snakemake_compatible(
@@ -91,13 +117,9 @@ def main() -> int:
         "--output-file", required=True, help="Path to save output files"
     )
     parser.add_argument("--plot-file", required=True, help="Path to save plot files.")
-    parser.add_argument(
-        "--max-files",
-        type=int,
-        default=None,
-        help="limit number of files per tier (default: all)",
-    )
+
     parser.add_argument("--log-file", default=None, help="log file")
+
     parser.add_argument(
         "--simflow-config",
         "--config",
@@ -120,11 +142,15 @@ def main() -> int:
     )
     log_script_invocation(log, "build-superpulses-from-data", parser, args)
 
+    settings = DEFAULT_SETTINGS | get_par_settings(simflow_config, "superpulses")
+    settings = dbetto.AttrsDict(settings)
+
     meta = (
         Path(args.meta)
         if args.meta is not None
         else Path(simflow_config.paths.metadata)
     )
+
     l200data = (
         Path(args.l200data)
         if args.l200data is not None
@@ -136,11 +162,8 @@ def main() -> int:
 
     runids = args.runid
     runids = runids.strip("[]")
+    runids = [r.strip(" '\"") for r in runids.split(",")] if "," in runids else [runids]
 
-    if "," in runids:
-        runids = [r.strip(" '\"") for r in runids.split(",")]
-    else:
-        runids = [runids]
     log.info(
         "building superpulses for %s from %s runs (%d in total)",
         args.detector,
@@ -153,6 +176,7 @@ def main() -> int:
     evt_files = []
     dsp_config = None
     tab_map = {}
+
     for runid in runids:
         raw_run_files, evt_run_files, dsp_cfg_file, tab_map_run = (
             lookup_superpulse_inputs(
@@ -160,12 +184,13 @@ def main() -> int:
                 metadata=lmeta,
                 runid=runid,
                 hpge=args.detector,
-                max_files=args.max_files,
-                evt_tier_name=EVT_TIER_NAME,
+                max_files=settings.max_files,
+                evt_tier_name=settings.evt_tier_name,
             )
         )
         raw_files.extend(raw_run_files)
         evt_files.extend(evt_run_files)
+
         if dsp_config is None:
             dsp_config = dsp_cfg_file
         elif dsp_config != dsp_cfg_file:
@@ -180,6 +205,7 @@ def main() -> int:
     if dsp_config is None:
         msg = f"no superpulse input files found for detector {args.detector}"
         raise RuntimeError(msg)
+
     file_info = AttrsDict(
         {
             "raw": [str(f) for f in raw_files],
@@ -194,13 +220,14 @@ def main() -> int:
     )
     log.info("using DSP config: %s", dsp_config)
 
-    step = 200
+    low, step, high = (int(val) for val in settings.drift_time_slices.split(":"))
+
     slices = [
         Slice(
             energy_range=(1500.0, 2000.0),
             drift_time_range=(float(dt_start), float(dt_start + step)),
         )
-        for dt_start in range(500, 2000, step)
+        for dt_start in range(low, high, step)
     ]
 
     # extract the indices of waveforms
@@ -208,13 +235,13 @@ def main() -> int:
     # for each we have a AttrsDict with fields
     # "hit_idx", "file_idx", "n_sel"
 
-    wf_indices = lookup_wfs_indices(
+    wf_indices, drift_times = lookup_wfs_indices(
         slices,
         detector=args.detector,
         evt_files=file_info.evt,
-        n_target=TARGET_WFS,
-        t0_field=None,
-        end_time_field="geds/psd/drift_time",
+        n_target=settings.target_wfs,
+        t0_field=settings.t0_field,
+        end_time_field=settings.end_time_field,
     )
 
     superpulses = {}
@@ -223,11 +250,18 @@ def main() -> int:
     Path(plot_file).parent.mkdir(parents=True, exist_ok=True)
 
     with PdfPages(str(plot_file)) as pdf:
+        fig, _ = plot_drift_times(
+            drift_times, slices, tit=f"{args.detector} drift time distribution"
+        )
+        decorate(fig)
+        pdf.savefig()
+        plt.close(fig)
+
         for current_slice, slice_wfs_indices in zip(slices, wf_indices, strict=True):
             msg = f"processing {current_slice} ... "
             log.info(msg)
 
-            if slice_wfs_indices.n_sel < MIN_NUMBER_WFS:
+            if slice_wfs_indices.n_sel < settings.min_number_wfs:
                 msg = f"... not enough waveforms {slice_wfs_indices.n_sel} found for {current_slice} skipping"
                 log.warning(msg)
                 continue
@@ -239,9 +273,9 @@ def main() -> int:
                 hit_indices=slice_wfs_indices.hit_idx,
                 file_indices=slice_wfs_indices.file_idx,
                 dsp_config=dsp_config,
-                charge_output=CHARGE_OUTPUT,
-                current_output=CURR_OUTPUT,
-                energy_output="cuspEmax",
+                charge_output=settings.charge_output,
+                current_output=settings.curr_output,
+                energy_output=settings.energy_output,
                 bl_output="bl_std_win",
             )
 
@@ -271,8 +305,8 @@ def main() -> int:
             )
 
             # cut waveforms above threshold
-            sel_charge_wfs = wf_data.charge_wfs[chi2_values < CHI2_THRESHOLD]
-            sel_current_wfs = wf_data.current_wfs[chi2_values < CHI2_THRESHOLD]
+            sel_charge_wfs = wf_data.charge_wfs[chi2_values < settings.chi2_threshold]
+            sel_current_wfs = wf_data.current_wfs[chi2_values < settings.chi2_threshold]
 
             n_sel = len(sel_charge_wfs)
 
@@ -287,7 +321,7 @@ def main() -> int:
                 n_events_preliminary=wf_data.charge_wfs.shape[0],
             )
 
-            if n_sel < MIN_NUMBER_WFS:
+            if n_sel < settings.min_number_wfs:
                 msg = f"... not enough waveforms {n_sel} selected for {current_slice} skipping"
                 log.warning(msg)
                 continue
@@ -308,7 +342,7 @@ def main() -> int:
 
             fig, _ = plot_chi2_cut(
                 chi2_values,
-                CHI2_THRESHOLD,
+                settings.chi2_threshold,
                 wf_data.charge_times,
                 wf_data.charge_wfs,
                 final_sp,
@@ -321,7 +355,7 @@ def main() -> int:
 
             fig, _ = plot_chi2_cut(
                 chi2_values,
-                CHI2_THRESHOLD,
+                settings.chi2_threshold,
                 wf_data.current_times,
                 wf_data.current_wfs,
                 final_sp,

@@ -54,7 +54,7 @@ DEFAULT_SETTINGS = {
     "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
-    "max_calls": 100,
+    "max_calls": 1000,
     "dt_range_tuning": (600.0, 2000.0),
 }
 
@@ -226,6 +226,7 @@ def main() -> None:
         "angle": settings.angle,
         "sigma": result["sigma"],
         "tau": result["tau"],
+        "rms": result["best_rms"],
     }
 
     dbetto.utils.write_dict(output, pars_file)

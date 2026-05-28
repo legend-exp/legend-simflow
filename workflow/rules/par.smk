@@ -18,15 +18,14 @@
 from pathlib import Path
 
 from legendsimflow import aggregate, hpge_pars, patterns
+from legendsimflow.metadata import get_par_settings
 
 
 rule gen_all_tier_par:
     """Produce all `par` step outputs."""
     input:
         aggregate.gen_list_of_all_par_outputs(config),
-        lambda wc: aggregate.gen_list_of_all_plots_outputs(
-            config, tier="par", cache=smk_load_hpge_cache()
-        ),
+        lambda wc: aggregate.gen_list_of_all_plots_outputs(config, tier="par"),
 
 
 rule make_simstat_partition_file:

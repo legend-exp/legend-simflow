@@ -97,6 +97,16 @@ def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
     return config.metadata.simprod.config.tier[tier][config.experiment].settings
 
 
+def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
+    """Return the settings block for *pars* and the current experiment."""
+    try:
+        settings = config.metadata.simprod.config.pars[par][config.experiment].settings
+    except Exception:
+        settings = AttrsDict({})
+
+    return settings
+
+
 def smk_hash_simconfig(
     config: SimflowConfig,
     wildcards: Wildcards,
