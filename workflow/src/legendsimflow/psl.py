@@ -257,7 +257,6 @@ def process_ideal_waveforms(
     nsamples_output: int,
     mw_pars: dict[str, int],
     dt_data: float,
-    current: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply electronics response and DSP chain to ideal charge waveforms.
 
