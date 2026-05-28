@@ -43,12 +43,12 @@ rule build_tier_hit:
         hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(
             config,
             wc.simid,
-            has_psd=get_tier_settings(config, "hit").get("simulate_psd", False),
+            has_psd=get_tier_settings(config, "hit").get("simulate_psd", True),
         ),
         hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(
             config,
             wc.simid,
-            has_psd=get_tier_settings(config, "hit").get("simulate_psd", False),
+            has_psd=get_tier_settings(config, "hit").get("simulate_psd", True),
         ),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
@@ -56,7 +56,7 @@ rule build_tier_hit:
             config,
             wc.simid,
             has_detailed_psd=get_tier_settings(config, "hit").get(
-                "simulate_psd_with_psl", False
+                "simulate_psd_with_psl", True
             ),
         ),
         hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),

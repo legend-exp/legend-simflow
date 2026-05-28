@@ -162,7 +162,9 @@ def main() -> None:
         log.info("... using elecmod metadata defaults for %s in %s", hpge, runid)
         entry = raw_elecmod.get(hpge, elecmod_default)
         dbetto.utils.write_dict(entry.to_dict(), pars_file)
-        return
+
+        Path(args.plot_file).touch()
+    return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
     log.info("... reading ideal library from %s ...", args.ideal_lib)

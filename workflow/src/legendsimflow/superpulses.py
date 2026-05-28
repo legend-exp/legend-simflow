@@ -381,6 +381,10 @@ def lookup_wfs_indices(
 ) -> list[AttrsDict]:
     """Extract the indices of the waveforms to use in superpulse construction.
 
+    The accumulation is stopped when either every slice has
+    more than `n_target` waveforms of the average is more than
+    3 times `n_target`.
+    
     Parameters
     ----------
     slices
@@ -425,7 +429,7 @@ def lookup_wfs_indices(
         all_drift_times = (
             np.concatenate((all_drift_times, ak.flatten(drift_time)))
             if all_drift_times is not None
-            else ak.flatten(drift_time)
+            else ak.flatten(drift_time).to_numpy()
         )
 
         for out_tmp, drift_slice in zip(output, slices, strict=True):
