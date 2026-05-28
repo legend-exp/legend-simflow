@@ -453,7 +453,7 @@ def lookup_wfs_indices(
             }
         )
         for out in output
-    ], all_drift_times
+    ], (all_drift_times if all_drift_times is not None else np.array([], dtype=float))
 
 
 def _get_dsp_config(dsp_config: str | dict | Path) -> dict:
