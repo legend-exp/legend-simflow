@@ -19,9 +19,11 @@ import logging
 from collections.abc import Mapping
 
 import awkward as ak
+import matplotlib.pyplot as plt
 import numpy as np
 from dspeed.processors import moving_window_multi
 from lgdo import Array, Scalar
+from matplotlib.figure import Figure
 from reboost import units
 from scipy.signal import convolve, fftconvolve
 
@@ -456,3 +458,105 @@ def make_realistic_pulse_shape_lib(
 
     _check_pulse_shape_lib_keys(realistic_pulse_shape_lib)
     return realistic_pulse_shape_lib
+
+
+# Plots
+
+
+def plot_rz_scan(
+    pulse_shape_lib: Mapping[str, Array | Scalar],
+    angle_deg: int,
+    detector_id: str,
+    scan: str = "r",
+    step: int = 1,
+    xlim: tuple[float, float] | None = None,
+) -> tuple[Figure, plt.Axes]:
+    """Plot an R or Z scan of waveforms from a pulse shape library.
+
+    For a given azimuthal angle, produces one figure scanning over
+    radial or axial positions at a fixed index on the other axis.
+    Waveforms are color-coded by spatial coordinate.
+
+    Parameters
+    ----------
+    pulse_shape_lib
+        Mapping containing the pulse shape library (ideal or realistic),
+        as returned by :func:`make_realistic_pulse_shape_lib` or read from
+        the ideal LH5 file.  Must contain ``r``, ``z``, ``dt`` keys and at
+        least one ``waveform_<angle>_deg`` key.
+    angle_deg
+        Azimuthal angle in degrees, used to select the
+        ``waveform_<angle>_deg`` key.
+    detector_id
+        Detector name, e.g. ``"V03422A"``.
+    scan
+        ``"r"`` to scan over radial positions at fixed Z,
+        ``"z"`` to scan over axial positions at fixed R.
+    step
+        Stride for subsampling spatial positions (default: plot every position).
+    xlim
+        x-axis limits in ns. If ``None``, matplotlib auto-scales.
+
+
+    Returns
+    -------
+    fig : Figure
+    ax : Axes
+    """
+    import matplotlib.colors as mcolors  # noqa: PLC0415
+    from matplotlib import cm  # noqa: PLC0415
+
+    if scan not in ("r", "z"):
+        msg = f"scan must be 'r' or 'z', got {scan!r}"
+        raise ValueError(msg)
+
+    wf_key = f"waveform_{str(angle_deg).zfill(3)}_deg"
+    if wf_key not in pulse_shape_lib:
+        msg = f"Key '{wf_key}' not found in pulse shape library"
+        raise KeyError(msg)
+
+    wfs = pulse_shape_lib[wf_key].nda
+    r_mm = pulse_shape_lib["r"].nda
+    z_mm = pulse_shape_lib["z"].nda
+    dt = pulse_shape_lib["dt"].value
+    t0 = pulse_shape_lib["t0"].value if "t0" in pulse_shape_lib else 0.0
+
+    Nr, Nz, Nt = wfs.shape
+    time_axis = t0 + np.arange(Nt) * dt
+
+    if scan == "r":
+        idx_fix = Nz // 2
+        axis_vals = r_mm
+        wf_slice = wfs[:, idx_fix, :]
+        label = "Radius [mm]"
+        title_ctx = f"R scan - Fixed Z = {z_mm[idx_fix]:.1f} mm"
+    else:
+        idx_fix = Nr // 4
+        axis_vals = z_mm
+        wf_slice = wfs[idx_fix, :, :]
+        label = "Z [mm]"
+        title_ctx = f"Z scan - Fixed R = {r_mm[idx_fix]:.1f} mm"
+
+    cmap = "magma_r"
+    norm = mcolors.Normalize(vmin=np.min(axis_vals), vmax=np.max(axis_vals))
+    cmap_obj = plt.get_cmap(cmap)
+
+    fig, ax = plt.subplots(figsize=(10, 6), layout="constrained")
+
+    for i in range(0, len(axis_vals), step):
+        color = cmap_obj(norm(axis_vals[i]))
+        ax.plot(time_axis, wf_slice[i], color=color, lw=1.5, linestyle="-")
+
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    ax.set_title(f"{detector_id} - {title_ctx} ({angle_deg}°)")
+    ax.set_xlabel("Time [ns]")
+    ax.set_ylabel("Signal [A.U.]")
+    ax.grid(visible=True, which="both", axis="both", linestyle="--", alpha=0.5)
+
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap_obj)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax)
+    cbar.set_label(label)
+
+    return fig, ax

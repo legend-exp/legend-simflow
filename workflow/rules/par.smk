@@ -245,7 +245,8 @@ rule convolve_hpge_ideal_pulse_shape_lib:
             config, runid=wc.runid
         ),
     output:
-        patterns.output_realistic_psl_filename(config),
+        psl_file=patterns.output_realistic_psl_filename(config),
+        plot_file=patterns.plot_realistic_psl_filename(config),
     log:
         patterns.log_realistic_psl_filename(config),
     benchmark:
