@@ -99,10 +99,13 @@ def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
 
 def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
     """Return the settings block for *par* and the current experiment."""
-    try:
+    if (
+        par in config.metadata.simprod.config.pars
+        and config.experiment in config.metadata.simprod.config.pars
+        and "settings" in config.metadata.simprod.config.pars
+    ):
         return config.metadata.simprod.config.pars[par][config.experiment].settings
-    except (AttributeError, KeyError, TypeError):
-        return AttrsDict({})
+    return AttrsDict({})
 
 
 def smk_hash_simconfig(

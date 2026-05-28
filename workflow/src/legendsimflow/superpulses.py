@@ -344,7 +344,9 @@ def _get_nested_field(data: ak.Array, field: str) -> ak.Array:
     return tmp
 
 
-def get_drift_time(data: ak.Array, end_time_field: str, t0_field: str | None) -> ak.Array:
+def get_drift_time(
+    data: ak.Array, end_time_field: str, t0_field: str | None
+) -> ak.Array:
     """Get the drift time."""
     end_time = _get_nested_field(data, end_time_field)
 
@@ -384,7 +386,7 @@ def lookup_wfs_indices(
     The accumulation is stopped when either every slice has
     more than `n_target` waveforms of the average is more than
     3 times `n_target`.
-    
+
     Parameters
     ----------
     slices
