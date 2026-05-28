@@ -43,6 +43,7 @@ from legendsimflow.hpge_electronics_tuning import (
     plot_best_fit,
     plot_convergence,
 )
+from legendsimflow.metadata import get_par_settings
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import read_superpulses
@@ -162,9 +163,12 @@ def main() -> None:
         log.info("... using elecmod metadata defaults for %s in %s", hpge, runid)
         entry = raw_elecmod.get(hpge, elecmod_default)
         dbetto.utils.write_dict(entry.to_dict(), pars_file)
-
-        Path(args.plot_file).touch()
-    return
+        
+        if (args.plot_file is not None):
+            plot_dir = Path(args.plot_file).parent
+            plot_dir.mkdir(parents=True, exist_ok=True)
+            Path(args.plot_file).touch()
+        return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
     log.info("... reading ideal library from %s ...", args.ideal_lib)
