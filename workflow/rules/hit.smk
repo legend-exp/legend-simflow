@@ -6,9 +6,7 @@ rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
-        lambda wc: aggregate.gen_list_of_all_plots_outputs(
-            config, tier="hit", cache=smk_load_hpge_cache()
-        ),
+        lambda wc: aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.
@@ -42,17 +40,23 @@ rule build_tier_hit:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        # NOTE: we pass here the full list of maps/current models, but likely
-        # not all of them will be used. room for improvement
-        hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(config, wc.simid),
-        hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(config, wc.simid),
+        hpge_dtmaps=lambda wc: aggregate.gen_list_of_merged_dtmaps(
+            config,
+            wc.simid,
+            has_psd=get_tier_settings(config, "hit").get("simulate_psd", True),
+        ),
+        hpge_currmods=lambda wc: aggregate.gen_list_of_merged_currmods(
+            config,
+            wc.simid,
+            has_psd=get_tier_settings(config, "hit").get("simulate_psd", True),
+        ),
         hpge_eresmods=lambda wc: aggregate.gen_list_of_eresmods(config, wc.simid),
         hpge_aoeresmods=lambda wc: aggregate.gen_list_of_aoeresmods(config, wc.simid),
         hpges_realistic_psls=lambda wc: aggregate.gen_list_of_merged_realistic_psls(
             config,
             wc.simid,
             has_detailed_psd=get_tier_settings(config, "hit").get(
-                "simulate_psd_with_psl", False
+                "simulate_psd_with_psl", True
             ),
         ),
         hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),

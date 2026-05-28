@@ -344,27 +344,32 @@ def _get_nested_field(data: ak.Array, field: str) -> ak.Array:
     return tmp
 
 
-def _select_data_in_slice(
-    det_evt_data: ak.Array,
-    drift_slice: Slice,
-    end_time_field: str = "geds/psd/drift_time",
-    t0_field: str | None = None,
+def get_drift_time(
+    data: ak.Array, end_time_field: str, t0_field: str | None
 ) -> ak.Array:
-    """Filter single-detector event data to one energy-drift-time slice."""
-    # read the drift time
-    end_time = _get_nested_field(det_evt_data, end_time_field)
+    """Get the drift time."""
+    end_time = _get_nested_field(data, end_time_field)
 
     if t0_field is not None:
-        drift_time = end_time - _get_nested_field(det_evt_data, t0_field)
+        drift_time = end_time - _get_nested_field(data, t0_field)
+    else:
+        drift_time = end_time
 
-    return det_evt_data[
-        (
-            ak.all(det_evt_data.geds.energy >= drift_slice.energy_range[0], axis=-1)
-            & ak.all(det_evt_data.geds.energy <= drift_slice.energy_range[1], axis=-1)
-            & ak.all(drift_time >= drift_slice.drift_time_range[0], axis=-1)
-            & ak.all(drift_time <= drift_slice.drift_time_range[1], axis=-1)
-        )
-    ]
+    return drift_time
+
+
+def _select_data_in_slice(
+    drift_time: ak.Array,
+    energy: ak.Array,
+    drift_slice: Slice,
+) -> ak.Array:
+    """Filter single-detector event data to one energy-drift-time slice."""
+    return (
+        ak.all(energy >= drift_slice.energy_range[0], axis=-1)
+        & ak.all(energy <= drift_slice.energy_range[1], axis=-1)
+        & ak.all(drift_time >= drift_slice.drift_time_range[0], axis=-1)
+        & ak.all(drift_time <= drift_slice.drift_time_range[1], axis=-1)
+    )
 
 
 def lookup_wfs_indices(
@@ -377,6 +382,10 @@ def lookup_wfs_indices(
     end_time_field: str = "geds/psd/low_aoe/time",
 ) -> list[AttrsDict]:
     """Extract the indices of the waveforms to use in superpulse construction.
+
+    The accumulation is stopped when either every slice has
+    more than `n_target` waveforms of the average is more than
+    3 times `n_target`.
 
     Parameters
     ----------
@@ -395,30 +404,46 @@ def lookup_wfs_indices(
 
     Returns
     -------
-    a list with the same length as "slices", each element is an `AttrsDict` with three fields
-    - "file_idx": the indice of the file lists containing the selected waveforms,
-    - "hit_idx": the row of the files,
-    - "n_sel": the number of selected waveforms.
+    a tuple of:
+        a list with the same length as "slices", each element is an `AttrsDict` with three fields
+        - "file_idx": the indice of the file lists containing the selected waveforms,
+        - "hit_idx": the row of the files,
+        - "n_sel": the number of selected waveforms.
+        and a list of all drift times (of considered files)
     """
     output = [AttrsDict({"file_idx": [], "hit_idx": [], "n_sel": 0}) for _ in slices]
 
+    all_drift_times = None
     for file_idx, evt_file in enumerate(evt_files):
-        if all(out.n_sel >= n_target for out in output):
+        # early break to speed up
+        m = np.mean([out.n_sel for out in output])
+        if all(out.n_sel >= n_target for out in output) or (m >= 3 * n_target):
             break
 
+        if file_idx % 100 == 0:
+            msg = f"Reading file {file_idx} out of {len(evt_files)} {m} target ({n_target})"
+            log.info(msg)
+
         evts = _read_and_sel_evts(evt_file, detector=detector)
+
+        drift_time = get_drift_time(evts, end_time_field, t0_field)
+
+        all_drift_times = (
+            np.concatenate((all_drift_times, ak.flatten(drift_time)))
+            if all_drift_times is not None
+            else ak.flatten(drift_time).to_numpy()
+        )
 
         for out_tmp, drift_slice in zip(output, slices, strict=True):
             if out_tmp.n_sel >= n_target:
                 continue
 
             # evts in our slice
-            evts_slice = _select_data_in_slice(
-                evts,
-                drift_slice=drift_slice,
-                end_time_field=end_time_field,
-                t0_field=t0_field,
-            )
+            evts_slice = evts[
+                _select_data_in_slice(
+                    drift_time, evts.geds.energy, drift_slice=drift_slice
+                )
+            ]
             hit_indices = ak.flatten(evts_slice.geds.hit_idx).to_list()
 
             out_tmp.hit_idx.extend(hit_indices)
@@ -434,7 +459,7 @@ def lookup_wfs_indices(
             }
         )
         for out in output
-    ]
+    ], (all_drift_times if all_drift_times is not None else np.array([], dtype=float))
 
 
 def _get_dsp_config(dsp_config: str | dict | Path) -> dict:
@@ -583,11 +608,11 @@ def get_wfs_for_slice(
         return None
 
     # Find the common time window (max of left edges, min of right edges)
-    charge_t_min = max((e["charge_t"][0] for e in waveforms), default=-1000.0)
-    charge_t_max = min((e["charge_t"][-1] for e in waveforms), default=3000.0)
+    charge_t_min = max(-1000, *(e["charge_t"][0] for e in waveforms))
+    charge_t_max = min(3000.0, *(e["charge_t"][-1] for e in waveforms))
 
-    current_t_min = max((e["current_t"][0] for e in waveforms), default=-1000.0)
-    current_t_max = min((e["current_t"][-1] for e in waveforms), default=3000.0)
+    current_t_min = max(-1000, *(e["current_t"][0] for e in waveforms))
+    current_t_max = min(3000.0, *(e["current_t"][-1] for e in waveforms))
 
     log.info("Current range across events: [%f, %f] ns", current_t_min, current_t_max)
     log.info("Charge range across events: [%f, %f] ns", charge_t_min, charge_t_max)
@@ -1095,7 +1120,7 @@ def plot_superpulses(
 
     ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6), layout="constrained")
 
     e_lo, e_hi = None, None
     for group in groups:
@@ -1137,6 +1162,6 @@ def plot_superpulses(
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.8)
     cbar.set_label("Drift Time [ns]", rotation=270, labelpad=20)
-    fig.tight_layout()
+    # fig.tight_layout()
 
     return fig, ax

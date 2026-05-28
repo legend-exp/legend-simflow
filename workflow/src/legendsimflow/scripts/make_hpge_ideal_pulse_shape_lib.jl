@@ -85,6 +85,7 @@ function main()
     grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
 
+    @info "using ref limits $ref_limits"
     sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES

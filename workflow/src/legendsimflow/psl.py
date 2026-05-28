@@ -310,6 +310,7 @@ def process_ideal_waveforms(
     aligned_currents, _ = align_waveforms_to_peak(
         mwa_out, alignment_idx, nsamples_output
     )
+
     return aligned_currents, current_peak_indices
 
 

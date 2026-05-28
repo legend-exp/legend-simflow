@@ -54,8 +54,8 @@ DEFAULT_SETTINGS = {
     "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
-    "max_calls": 100,
-    "dt_range_tuning": (1000.0, 2000.0),
+    "max_calls": 1000,
+    "dt_range_tuning": (600.0, 2000.0),
 }
 
 
@@ -162,6 +162,11 @@ def main() -> None:
         log.info("... using elecmod metadata defaults for %s in %s", hpge, runid)
         entry = raw_elecmod.get(hpge, elecmod_default)
         dbetto.utils.write_dict(entry.to_dict(), pars_file)
+
+        if args.plot_file is not None:
+            plot_dir = Path(args.plot_file).parent
+            plot_dir.mkdir(parents=True, exist_ok=True)
+            Path(args.plot_file).touch()
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
@@ -226,6 +231,7 @@ def main() -> None:
         "angle": settings.angle,
         "sigma": result["sigma"],
         "tau": result["tau"],
+        "rms": result["best_rms"],
     }
 
     dbetto.utils.write_dict(output, pars_file)

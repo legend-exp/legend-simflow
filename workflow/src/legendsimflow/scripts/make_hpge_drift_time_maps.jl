@@ -32,7 +32,8 @@ using PropDicts
 using Printf
 using Unitful
 using LegendSimflow
-
+using Pkg
+using SolidStateDetectors
 """
     main()
 
@@ -40,6 +41,11 @@ Generate HPGe drift time maps for specified detector and save to LH5 file.
 """
 function main()
     T = Float32
+    ssd_version = pkgversion(SolidStateDetectors)
+    ldm_version = pkgversion(LegendDataManagement)
+
+    @info "using SSD: $ssd_version"
+    @info "using LDM: $ldm_version"
 
     s = ArgParseSettings()
 
@@ -81,6 +87,9 @@ function main()
     opv_val = isnothing(raw_opv) ? nothing : parse(Float32, raw_opv)
 
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
+
+    @info meta
+    @info xtal
 
     # Load optional simulation settings, falling back to built-in defaults.
     # The settings file path is passed via --ssd-settings and applies globally

@@ -158,7 +158,7 @@ def test_lookup_wfs_indices(legend_testdata):
         for dt_start in range(900, 1900, 50)
     ]
 
-    file_idx = lookup_wfs_indices(
+    file_idx, _ = lookup_wfs_indices(
         slices,
         evt_files=files,
         n_target=10,
