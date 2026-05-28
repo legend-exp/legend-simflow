@@ -47,8 +47,8 @@ MW_PARS = psl.MW_PARS  # Parameters for the moving window average step
         "detector": "wildcards.hpge_detector",
         "electronics_model_file": "input.electronics_model",
         "input_file": "input.ideal_psl",
-        "output_file": "output[0]",
-        "plot_file": "output.plots",
+        "output_file": "output.psl_file",
+        "plot_file": "output.plot_file",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -67,7 +67,7 @@ def main():
     parser.add_argument("--input-file", required=True)
     parser.add_argument("--output-file", required=True, help="Path to output LH5 file")
     parser.add_argument(
-        "--plot-file", required=True, help="Path to save validation plots"
+        "--plot-file", required=False, default = None, help="Path to save validation plots"
     )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -134,39 +134,40 @@ def main():
     log.info("Realistic library created successfully: %s", args.output_file)
 
     # 5. Validation plots
-    plot_file = Path(args.plot_file)
-    plot_file.parent.mkdir(parents=True, exist_ok=True)
+    if args.plot_file is not None:
+        plot_file = Path(args.plot_file)
+        plot_file.parent.mkdir(parents=True, exist_ok=True)
 
-    angle_keys = [k for k in ideal_map_obj if "waveform" in k]
-    with PdfPages(str(plot_file)) as pdf:
-        for key in sorted(angle_keys):
-            angle = int(key.split("_")[1])
-            for scan in ("r", "z"):
-                fig, _ = psl.plot_rz_scan(
-                    ideal_map_obj,
-                    angle_deg=angle,
-                    detector_id=args.detector,
-                    scan=scan,
-                    step=10,
-                    xlim=(-100, 3000),
-                )
-                decorate(fig)
-                pdf.savefig(fig)
-                plt.close(fig)
+        angle_keys = [k for k in ideal_map_obj if "waveform" in k]
+        with PdfPages(str(plot_file)) as pdf:
+            for key in sorted(angle_keys):
+                angle = int(key.split("_")[1])
+                for scan in ("r", "z"):
+                    fig, _ = psl.plot_rz_scan(
+                        ideal_map_obj,
+                        angle_deg=angle,
+                        detector_id=args.detector,
+                        scan=scan,
+                        step=10,
+                        xlim=(-100, 3000),
+                    )
+                    decorate(fig)
+                    pdf.savefig(fig)
+                    plt.close(fig)
 
-                fig, _ = psl.plot_rz_scan(
-                    realistic_dict,
-                    angle_deg=angle,
-                    detector_id=args.detector,
-                    scan=scan,
-                    step=10,
-                    xlim=(-1000, 1000),
-                )
-                decorate(fig)
-                pdf.savefig(fig)
-                plt.close(fig)
+                    fig, _ = psl.plot_rz_scan(
+                        realistic_dict,
+                        angle_deg=angle,
+                        detector_id=args.detector,
+                        scan=scan,
+                        step=10,
+                        xlim=(-1000, 1000),
+                    )
+                    decorate(fig)
+                    pdf.savefig(fig)
+                    plt.close(fig)
 
-    log.info("validation plots saved to %s", plot_file)
+        log.info("validation plots saved to %s", plot_file)
 
 
 if __name__ == "__main__":

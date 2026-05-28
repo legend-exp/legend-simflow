@@ -328,6 +328,15 @@ def output_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+def plot_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the realistic HPGe pulse shape library plots for a detector and run."""
+    pat = (
+        config.paths.pars
+        / "hpge/psl/realistic/singles/plots/{runid}-{hpge_detector}-hpge-pulse-shape-lib.pdf"
+    )
+    return _expand(pat, **kwargs)
+
+
 def output_realistic_psl_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the merged realistic PSL file for a `runid`."""
     return _expand(
@@ -420,7 +429,7 @@ def output_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
 def plot_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the HPGe superpulses diagnostic plot file for a detector."""
     return _expand(
-        config.paths.pars / "hpge/superpulses/{hpge_detector}-superpulses.pdf",
+        config.paths.pars / "hpge/superpulses/plots/{hpge_detector}-superpulses.pdf",
         **kwargs,
     )
 
