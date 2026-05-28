@@ -67,7 +67,10 @@ def main():
     parser.add_argument("--input-file", required=True)
     parser.add_argument("--output-file", required=True, help="Path to output LH5 file")
     parser.add_argument(
-        "--plot-file", required=False, default = None, help="Path to save validation plots"
+        "--plot-file",
+        required=False,
+        default=None,
+        help="Path to save validation plots",
     )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(

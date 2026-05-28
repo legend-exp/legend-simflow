@@ -541,7 +541,7 @@ def plot_rz_scan(
     norm = mcolors.Normalize(vmin=np.min(axis_vals), vmax=np.max(axis_vals))
     cmap_obj = cm.get_cmap(cmap)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 6), layout="constrained")
 
     for i in range(0, len(axis_vals), step):
         color = cmap_obj(norm(axis_vals[i]))
@@ -559,5 +559,4 @@ def plot_rz_scan(
     cbar = fig.colorbar(sm, ax=ax)
     cbar.set_label(label)
 
-    fig.tight_layout()
     return fig, ax
