@@ -539,7 +539,7 @@ def plot_rz_scan(
 
     cmap = "magma_r"
     norm = mcolors.Normalize(vmin=np.min(axis_vals), vmax=np.max(axis_vals))
-    cmap_obj = cm.get_cmap(cmap)
+    cmap_obj = plt.get_cmap(cmap)
 
     fig, ax = plt.subplots(figsize=(10, 6), layout="constrained")
 
