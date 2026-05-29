@@ -446,6 +446,7 @@ def plot_best_fit(
     data_superpulses: dict[Slice, Superpulse],
     comparison_window: tuple[float, float] | None = None,
     plot_window: tuple[float, float] | None = None,
+    plot_charge: bool = False,
 ) -> tuple:
     """Overlay data and best-fit simulated current superpulses.
 
@@ -467,6 +468,8 @@ def plot_best_fit(
     plot_window
         ``(t_min, t_max)`` in ns for the x-axis limits.
         Defaults to ``comparison_window`` if set, otherwise auto-scaled.
+    plot_charge
+        Plot the charge (instead of the current), waveforms.
 
     Returns
     -------
@@ -512,7 +515,9 @@ def plot_best_fit(
             nsamples_output,
             mw_pars=psl.MW_PARS,
             dt_data=psl.DT_DATA,
+            return_mode="charge" if plot_charge else "current",
         )
+
         sim_avg = np.mean(processed, axis=0)
         sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
 
@@ -520,8 +525,11 @@ def plot_best_fit(
         f_interp = interp1d(
             sim_time, sim_avg, kind="linear", bounds_error=False, fill_value=np.nan
         )
-        data_time = data_sp.current_time_axis
-        data_wf = data_sp.current_wf
+
+        data_time = (
+            data_sp.current_time_axis if not plot_charge else data_sp.charge_time_axis
+        )
+        data_wf = data_sp.current_wf if not plot_charge else data_sp.charge_wf
 
         ax.plot(data_time, data_wf, color="#2166ac", linewidth=1.8, label="Data")
         ax.plot(

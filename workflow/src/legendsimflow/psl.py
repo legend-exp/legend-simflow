@@ -179,7 +179,9 @@ def apply_electronics_response(
 def align_waveforms_to_peak(
     wf_input: ak.Array | np.ndarray,
     alignment_idx: int,
-    nsamples_output_current_wfs: int,
+    nsamples_output_wfs: int,
+    *,
+    peak_indices: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Align an array of waveforms by shifting their maximum to a fixed index.
 
@@ -196,8 +198,10 @@ def align_waveforms_to_peak(
         Input array of current waveforms
     alignment_idx
         The index in the output array where the peak will be placed
-    nsamples_output_current_wfs
+    nsamples_output_wfs
         The total length of the resulting aligned current waveforms
+    peak_indices
+        If not `None` use this as the indices for alignment.
 
     Returns
     -------
@@ -211,13 +215,16 @@ def align_waveforms_to_peak(
     wfs = ak.to_numpy(wf_input) if isinstance(wf_input, ak.Array) else wf_input
 
     n_wfs, n_samples = wfs.shape
-    peak_indices = np.argmax(wfs, axis=1)
+
+    if peak_indices is None:
+        peak_indices = np.argmax(wfs, axis=1)
+
     shifts = alignment_idx - peak_indices  # (n_wfs,)
 
     # For each destination index d, the corresponding source index is d - shift[i].
     # Build a (n_wfs, n_samples_out) source-index matrix, mask out-of-bounds positions
     # with 0 (safe to index), then zero out those positions in the result.
-    d = np.arange(nsamples_output_current_wfs)  # (n_samples_out,)
+    d = np.arange(nsamples_output_wfs)  # (n_samples_out,)
     src_idx = d[np.newaxis, :] - shifts[:, np.newaxis]  # (n_wfs, n_samples_out)
     valid = (src_idx >= 0) & (src_idx < n_samples)
     src_idx_safe = np.clip(src_idx, 0, n_samples - 1)
@@ -259,6 +266,7 @@ def process_ideal_waveforms(
     nsamples_output: int,
     mw_pars: dict[str, int],
     dt_data: float,
+    return_mode: str = "current",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply electronics response and DSP chain to ideal charge waveforms.
 
@@ -281,6 +289,8 @@ def process_ideal_waveforms(
         MWA parameters: ``length``, ``num_mw``, ``mw_type``.
     dt_data
         Data sampling time step in ns.
+    return_mode
+        Whether to extract the "current" or the "charge" waveform.
 
     Returns
     -------
@@ -310,10 +320,20 @@ def process_ideal_waveforms(
     )
 
     aligned_currents, _ = align_waveforms_to_peak(
-        mwa_out, alignment_idx, nsamples_output
+        mwa_out, alignment_idx, nsamples_output, peak_indices=np.argmax(mwa_out, axis=1)
     )
-
-    return aligned_currents, current_peak_indices
+    aligned_charges, _ = align_waveforms_to_peak(
+        convolved,
+        alignment_idx,
+        nsamples_output,
+        peak_indices=np.argmax(mwa_out, axis=1),
+    )
+    if return_mode == "current":
+        return aligned_currents, current_peak_indices
+    if return_mode == "charge":
+        return aligned_charges, current_peak_indices
+    msg = f"Invalid return_mode '{return_mode}', expected 'current' or 'charge'"
+    raise ValueError(msg)
 
 
 def make_realistic_pulse_shape_lib(
