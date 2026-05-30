@@ -92,7 +92,7 @@ def test_shift_array():
     wf[:, 500] = 1.0
 
     shifted, peak_indices = psl.align_waveforms_to_peak(
-        wf, alignment_idx=510, nsamples_output_current_wfs=1000
+        wf, alignment_idx=510, nsamples_output_wfs=1000
     )
 
     assert isinstance(shifted, np.ndarray)
@@ -114,7 +114,7 @@ def test_align_waveforms_to_peak_correctness():
     alignment_idx = 100
 
     shifted, returned_peaks = psl.align_waveforms_to_peak(
-        wf, alignment_idx=alignment_idx, nsamples_output_current_wfs=n_samples
+        wf, alignment_idx=alignment_idx, nsamples_output_wfs=n_samples
     )
 
     # returned peak indices must match the input positions
@@ -137,7 +137,7 @@ def test_align_waveforms_to_peak_clipping():
     wf_left = np.zeros((1, 100))
     wf_left[0, 5] = 1.0
     shifted_left, _ = psl.align_waveforms_to_peak(
-        wf_left, alignment_idx=50, nsamples_output_current_wfs=100
+        wf_left, alignment_idx=50, nsamples_output_wfs=100
     )
     # peak lands at 50; samples originally before index 0 are zero-padded
     assert shifted_left[0, 50] == 1.0
@@ -147,7 +147,7 @@ def test_align_waveforms_to_peak_clipping():
     wf_right = np.zeros((1, 100))
     wf_right[0, 95] = 1.0
     shifted_right, _ = psl.align_waveforms_to_peak(
-        wf_right, alignment_idx=10, nsamples_output_current_wfs=100
+        wf_right, alignment_idx=10, nsamples_output_wfs=100
     )
     # peak lands at 10; samples originally after index 99 are lost (zero-padded)
     assert shifted_right[0, 10] == 1.0
@@ -168,7 +168,7 @@ def test_align_waveforms_to_peak_different_output_length():
         wf[i, p] = 1.0
 
     shifted, returned_peaks = psl.align_waveforms_to_peak(
-        wf, alignment_idx=alignment_idx, nsamples_output_current_wfs=n_samples_out
+        wf, alignment_idx=alignment_idx, nsamples_output_wfs=n_samples_out
     )
 
     assert shifted.shape == (n_wfs, n_samples_out)
@@ -194,10 +194,10 @@ def test_align_waveforms_to_peak_awkward_input():
     wf_ak = ak.Array(wf_np.tolist())
 
     shifted_np, peaks_np = psl.align_waveforms_to_peak(
-        wf_np, alignment_idx=50, nsamples_output_current_wfs=100
+        wf_np, alignment_idx=50, nsamples_output_wfs=100
     )
     shifted_ak, peaks_ak = psl.align_waveforms_to_peak(
-        wf_ak, alignment_idx=50, nsamples_output_current_wfs=100
+        wf_ak, alignment_idx=50, nsamples_output_wfs=100
     )
 
     np.testing.assert_array_equal(peaks_np, peaks_ak)

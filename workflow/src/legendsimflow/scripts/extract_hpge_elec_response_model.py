@@ -260,6 +260,16 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
 
+            fig, _ = plot_best_fit(
+                result,
+                data_superpulses,
+                comparison_window=comparison_window,
+                plot_window=None,
+                plot_charge=True,
+            )
+            decorate(fig)
+            pdf.savefig(fig)
+            plt.close(fig)
         log.info("... saved diagnostic plots to %s", args.plot_file)
 
 
