@@ -448,7 +448,7 @@ def plot_best_fit(
     plot_window: tuple[float, float] | None = None,
     plot_charge: bool = False,
 ) -> tuple:
-    """Overlay data and best-fit simulated current superpulses.
+    """Overlay data and best-fit simulated superpulses (current or charge).
 
     One panel per drift-time slice, sorted by drift time. Each panel
     shows the data superpulse and the simulation at the best-fit
