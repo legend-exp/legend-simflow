@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import shutil
 from pathlib import Path
 
@@ -196,14 +197,18 @@ def test_make_ssc_data():
 
     # Gaussian PDF
     wf_full = np.cumsum(norm.pdf(t, loc=mu, scale=sigma))
+    wf = copy.deepcopy(wf_full)
+
+    for i in range(1, len(wf_full)):
+        wf_full[i] = wf[i] - wf[i - 1] * (np.exp(16 / 450000)) + wf_full[i - 1]
 
     wf_win = wf_full[2625:4025]
     wf_presum = wf_full[::8][:-1] * 8
 
     energy = ak.flatten(energy).to_numpy()
 
-    noise_win = rng.normal(-2, 2, size=(size, len(wf_win)))
-    noise_ps = rng.normal(-2, 2, size=(size, len(wf_presum)))
+    noise_win = rng.normal(0, 2, size=(size, len(wf_win)))
+    noise_ps = rng.normal(0, 2, size=(size, len(wf_presum)))
 
     wf_win_tabl = np.vstack([wf_win] * size) * energy[:, np.newaxis] + noise_win
     wf_presum_tabl = np.vstack([wf_presum] * size) * energy[:, np.newaxis] + noise_ps
