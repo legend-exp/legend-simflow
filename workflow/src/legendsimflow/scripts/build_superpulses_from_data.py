@@ -142,8 +142,10 @@ def main() -> int:
     )
     log_script_invocation(log, "build-superpulses-from-data", parser, args)
 
+    log.info(get_par_settings(simflow_config, "superpulses"))
     settings = DEFAULT_SETTINGS | get_par_settings(simflow_config, "superpulses")
     settings = dbetto.AttrsDict(settings)
+    log.info(settings)
 
     meta = (
         Path(args.meta)
