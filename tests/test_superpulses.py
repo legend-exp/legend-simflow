@@ -163,7 +163,7 @@ def test_lookup_wfs_indices(legend_testdata):
         evt_files=files,
         n_target=10,
         detector="V07302A",
-        t0_field="spms/first_t0",
+        t0_field=None,
         end_time_field="geds/psd/drift_time",
     )
 

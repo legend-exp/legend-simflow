@@ -145,7 +145,7 @@ def test_make_ssc_data():
         {
             "trigger": {"is_forced": is_forced},
             "coincident": {"puls": pulser, "muon": muon, "muon_offline": muon_offline},
-            "spms": {"energy_sum": energy_sum, "first_t0": t0},
+            "spms": {"energy_sum": energy_sum, "event_t0": t0},
             "geds": {
                 "hit_idx": hit_idx,
                 "quality": {
@@ -268,7 +268,7 @@ def test_make_ssc_data():
 
 @pytest.fixture(scope="session")
 def make_cal_data():
-    """Generate synthetic calibration raw + hit LH5 files for p16/r007.
+    """Generate synthetic calibration raw + hit LH5 files for p16/r006.
 
     The raw waveforms are scaled by the same energy array that is written into
     the hit tier, so the two tiers are internally consistent.  A subset of
@@ -335,21 +335,21 @@ def make_cal_data():
         {"raw": {"waveform_presummed": wfs_presum, "waveform_windowed": wfs_win}}
     )
 
-    hit_cal_dir = l200data / "generated" / "tier" / "hit" / "cal" / "p16" / "r007"
-    raw_cal_dir = l200data / "generated" / "tier" / "raw" / "cal" / "p16" / "r007"
+    hit_cal_dir = l200data / "generated" / "tier" / "hit" / "cal" / "p16" / "r006"
+    raw_cal_dir = l200data / "generated" / "tier" / "raw" / "cal" / "p16" / "r006"
     hit_cal_dir.mkdir(parents=True, exist_ok=True)
     raw_cal_dir.mkdir(parents=True, exist_ok=True)
 
     lh5.write(
         hit_tab,
         f"ch{rawid}/hit",
-        str(hit_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_hit.lh5"),
+        str(hit_cal_dir / "l200-p16-r006-cal-20230322T170202Z-tier_hit.lh5"),
         wo_mode="of",
     )
     lh5.write(
         raw_out,
         f"ch{rawid}",
-        str(raw_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_raw.lh5"),
+        str(raw_cal_dir / "l200-p16-r006-cal-20230322T170202Z-tier_raw.lh5"),
         wo_mode="of",
     )
     return l200data

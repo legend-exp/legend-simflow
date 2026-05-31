@@ -244,6 +244,15 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
     """
     exp, period, run, datatype = re.split(r"\W+", runid)
 
+    msg = f"looking for reference calibration run for {runid}"
+    log.info(msg)
+
+    # TODO: this is a temporary workaround for the fact that p16-r007 and later runs should use p16-r006
+    if period == "p16" and (run > "r006"):
+        run = "r006"
+        runid = f"{exp}-{period}-{run}-{datatype}"
+        log.info("p16-r006 + so we set the cal run to r006")
+
     if datatype == "cal":
         return runid
 

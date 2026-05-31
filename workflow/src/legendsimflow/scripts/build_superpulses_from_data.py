@@ -56,7 +56,7 @@ DEFAULT_SETTINGS = {
     "curr_output": "curr_av",
     "energy_output": "cuspEmax",
     "drift_time_slices": "1000:200:2000",
-    "t0_field": "spms/first_t0",
+    "t0_field": "spms/event_t0",
     "end_time_field": "geds/psd/low_aoe/time",
 }
 

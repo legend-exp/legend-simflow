@@ -313,7 +313,7 @@ def _read_and_sel_evts(
             "coincident",
             "trigger",
             "spms/energy_sum",
-            "spms/first_t0",
+            "spms/event_t0",
         ],
     )
 
@@ -425,7 +425,6 @@ def lookup_wfs_indices(
             log.info(msg)
 
         evts = _read_and_sel_evts(evt_file, detector=detector)
-
         drift_time = get_drift_time(evts, end_time_field, t0_field)
 
         all_drift_times = (

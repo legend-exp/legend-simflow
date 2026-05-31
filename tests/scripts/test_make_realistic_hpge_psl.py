@@ -54,6 +54,8 @@ def test_make_realistic_hpge_psl_cli(tmp_path, monkeypatch):
             detector,
             "--electronics-model-file",
             str(electronics_model_file),
+            "--plot-file",
+            str(tmp_path / "validation_plots.pdf"),
             "--input-file",
             str(ideal_psl_file),
             "--output-file",
@@ -62,6 +64,7 @@ def test_make_realistic_hpge_psl_cli(tmp_path, monkeypatch):
             str(config_path),
         ],
     )
+    print(str(tmp_path / "validation_plots.pdf"))
 
     make_hpge_realistic_pulse_shape_lib.main()
 
@@ -74,5 +77,5 @@ def test_make_realistic_hpge_psl_cli(tmp_path, monkeypatch):
     expected_keys = {"r", "z", "dt", "t0", "waveform_000_deg", "drift_time_000_deg"}
     assert expected_keys.issubset(set(out_struct.keys()))
 
-    assert out_struct["waveform_000_deg"].view_as("np").shape == (2, 3, 5001)
+    assert out_struct["waveform_000_deg"].view_as("np").shape == (2, 3, 4001)
     assert out_struct["drift_time_000_deg"].view_as("np").shape == (2, 3)

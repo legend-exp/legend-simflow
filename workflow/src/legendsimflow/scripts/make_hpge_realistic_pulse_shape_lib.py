@@ -22,7 +22,7 @@ import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
-from lgdo import Struct
+from lgdo import Array, Struct
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from reboost import units
@@ -32,9 +32,9 @@ from legendsimflow import psl, utils
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 
-ALIGNMENT_IDX = 3000  # Index to align current waveforms to Amax
+ALIGNMENT_IDX = 1000  # Index to align current waveforms to Amax
 NSAMPLES_OUTPUT_CURRENT_WFS = (
-    5001  # Final length of the realistic current waveforms in the map
+    4001  # Final length of the realistic current waveforms in the map
 )
 DT_DATA = (
     psl.DT_DATA
@@ -127,8 +127,16 @@ def main():
         mw_pars=MW_PARS,
         dt_data=DT_DATA,
     )
+    # 4. normalise the current waveforms
+    h_aoe, mean_aoe = psl.get_avg_aoe(
+        [realistic_dict[k] for k in realistic_dict if "waveform" in k]
+    )
 
-    # 4. Write output with units
+    for key in realistic_dict:
+        if "waveform" in key:
+            realistic_dict[key] = Array(realistic_dict[key].view_as("np") / mean_aoe)
+
+    # 5. Write output with units
     out_struct = Struct(realistic_dict)
     lh5.write(
         obj=out_struct, name=args.detector, lh5_file=args.output_file, wo_mode="of"
@@ -136,7 +144,7 @@ def main():
 
     log.info("Realistic library created successfully: %s", args.output_file)
 
-    # 5. Validation plots
+    # 6 . Validation plots
     if args.plot_file is not None:
         plot_file = Path(args.plot_file)
         plot_file.parent.mkdir(parents=True, exist_ok=True)
@@ -169,6 +177,21 @@ def main():
                     decorate(fig)
                     pdf.savefig(fig)
                     plt.close(fig)
+
+            fig, ax = plt.subplots()
+            h_aoe.plot(ax=ax, yerr=False)
+
+            ax.set_xlabel("A_max [arb]")
+            ax.axvline(
+                mean_aoe,
+                color="red",
+                linestyle="--",
+                label=f"mean A/E = {mean_aoe:.2f}",
+            )
+            ax.legend()
+            decorate(fig)
+            pdf.savefig(fig)
+            plt.close(fig)
 
         log.info("validation plots saved to %s", plot_file)
 
