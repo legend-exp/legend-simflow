@@ -100,11 +100,12 @@ def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
 def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
     """Return the settings block for *par* and the current experiment."""
     if (
-        par in config.metadata.simprod.config.pars
-        and config.experiment in config.metadata.simprod.config.pars
-        and "settings" in config.metadata.simprod.config.pars
+        config.experiment in config.metadata.simprod.config.pars
+        and par in config.metadata.simprod.config.pars[config.experiment].geds
+        and "settings"
+        in config.metadata.simprod.config.pars[config.experiment].geds[par]
     ):
-        return config.metadata.simprod.config.pars[par][config.experiment].settings
+        return config.metadata.simprod.config.pars[config.experiment].geds[par].settings
     return AttrsDict({})
 
 

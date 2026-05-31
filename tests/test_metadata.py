@@ -212,3 +212,17 @@ def test_get_tier_settings_evt(config):
     assert settings.geds_energy_thr_kev == 25
     assert settings.spms_energy_thr_pe == 0
     assert settings.buffer_len == "50*MB"
+
+
+def test_get_par_settings(config):
+    """get_par_settings returns the settings object for the par directory."""
+    settings = metadata.get_par_settings(config, "ssd")
+
+    assert isinstance(settings, AttrsDict)
+    assert settings.grid_size_in_mm == 10.0
+    assert settings.ssd_refinement_limits == [0.2, 0.1, 0.05, 0.02]
+    assert settings.padding == 3
+
+    settings_empty = metadata.get_par_settings(config, "nonexistent_par")
+    assert isinstance(settings_empty, AttrsDict)
+    assert len(settings_empty) == 0
