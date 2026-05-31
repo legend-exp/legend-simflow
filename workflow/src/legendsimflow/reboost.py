@@ -31,7 +31,7 @@ import reboost.hpge.utils
 import reboost.units
 from lgdo import LGDO
 
-from legendsimflow import utils
+from legendsimflow import nersc, utils
 
 from . import patterns
 from .utils import SimflowConfig
@@ -219,9 +219,12 @@ def load_hpge_realistic_psl(
     This function will be moved to :mod:`reboost`.
 
     """
-    psl_file = patterns.output_realistic_psl_merged_filename(
+    psl_file = nersc.dvs_ro(
         config,
-        runid=runid,
+        patterns.output_realistic_psl_merged_filename(
+            config,
+            runid=runid,
+        ),
     )
 
     if len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2:
@@ -463,8 +466,8 @@ def extract_detailed_psd_observables(
     *,
     aoe_res: float,
     psdcuts: Mapping,
-    current_reso: float,
-    mean_aoe: float,
+    mean_aoe: float | None = None,
+    current_reso: float | None = None,
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
 
@@ -480,7 +483,7 @@ def extract_detailed_psd_observables(
         Energy deposited in the active volume, used for A/E calculation.
     dt_map
         Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
-    waveforms
+    pulse_shape_lib
         Dictionary of waveform templates for different crystal axes, as returned by `load_hpge_realistic_psl()`.
     det_loc
         Position of the detector in the global coordinate system, used for drift time correction.
@@ -492,8 +495,6 @@ def extract_detailed_psd_observables(
         Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
     current_reso
         Standard deviation of the Gaussian noise to smear the maximum current, representing the current resolution of the detector.
-    mean_aoe
-        Mean A/E value at the energy of interest, used for normalizing the current resolution smearing.
 
     Returns
     -------
@@ -519,13 +520,13 @@ def extract_detailed_psd_observables(
 
     _x = xloc * xloc_conv - det_loc_pint[0].m
     _y = yloc * yloc_conv - det_loc_pint[1].m
-    _z = zloc * zloc_conv - det_loc_pint[2].m
 
-    _r = np.sqrt(_x**2 + _y**2)
+    _z = reboost.units.attach_units(1000 * (zloc * zloc_conv - det_loc_pint[2].m), "mm")
+    _r = reboost.units.attach_units(1000 * np.sqrt(_x**2 + _y**2), "mm")
 
     _drift_time = hpge_corrected_drift_time(chunk, dt_map, det_loc)
-    utils.check_nans_leq(_drift_time, "_drift_time", 0.01, min_entries=1000)
 
+    utils.check_nans_leq(_drift_time, "_drift_time", 0.1, min_entries=1000)
     _a_max_true = reboost.hpge.psd.maximum_current(
         edep_active,
         _drift_time,
@@ -539,7 +540,11 @@ def extract_detailed_psd_observables(
     utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
 
     # Apply current resolution smearing based on configured A/E noise parameters
-    _a_max = gauss_smear(_a_max_true, current_reso / mean_aoe)
+    _a_max = (
+        gauss_smear(_a_max_true, current_reso / mean_aoe)
+        if (current_reso is not None and mean_aoe is not None)
+        else _a_max_true
+    )
 
     # finally calculate A/E, comparable to the A/E in data
     # corrected for energy dependence

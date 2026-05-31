@@ -55,7 +55,9 @@ DEFAULT_SETTINGS = {
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
     "max_calls": 1000,
-    "dt_range_tuning": (600.0, 2000.0),
+    "dt_range_tuning": (600.0, 3000.0),
+    "max_num_superpulses": 5,
+    "truncate_gauss": True,
 }
 
 
@@ -183,6 +185,18 @@ def main() -> None:
         <= sl.drift_time_center
         <= settings.dt_range_tuning[1]
     }
+
+    data_superpulses = dict(
+        sorted(
+            ((k, v) for k, v in data_superpulses.items()),
+            key=lambda x: x[0].drift_time_center,
+            reverse=True,
+        )
+    )
+
+    msg = f"Selected {data_superpulses}"
+    log.info(msg)
+
     if not data_superpulses:
         msg = f"no superpulses found in drift time range [{settings.dt_range_tuning[0]:.0f}, {settings.dt_range_tuning[1]:.0f}] ns"
         raise RuntimeError(msg)
@@ -199,6 +213,15 @@ def main() -> None:
     ideal_wfs = get_ideal_wfs_all_slices(
         ideal_lib, data_superpulses, angle=settings.angle
     )
+
+    if settings.max_num_superpulses > len(ideal_wfs):
+        ideal_wfs["ideal_wfs_slice"] = dict(
+            sorted(
+                ((k, v) for k, v in ideal_wfs["ideal_wfs_slice"].items()),
+                key=lambda x: x[0].drift_time_center,
+                reverse=True,
+            )[0 : settings.max_num_superpulses]
+        )
 
     # Run fit
     log.info(

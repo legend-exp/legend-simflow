@@ -19,6 +19,7 @@ import logging
 from collections.abc import Mapping
 
 import awkward as ak
+import hist
 import matplotlib.pyplot as plt
 import numpy as np
 from dspeed.processors import moving_window_multi
@@ -31,6 +32,40 @@ logger = logging.getLogger(__name__)
 
 DT_DATA: float = 16.0
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
+
+
+def get_avg_aoe(waveforms: list[np.ndarray]) -> float:
+    """Estimate the average A/E from the PSL.
+
+    Estimated as the mode of the distribution of
+    the maximum amplitude of each waveform.
+
+
+    Parameters
+    ----------
+    waveforms
+        List of 3D array of waveforms with shape (n_r, n_z, n_samples)
+
+    Returns
+    -------
+    hist_aoe
+        Histogram of the maximum amplitude distribution.
+    avg_aoe
+        The average A/E value estimated from the waveforms
+    """
+    aoe = np.concatenate([np.max(waveform, axis=2).ravel() for waveform in waveforms])
+    aoe = aoe[~np.isnan(aoe)]
+
+    hist_aoe = hist.new.Reg(
+        1000, np.min(aoe), np.max(aoe), name="A/E", label="A/E"
+    ).Double()
+
+    hist_aoe.fill(aoe)
+    counts, bin_edges = hist_aoe.to_numpy()
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    avg_aoe = bin_centers[np.argmax(counts)]
+
+    return hist_aoe, avg_aoe
 
 
 def build_electronics_response_kernel(

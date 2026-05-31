@@ -100,11 +100,11 @@ def test_run_stuff(config):
     )
     assert (
         metadata.reference_cal_run(config.metadata, "l200-p16-r008-ssc")
-        == "l200-p16-r007-cal"
+        == "l200-p16-r006-cal"
     )
     assert (
         metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
-        == "l200-p16-r007-cal"
+        == "l200-p16-r006-cal"
     )
 
 

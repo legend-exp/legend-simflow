@@ -193,8 +193,13 @@ def main() -> None:
         )
 
         log.debug("loading current pulse model parameters")
-        currmod_pars_file = patterns.output_currmod_merged_filename(config, runid=runid)
-        currmod_pars_all = AttrsDict(load_dict(currmod_pars_file))
+
+        currmod_pars_file = patterns.output_currmod_merged_filename(
+            config, runid=runid, has_psd=simulate_psd
+        )
+        currmod_pars_all = (
+            AttrsDict(load_dict(currmod_pars_file)) if simulate_psd else None
+        )
 
         log.debug("loading PSD cut values")
         psdcuts_file = patterns.output_psdcuts_filename(config, runid=runid)
@@ -274,7 +279,12 @@ def main() -> None:
             fccd = mutils.get_sanitized_fccd(metadata, det_name)
 
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
-            dt_map = reboost_utils.load_hpge_dtmaps(config, det_name, runid)
+
+            dt_map = (
+                reboost_utils.load_hpge_dtmaps(config, det_name, runid)
+                if simulate_psd
+                else None
+            )
 
             if simulate_psd_with_psl:
                 psl_dt_maps, realistic_psl = reboost_utils.load_hpge_realistic_psl(
@@ -282,7 +292,11 @@ def main() -> None:
                 )
 
             # load parameters of the current model
-            pars = currmod_pars_all.get(det_name, None)
+            pars = (
+                currmod_pars_all.get(det_name, None)
+                if currmod_pars_all is not None
+                else None
+            )
             currmod_pars = (
                 pars.get("current_pulse_pars", None) if pars is not None else None
             )
@@ -438,8 +452,12 @@ def main() -> None:
                                 det_loc[det_name],
                                 aoe_res=aoe_res,
                                 psdcuts=psdcuts,
-                                mean_aoe=pars.mean_aoe,
-                                current_reso=pars.current_reso,
+                                mean_aoe=pars.mean_aoe
+                                if pars is not None and "mean_aoe" in pars
+                                else None,
+                                current_reso=pars.current_reso
+                                if pars is not None and "current_reso" in pars
+                                else None,
                             )
                         )
 

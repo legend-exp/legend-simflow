@@ -53,6 +53,7 @@ def main() -> None:
     parser.add_argument(
         "--output-file", required=True, help="output partition YAML file"
     )
+
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
         "--simflow-config",
