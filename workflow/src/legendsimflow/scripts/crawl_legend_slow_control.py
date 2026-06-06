@@ -29,6 +29,13 @@ def round_step_5(x):
     return int(5 * math.floor(x / 5 + 0.5))
 
 
+def round_step_05(x: float) -> float:
+    # round to the nearest 0.5, with halves going away from zero (built-in
+    # round() would use bankers' rounding, e.g. 1.25 -> 1.0). normalize -0.0 to
+    # 0.0 to avoid ugly YAML output for small negative readings
+    return math.copysign(math.floor(abs(x) * 2 + 0.5) / 2, x) + 0.0
+
+
 def dict_diff(d1: dict, d2: dict) -> dict:
     """Return entries of d1 that differ from d2."""
     return {k: v for k, v in d1.items() if k not in d2 or d2[k] != v}
@@ -88,6 +95,10 @@ for name in sorted(chmap):
     # use monitored voltage: I noticed that sometimes vset can be different
     # from vmon for a long time period (and vmon is always correct)
     voltages[name] = {"operational_voltage_in_V": round_step_5(status.vmon)}
+    if "cc4" in status:
+        voltages[name]["cc4_voltages"] = {
+            f"{rail}_in_V": round_step_05(v) for rail, v in status.cc4.items()
+        }
 
 # now we check what we need to write
 if args.opv_db is not None:
