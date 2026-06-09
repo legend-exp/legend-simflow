@@ -168,7 +168,7 @@ def main() -> None:
     )
 
     log.info("... fitting the current pulse(s) to extract the model")
-    popt, x, y = hpge_pars.fit_currmod(times_list, current_list)
+    popt, _, x, y, y0 = hpge_pars.fit_currmod(times_list, current_list)
 
     # now plot
     log.info("... plotting the fit result")
@@ -183,7 +183,7 @@ def main() -> None:
         plt.close(fig)
         del all_dts, selected_dts
 
-        fig, ax = hpge_pars.plot_currmod_fit_result(times_list, current_list, x, y)
+        fig, ax = hpge_pars.plot_currmod_fit_result(times_list, current_list, x, y, y0)
 
         ax.set_xlim(-1200, 1200)
         fig.suptitle(f"{hpge} in {runid}: current waveform fit result")
