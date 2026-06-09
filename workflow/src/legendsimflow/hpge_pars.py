@@ -150,8 +150,8 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
 
     Returns
     -------
-    Tuple of the best-fit parameters (as a NumPy array), and arrays of the
-    best-fit model (time and current) evaluated around the peak.
+    Tuple of the best-fit parameters (as a NumPy array), the initial guesses, arrays of the
+    best-fit model (time and current) evaluated around the peak and the initial model evaluated around the peak.
     """
     if len(times_list) == 0:
         msg = "times_list must not be empty"
@@ -215,6 +215,13 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
     p0 = [1.0, max_t, 60.0, 0.6, 100.0, 0.2, 60.0]
     limits_lo = [0.0, max_t - 100.0, 1.0, 0.0, 1.0, 0.0, 1.0]
     limits_hi = [2.0, max_t + 100.0, 500.0, 1.0, 800.0, 1.0, 800.0]
+    init = current_pulse_model(np.linspace(low, high, 2000), *p0)
+    init_max = float(np.max(init))
+
+    # adjust the limits on the amplitude, which is not really pulse height
+    p0[0] /= init_max
+    limits_lo[0] /= init_max
+    limits_hi[0] /= init_max
 
     def total_mse(height, t0, s1, r1, w2, r2, w3):
         total = 0.0
@@ -223,7 +230,7 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
             if not np.any(mask):
                 continue
             model = current_pulse_model(t[mask], height, t0, s1, r1, w2, r2, w3)
-            total += float(np.sum((A_norm[mask] - model) ** 2)) / len(mask)
+            total += float(np.sum((A_norm[mask] - model) ** 2)) / np.sum(mask)
         return total
 
     m = Minuit(total_mse, *p0)
@@ -236,12 +243,14 @@ def fit_currmod(times_list: list[NDArray], current_list: list[NDArray]) -> tuple
     # The fit was performed on normalised waveforms (each divided by its peak),
     # so the fitted height is dimensionless (≈ 1).  Multiply by mean_peak to
     # convert back to the original ADC scale expected by downstream code.
-    popt[0] = popt[0] * mean_peak
+    popt[0] *= mean_peak
+    p0[0] *= mean_peak
 
     x = np.linspace(low, high, 2000)
     y = current_pulse_model(x, *popt)
+    y0 = current_pulse_model(x, *p0)
 
-    return popt, x, y
+    return popt, p0, x, y, y0
 
 
 def fit_noise_gauss(
@@ -599,7 +608,11 @@ def get_noise_maxima_and_sample(
 
 
 def plot_currmod_fit_result(
-    t: list[NDArray], A: list[NDArray], model_t: NDArray, model_A: NDArray
+    t: list[NDArray],
+    A: list[NDArray],
+    model_t: NDArray,
+    model_A: NDArray,
+    init_model: NDArray,
 ) -> tuple:
     """Plot the best fit results."""
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -618,6 +631,9 @@ def plot_currmod_fit_result(
             label="Current signal" if idx == 0 else None,
         )
     ax.plot(model_t, model_A, label="Model", color="tab:red")
+    ax.plot(
+        model_t, init_model, label="Initial guess", color="tab:blue", linestyle="--"
+    )
 
     ax.legend()
 
@@ -788,11 +804,11 @@ def lookup_currmod_fit_inputs(
     _, period, run, _ = re.split(r"\W+", cal_runid)
 
     msg = f"inferred reference calibration run: {cal_runid}"
-    log.debug(msg)
+    log.info(msg)
 
     hit_path = df_cfg[f"tier_{hit_tier_name}"]
     msg = f"looking for hit tier files in {hit_path / 'cal' / period / run}/*"
-    log.debug(msg)
+    log.info(msg)
 
     hit_files = list((hit_path / "cal" / period / run).glob("*"))
 

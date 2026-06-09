@@ -57,6 +57,41 @@ def _build_argv(
     ]
 
 
+def _build_argv_with_data(
+    tmp_path: Path,
+    runid: str,
+    hpge_detector: str,
+    l200data_path: str | None = None,
+) -> list[str]:
+    """Return sys.argv for the currmod script under test.
+
+    Copies the dummyprod simflow-config.yaml to tmp_path, points metadata at
+    the dummyprod inputs.
+    """
+    config_path = tmp_path / "simflow-config.yaml"
+    raw = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
+    raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    raw["experiment"] = "l200cfg01"
+
+    raw["paths"]["l200data"] = l200data_path
+
+    config_path.write_text(yaml.safe_dump(raw))
+
+    return [
+        "extract-hpge-currmod",
+        "--runid",
+        runid,
+        "--hpge-detector",
+        hpge_detector,
+        "--pars-file",
+        str(tmp_path / "pars.yaml"),
+        "--plot-file",
+        str(tmp_path / "plot.pdf"),
+        "--simflow-config",
+        str(config_path),
+    ]
+
+
 def test_metadata_default_written_for_detector(tmp_path, monkeypatch):
     """p03 + a detector without its own override must get the metadata default."""
     decorate_calls = []
@@ -111,16 +146,19 @@ def test_raises_without_default_and_no_l200data(tmp_path, monkeypatch):
 
 
 def test_l200data_path_creates_valid_outputs(
-    tmp_path, monkeypatch, test_make_ssc_data, make_cal_data
+    tmp_path, monkeypatch, make_cal_data, test_make_ssc_data
 ):
+    assert make_cal_data.exists()
+    assert test_make_ssc_data.exists()
+
     monkeypatch.setattr(
         sys,
         "argv",
-        _build_argv(
+        _build_argv_with_data(
             tmp_path,
             runid="l200-p16-r008-ssc",
             hpge_detector="V03422A",
-            l200data_path=str(l200data),
+            l200data_path=str(make_cal_data),
         ),
     )
 
@@ -129,6 +167,7 @@ def test_l200data_path_creates_valid_outputs(
     pars_file = tmp_path / "pars.yaml"
     plot_file = tmp_path / "plot.pdf"
 
+    # (debug) plot_file path available via assertion messages below
     assert pars_file.exists(), "pars output file was not created"
     assert plot_file.exists(), "plot output file was not created"
 
@@ -140,7 +179,15 @@ def test_l200data_path_creates_valid_outputs(
     assert "mean_aoe" in result
     assert "current_reso" in result
 
-    for field in ("height", "t0", "s1", "r1", "w2", "r2", "w3"):
+    for field in (
+        "amax",
+        "mu",
+        "sigma",
+        "tail_fraction",
+        "tau",
+        "high_tail_fraction",
+        "high_tau",
+    ):
         assert field in result["current_pulse_pars"], (
             f"missing current_pulse_pars.{field}"
         )

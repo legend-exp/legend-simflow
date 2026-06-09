@@ -14,6 +14,7 @@ from legendmeta import LegendMetadata
 from legendtestdata import LegendTestData
 from lgdo import Array, Table, WaveformTable, lh5
 from pygeoml200 import core
+from reboost.hpge.psd import _current_pulse_model as currmod
 from scipy.stats import norm
 
 from legendsimflow.utils import apply_path_defaults
@@ -135,7 +136,7 @@ def test_make_ssc_data():
     is_good_channel = ak.unflatten(
         np.full(size, True, dtype=bool), np.ones(size, dtype=int)
     )
-    energy = ak.unflatten(rng.uniform(25, 5000, size=size), np.ones(size, dtype=int))
+    energy = ak.unflatten(rng.uniform(-25, 5000, size=size), np.ones(size, dtype=int))
     aoe = ak.unflatten(rng.uniform(-5, 5, size=size), np.ones(size, dtype=int))
 
     end_time = ak.unflatten(rng.uniform(100, 3000, size=size), np.ones(size, dtype=int))
@@ -207,8 +208,8 @@ def test_make_ssc_data():
 
     energy = ak.flatten(energy).to_numpy()
 
-    noise_win = rng.normal(0, 2, size=(size, len(wf_win)))
-    noise_ps = rng.normal(0, 2, size=(size, len(wf_presum)))
+    noise_win = rng.normal(0, 0.5, size=(size, len(wf_win)))
+    noise_ps = rng.normal(0, 0.5, size=(size, len(wf_presum)))
 
     wf_win_tabl = np.vstack([wf_win] * size) * energy[:, np.newaxis] + noise_win
     wf_presum_tabl = np.vstack([wf_presum] * size) * energy[:, np.newaxis] + noise_ps
@@ -258,7 +259,7 @@ def test_make_ssc_data():
 
     lh5.write(
         hit_tab,
-        "hit/V03422A",
+        f"ch{rawid}/hit",
         str(hit_ssc_dir / "l200-p16-r008-ssc-20230322T170202Z-tier_hit.lh5"),
         wo_mode="of",
     )
@@ -277,7 +278,7 @@ def make_cal_data():
     size = 100000
     rawid = 1108804
 
-    rng = np.random.default_rng(seed=123)
+    rng = np.random.default_rng(seed=142)
 
     # cal hit energies: fresh array with events in the 1593 keV fit window
     cal_energy = rng.uniform(25, 5000, size=size).astype(np.float32)
@@ -285,28 +286,39 @@ def make_cal_data():
 
     aoe_classifier = rng.normal(0, 0.3, size=size).astype(np.float32)
     dt_eff = rng.uniform(100, 3000, size=size).astype(np.float32)
-    cusp_emax_cal = np.full(size, 100, dtype=np.float32)
-    cusp_emax_cal[:200] = 1
 
     hit_tab = Table(
         {
             "cuspEmax_ctc_cal": Array(cal_energy),
             "AoE_Classifier": Array(aoe_classifier),
             "dt_eff": Array(dt_eff),
-            "cuspEmax_cal": Array(cusp_emax_cal),
+            "cuspEmax_cal": Array(cal_energy),
         }
     )
 
     # raw waveforms based on the cal hit energies
     mu = 51 * 10**3
-    sigma = 100
+    sigma = 50
     t = np.linspace(0, 99968, 6249)
-    wf_full = np.cumsum(norm.pdf(t, loc=mu, scale=sigma))
+
+    curr = currmod(
+        t,
+        amax=1,
+        mu=mu,
+        sigma=sigma,
+        tail_fraction=0.55,
+        tau=150.0,
+        high_tail_fraction=0.2,
+        high_tau=80.0,
+    )
+    curr /= np.sum(curr) * 16
+    wf_full = np.cumsum(curr)
+
     wf_win = wf_full[2625:4025]
     wf_presum = wf_full[::8][:-1] * 8
 
-    noise_win = rng.normal(-2, 2, size=(size, len(wf_win)))
-    noise_ps = rng.normal(-2, 2, size=(size, len(wf_presum)))
+    noise_win = rng.normal(0, 0.5, size=(size, len(wf_win)))
+    noise_ps = rng.normal(0, 0.5, size=(size, len(wf_presum)))
 
     wf_win_tabl = np.vstack([wf_win] * size) * cal_energy[:, np.newaxis] + noise_win
     wf_presum_tabl = (
@@ -330,7 +342,7 @@ def make_cal_data():
 
     lh5.write(
         hit_tab,
-        "hit/V03422A",
+        f"ch{rawid}/hit",
         str(hit_cal_dir / "l200-p16-r007-cal-20230322T170202Z-tier_hit.lh5"),
         wo_mode="of",
     )

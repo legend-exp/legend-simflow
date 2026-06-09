@@ -22,9 +22,9 @@ def test_fit():
 
     res = hpge_pars.fit_currmod([t], [A])
 
-    assert isinstance(res[0], np.ndarray)
-    assert isinstance(res[1], np.ndarray)
     assert isinstance(res[2], np.ndarray)
+    assert isinstance(res[3], np.ndarray)
+    assert isinstance(res[4], np.ndarray)
 
 
 def test_fit_multi():
@@ -40,8 +40,8 @@ def test_fit_multi():
 
     assert isinstance(res[0], np.ndarray)
     assert len(res[0]) == 7
-    assert isinstance(res[1], np.ndarray)
     assert isinstance(res[2], np.ndarray)
+    assert isinstance(res[3], np.ndarray)
 
 
 def test_fit_empty_raises():
@@ -54,7 +54,7 @@ def test_fit_with_current_pulse_model():
     true_pars = [100.0, 0.0, 60.0, 0.6, 100.0, 0.2, 60.0]
     y = current_pulse_model(t, *true_pars)
 
-    popt, x, y_fit = hpge_pars.fit_currmod([t], [y])
+    popt, _, x, y_fit, _ = hpge_pars.fit_currmod([t], [y])
 
     assert len(popt) == 7
     # height and peak location should be recovered to within 20 %
@@ -69,8 +69,8 @@ def test_fit_amplitude_scaling():
     t = np.linspace(-1000, 2000, 3001)
     y = current_pulse_model(t, 100.0, 0.0, 60.0, 0.6, 100.0, 0.2, 60.0)
 
-    popt1, _, _ = hpge_pars.fit_currmod([t], [y])
-    popt2, _, _ = hpge_pars.fit_currmod([t], [y * 3.0])
+    popt1, _, _, _, _ = hpge_pars.fit_currmod([t], [y])
+    popt2, _, _, _, _ = hpge_pars.fit_currmod([t], [y * 3.0])
 
     # height should scale by exactly the same factor (3x) within numerical tolerance
     assert abs(popt2[0] / popt1[0] - 3.0) < 0.05
@@ -316,7 +316,11 @@ def test_get_aoe():
 
 def test_plot():
     fig, ax = hpge_pars.plot_currmod_fit_result(
-        [1, 2, 3], [0, 10, 20], np.linspace(0, 3, 1000), np.linspace(0, 3, 1000)
+        [1, 2, 3],
+        [0, 10, 20],
+        np.linspace(0, 3, 1000),
+        np.linspace(0, 3, 1000),
+        np.linspace(0, 3, 1000),
     )
 
     assert isinstance(fig, Figure)
