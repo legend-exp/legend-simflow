@@ -4,6 +4,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import awkward as ak
+
 sys.path.insert(0, Path(__file__).parents[2].resolve().as_posix())
 
 project = "legend-simflow"
@@ -103,6 +105,9 @@ nitpick_ignore_regex = [
     # awkward-array uses internal module paths in type annotations
     ("py:class", r"awkward\.highlevel\..*"),
     ("py:class", r"awkward\.contents\..*"),
+    # pyg4ometry publishes no py: targets in its inventory (only std:doc/std:label),
+    # so any pyg4ometry type reference is unresolvable via intersphinx
+    ("py:class", r"pyg4ometry\..*"),
     # snakemake internal paths differ from public API paths
     ("py:class", r"snakemake\.iocontainers\..*"),
     # legendmeta re-exports LegendMetadata at top level but inventory uses submodule path
@@ -110,6 +115,16 @@ nitpick_ignore_regex = [
     # iminuit exposes Minuit at iminuit.Minuit but annotations resolve to internal path
     ("py:class", r"iminuit\.minuit\.Minuit"),
 ]
+
+
+def typehints_formatter(annotation: object, *_args: object) -> str | None:
+    # awkward aliases (e.g. behaviors.string.StringBehavior) confuse
+    # sphinx-autodoc-typehints' inventory canonicalization; resolve ak.Array
+    # to its documented public name instead.
+    if annotation is ak.Array:
+        return ":py:class:`~awkward.Array`"
+    return None
+
 
 # sphinx-autodoc
 autodoc_default_options = {"ignore-module-all": True}
