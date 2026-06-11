@@ -13,7 +13,9 @@ resources:
   mem_mb: 512000
 
 set-resources:
-  # this SSD process seems to use a lot of memory, can't run so many processes
-  # in parallel!
+  # this SSD.jl processes seems to use a lot of memory, can't run so many in
+  # parallel!
   build_hpge_drift_time_map:
+    mem_mb: 8000
+  build_hpge_pulse_shape_library:
     mem_mb: 8000
