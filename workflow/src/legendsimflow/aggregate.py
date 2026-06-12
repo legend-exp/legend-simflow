@@ -119,8 +119,8 @@ def gen_list_of_all_plots_outputs(config: SimflowConfig, tier: str) -> list[Path
 def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
     r"""Generate a list of all plot files across all active `make_steps`.
 
-    Extra keyword arguments (e.g. ``cache``) are forwarded to
-    :func:`gen_list_of_all_plots_outputs`.
+    Iterates over :func:`gen_list_of_all_plots_outputs` for every tier in
+    ``config.make_steps``.
     """
     files = []
     for tier in config.make_steps:
