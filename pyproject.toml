@@ -67,15 +67,15 @@ dependencies = [
     "pygama >=2.3.6",
     "pylegendmeta >=1.4.4",
     "pyyaml",
-    "reboost >=0.12.1,<0.13",
+    "reboost >=0.12.2,<0.13",
     "revertex >=0.1.2",
     "ruamel.yaml",
     "snakemake >=9.19,<9.20",
     "snakemake-argparse-bridge >=0.2.0",
     "snakemake-storage-plugin-fs",
     "snakemake-executor-plugin-slurm",
-    "snakemake-logger-plugin-rich",
-    "snakemake-logger-plugin-snkmt",
+    "snakemake-logger-plugin-rich >=0.4.2",
+    "snakemake-logger-plugin-snkmt >=0.1.7",
 ]
 
 [project.optional-dependencies]
@@ -134,7 +134,7 @@ snakemake = ">=9.19,<9.20"
 snakemake-storage-plugin-fs = "*"
 snakemake-executor-plugin-slurm = "*"
 # snakemake-logger-plugin-rich = "..."  # not on conda-forge
-snakemake-logger-plugin-snkmt = "*"
+# snakemake-logger-plugin-snkmt = ">=0.1.7"  # not on conda-forge
 
 # tier hit
 hist = "*"
@@ -142,7 +142,7 @@ mplhep = ">=1.0"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"
-reboost = ">=0.12.1,<0.13"
+reboost = ">=0.12.2,<0.13"
 
 # tier stp
 remage = ">=0.19.5,<0.20"
