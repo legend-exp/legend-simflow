@@ -182,7 +182,8 @@ rule archive_plots:
     """
     localrule: True
     input:
-        aggregate.gen_list_of_all_plots(config),
+        # deferred: avoid the expensive evaluation at Snakefile parse time
+        lambda wc: aggregate.gen_list_of_all_plots(config),
     output:
         patterns.plots_tarball_filename(config),
     run:
