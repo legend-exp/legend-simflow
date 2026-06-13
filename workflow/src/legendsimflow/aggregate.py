@@ -25,7 +25,14 @@ from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
-from .metadata import encode_psd_usability, get_runlist, get_simconfig, runinfo, simpars
+from .metadata import (
+    encode_psd_usability,
+    get_runlist,
+    get_simconfig,
+    get_tier_settings,
+    runinfo,
+    simpars,
+)
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +90,12 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
         ]
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
+    if tier == "par":
+        # HPGe drift time map plots, a byproduct of the par step; only produced
+        # when PSD is simulated in the hit tier
+        if not get_tier_settings(config, "hit").get("simulate_psd", True):
+            return []
+        return gen_list_of_dtmap_plots_outputs(config, simid)
     return []
 
 

@@ -9,6 +9,7 @@ from dbetto import AttrsDict
 import legendsimflow.aggregate as agg_mod
 from legendsimflow import aggregate as agg
 from legendsimflow.exceptions import SimflowConfigError
+from legendsimflow.metadata import get_tier_settings
 
 
 def test_simid_aggregates(fresh_config):
@@ -152,6 +153,25 @@ def test_dtmap_stuff(config):
 
     assert len(agg.gen_list_of_merged_dtmaps(config, simid)) == 1
     assert len(agg.gen_list_of_dtmap_plots_outputs(config, simid)) == 1
+
+    # dtmap plots are produced as par-tier plots, so they flow through the
+    # generic plots aggregator
+    assert agg.gen_list_of_plots_outputs(
+        config, "par", simid
+    ) == agg.gen_list_of_dtmap_plots_outputs(config, simid)
+    assert len(agg.gen_list_of_all_plots_outputs(config, "par")) >= 1
+
+
+def test_par_plots_psd_gate(fresh_config):
+    config = fresh_config
+    simid = "pen_plates_Ra224_to_Pb208"
+
+    # with PSD enabled (the default) the par tier yields the dtmap plots
+    assert len(agg.gen_list_of_plots_outputs(config, "par", simid)) >= 1
+
+    # disabling PSD in the hit tier drops them
+    get_tier_settings(config, "hit")["simulate_psd"] = False
+    assert agg.gen_list_of_plots_outputs(config, "par", simid) == []
 
 
 def test_hpge_voltage_functions(config):
