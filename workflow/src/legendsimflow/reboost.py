@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import awkward as ak
@@ -187,7 +187,10 @@ def get_senstables(
 
 
 def load_hpge_realistic_psl(
-    config: SimflowConfig, det_name: str, runid: str
+    config: SimflowConfig,
+    det_name: str,
+    runid: str,
+    waveform_angles: Sequence[str] = ("000",),
 ) -> (
     tuple[
         dict[str, reboost.hpge.utils.HPGeRZField],
@@ -208,6 +211,11 @@ def load_hpge_realistic_psl(
         HPGe detector name.
     runid
         Run identifier.
+    waveform_angles
+        Crystal-axis angles for which to load the (large) waveform
+        pulse-shape libraries. Defaults to the 000-degree axis only, which is
+        the single axis consumed by :func:`extract_detailed_psd_observables`.
+        The drift-time maps are always loaded for both axes regardless.
 
     Returns
     -------
@@ -230,17 +238,26 @@ def load_hpge_realistic_psl(
 
     if len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2:
         log.debug("loading drift time maps from %s", psl_file)
-        dt_map = {}
-        waveform_map = {}
-        for angle in ("000", "045"):
-            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
+        # both axes needed: hpge_corrected_drift_time() blends them (and small)
+        dt_map = {
+            angle: reboost.hpge.utils.get_hpge_rz_field(
                 psl_file,
                 det_name,
                 f"drift_time_{angle}_deg",
                 bounds_error=False,
             )
-            waveform_map[angle] = reboost.hpge.utils.get_hpge_pulse_shape_library(
+            for angle in ("000", "045")
+        }
+        # waveforms dominate memory (PSL file is O(10 GB)); load only the axes
+        # used downstream (extract_detailed_psd_observables() is single-axis)
+        waveform_map = {}
+        for angle in waveform_angles:
+            lib = reboost.hpge.utils.get_hpge_pulse_shape_library(
                 psl_file, det_name, f"waveform_{angle}_deg", out_of_bounds_val=0
+            )
+            # float32 is enough for ~1% A/E; halves the templates if read as f64
+            waveform_map[angle] = lib._replace(
+                waveforms=np.asarray(lib.waveforms, dtype=np.float32)
             )
 
     else:
