@@ -300,6 +300,9 @@ def main() -> None:
             )
 
             if simulate_psd_with_psl:
+                # free the previous detector's library before loading the next,
+                # so peak memory holds one detector's PSL rather than two
+                psl_dt_maps = realistic_psl = None
                 psl_dt_maps, realistic_psl = reboost_utils.load_hpge_realistic_psl(
                     config, det_name, runid
                 )
