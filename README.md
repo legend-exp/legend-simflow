@@ -17,3 +17,47 @@ background signatures in the LEGEND experiment and produce probability-density
 functions (pdfs). Configuration metadata (e.g. rules for generating simulation
 macros or post-processing settings) is stored at
 [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
+
+## Features
+
+- Tier-based Snakemake workflow taking Geant4
+  ([_remage_](https://remage.readthedocs.io)) Monte Carlo events all the way to
+  analysis-ready pdfs.
+- Simulated statistics weighted by the livetime of a user-selected list of data
+  taking runs (run partitioning).
+- Fully metadata-driven: a production is configured by editing a single YAML
+  file, no code required. Runs locally or on HPC sites through ready-made
+  Snakemake profiles.
+
+### Detector response models
+
+Physics and detector models tuned to real LEGEND-200 data and applied during
+post-processing:
+
+- **HPGe energy**: per-detector energy scale and measured energy resolution
+  FWHM(E) used to smear the simulated energy.
+- **HPGe active volume**: dead-layer / active-volume model from detector
+  geometry and metadata.
+- **HPGe pulse shape and PSD**: drift-time maps and ideal pulse-shape libraries
+  computed with
+  [_SolidStateDetectors.jl_](https://juliaphysics.github.io/SolidStateDetectors.jl),
+  convolved with an electronics-response model fitted to data superpulses; A/E
+  response from current-signal templates and measured A/E resolution, with
+  data-driven PSD survival cuts.
+- **Liquid-argon scintillation and SiPMs**: scintillation photon generation,
+  photoelectron detection sampled from optical maps, per-photoelectron amplitude
+  resolution, and time clustering reproducing the SiPM time response.
+- **Detector status**: per-run usability and PSD-usability flags.
+- **Event building**: time-coincidence maps (TCM) across detectors to group hits
+  into physics events.
+
+## Documentation
+
+Full documentation is hosted at
+[legend-simflow.readthedocs.io](https://legend-simflow.readthedocs.io). Good
+entry points:
+
+- [Overview and key concepts](https://legend-simflow.readthedocs.io/en/latest/)
+- [Installation and configuration](https://legend-simflow.readthedocs.io/en/latest/manual/setup.html)
+- [Running a production](https://legend-simflow.readthedocs.io/en/latest/manual/prod.html)
+- [Configuration metadata and file naming](https://legend-simflow.readthedocs.io/en/latest/manual/meta.html)
