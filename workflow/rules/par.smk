@@ -343,6 +343,10 @@ rule extract_current_pulse_model:
     # dynamically generated, and that would slow down the DAG generation
     # input:
     #     unpack(smk_extract_current_pulse_model_inputs),
+    params:
+        # track l200data so the rule reruns when it changes: inputs are
+        # discovered dynamically and not listed above
+        _l200data=config.paths.get("l200data", None),
     output:
         pars_file=temp(patterns.output_currmod_filename(config)),
         plot_file=patterns.plot_currmod_filename(config),
@@ -394,6 +398,9 @@ rule build_superpulses_from_data:
         "Building data superpulses for detector {wildcards.hpge_detector}"
     params:
         runids=sorted(aggregate.gen_list_of_all_runids(config)),
+        # track l200data so the rule reruns when it changes: raw data files are
+        # discovered dynamically and not listed as inputs
+        _l200data=config.paths.get("l200data", None),
     output:
         superpulses=patterns.output_superpulses_filename(config),
         plots=patterns.plot_superpulses_filename(config),
@@ -488,6 +495,10 @@ rule extract_hpge_observables_models:
         "Extracting HPGe observables models for {wildcards.runid}"
     # NOTE: we don't list the file dependencies here because they are
     # dynamically generated, and that would slow down the DAG generation
+    params:
+        # track l200data so the rule reruns when it changes: the parameter
+        # database is discovered dynamically and not listed above
+        _l200data=config.paths.get("l200data", None),
     output:
         eresmod_file=patterns.output_eresmod_filename(config),
         aoeresmod_file=patterns.output_aoeresmod_filename(config),

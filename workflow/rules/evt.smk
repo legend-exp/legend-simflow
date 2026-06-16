@@ -74,6 +74,15 @@ rule build_tier_evt:
         spms_energy_thr_pe=_tier_setting("evt", "spms_energy_thr_pe"),
         skip_opt=_skip_opt,
         skip_hit=_skip_hit,
+        # with add_random_coincidences, this rule reads forced-trigger evt
+        # files discovered dynamically from l200data and not listed as inputs;
+        # track the path so it reruns on change (None otherwise to avoid
+        # spurious reruns)
+        _l200data=(
+            config.paths.get("l200data", None)
+            if _evt_settings.get("add_random_coincidences", False)
+            else None
+        ),
     output:
         patterns.output_simjob_filename(config, tier="evt"),
     log:
