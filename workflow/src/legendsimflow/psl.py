@@ -57,9 +57,14 @@ def get_avg_aoe(waveforms: list[np.ndarray]) -> float:
     aoe = np.concatenate([np.max(waveform, axis=2).ravel() for waveform in waveforms])
     aoe = aoe[~np.isnan(aoe)]
 
-    hist_aoe = hist.new.Reg(
-        1000, np.min(aoe), np.max(aoe), name="A/E", label="A/E"
-    ).Double()
+    amin, amax = float(np.min(aoe)), float(np.max(aoe))
+    if amax <= amin:
+        # degenerate distribution (e.g. constant amplitudes): pad to a finite
+        # range so the histogram axis is valid
+        pad = abs(amin) * 1e-3 or 1.0
+        amin, amax = amin - pad, amax + pad
+
+    hist_aoe = hist.new.Reg(1000, amin, amax, name="A/E", label="A/E").Double()
 
     hist_aoe.fill(aoe)
     counts, bin_edges = hist_aoe.to_numpy()
@@ -495,7 +500,7 @@ def make_realistic_pulse_shape_lib(
         drift_indices = current_peak_indices - kernel_delay_idx
         drift_times_flat = drift_indices * dt
         drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(
-            np.float64
+            np.float32
         )
 
         # Restore NaN for invalid pixels in drift time
@@ -503,10 +508,11 @@ def make_realistic_pulse_shape_lib(
         dt_key = key.replace("waveform", "drift_time")
         realistic_pulse_shape_lib[dt_key] = Array(drift_times_2d, attrs={"units": "ns"})
 
-        # Reshape
+        # Reshape. float32 halves the on-disk library and the load footprint
+        # (more than enough for the ~1% A/E it feeds)
         new_length = curr_aligned.shape[-1]
         new_shape = (*original_shape[:-1], new_length)
-        wfs_out = curr_aligned.reshape(new_shape).astype(np.float64)
+        wfs_out = curr_aligned.reshape(new_shape).astype(np.float32)
 
         # Restore NaN for invalid pixels in waveforms
         wfs_out[nan_mask] = np.nan
