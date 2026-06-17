@@ -436,9 +436,7 @@ def extract_psd_observables(
     aoe_class = (aoe_corr - 1) / aoe_res
 
     # ...and PSD flag
-    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
-        aoe_class < psdcuts.aoe.high_side
-    )
+    is_single_site = (aoe_class > psdcuts.aoe.low_side)
 
     # also calculate drift time at A position
     # FIXME: this is wasting compute resources, max_current should
@@ -560,9 +558,9 @@ def extract_detailed_psd_observables(
     aoe_class = (aoe_corr - 1) / aoe_res
 
     # ...and PSD flag
-    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
-        aoe_class < psdcuts.aoe.high_side
-    )
+    is_single_site = (aoe_class > psdcuts.aoe.low_side)
+    is_high_aoe = (aoe_class > psdcuts.aoe.high_side)
+    is_bb_like = is_single_site & (~is_high_aoe)
 
     # also calculate drift time at A position
     # FIXME: this is wasting compute resources, max_current should
@@ -583,6 +581,8 @@ def extract_detailed_psd_observables(
             "aoe_corr": aoe_corr,
             "aoe_class": aoe_class,
             "is_single_site": is_single_site,
+            "is_bb_like": is_bb_like,
+            "is_high_aoe": is_high_aoe,
             "t_max": t_max,
         }
     )

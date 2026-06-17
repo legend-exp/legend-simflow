@@ -488,7 +488,14 @@ def main() -> None:
                     out_table.add_field(
                         "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
                     )
-
+                    is_bb_like = _read_hits(tcm, "hit", "psd/is_bb_like")
+                    out_table.add_field(
+                        "geds/psd/is_bb_like", VectorOfVectors(is_bb_like[hitsel])
+                    )
+                    is_high_aoe = _read_hits(tcm, "hit", "psd/is_high_aoe")
+                    out_table.add_field(
+                        "geds/psd/is_high_aoe", VectorOfVectors(is_high_aoe[hitsel])
+                    )
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)
                 out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
