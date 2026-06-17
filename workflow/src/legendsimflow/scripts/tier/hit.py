@@ -443,6 +443,8 @@ def main() -> None:
                     }
                 )
                 psd_fields_detailed = copy.deepcopy(psd_fields)
+                psd_fields_detailed["is_bb_like"] =  np.full(len(chunk), False)
+                psd_fields_detailed["is_high_aoe"] =  np.full(len(chunk), False)
 
                 if can_model_psd:
                     log.info("computing standard PSD observables")
@@ -512,9 +514,11 @@ def main() -> None:
                         "aoe",
                         lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
                     )
+
                     psd_sub_table.add_field(
                         "is_single_site", lgdo.Array(psd_fields.is_single_site)
                     )
+                    
 
                     out_table.add_field("psd", psd_sub_table)
 
@@ -546,6 +550,14 @@ def main() -> None:
                         lgdo.Array(
                             np.asarray(psd_fields_detailed.aoe_class, dtype=np.float32)
                         ),
+                    )
+                    psd_sub_table_psl.add_field(
+                        "is_bb_like",
+                        lgdo.Array(psd_fields_detailed.is_bb_like),
+                    )
+                    psd_sub_table_psl.add_field(
+                        "is_high_aoe",
+                        lgdo.Array(psd_fields_detailed.is_high_aoe),
                     )
                     psd_sub_table_psl.add_field(
                         "is_single_site",
