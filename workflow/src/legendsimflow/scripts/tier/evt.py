@@ -426,7 +426,7 @@ def main() -> None:
                     VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
                 )
 
-                aoe = _read_hits(tcm, "hit", "aoe")
+                aoe = _read_hits(tcm, "hit", "psd/aoe")
                 out_table.add_field(
                     "geds/psd/aoe",
                     VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
@@ -435,10 +435,28 @@ def main() -> None:
                     "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
                 )
 
-                is_ss = _read_hits(tcm, "hit", "is_single_site")
+                is_ss = _read_hits(tcm, "hit", "psd/is_single_site")
                 out_table.add_field(
                     "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
                 )
+                try:
+                    aoe = _read_hits(tcm, "hit", "psd_psl/aoe")
+                    out_table.add_field("geds/psd_psl", Table(size=len(unified_tcm)))
+
+                    out_table.add_field(
+                        "geds/psd_psl/aoe",
+                        VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
+                    )
+                    out_table.add_field(
+                        "geds/psd_psl/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                    )
+
+                    is_ss = _read_hits(tcm, "hit", "psd_psl/is_single_site")
+                    out_table.add_field(
+                        "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
+                    )
+                except Exception:
+                    log.debug("psl psd was not simulated")
 
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)

@@ -35,6 +35,7 @@ import reboost.math.stats
 import reboost.spms
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
+from lgdo import Table
 from lh5 import LH5Iterator
 from snakemake_argparse_bridge import snakemake_compatible
 
@@ -181,6 +182,17 @@ def main() -> None:
             runid,
             energy_res_pars=eresmod_pars_all,
         )  # FWHM
+
+        log.debug("loading A/E energydep model")
+        aoemean_mod = mutils.simpars(
+            metadata, "geds.aoemeanmod", runid, config.experiment, default=None
+        )
+        aoemean_func_psl = hpge_pars.build_aoe_mean_func_dict(
+            aoemean_mod, sim_type="psl"
+        )
+        aoemean_func = hpge_pars.build_aoe_mean_func_dict(
+            aoemean_mod, sim_type="single_template"
+        )
 
         log.debug("loading A/E resolution parameters")
         aoeresmod_pars_file = patterns.output_aoeresmod_filename(config, runid=runid)
@@ -348,7 +360,6 @@ def main() -> None:
 
                 if det_name in energy_res_func:
                     energy_res = energy_res_func[det_name](energy_true)
-
                 elif usability == "on":
                     msg = f"{det_name} is ON but no energy resolution curves are available"
                     raise RuntimeError(msg)
@@ -378,6 +389,17 @@ def main() -> None:
                         psd_usability,
                     )
                     aoe_res = aoeresmod_default(energy_true)
+
+                # get the mean A/E
+                if det_name in aoemean_func:
+                    aoe_mean = aoemean_func[det_name](energy_true)
+                else:
+                    aoe_mean = np.full_like(energy_true, 1)
+
+                if det_name in aoemean_func_psl:
+                    aoe_mean_psl = aoemean_func_psl[det_name](energy_true)
+                else:
+                    aoe_mean_psl = np.full_like(energy_true, 1)
 
                 if det_name in psdcuts_all:
                     psdcuts = AttrsDict(
@@ -414,6 +436,7 @@ def main() -> None:
                     {
                         "aoe": np.full(len(chunk), np.nan),
                         "aoe_class": np.full(len(chunk), np.nan),
+                        "aoe_corr": np.full(len(chunk), np.nan),
                         "is_single_site": np.full(len(chunk), False),
                         "t_max": np.full(len(chunk), np.nan),
                     }
@@ -432,9 +455,9 @@ def main() -> None:
                             currmod_pars,
                             det_loc[det_name],
                             aoe_res=aoe_res,
+                            aoe_mean=aoe_mean,
                             psdcuts=psdcuts,
-                            mean_aoe=pars.mean_aoe,
-                            current_reso=pars.current_reso,
+                            current_reso=pars.current_reso / pars.mean_aoe,
                         )
 
                 if can_model_psd_with_psl:
@@ -451,13 +474,9 @@ def main() -> None:
                                 realistic_psl["000"],
                                 det_loc[det_name],
                                 aoe_res=aoe_res,
+                                aoe_mean=aoe_mean_psl,
                                 psdcuts=psdcuts,
-                                mean_aoe=pars.mean_aoe
-                                if pars is not None and "mean_aoe" in pars
-                                else None,
-                                current_reso=pars.current_reso
-                                if pars is not None and "current_reso" in pars
-                                else None,
+                                current_reso=pars.current_reso / pars.mean_aoe,
                             )
                         )
 
@@ -470,48 +489,64 @@ def main() -> None:
                     ),
                 )
                 # save psd fields
-                out_table.add_field(
+                psd_sub_table = Table(size=len(out_table))
+                psd_sub_table.add_field(
                     "drift_time_amax",
                     lgdo.Array(
                         np.asarray(psd_fields.t_max, dtype=np.float32),
                         attrs={"units": "ns"},
                     ),
                 )
-                out_table.add_field(
+                psd_sub_table.add_field(
                     "aoe_raw", lgdo.Array(np.asarray(psd_fields.aoe, dtype=np.float32))
                 )
-                out_table.add_field(
+                psd_sub_table.add_field(
+                    "aoe_corr",
+                    lgdo.Array(np.asarray(psd_fields.aoe_corr, dtype=np.float32)),
+                )
+                psd_sub_table.add_field(
                     "aoe",
                     lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
                 )
-                out_table.add_field(
+                psd_sub_table.add_field(
                     "is_single_site", lgdo.Array(psd_fields.is_single_site)
                 )
 
+                out_table.add_field("psd", psd_sub_table)
+
                 if can_model_psd_with_psl:
-                    out_table.add_field(
-                        "drift_time_amax_detailed",
+                    psd_sub_table_psl = Table(size=len(out_table))
+
+                    psd_sub_table_psl.add_field(
+                        "drift_time_amax",
                         lgdo.Array(
                             np.asarray(psd_fields_detailed.t_max, dtype=np.float32),
                             attrs={"units": "ns"},
                         ),
                     )
-                    out_table.add_field(
-                        "aoe_raw_detailed",
+                    psd_sub_table_psl.add_field(
+                        "aoe_raw",
                         lgdo.Array(
                             np.asarray(psd_fields_detailed.aoe, dtype=np.float32)
                         ),
                     )
-                    out_table.add_field(
-                        "aoe_detailed",
+                    psd_sub_table_psl.add_field(
+                        "aoe_corr",
+                        lgdo.Array(
+                            np.asarray(psd_fields_detailed.aoe_corr, dtype=np.float32)
+                        ),
+                    )
+                    psd_sub_table_psl.add_field(
+                        "aoe",
                         lgdo.Array(
                             np.asarray(psd_fields_detailed.aoe_class, dtype=np.float32)
                         ),
                     )
-                    out_table.add_field(
-                        "is_single_site_detailed",
+                    psd_sub_table_psl.add_field(
+                        "is_single_site",
                         lgdo.Array(psd_fields_detailed.is_single_site),
                     )
+                    out_table.add_field("psd_psl", psd_sub_table_psl)
 
                 _, period, run, _ = mutils.parse_runid(runid)
                 field_vals = [period, run, mutils.encode_usability(usability)]
