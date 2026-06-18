@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import copy
 
 import awkward as ak
 import legenddataflowscripts as ldfs
@@ -441,6 +442,7 @@ def main() -> None:
                         "t_max": np.full(len(chunk), np.nan),
                     }
                 )
+                psd_fields_detailed = copy.deepcopy(psd_fields)
 
                 if can_model_psd:
                     log.info("computing standard PSD observables")
@@ -489,32 +491,35 @@ def main() -> None:
                     ),
                 )
                 # save psd fields
-                psd_sub_table = Table(size=len(out_table))
-                psd_sub_table.add_field(
-                    "drift_time_amax",
-                    lgdo.Array(
-                        np.asarray(psd_fields.t_max, dtype=np.float32),
-                        attrs={"units": "ns"},
-                    ),
-                )
-                psd_sub_table.add_field(
-                    "aoe_raw", lgdo.Array(np.asarray(psd_fields.aoe, dtype=np.float32))
-                )
-                psd_sub_table.add_field(
-                    "aoe_corr",
-                    lgdo.Array(np.asarray(psd_fields.aoe_corr, dtype=np.float32)),
-                )
-                psd_sub_table.add_field(
-                    "aoe",
-                    lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
-                )
-                psd_sub_table.add_field(
-                    "is_single_site", lgdo.Array(psd_fields.is_single_site)
-                )
+                if simulate_psd:
+                    psd_sub_table = Table(size=len(out_table))
+                    psd_sub_table.add_field(
+                        "drift_time_amax",
+                        lgdo.Array(
+                            np.asarray(psd_fields.t_max, dtype=np.float32),
+                            attrs={"units": "ns"},
+                        ),
+                    )
+                    psd_sub_table.add_field(
+                        "aoe_raw",
+                        lgdo.Array(np.asarray(psd_fields.aoe, dtype=np.float32)),
+                    )
+                    psd_sub_table.add_field(
+                        "aoe_corr",
+                        lgdo.Array(np.asarray(psd_fields.aoe_corr, dtype=np.float32)),
+                    )
+                    psd_sub_table.add_field(
+                        "aoe",
+                        lgdo.Array(np.asarray(psd_fields.aoe_class, dtype=np.float32)),
+                    )
+                    psd_sub_table.add_field(
+                        "is_single_site", lgdo.Array(psd_fields.is_single_site)
+                    )
 
-                out_table.add_field("psd", psd_sub_table)
+                    out_table.add_field("psd", psd_sub_table)
 
-                if can_model_psd_with_psl:
+                # detailed psd fields
+                if simulate_psd_with_psl:
                     psd_sub_table_psl = Table(size=len(out_table))
 
                     psd_sub_table_psl.add_field(

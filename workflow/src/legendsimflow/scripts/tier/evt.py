@@ -147,6 +147,11 @@ def main() -> None:
         load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
     )
 
+    # get the psd settings
+    tier_hit_settings = get_tier_settings(config, "hit")
+    simulate_psd = tier_hit_settings.get("simulate_psd", True)
+    simulate_psd_with_psl = tier_hit_settings.get("simulate_psd_with_psl", False)
+
     evt_file, move2cfs = nersc.make_on_scratch(config, evt_file)
 
     # setup logging
@@ -420,28 +425,43 @@ def main() -> None:
                 )
 
                 # PSD subtable
-                out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
-                out_table.add_field(
-                    "geds/psd/is_good",
-                    VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
-                )
+                if simulate_psd:
+                    out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
+                    out_table.add_field(
+                        "geds/psd/is_good",
+                        VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
+                    )
 
-                aoe = _read_hits(tcm, "hit", "psd/aoe")
-                out_table.add_field(
-                    "geds/psd/aoe",
-                    VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
-                )
-                out_table.add_field(
-                    "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
-                )
+                    aoe = _read_hits(tcm, "hit", "psd/aoe")
+                    out_table.add_field(
+                        "geds/psd/aoe",
+                        VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
+                    )
+                    aoe_corr = _read_hits(tcm, "hit", "psd/aoe_corr")
+                    out_table.add_field(
+                        "geds/psd/aoe_corr",
+                        VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
+                    )
+                    out_table.add_field(
+                        "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                    )
 
-                is_ss = _read_hits(tcm, "hit", "psd/is_single_site")
-                out_table.add_field(
-                    "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
-                )
-                try:
-                    aoe = _read_hits(tcm, "hit", "psd_psl/aoe")
+                    is_ss = _read_hits(tcm, "hit", "psd/is_single_site")
+                    out_table.add_field(
+                        "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
+                    )
+
+                # PSL based PSD
+                if simulate_psd_with_psl:
                     out_table.add_field("geds/psd_psl", Table(size=len(unified_tcm)))
+
+                    aoe_corr = _read_hits(tcm, "hit", "psd_psl/aoe_corr")
+                    out_table.add_field(
+                        "geds/psd/aoe_corr",
+                        VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
+                    )
+
+                    aoe = _read_hits(tcm, "hit", "psd_psl/aoe")
 
                     out_table.add_field(
                         "geds/psd_psl/aoe",
@@ -455,8 +475,6 @@ def main() -> None:
                     out_table.add_field(
                         "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
                     )
-                except Exception:
-                    log.debug("psl psd was not simulated")
 
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)
