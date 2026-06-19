@@ -23,6 +23,8 @@ const CRYSTAL_AXIS_ANGLES = [0, 45]
 # SSD adaptive-mesh refinement thresholds as fractions of the crystal radius
 # matches current SSD behaviour
 const DEFAULT_REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
+# nr of pixels for padding around the map to avoid grid edge effects (default; can be overridden via metadata settings file)
+const DEFAULT_PADDING = 3
 
 using LegendHDF5IO
 using ArgParse
@@ -84,12 +86,13 @@ function main()
     sim_cfg = (!isnothing(ssd_settings) && isfile(ssd_settings)) ? readprops(ssd_settings) : PropDict()
     grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
+    padding = get(sim_cfg, :padding, DEFAULT_PADDING)
 
     @info "using ref limits $ref_limits"
     sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
-        result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size)
+        result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
 
         key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
         if output === nothing
