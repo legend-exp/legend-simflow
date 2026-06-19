@@ -14,7 +14,7 @@ dummyprod = Path(__file__).parent.parent / "dummyprod"
 
 
 def test_make_realistic_hpge_psl_cli(tmp_path, monkeypatch):
-    detector = "V03422A"
+    detector = "V05261B"
 
     config_path = tmp_path / "simflow-config.yaml"
     raw_cfg = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
