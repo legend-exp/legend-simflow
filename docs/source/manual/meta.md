@@ -523,26 +523,27 @@ detector_groups:
 Metadata is organized in this directory by experimental configuration (first
 level) and detector type (second level), mirroring the `tier/` structure.
 
-### Drift time map settings
+### Pulse shape simulation settings
 
 A single shared YAML file (applies to all detectors and voltages) that overrides
-simulation control parameters for the
-[`build_hpge_drift_time_map`](../api/snakemake_rules.md) rule. When absent, the
-script uses built-in production defaults.
+`SolidStateDetectors.jl` simulation control parameters for the
+[`build_hpge_drift_time_map`](../api/snakemake_rules.md) and
+[`build_hpge_pulse_shape_library`](../api/snakemake_rules.md) rules. When
+absent, the scripts use built-in production defaults.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/{experiment}/geds/dtmap/settings.yaml
+:caption: simprod/config/pars/{experiment}/geds/ssd/settings.yaml
 
 grid_size_in_mm: 0.5
 ssd_refinement_limits: [0.2, 0.1, 0.05, 0.02]
 padding: 3
 ```
 
-| Key                     | Type          | Default                  | Description                                                                                                                                                                                                                         |
-| ----------------------- | ------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `grid_size_in_mm`       | float         | `0.5`                    | Drift time map grid spacing in mm. Execution time scales quadratically with `1/grid_size_in_mm`.                                                                                                                                    |
-| `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.** |
-| `padding`               | int           | `3`                      | Number of pixel layers padded around the drift time map boundary to avoid grid edge effects.                                                                                                                                        |
+| Key                     | Type          | Default                  | Description                                                                                                                                                                                                                                  |
+| ----------------------- | ------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid_size_in_mm`       | float         | `0.5`                    | Simulation grid spacing in mm. Execution time scales quadratically with `1/grid_size_in_mm`. The built-in default differs per rule (0.5 mm for the drift time map, 5 mm for the pulse shape library); an explicit value here overrides both. |
+| `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.**          |
+| `padding`               | int           | `3`                      | Number of pixel layers padded around the simulated map (drift time map and pulse shape library) boundary to avoid grid edge effects.                                                                                                         |
 
 :::{tip}
 

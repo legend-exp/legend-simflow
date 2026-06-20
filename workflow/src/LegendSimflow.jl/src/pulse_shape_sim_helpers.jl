@@ -122,6 +122,57 @@ end
 
 
 """
+    extend_grid_axes(row_axis, col_axis, row_layers_low, row_layers_high, col_layers_low, col_layers_high)
+
+Extend the (row, col) grid axes by the given number of pixel layers on each side,
+preserving the original step size and physical units.
+
+Shared by the map padding routines [`extend_drift_time_map`](@ref) and
+[`extend_pulse_shape_lib`](@ref). A layer count of `0` leaves that side untouched
+(e.g. the column/radius axis is typically not extended into negative values).
+
+# Arguments
+- `row_axis::AbstractVector`: Axis values corresponding to rows (e.g. z height).
+- `col_axis::AbstractVector`: Axis values corresponding to columns (e.g. r radius).
+- `row_layers_low::Int`, `row_layers_high::Int`: Layers to add below/above the row axis.
+- `col_layers_low::Int`, `col_layers_high::Int`: Layers to add below/above the col axis.
+
+# Returns
+- `NamedTuple`: Contains the extended `:row_axis` and `:col_axis` (unit-carrying).
+"""
+function extend_grid_axes(
+    row_axis::AbstractVector,
+    col_axis::AbstractVector,
+    row_layers_low::Int,
+    row_layers_high::Int,
+    col_layers_low::Int,
+    col_layers_high::Int
+)::NamedTuple
+    row_vals = ustrip.(row_axis)
+    col_vals = ustrip.(col_axis)
+
+    row_step = maximum(abs.(diff(row_vals)))
+    col_step = maximum(abs.(diff(col_vals)))
+
+    extended_row_vals = vcat(
+        [row_vals[1] - row_step * i for i in row_layers_low:-1:1],
+        row_vals,
+        [row_vals[end] + row_step * i for i in 1:row_layers_high]
+    )
+    extended_col_vals = vcat(
+        [col_vals[1] - col_step * i for i in col_layers_low:-1:1],
+        col_vals,
+        [col_vals[end] + col_step * i for i in 1:col_layers_high]
+    )
+
+    return (;
+        row_axis = extended_row_vals * unit(eltype(row_axis)),
+        col_axis = extended_col_vals * unit(eltype(col_axis))
+    )
+end
+
+
+"""
     extend_drift_time_map(drift_map, row_axis, col_axis; layers=1)
 
 Extend a drift time map by adding pixel layers around the valid (non-NaN) region.
@@ -194,29 +245,109 @@ function extend_drift_time_map(
     end
 
     # Extend axes to match the enlarged grid
-    row_vals = ustrip.(row_axis)
-    col_vals = ustrip.(col_axis)
-
-    row_step = maximum(abs.(diff(row_vals)))
-    col_step = maximum(abs.(diff(col_vals)))
-
-    # Extend row axis on both sides
-    extended_row_vals = vcat(
-        [row_vals[1] - row_step * i for i in row_layers_low:-1:1],
-        row_vals,
-        [row_vals[end] + row_step * i for i in 1:row_layers_high]
-    )
-
-    # Extend col axis only on high side (no negative r values)
-    extended_col_vals = vcat(
-        col_vals,
-        [col_vals[end] + col_step * i for i in 1:col_layers_high]
+    axes = extend_grid_axes(
+        row_axis, col_axis, row_layers_low, row_layers_high, col_layers_low, col_layers_high
     )
 
     return (;
         drift_map = work_map,
-        row_axis = extended_row_vals * unit(eltype(row_axis)),
-        col_axis = extended_col_vals * unit(eltype(col_axis))
+        row_axis = axes.row_axis,
+        col_axis = axes.col_axis
+    )
+end
+
+
+"""
+    extend_pulse_shape_lib(wf_cube, row_axis, col_axis; layers=1)
+
+Extend a pulse shape library by adding pixel layers around the valid (non-NaN)
+region. Each new pixel waveform is set to the element-wise average of the
+neighboring present waveforms (8-connectivity). The grid is internally enlarged
+by `layers` on applicable sides to ensure the extended cube is not clipped.
+Note: The column axis (typically radius r) is not extended into negative values.
+
+the waveform time samples and whose remaining two axes are the spatial (row, col)
+grid. A pixel is considered missing if its waveform is all-NaN (in practice checked
+via the first sample).
+# Arguments
+- `wf_cube::AbstractArray{<:Real,3}`: 3D array `[time, rows, cols]` where pixels
+- `col_axis::AbstractVector`: Axis values corresponding to columns (e.g. r radius).
+  Note: this routine does not extend the column axis further into negative values.
+
+# Returns
+- `NamedTuple`: Contains extended `:waveform`, `:row_axis`, and `:col_axis`.
+"""
+function extend_pulse_shape_lib(
+    wf_cube::AbstractArray{<:Real,3},
+    row_axis::AbstractVector,
+    col_axis::AbstractVector;
+    layers::Int = 1
+)::NamedTuple
+    T = eltype(wf_cube)
+    n_time, orig_nrows, orig_ncols = size(wf_cube)
+
+    # Determine extension on each side
+    # Row axis (z): extend on both sides
+    # Col axis (r): only extend on high side (don't go negative)
+    row_layers_low = layers
+    row_layers_high = layers
+    col_layers_low = 0  # Don't extend r into negative values
+    col_layers_high = layers
+
+    # Create enlarged grid
+    new_nrows = orig_nrows + row_layers_low + row_layers_high
+    new_ncols = orig_ncols + col_layers_low + col_layers_high
+    work = fill(T(NaN), n_time, new_nrows, new_ncols)
+
+    # Copy original data into the grid (offset by the low-side layers)
+    work[:, (row_layers_low + 1):(row_layers_low + orig_nrows), (col_layers_low + 1):(col_layers_low + orig_ncols)] =
+        wf_cube
+
+    # A pixel is missing if its waveform is NaN. Pixels are written as whole
+    # waveforms (all-NaN outside the detector, all-finite inside), so the first
+    # sample is decisive and we avoid scanning the full time axis.
+    is_missing(row, col) = isnan(work[1, row, col])
+
+    # Extend the present region layer by layer
+    for _ in 1:layers
+        cur_nrows, cur_ncols = size(work, 2), size(work, 3)
+        boundary_pixels = Tuple{Int,Int}[]
+        boundary_wfs = Vector{Vector{T}}()
+
+        for row in 1:cur_nrows, col in 1:cur_ncols
+            if is_missing(row, col)
+                wf_sum = zeros(T, n_time)
+                n_neighbors = 0
+                for (dr, dc) in NEIGHBOR_OFFSETS_8CONN
+                    nr, nc = row + dr, col + dc
+                    if 1 <= nr <= cur_nrows && 1 <= nc <= cur_ncols && !is_missing(nr, nc)
+                        @views wf_sum .+= work[:, nr, nc]
+                        n_neighbors += 1
+                    end
+                end
+
+                if n_neighbors > 0
+                    push!(boundary_pixels, (row, col))
+                    push!(boundary_wfs, wf_sum ./ n_neighbors)
+                end
+            end
+        end
+
+        # Apply new values after scanning to avoid affecting current layer
+        for (idx, (row, col)) in enumerate(boundary_pixels)
+            work[:, row, col] = boundary_wfs[idx]
+        end
+    end
+
+    # Extend axes to match the enlarged grid
+    axes = extend_grid_axes(
+        row_axis, col_axis, row_layers_low, row_layers_high, col_layers_low, col_layers_high
+    )
+
+    return (;
+        waveform = work,
+        row_axis = axes.row_axis,
+        col_axis = axes.col_axis
     )
 end
 
@@ -401,13 +532,15 @@ end
 
 
 """
-    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, grid_size)
+    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, grid_size, padding)
 
 Compute a 2D pulse_shape_library (r, z ideal_waveform) at a specified azimuthal angle.
 
 Simulates charge carrier drift for a grid of positions in cylindrical coordinates,
 generating waveforms that represent the detector response. The grid is constructed
-in the (r, z) plane and then rotated to the specified angle.
+in the (r, z) plane and then rotated to the specified angle. The resulting map is
+padded with `padding` extra pixel layers around the valid region to avoid grid
+edge effects (see `extend_pulse_shape_lib()`).
 
 # Arguments
 - `sim`: SolidStateDetectors Simulation object
@@ -416,6 +549,8 @@ in the (r, z) plane and then rotated to the specified angle.
 - `angle_deg`: Azimuthal angle in degrees for the r-z plane rotation
 - `only_holes`: If true, extract only hole contribution; if false, use full waveform
 - `grid_size`: Grid spacing in meters
+- `padding`: Number of pixel layers used to pad the map and avoid grid edge
+  effects (see `extend_pulse_shape_lib()`)
 
 # Returns
 - `NamedTuple`: Contains `:r`, `:z`, `:dt` axes and `:waveform_XXX_deg` 3D array
@@ -427,7 +562,8 @@ function compute_ideal_pulse_shape_lib(
     T::Type{<:AbstractFloat},
     angle_deg::Real,
     only_holes::Bool,
-    grid_size::Real
+    grid_size::Real,
+    padding::Int
 )::NamedTuple
     @info "Computing waveform map at angle $angle_deg deg..."
 
@@ -494,12 +630,21 @@ function compute_ideal_pulse_shape_lib(
         wf_padded[:, idx[2], idx[1]] = signal
     end
 
+    # Pad the map with extra pixel layers around the valid region to avoid grid
+    # edge effects. The cube is already laid out as [time, z, r] = [time, row,
+    # col], so no transpose is needed (unlike the drift time map).
+    z_axis_with_units = collect(z_axis) * u"m"
+    r_axis_with_units = collect(r_axis) * u"m"
+    extended = extend_pulse_shape_lib(
+        wf_padded, z_axis_with_units, r_axis_with_units, layers = padding
+    )
+
     ang_str = lpad(string(Int(angle_deg)), 3, '0')
     return (;
-        :r => collect(r_axis) * u"m",
-        :z => collect(z_axis) * u"m",
+        :r => extended.col_axis,  # column axis of extended cube (r)
+        :z => extended.row_axis,  # row axis of extended cube (z)
         :dt => time_step,
-        Symbol("waveform_$(ang_str)_deg") => wf_padded * NoUnits
+        Symbol("waveform_$(ang_str)_deg") => extended.waveform * NoUnits
     )
 end
 

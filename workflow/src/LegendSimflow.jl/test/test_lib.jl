@@ -98,7 +98,7 @@ end
 
     @test size(dt_map.drift_time_000_deg) == (length(dt_map.z), length(dt_map.r))
 
-    wf_map = compute_ideal_pulse_shape_lib(sim, meta, T, 0.0, false, 10/1000.0)
+    wf_map = compute_ideal_pulse_shape_lib(sim, meta, T, 0.0, false, 10/1000.0, 0)
 
     @test hasproperty(wf_map, :waveform_000_deg)
     @test hasproperty(wf_map, :r)
@@ -159,4 +159,43 @@ end
 
     # NaN corner at original [1,1] (work_map[2,1]) has non-NaN neighbours and is filled in
     @test !isnan(result.drift_map[2, 1])
+end
+
+@testset "extend_pulse_shape_lib" begin
+    # 3×3 spatial grid (same NaN pattern as the drift time map test) with a
+    # 2-sample constant waveform per pixel; missing pixels hold NaN waveforms
+    wf_cube = fill(NaN, 2, 3, 3)
+    present = Dict(
+        (1, 2) => 2.0,
+        (2, 1) => 1.0, (2, 2) => 3.0, (2, 3) => 4.0,
+        (3, 2) => 5.0
+    )
+    for ((row, col), val) in present
+        wf_cube[:, row, col] .= val
+    end
+
+    row_axis = [0.0, 1.0, 2.0] * u"m"
+    col_axis = [0.0, 1.0, 2.0] * u"m"
+
+    result = extend_pulse_shape_lib(wf_cube, row_axis, col_axis; layers = 1)
+
+    # Return value is a NamedTuple with the expected fields
+    @test result isa NamedTuple
+    @test hasproperty(result, :waveform)
+    @test hasproperty(result, :row_axis)
+    @test hasproperty(result, :col_axis)
+
+    # With layers=1: rows extended on both sides (+2), cols on high side only
+    # (+1); the time axis is unchanged
+    @test size(result.waveform) == (2, 5, 4)
+    @test length(result.row_axis) == 5
+    @test length(result.col_axis) == 4
+
+    # Original centre waveform is preserved (original data placed at rows 2:4, cols 1:3)
+    @test result.waveform[:, 3, 2] ≈ [3.0, 3.0]  # original centre value
+
+    # NaN corner at original [1,1] (waveform[:, 2, 1]) has present neighbours
+    # (1.0, 2.0, 3.0) and is filled with their element-wise mean
+    @test !any(isnan, result.waveform[:, 2, 1])
+    @test result.waveform[:, 2, 1] ≈ [2.0, 2.0]
 end
