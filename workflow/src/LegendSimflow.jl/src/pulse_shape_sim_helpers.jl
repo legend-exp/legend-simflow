@@ -316,17 +316,19 @@ function extend_pulse_shape_lib(
 
         for row in 1:cur_nrows, col in 1:cur_ncols
             if is_missing(row, col)
-                neighbor_wfs = Vector{Vector{T}}()
+                wf_sum = zeros(T, n_time)
+                n_neighbors = 0
                 for (dr, dc) in NEIGHBOR_OFFSETS_8CONN
                     nr, nc = row + dr, col + dc
                     if 1 <= nr <= cur_nrows && 1 <= nc <= cur_ncols && !is_missing(nr, nc)
-                        push!(neighbor_wfs, work[:, nr, nc])
+                        @views wf_sum .+= work[:, nr, nc]
+                        n_neighbors += 1
                     end
                 end
 
-                if !isempty(neighbor_wfs)
+                if n_neighbors > 0
                     push!(boundary_pixels, (row, col))
-                    push!(boundary_wfs, sum(neighbor_wfs) ./ length(neighbor_wfs))
+                    push!(boundary_wfs, wf_sum ./ n_neighbors)
                 end
             end
         end
