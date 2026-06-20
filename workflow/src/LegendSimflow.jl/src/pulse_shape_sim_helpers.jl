@@ -271,11 +271,8 @@ grid. A pixel is considered missing if its waveform is all-NaN (in practice chec
 via the first sample).
 # Arguments
 - `wf_cube::AbstractArray{<:Real,3}`: 3D array `[time, rows, cols]` where pixels
-  outside the valid region hold NaN waveforms.
-- `row_axis::AbstractVector`: Axis values corresponding to rows (e.g. z height).
-- `col_axis::AbstractVector`: Axis values corresponding to columns (e.g. r radius,
-  must be non-negative).
-- `layers::Int`: Number of pixel layers to add (default: 1).
+- `col_axis::AbstractVector`: Axis values corresponding to columns (e.g. r radius).
+  Note: this routine does not extend the column axis further into negative values.
 
 # Returns
 - `NamedTuple`: Contains extended `:waveform`, `:row_axis`, and `:col_axis`.
