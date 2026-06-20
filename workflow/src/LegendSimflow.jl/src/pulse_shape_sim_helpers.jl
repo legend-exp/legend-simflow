@@ -266,11 +266,9 @@ neighboring present waveforms (8-connectivity). The grid is internally enlarged
 by `layers` on applicable sides to ensure the extended cube is not clipped.
 Note: The column axis (typically radius r) is not extended into negative values.
 
-This is the waveform-cube analogue of [`extend_drift_time_map`](@ref): instead of
-a 2D matrix of scalar drift times, it operates on a 3D cube whose first axis is
 the waveform time samples and whose remaining two axes are the spatial (row, col)
-grid. A pixel is considered missing if any of its waveform samples is NaN.
-
+grid. A pixel is considered missing if its waveform is all-NaN (in practice checked
+via the first sample).
 # Arguments
 - `wf_cube::AbstractArray{<:Real,3}`: 3D array `[time, rows, cols]` where pixels
   outside the valid region hold NaN waveforms.
