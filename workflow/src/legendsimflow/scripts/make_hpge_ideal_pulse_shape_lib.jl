@@ -87,7 +87,7 @@ function main()
     # to all detectors and voltages.
     ssd_settings = parsed_args["ssd-settings"]
     sim_cfg = (!isnothing(ssd_settings) && isfile(ssd_settings)) ? readprops(ssd_settings) : PropDict()
-    grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000.
+    grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000.0
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)
 
