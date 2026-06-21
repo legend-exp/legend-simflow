@@ -108,7 +108,7 @@ def test_hit_script_cli(
     assert not missing, (
         f"fields {missing} missing from detector table {first_det}; got {det_fields}"
     )
-    
+
     # helper: read a single field from a detector table as a numpy array
     def _field(det: str, name: str) -> np.ndarray:
         return lh5.read_as(f"{det}/{name}", hit_file, library="np")
@@ -116,7 +116,7 @@ def test_hit_script_cli(
     # r000 has a dtmap for V05261B → finite PSD; r001 has none → NaN
     # both partitions land in the same hit/V05261B table, distinguishable by run
     assert "hit/V05261B" in det_tables, "V05261B not found in hit output"
-    v_drift = _field("hit/V05261B", "drift_time_amax")
+    v_drift = _field("hit/V05261B/psd", "drift_time_amax")
     v_run = _field("hit/V05261B", "run")
     assert not np.all(np.isnan(v_drift[v_run == 0])), (
         "r000 V05261B drift_time_amax is all NaN despite having a dtmap"
