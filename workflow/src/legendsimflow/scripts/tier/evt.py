@@ -437,6 +437,13 @@ def main() -> None:
                         "geds/psd/aoe",
                         VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
                     )
+                    drift_time = _read_hits(tcm, "hit", "psd/drift_time_amax")
+                    out_table.add_field(
+                        "geds/psd/drift_time_amax",
+                        VectorOfVectors(
+                            ak.values_astype(drift_time[hitsel], np.float32)
+                        ),
+                    )
                     aoe_corr = _read_hits(tcm, "hit", "psd/aoe_corr")
                     out_table.add_field(
                         "geds/psd/aoe_corr",
@@ -470,7 +477,13 @@ def main() -> None:
                     out_table.add_field(
                         "geds/psd_psl/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
                     )
-
+                    drift_time = _read_hits(tcm, "hit", "psd_psl/drift_time_amax")
+                    out_table.add_field(
+                        "geds/psd_psl/drift_time_amax",
+                        VectorOfVectors(
+                            ak.values_astype(drift_time[hitsel], np.float32)
+                        ),
+                    )
                     is_ss = _read_hits(tcm, "hit", "psd_psl/is_single_site")
                     out_table.add_field(
                         "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
