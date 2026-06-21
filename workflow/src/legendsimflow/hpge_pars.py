@@ -1195,6 +1195,53 @@ def build_aoe_res_func_dict(
     return aoe_res_sigma_func
 
 
+def build_aoe_mean_func_dict(
+    aoe_mean_pars: dict | AttrsDict | None = None, sim_type: str = "single_template"
+) -> dict[str, Callable]:
+    r"""Build A/E mean functions for each HPGe detector in a LEGEND-200 run.
+
+    Returns
+    -------
+    Mapping of HPGe name to A/E mean as a function of energy, where
+    energy is expected in units of keV.
+
+    Parameters
+    ----------
+    aoe_mean_pars
+        Parameters of the aoe energy depenndence model.
+    sim_type
+        Type of PSD simulation (`single_template` or `psl`)
+    """
+    if not isinstance(aoe_mean_pars, AttrsDict):
+        aoe_mean_pars = AttrsDict(aoe_mean_pars)
+
+    aoe_mean_func = {}
+    for hpge, meta in aoe_mean_pars.items():
+        expr = meta[sim_type].expression
+
+        def _func_full(x, a, b, expr):
+            return eval(expr, {"__builtins__": {}}, {"x": x, "a": a, "b": b})
+
+        # use functools.partial correctly freeze the parameters into the function
+
+        base = functools.partial(
+            _func_full,
+            a=meta[sim_type].pars.a,
+            b=meta[sim_type].pars.b,
+            expr=expr,
+        )
+
+        def _aoemean(E, base=base):
+            return base(E)
+
+        msg = f"measured A/E mean for {hpge} {sim_type} at 2 MeV is ~{_aoemean(2000)}"
+        log.debug(msg)
+
+        aoe_mean_func[hpge] = _aoemean
+
+    return aoe_mean_func
+
+
 def lookup_psd_cut_values(
     l200data: str | Path,
     metadata: LegendMetadata,

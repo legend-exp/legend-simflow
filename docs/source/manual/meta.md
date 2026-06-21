@@ -400,6 +400,8 @@ absent, accessing any field raises an error.
 
 dead_layer_fraction: 0.5
 buffer_len: "500*MB"
+simulate_psd: True
+simulate_psd_with_psl: False
 
 eresmod_default:
   expression: FWHMLinear
@@ -431,6 +433,10 @@ psdcuts_default:
 - `aoeresmod_default` — A/E resolution model applied to detectors without a
   per-detector entry. See {ref}`build-tier-hit-hpge` for when this fallback is
   triggered.
+- `simulate_psd` a flag to perform the PSD simulations based on the single
+  template (default is `True`).
+- `simulate_psd_with_psl` a flag to perform the simulations based on the
+  pulse-shape-library (PSL), default: `False`,
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 

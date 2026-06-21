@@ -30,6 +30,7 @@ import pygeomtools
 import reboost.hpge.utils
 import reboost.units
 from lgdo import LGDO
+from numpy.typing import ArrayLike
 
 from legendsimflow import nersc, utils
 
@@ -369,10 +370,10 @@ def extract_psd_observables(
     currmod_pars: Mapping,
     det_loc: pyg4ometry.gdml.Defines.Position,
     *,
-    aoe_res: float,
+    aoe_res: ArrayLike,
+    aoe_mean: ArrayLike,
     psdcuts: Mapping,
     current_reso: float,
-    mean_aoe: float,
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
 
@@ -397,12 +398,13 @@ def extract_psd_observables(
         Name of the detector.
     aoe_res
         A/E resolution (sigma) used for A/E classifier calculation, typically determined from data.
+    aoe_mean
+        A/E mean used in the A/E classifier calculation, typically from fitting simulated data.
     psdcuts
         Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
     current_reso
         Standard deviation of the Gaussian noise to smear the maximum current, representing the current resolution of the detector.
-    mean_aoe
-        Mean A/E value at the energy of interest, used for normalizing the current resolution smearing.
+
 
     Returns
     -------
@@ -420,16 +422,18 @@ def extract_psd_observables(
     utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
 
     # Apply current resolution smearing based on configured A/E noise parameters
-    _a_max = gauss_smear(_a_max_true, current_reso / mean_aoe)
+    _a_max = gauss_smear(_a_max_true, current_reso)
 
     # finally calculate A/E, comparable to the A/E in data
     # corrected for energy dependence
     aoe = _a_max / energy
 
+    aoe_corr = aoe - aoe_mean + 1
+
     # ...and A/E classifier
     # NOTE: we use the resolution determined from data here instead
     # of the intrinsic simulated ones due to noise
-    aoe_class = (aoe - 1) / aoe_res
+    aoe_class = (aoe_corr - 1) / aoe_res
 
     # ...and PSD flag
     is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
@@ -449,6 +453,7 @@ def extract_psd_observables(
     return ak.Array(
         {
             "aoe": aoe,
+            "aoe_corr": aoe_corr,
             "aoe_class": aoe_class,
             "is_single_site": is_single_site,
             "t_max": t_max,
@@ -464,9 +469,9 @@ def extract_detailed_psd_observables(
     pulse_shape_lib: reboost.hpge.utils.HPGePulseShapeLibrary,
     det_loc: pyg4ometry.gdml.Defines.Position,
     *,
-    aoe_res: float,
+    aoe_res: ArrayLike,
+    aoe_mean: ArrayLike,
     psdcuts: Mapping,
-    mean_aoe: float | None = None,
     current_reso: float | None = None,
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
@@ -491,6 +496,8 @@ def extract_detailed_psd_observables(
         Name of the detector.
     aoe_res
         A/E resolution (sigma) used for A/E classifier calculation, typically determined from data.
+    aoe_mean
+        A/E mean used in the A/E classifier calculation, typically from fitting simulated data.
     psdcuts
         Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
     current_reso
@@ -540,20 +547,17 @@ def extract_detailed_psd_observables(
     utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
 
     # Apply current resolution smearing based on configured A/E noise parameters
-    _a_max = (
-        gauss_smear(_a_max_true, current_reso / mean_aoe)
-        if (current_reso is not None and mean_aoe is not None)
-        else _a_max_true
-    )
+    _a_max = gauss_smear(_a_max_true, current_reso)
 
     # finally calculate A/E, comparable to the A/E in data
     # corrected for energy dependence
     aoe = _a_max / energy
 
+    aoe_corr = aoe - aoe_mean + 1
     # ...and A/E classifier
     # NOTE: we use the resolution determined from data here instead
     # of the intrinsic simulated ones due to noise
-    aoe_class = (aoe - 1) / aoe_res
+    aoe_class = (aoe_corr - 1) / aoe_res
 
     # ...and PSD flag
     is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
@@ -576,6 +580,7 @@ def extract_detailed_psd_observables(
     return ak.Array(
         {
             "aoe": aoe,
+            "aoe_corr": aoe_corr,
             "aoe_class": aoe_class,
             "is_single_site": is_single_site,
             "t_max": t_max,

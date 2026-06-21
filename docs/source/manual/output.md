@@ -26,17 +26,27 @@ These fields are carried over from the
 
 ### Added fields
 
-| Field             | Type    | Units | Description                                                                                                                                                                                                                                                                         |
-| ----------------- | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `energy`          | `Array` | keV   | Reconstructed energy after smearing with the detector energy resolution. Computed from the sum of active energy depositions (weighted by the dead-layer activeness model).                                                                                                          |
-| `drift_time_amax` | `Array` | ns    | Drift time at the maximum-current (A) position of the simulated current pulse. Set to `NaN` when no drift-time map or current-pulse model is available for the detector.                                                                                                            |
-| `aoe_raw`         | `Array` | —     | Raw A/E value: maximum current amplitude divided by energy. The maximum current (A) is obtained from the simulated current pulse, constructed from individual hit drift times and a current-pulse model, and includes electronic noise effects.                                     |
-| `aoe`             | `Array` | —     | A/E classifier value: `(aoe_raw - 1) / aoe_resolution`. Used for pulse-shape discrimination (PSD). Set to `NaN` when PSD simulation is not available (drift-time map or current-pulse model missing); this is distinct from the usability flags that track LEGEND-200 data quality. |
-| `is_single_site`  | `Array` | —     | Boolean PSD flag. `True` if `aoe` falls within the single-site acceptance window defined by cut values extracted from LEGEND-200 data (`psdcuts.aoe.low_side` to `psdcuts.aoe.high_side`).                                                                                          |
-| `period`          | `Array` | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                                                                                                     |
-| `run`             | `Array` | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                                                                                        |
-| `usability`       | `Array` | —     | Encoded detector usability status for this run (e.g. `on`, `off`, `ac`). Decode with {func}`legendsimflow.metadata.decode_usability`. See the detector status flags in `legend-metadata/datasets/statuses`.                                                                         |
-| `psd_usability`   | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.                                                                                |
+| Field           | Type    | Units | Description                                                                                                                                                                                                 |
+| --------------- | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `energy`        | `Array` | keV   | Reconstructed energy after smearing with the detector energy resolution. Computed from the sum of active energy depositions (weighted by the dead-layer activeness model).                                  |
+| `period`        | `Array` | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                             |
+| `run`           | `Array` | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                |
+| `usability`     | `Array` | —     | Encoded detector usability status for this run (e.g. `on`, `off`, `ac`). Decode with {func}`legendsimflow.metadata.decode_usability`. See the detector status flags in `legend-metadata/datasets/statuses`. |
+| `psd_usability` | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.        |
+
+In addition, several PSD based fields can be added, these are in either the
+subtable `psd`, for the single template based A/E simulation (present if
+`simulate_psd` is `True` in the hit tier setting file), or `psd_psl` for the
+pulse shape library based one (present if `simulate_psd_with_psl` is `True` in
+the hit tier settings file). Each subtable contains the following fields:
+
+| Field             | Type    | Units | Description                                                                                                                                                                                                                                                                                            |
+| ----------------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `drift_time_amax` | `Array` | ns    | Drift time at the maximum-current (A) position of the simulated current pulse. Set to `NaN` when no drift-time map or current-pulse model is available for the detector.                                                                                                                               |
+| `aoe_raw`         | `Array` | —     | Raw A/E value: maximum current amplitude divided by energy. The maximum current (A) is obtained from the simulated current pulse, constructed from individual hit drift times and a current-pulse model, and includes electronic noise effects.                                                        |
+| `aoe_corr`        | `Array` | —     | Energy-corrected A/E value, obtained by correcting `aoe_raw` for the observed energy dependence.                                                                                                                                                                                                       |
+| `aoe`             | `Array` | —     | A/E classifier value: `(aoe_corr - 1) / aoe_resolution`. Used for pulse-shape discrimination (PSD). Set to `NaN` when PSD simulation is not available (i.e., when the drift-time map or current-pulse model is missing). This is distinct from the usability flags that track LEGEND-200 data quality. |
+| `is_single_site`  | `Array` | —     | Boolean PSD flag. `True` if `aoe` falls within the single-site acceptance window defined by cut values extracted from LEGEND-200 data (`psdcuts.aoe.low_side` to `psdcuts.aoe.high_side`).                                                                                                             |
 
 ## `opt` tier — optical (SiPM) post-processing
 
@@ -111,7 +121,7 @@ and are from non-OFF detectors.
 | `is_good_channel` | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                             |
 | `multiplicity`    | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                        |
 
-#### `geds/psd/` — PSD quality
+#### `geds/psd/` and `geds/psd_psl` — PSD fields
 
 | Field            | Type              | Units | Description                                                                                       |
 | ---------------- | ----------------- | ----- | ------------------------------------------------------------------------------------------------- |
@@ -119,6 +129,9 @@ and are from non-OFF detectors.
 | `aoe`            | `VectorOfVectors` | —     | A/E classifier values forwarded from the `hit` tier. Variable-length per event.                   |
 | `has_aoe`        | `VectorOfVectors` | —     | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed). Variable-length per event. |
 | `is_single_site` | `VectorOfVectors` | —     | Boolean PSD flag forwarded from the `hit` tier. Variable-length per event.                        |
+
+The table `geds/psd` contains the single template based PSD simulation, while
+`psd_psl` contains the pulse-shape-library based simulation.
 
 ### `spms/` — SiPM (LAr scintillation) array
 
