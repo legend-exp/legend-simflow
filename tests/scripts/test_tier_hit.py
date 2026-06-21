@@ -91,12 +91,9 @@ def test_hit_script_cli(
     assert len(det_tables) > 0, "no detector tables found under hit/"
 
     expected_fields = {
-        "aoe",
-        "aoe_raw",
-        "drift_time_amax",
+        "psd",
         "energy",
         "evtid",
-        "is_single_site",
         "period",
         "psd_usability",
         "run",
@@ -111,7 +108,7 @@ def test_hit_script_cli(
     assert not missing, (
         f"fields {missing} missing from detector table {first_det}; got {det_fields}"
     )
-
+    
     # helper: read a single field from a detector table as a numpy array
     def _field(det: str, name: str) -> np.ndarray:
         return lh5.read_as(f"{det}/{name}", hit_file, library="np")
