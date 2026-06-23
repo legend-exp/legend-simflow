@@ -46,7 +46,8 @@ the hit tier settings file). Each subtable contains the following fields:
 | `aoe_raw`         | `Array` | —     | Raw A/E value: maximum current amplitude divided by energy. The maximum current (A) is obtained from the simulated current pulse, constructed from individual hit drift times and a current-pulse model, and includes electronic noise effects.                                                        |
 | `aoe_corr`        | `Array` | —     | Energy-corrected A/E value, obtained by correcting `aoe_raw` for the observed energy dependence.                                                                                                                                                                                                       |
 | `aoe`             | `Array` | —     | A/E classifier value: `(aoe_corr - 1) / aoe_resolution`. Used for pulse-shape discrimination (PSD). Set to `NaN` when PSD simulation is not available (i.e., when the drift-time map or current-pulse model is missing). This is distinct from the usability flags that track LEGEND-200 data quality. |
-| `is_single_site`  | `Array` | —     | Boolean PSD flag. `True` if `aoe` falls within the single-site acceptance window defined by cut values extracted from LEGEND-200 data (`psdcuts.aoe.low_side` to `psdcuts.aoe.high_side`).                                                                                                             
+| `is_single_site`  | `Array` | —     | Boolean PSD flag. `True` if `aoe` falls within the single-site acceptance window defined by cut values extracted from LEGEND-200 data (`psdcuts.aoe.low_side` to `psdcuts.aoe.high_side`).                                                                                                             |
+
 ## `opt` tier — optical (SiPM) post-processing
 
 The `opt` tier is at the same conceptual level as the `hit` tier: it performs
