@@ -718,7 +718,7 @@ function compute_drift_time_map(
         simulate!(event, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
 
         wf = get_electron_and_hole_contribution(event, sim, 1).hole_contribution
-        drift_times[i] = extract_drift_time_from_waveform(ustrip(wf.signal), convergence_threshold, intersect_op)
+        drift_times[i] = argmax(diff(ustrip(wf.signal)))
     end
 
     # Build drift time matrix (r × z layout)

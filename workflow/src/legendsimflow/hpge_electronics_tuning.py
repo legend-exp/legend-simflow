@@ -505,7 +505,7 @@ def plot_best_fit(
     axes_flat = axes.flatten()
     data_amax = None
     mc_amax = None
-    
+
     for idx, sl in enumerate(sorted_slices):
         ax = axes_flat[idx]
         data_sp = data_superpulses[sl]

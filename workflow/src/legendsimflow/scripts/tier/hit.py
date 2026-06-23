@@ -443,8 +443,8 @@ def main() -> None:
                     }
                 )
                 psd_fields_detailed = copy.deepcopy(psd_fields)
-                psd_fields_detailed["is_bb_like"] =  np.full(len(chunk), False)
-                psd_fields_detailed["is_high_aoe"] =  np.full(len(chunk), False)
+                psd_fields_detailed["is_bb_like"] = np.full(len(chunk), False)
+                psd_fields_detailed["is_high_aoe"] = np.full(len(chunk), False)
 
                 if can_model_psd:
                     log.info("computing standard PSD observables")
@@ -518,7 +518,6 @@ def main() -> None:
                     psd_sub_table.add_field(
                         "is_single_site", lgdo.Array(psd_fields.is_single_site)
                     )
-                    
 
                     out_table.add_field("psd", psd_sub_table)
 

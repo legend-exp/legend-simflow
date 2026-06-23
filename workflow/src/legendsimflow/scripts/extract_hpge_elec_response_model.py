@@ -257,7 +257,6 @@ def main() -> None:
         "rms": result["best_rms"],
     }
 
-
     # Plots
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
@@ -295,6 +294,7 @@ def main() -> None:
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
+
 
 if __name__ == "__main__":
     main()
