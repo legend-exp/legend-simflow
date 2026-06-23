@@ -257,12 +257,8 @@ def main() -> None:
         "rms": result["best_rms"],
     }
 
-    dbetto.utils.write_dict(output, pars_file)
-
-    log.info("... results written to %s", args.pars_file)
 
     # Plots
-
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)
@@ -273,17 +269,19 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
 
-            fig, _ = plot_best_fit(
+            fig, _, data_amax, mc_amax = plot_best_fit(
                 result,
                 data_superpulses,
                 comparison_window=comparison_window,
                 plot_window=None,
             )
+            output["aoe_data"] = data_amax
+            output["aoe_mc"] = mc_amax
             decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
 
-            fig, _ = plot_best_fit(
+            fig, _, _, _ = plot_best_fit(
                 result,
                 data_superpulses,
                 comparison_window=comparison_window,
@@ -295,6 +293,8 @@ def main() -> None:
             plt.close(fig)
         log.info("... saved diagnostic plots to %s", args.plot_file)
 
+    dbetto.utils.write_dict(output, pars_file)
+    log.info("... results written to %s", args.pars_file)
 
 if __name__ == "__main__":
     main()

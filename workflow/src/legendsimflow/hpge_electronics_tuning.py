@@ -475,6 +475,8 @@ def plot_best_fit(
     -------
     fig : matplotlib.figure.Figure
     axes : array of matplotlib.axes.Axes
+    data_amax: the Amax value of the highest drift time slice
+    mc_amax: the Amax value of the highest drift time slice
     """
     sigma = result["sigma"]
     tau = result["tau"]
@@ -501,7 +503,9 @@ def plot_best_fit(
         constrained_layout=True,
     )
     axes_flat = axes.flatten()
-
+    data_amax = None
+    mc_amax = None
+    
     for idx, sl in enumerate(sorted_slices):
         ax = axes_flat[idx]
         data_sp = data_superpulses[sl]
@@ -540,6 +544,9 @@ def plot_best_fit(
             linestyle="--",
             label="Simulation",
         )
+        if (idx == len(sorted_slices) - 1) and not plot_charge:
+            data_amax = float(np.max(data_wf))
+            mc_amax = float(np.max(f_interp(data_time)))
 
         # Shade comparison window
         if comparison_window is not None:
@@ -581,4 +588,4 @@ def plot_best_fit(
         fontsize=12,
     )
 
-    return fig, axes
+    return fig, axes, data_amax, mc_amax
