@@ -376,17 +376,13 @@ def main() -> int:
         write_superpulses(superpulses, str(output_lh5), args.detector, wo_mode="of")
 
         # Plot superpulses comparison
-        fig, _ = plot_superpulses(
-            str(output_lh5), args.detector, curve="charge", xlim=(-2000, 1000)
-        )
+        fig, _ = plot_superpulses(str(output_lh5), args.detector, curve="charge")
         decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)
 
         # plot current superpulses
-        fig, _ = plot_superpulses(
-            str(output_lh5), args.detector, curve="current", xlim=(-2000, 1000)
-        )
+        fig, _ = plot_superpulses(str(output_lh5), args.detector, curve="current")
         decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)
