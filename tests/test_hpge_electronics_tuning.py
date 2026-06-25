@@ -111,6 +111,49 @@ def test_compute_rms_no_overlap_raises():
         compute_rms_in_slice(np.ones(10), np.arange(100, 110, dtype=float), sp)
 
 
+def test_compute_rms_weight_zero_matches_unweighted():
+    sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
+    time = np.arange(100, dtype=float)
+    data_wf = np.sin(np.linspace(0, 2 * np.pi, 100)) + 2.0
+    sim_wf = data_wf + 0.3
+    sp = _make_superpulse(sl, data_wf, time)
+
+    # weight_power=0.0 is the default and must reproduce the plain RMS exactly
+    assert compute_rms_in_slice(sim_wf, time, sp, weight_power=0.0) == pytest.approx(
+        compute_rms_in_slice(sim_wf, time, sp)
+    )
+
+
+def test_compute_rms_weight_downweights_low_amplitude():
+    sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
+    time = np.arange(100, dtype=float)
+    # data is large on the "peak" half, ~0 on the "tail" half
+    data_wf = np.zeros(100)
+    data_wf[:50] = 10.0
+    # the simulation errs only where the data is near zero (the tail)
+    sim_wf = data_wf.copy()
+    sim_wf[50:] += 1.0
+    sp = _make_superpulse(sl, data_wf, time)
+
+    rms_plain = compute_rms_in_slice(sim_wf, time, sp)
+    rms_weighted = compute_rms_in_slice(sim_wf, time, sp, weight_power=2.0)
+
+    assert rms_plain > 0
+    # amplitude weighting suppresses the low-amplitude (tail) residual
+    assert rms_weighted < rms_plain
+    assert rms_weighted == pytest.approx(0.0, abs=1e-12)
+
+
+def test_compute_rms_weight_zero_data_raises():
+    sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
+    time = np.arange(100, dtype=float)
+    sp = _make_superpulse(sl, np.zeros(100), time)
+
+    # all-zero data gives zero weights everywhere -> undefined weighted RMS
+    with pytest.raises(ValueError, match="weights sum to zero"):
+        compute_rms_in_slice(np.ones(100), time, sp, weight_power=2.0)
+
+
 def test_build_cost_function_penalty():
     """Non-positive parameters must return the penalty value."""
     sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
