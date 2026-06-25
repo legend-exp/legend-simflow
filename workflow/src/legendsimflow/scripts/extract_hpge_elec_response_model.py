@@ -54,6 +54,10 @@ DEFAULT_SETTINGS = {
     "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
+    # data-amplitude weight exponent p for the fit cost (w = |data|**p): biases
+    # the fit toward the current peak and its flanks; 0.0 reproduces the plain
+    # equal-weight RMS
+    "weight_power": 2.0,
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
@@ -237,6 +241,7 @@ def main() -> None:
         sigma_limits=tuple(settings.sigma_limits),
         tau_limits=tuple(settings.tau_limits),
         comparison_window=comparison_window,
+        weight_power=settings.get("weight_power", 0.0),
         max_calls=settings.max_calls,
     )
 
