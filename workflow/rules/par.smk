@@ -97,16 +97,31 @@ def smk_hpge_psd_simulation_inputs(wildcards):
 
 
 rule build_hpge_drift_time_map:
-    """Produce an HPGe drift time map.
+    """Produce an HPGe drift-time map.
 
-    Run a Julia script based on a pulse shape simulation performed with the
-    `SolidStateDetectors.jl` package, using crystal geometry information from
-    `legend-metadata`.
+    Run a Julia script based on a pulse-shape simulation performed with the
+    [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
+    package, using crystal geometry information from `legend-metadata`. The drift time recorded at each grid point is the time at
+    which the simulated hole charge-collection signal reaches its maximum current
+    (the argmax of the charge-signal derivative); one map is produced per
+    crystal-axis angle.
+
+    The output is one LH5 file per `(detector, voltage)` pair with a single
+    top-level group named after the detector, holding the gridded map in the
+    `(r, z)`-field format read back by
+    {func}`reboost.hpge.utils.get_hpge_rz_field` and consumed by
+    {func}`reboost.hpge.psd.drift_time` when the `hit` tier is built:
+
+    | Field                    | Type         | Units | Description                                                                                                       |
+    | ------------------------ | ------------ | ----- | --------------------------------------------------------------------------------------------------------------- |
+    | `r`                      | `Array`      | m     | Radial coordinates of the rectangular `(r, z)` grid.                                                             |
+    | `z`                      | `Array`      | m     | Axial coordinates of the grid. The origin `(r, z) = (0, 0)` is the centre of the p+ contact.                     |
+    | `drift_time_<angle>_deg` | `Array` (2D) | ns    | Drift time over the `(r, z)` grid at crystal-axis azimuth `<angle>`. Pixels outside the detector profile hold NaN. |
 
     Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Generating drift time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+        "Generating drift-time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         unpack(smk_hpge_psd_simulation_inputs),
     params:
@@ -130,15 +145,15 @@ rule build_hpge_drift_time_map:
 
 
 rule merge_hpge_drift_time_maps:
-    """Merge HPGe drift time maps in a single file.
+    """Merge HPGe drift-time maps in a single file.
 
-    Copy the top-level LH5 objects from each individual detector drift time map
+    Copy the top-level LH5 objects from each individual detector drift-time map
     file into a single merged file using `h5copy`.
 
     Uses wildcard `runid`.
     """
     message:
-        "Merging HPGe drift time map files for {wildcards.runid}"
+        "Merging HPGe drift-time map files for {wildcards.runid}"
     input:
         lambda wc: aggregate.gen_list_of_dtmaps(
             config, wc.runid, cache=smk_load_hpge_cache()
@@ -173,15 +188,15 @@ rule merge_hpge_drift_time_maps:
 
 
 rule plot_hpge_drift_time_maps:
-    """Produce a validation plot of an HPGe drift time map.
+    """Produce a validation plot of an HPGe drift-time map.
 
-    Generates diagnostic plots of the computed drift time map for a single
+    Generates diagnostic plots of the computed drift-time map for a single
     detector at the specified operational voltage.
 
     Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Plotting drift time map for HPGe {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+        "Plotting drift-time map for HPGe {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         rules.build_hpge_drift_time_map.output,
     output:
@@ -191,16 +206,31 @@ rule plot_hpge_drift_time_maps:
 
 
 rule build_hpge_pulse_shape_library:
-    """Produce an HPGe pulse shape library.
+    """Produce an (ideal) HPGe pulse-shape library.
 
-    Run a Julia script based on a pulse shape simulation performed with the
-    `SolidStateDetectors.jl` package, using crystal geometry information from
-    `legend-metadata`.
+    Run a Julia script based on a pulse-shape simulation performed with the
+    [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
+    package, using crystal geometry information from `legend-metadata`. It simulates the full charge-collection transient at every
+    `(r, z, angle)` grid point. These are un-convolved (ideal) charge waveforms;
+    the electronics transfer function is applied later, in
+    `convolve_hpge_ideal_pulse_shape_lib`.
+
+    The output is one LH5 file per `(detector, voltage)` pair with a single
+    top-level group named after the detector:
+
+    | Field                  | Type         | Units | Description                                                                  |
+    | ---------------------- | ------------ | ----- | --------------------------------------------------------------------------- |
+    | `r`                    | `Array`      | m     | Radial coordinates of the simulation grid.                                  |
+    | `z`                    | `Array`      | m     | Axial coordinates of the simulation grid.                                   |
+    | `dt`                   | `Scalar`     | ns    | Time step between waveform samples.                                         |
+    | `waveform_<angle>_deg` | `Array` (3D) |       | Ideal charge waveforms at azimuth `<angle>`, shape `(n_z, n_r, n_samples)`. |
+
+    The sample times of a waveform are `t_i = i * dt` (no `t0` offset is stored).
 
     Uses wildcards `hpge_detector` and `hpge_voltage`.
     """
     message:
-        "Generating pulse shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
+        "Generating pulse-shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         unpack(smk_hpge_psd_simulation_inputs),
     params:
@@ -224,17 +254,34 @@ rule build_hpge_pulse_shape_library:
 
 
 rule convolve_hpge_ideal_pulse_shape_lib:
-    """Convolve ideal HPGe pulse shape libraries with electronics response.
+    """Convolve ideal HPGe pulse-shape libraries with electronics response.
 
-    Produces one realistic pulse shape library per detector and run by selecting
+    Produce one realistic pulse-shape library per detector and run by selecting
     the ideal library for the detector operational voltage in that run and
-    convolving it with electronics parameters from a merged electronics-model
-    YAML file.
+    convolving it with the electronics parameters (`sigma`, `tau`) from a merged
+    electronics-model YAML file, then differentiating, moving-window-averaging,
+    aligning, and normalising to obtain current waveforms.
+
+    The output is one LH5 file per `(runid, detector)` pair with a top-level
+    group named after the detector, in the pulse-shape-library format read back
+    by {func}`reboost.hpge.utils.get_hpge_pulse_shape_library` when the `hit`
+    tier is built:
+
+    | Field                    | Type         | Units | Description                                                                                            |
+    | ------------------------ | ------------ | ----- | ----------------------------------------------------------------------------------------------------- |
+    | `r`                      | `Array`      | mm    | Radial coordinates of the simulation grid (converted from metres).                                    |
+    | `z`                      | `Array`      | mm    | Axial coordinates of the simulation grid (converted from metres).                                     |
+    | `dt`                     | `Scalar`     | ns    | Sampling time step of the realistic current waveforms.                                                |
+    | `t0`                     | `Scalar`     | ns    | Global time offset: time of the alignment index relative to the current peak.                         |
+    | `waveform_<angle>_deg`   | `Array` (3D) |       | Processed, normalised current waveforms at azimuth `<angle>`, shape `(n_r, n_z, n_samples)`; NaN outside the detector. |
+    | `drift_time_<angle>_deg` | `Array` (2D) | ns    | Drift time per `(r, z)` pixel at azimuth `<angle>`, shape `(n_r, n_z)`; NaN outside the detector.       |
+
+    The current-waveform sample times are `t_i = t0 + i * dt`.
 
     Uses wildcards `runid` and `hpge_detector`.
     """
     message:
-        "Convolving ideal pulse shape library for detector {wildcards.hpge_detector} in {wildcards.runid}"
+        "Convolving ideal pulse-shape library for detector {wildcards.hpge_detector} in {wildcards.runid}"
     input:
         ideal_psl=lambda wc: patterns.output_ideal_psl_filename(
             config,
@@ -258,7 +305,7 @@ rule convolve_hpge_ideal_pulse_shape_lib:
 rule merge_hpge_realistic_psls:
     """Merge HPGe realistic PSL in a single file.
 
-    Copy the top-level LH5 objects from each individual detector drift time map
+    Copy the top-level LH5 objects from each individual detector realistic-PSL
     file into a single merged file using `h5copy`.
 
     Uses wildcard `runid`.
@@ -323,7 +370,7 @@ def smk_extract_current_pulse_model_inputs(wildcards):
 
 
 rule extract_current_pulse_model:
-    """Extract the HPGe current signal model.
+    """Extract the HPGe current-pulse model.
 
     Perform a fit of current signals recorded in LEGEND-200 and stores the
     best-fit model parameters in a YAML file.
@@ -357,7 +404,7 @@ rule extract_current_pulse_model:
 
 
 rule merge_current_pulse_model_pars:
-    """Merge the HPGe current signal model parameters in a single file per `runid`.
+    """Merge the HPGe current-pulse model parameters in a single file per `runid`.
 
     Collect the individual best-fit parameter files (one per detector) and
     write them into a single YAML file keyed by detector name.
@@ -396,9 +443,32 @@ _build_per_runid = get_par_settings(config, "superpulses").get("build_per_runid"
 
 
 rule build_superpulses_from_data:
-    """Build HPGe superpulses by accumulating all runs in the configured runlists.
+    """Build HPGe data superpulses (average waveforms per drift-time slice).
 
-    Uses wildcard `hpge_detector` and `runid` if per run superpulses are requested.
+    Accumulate waveforms from LEGEND-200 data per detector (across all configured
+    runs, or per run when `build_per_runid` is set) and average them within
+    drift-time slices to form "super" pulses, after a self-similarity chi2 cut.
+
+    The output LH5 file contains one group per drift-time slice, named
+    `{detector}/dt_{lo}_{hi}_ns/`, each holding:
+
+    | Field                  | Type     | Units             | Description                                                     |
+    | ---------------------- | -------- | ----------------- | --------------------------------------------------------------- |
+    | `charge_wf`            | `Array`  | ADC/cuspEmax      | Average normalised charge waveform.                             |
+    | `current_wf`           | `Array`  | (ADC/cuspEmax)/ns | Average current waveform.                                       |
+    | `charge_time_axis`     | `Array`  | ns                | Time axis for the charge waveform, aligned to `tp_aoe_max = 0`. |
+    | `current_time_axis`    | `Array`  | ns                | Time axis for the current waveform.                             |
+    | `drift_time_center`    | `Scalar` | ns                | Centre of the drift-time bin.                                   |
+    | `drift_time_lo`        | `Scalar` | ns                | Lower bound of the drift-time bin.                              |
+    | `drift_time_hi`        | `Scalar` | ns                | Upper bound of the drift-time bin.                              |
+    | `energy_lo`            | `Scalar` | keV               | Lower bound of the energy selection.                            |
+    | `energy_hi`            | `Scalar` | keV               | Upper bound of the energy selection.                            |
+    | `detector`             | `Scalar` |                   | Detector name string.                                           |
+    | `n_events_preliminary` | `Scalar` |                   | Waveforms before the chi2 cut.                                  |
+    | `n_events_final`       | `Scalar` |                   | Waveforms after the chi2 cut.                                   |
+
+    Uses wildcard `hpge_detector`, and `runid` if per-run superpulses are
+    requested (`build_per_runid`).
     """
     message:
         "Building data superpulses for detector {wildcards.hpge_detector}"
@@ -425,8 +495,29 @@ rule build_superpulses_from_data:
 
 
 rule extract_electronics_model_pars:
-    """Extract the HPGe electronics signal model.
+    """Extract the HPGe electronics-response model.
 
+    Fit the electronics transfer function (a Gaussian digitizer bandwidth `sigma`
+    convolved with a causal exponential preamplifier decay `tau`) by comparing
+    processed ideal PSL waveforms to the measured data superpulses. When a
+    `default` key is present in the `elecmod` validity metadata the fit is
+    bypassed and the metadata values are written directly.
+
+    The (temporary, per-detector) output YAML, consumed by
+    `merge_electronics_model_pars`, contains:
+
+    | Key        | Type             | Description                                                                                                  |
+    | ---------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
+    | `detector` | str              | Detector name.                                                                                              |
+    | `sigma`    | float            | Fitted Gaussian sigma of the digitizer bandwidth, in ns.                                                    |
+    | `tau`      | float            | Fitted preamplifier decay constant, in ns.                                                                  |
+    | `rms`      | float            | Best-fit mean RMS across slices.                                                                            |
+    | `angle`    | str              | Crystal-axis angle tag used for PSL waveform selection (e.g. `"000"`).                                       |
+    | `aoe_data` | float (optional) | Max current amplitude of the data superpulse in the highest drift-time slice; present with diagnostic plots. |
+    | `aoe_mc`   | float (optional) | Max current amplitude of the simulation superpulse in the highest drift-time slice; present with plots.      |
+
+    Only `sigma` and `tau` are required by the consumer
+    (`convolve_hpge_ideal_pulse_shape_lib`).
 
     Uses wildcards `runid` and `hpge_detector`.
     """
@@ -459,7 +550,7 @@ rule extract_electronics_model_pars:
 
 
 rule merge_electronics_model_pars:
-    """Merge the HPGe electronics signal model parameters in a single file per `runid`.
+    """Merge the HPGe electronics-response model parameters in a single file per `runid`.
 
     Collect the individual best-fit parameter files (one per detector) and
     write them into a single YAML file keyed by detector name.

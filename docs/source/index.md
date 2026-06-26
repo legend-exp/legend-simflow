@@ -51,7 +51,11 @@ macros or post-processing settings) is stored at
 
 1. The LEGEND-200 data is queried to extract several runtime quantities of
    interest (HPGe energy resolution, electronic noise, hardware status, etc.).
-   These are typically referred to as the "pars".
+   When PSL-based pulse-shape simulation is enabled, calibration data are also
+   used to build per-detector data superpulses and fit an electronics-response
+   model, which are then combined with simulation-derived drift-time maps and
+   ideal pulse-shape libraries to produce the realistic pulse-shape library
+   (PSL) for each run. These outputs are collectively referred to as the "pars".
 
 1. Run the first (hit-oriented) step of simulation post-processing. Here, a
    "hit" represents a collection of Geant4 "step" in a single detector

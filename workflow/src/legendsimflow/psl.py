@@ -533,7 +533,7 @@ def plot_rz_scan(
     step: int = 1,
     xlim: tuple[float, float] | None = None,
 ) -> tuple[Figure, plt.Axes]:
-    """Plot an R or Z scan of waveforms from a pulse shape library.
+    """Plot an R or Z scan of waveforms from a pulse-shape library.
 
     For a given azimuthal angle, produces one figure scanning over
     radial or axial positions at a fixed index on the other axis.
@@ -542,7 +542,7 @@ def plot_rz_scan(
     Parameters
     ----------
     pulse_shape_lib
-        Mapping containing the pulse shape library (ideal or realistic),
+        Mapping containing the pulse-shape library (ideal or realistic),
         as returned by :func:`make_realistic_pulse_shape_lib` or read from
         the ideal LH5 file.  Must contain ``r``, ``z``, ``dt`` keys and at
         least one ``waveform_<angle>_deg`` key.
@@ -574,7 +574,7 @@ def plot_rz_scan(
 
     wf_key = f"waveform_{str(angle_deg).zfill(3)}_deg"
     if wf_key not in pulse_shape_lib:
-        msg = f"Key '{wf_key}' not found in pulse shape library"
+        msg = f"Key '{wf_key}' not found in pulse-shape library"
         raise KeyError(msg)
 
     wfs = pulse_shape_lib[wf_key].nda
@@ -636,7 +636,7 @@ def plot_aoe_rz_map(
     *,
     hpge_profile: object | None = None,
 ) -> Figure:
-    """Plot the A/E R/Z map(s) of a pulse shape library.
+    """Plot the A/E R/Z map(s) of a pulse-shape library.
 
     For each azimuthal angle present in the library, computes the per-pixel A/E
     as the maximum of the (energy-normalized) current waveform over the time
@@ -648,7 +648,7 @@ def plot_aoe_rz_map(
     Parameters
     ----------
     pulse_shape_lib
-        Mapping containing the pulse shape library, as returned by
+        Mapping containing the pulse-shape library, as returned by
         :func:`make_realistic_pulse_shape_lib`. Must contain ``r``, ``z`` (in
         mm) and at least one ``waveform_<angle>_deg`` key.
     detector_id
@@ -668,7 +668,7 @@ def plot_aoe_rz_map(
 
     angles = sorted(int(k.split("_")[1]) for k in pulse_shape_lib if "waveform" in k)
     if not angles:
-        msg = "no 'waveform_<angle>_deg' keys found in pulse shape library"
+        msg = "no 'waveform_<angle>_deg' keys found in pulse-shape library"
         raise KeyError(msg)
 
     r = pulse_shape_lib["r"].nda  # already in mm
