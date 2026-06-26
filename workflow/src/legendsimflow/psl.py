@@ -35,7 +35,7 @@ DT_DATA: float = 16.0
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
 
 
-def get_avg_aoe(waveforms: list[np.ndarray]) -> float:
+def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
     """Estimate the average A/E from the PSL.
 
     Estimated as the mode of the distribution of
