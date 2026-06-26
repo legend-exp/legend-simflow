@@ -68,6 +68,8 @@ dependencies = [
     "pylegendmeta >=1.4.4",
     "pyyaml",
     "reboost >=0.12.2,<0.13",
+    # particle 1.0 made charge() return a Fraction, which numba cannot type in reboost
+    "particle <1",
     "revertex >=0.1.2",
     "ruamel.yaml",
     "snakemake >=9.19,<9.20",
@@ -143,6 +145,8 @@ legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"
 reboost = ">=0.12.2,<0.13"
+# particle 1.0 made charge() return a Fraction, which numba cannot type in reboost
+particle = "<1"
 
 # tier stp
 remage = ">=0.19.5,<0.20"
