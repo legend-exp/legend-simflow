@@ -23,6 +23,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
 import numpy as np
+import reboost.pmts as reboost_pmts
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
@@ -139,6 +140,14 @@ def main() -> None:
     tier_evt_settings = get_tier_settings(config, "evt")
     geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
     spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
+    skip_muonveto = tier_evt_settings.skip_muonveto
+    muonveto_trigger_groups = tier_evt_settings.muonveto_trigger_groups
+    muonveto_trigger_timegate = tier_evt_settings.muonveto_trigger_timegate
+    muonveto_trigger_deadtime = tier_evt_settings.muonveto_trigger_deadtime
+    muonveto_trace_length = tier_evt_settings.muonveto_trace_length
+    muonveto_time_per_sample = tier_evt_settings.muonveto_time_per_sample
+    muonveto_trigger_position = tier_evt_settings.muonveto_trigger_position
+    muonveto_coincidence_window = tier_evt_settings.muonveto_coincidence_window
     buffer_len = tier_evt_settings.buffer_len
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
@@ -201,7 +210,7 @@ def main() -> None:
     # NOTE: we check on disk because we are not sure which tables were processed in
     # the hit tiers
     det2uid = {}
-    for tier in ("opt", "hit"):
+    for tier in ("opt", "hit", "stp"):
         if (tier == "opt" and skip_opt) or (tier == "hit" and skip_hit):
             det2uid[tier] = {}
             continue
@@ -210,6 +219,7 @@ def main() -> None:
             for uid, name in reboost_utils.get_remage_detector_uids(
                 hit_file[tier], lh5_table="hit"
             ).items()
+            if (tier != "stp") or ("pmt" in name)  # for the stp tier only map the pmts
         }
         msg = f"found mapping name -> uid ({tier} tier): {det2uid[tier]}"
         log.debug(msg)
@@ -339,7 +349,7 @@ def main() -> None:
             # split the unified TCM in two, one for each tier. in this way we will be
             # able to read data from each tier
             tcm = {}
-            for tier in ("opt", "hit"):
+            for tier in ("opt", "hit", "stp"):
                 mask = ak_isin(unified_tcm.table_key, det2uid[tier].values())
                 tcm[tier] = unified_tcm[mask]
 
@@ -372,13 +382,16 @@ def main() -> None:
                 data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
                 out_table.add_field(f"trigger/{constant_field}", Array(data))
 
+                # Store the event-ids for comparison with muons later.
+                if constant_field == "evtid":
+                    event_ids = data.to_numpy()
+
             timestamp = _read_hits(tcm, trigger_source, "t0")
             timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
             out_table.add_field(
                 "trigger/timestamp",
                 Array(np.asarray(timestamp, dtype=np.float32), attrs={"units": "ns"}),
             )
-
             # HPGe table
             # ----------
             if not skip_hit:
@@ -608,6 +621,111 @@ def main() -> None:
                 energy_sum = ak.Array(np.zeros(len(unified_tcm), dtype=np.float32))
                 spms_multiplicity = ak.Array(np.zeros(len(unified_tcm), dtype=np.int64))
 
+            # muonveto table
+            # ------------------
+            if not skip_muonveto:
+                out_table.add_field("muon", Table(size=len(unified_tcm)))
+                # TODO : Figure out a way to get the usable pmts of this run from somewhere.
+                # I do not think the metadata has this information. Especially as PMTs sometimes break in the middle of a run.
+                usable_pmts = list(det2uid[tier].values())
+
+                muonveto_times = _read_hits(tcm, "stp", "time")
+                # Group the times with only usable detectors and pad empty events to align the event axis.
+                grouped = reboost_pmts.group_by_detector(
+                    muonveto_times, tcm["stp"].table_key, usable_pmts
+                )
+                # TODO : Derive the trigger groups from the usable PMTs and their position (which should be in the metadata)
+                triggers = reboost_pmts.build_hardware_triggers(
+                    grouped,
+                    trigger_groups=muonveto_trigger_groups,
+                    timegate=muonveto_trigger_timegate,
+                    trigger_deadtime=muonveto_trigger_deadtime,
+                )[0]
+                hits = reboost_pmts.build_hits(
+                    grouped,
+                    triggers,
+                    trace_length=muonveto_trace_length,
+                    time_per_sample=muonveto_time_per_sample,
+                    trigger_position=muonveto_trigger_position,
+                )
+                del (
+                    grouped
+                )  # grouped consumes a lot of memory and is not needed anymore.
+                integral_light = ak.sum(hits, axis=0)
+                multiplicity = ak.sum(hits > 0, axis=0)
+
+                # Handle a rare edge case:
+                # The tcm can split the same eventid into multiple rows. Make sure every row has all triggers for one G4Event.
+                # If this turns out to be not so rare, this part might need to be optimized.
+                if len(np.unique(event_ids)) != len(event_ids):
+                    unique_ids, counts = np.unique(event_ids, return_counts=True)
+                    duplicated_ids = set(unique_ids[counts > 1])
+                    triggers_list = ak.to_list(triggers)
+                    integral_light_list = ak.to_list(integral_light)
+                    multiplicity_list = ak.to_list(multiplicity)
+                    for eid in duplicated_ids:
+                        idxs = np.where(event_ids == eid)[0]
+                        all_triggers = ak.to_list(ak.flatten(triggers[idxs]))
+                        all_integral_light = ak.to_list(
+                            ak.flatten(integral_light[idxs])
+                        )
+                        all_multiplicity = ak.to_list(ak.flatten(multiplicity[idxs]))
+
+                        for i in idxs:
+                            triggers_list[i] = all_triggers
+                            integral_light_list[i] = all_integral_light
+                            multiplicity_list[i] = all_multiplicity
+
+                    triggers = ak.Array(triggers_list)
+                    integral_light = ak.Array(integral_light_list)
+                    multiplicity = ak.Array(multiplicity_list)
+
+                # This is the exact condition from the legend-dataflow-config, except the noisy cut.
+                # Might be reasonable to move this to the config? But the LAr cut below is also hard-coded so i did it here...
+                software_cut = (
+                    (
+                        (multiplicity >= 11) | (integral_light >= 7)
+                    )  # low-multiplicity cut
+                    & ((multiplicity >= 13) | (integral_light <= 98))  # flasher cut
+                )
+                # software_cut still is a jagged awkward array, as there might be multiple muonveto triggers per tcm event.
+
+                # sanity check
+                assert len(integral_light) == len(event_ids)
+                assert len(multiplicity) == len(event_ids)
+
+                dt = triggers - timestamp[:, None]
+                # muonveto trigger happened after/before the event trigger, but within the coincidence window
+                coincidence_mask = (dt >= muonveto_coincidence_window[0]) & (
+                    dt <= muonveto_coincidence_window[1]
+                )
+
+                # veto only events that are in coincidence with a muonveto trigger and pass the software cut
+                veto_mask = coincidence_mask & software_cut
+                # If any of the muonveto triggers is in coincidence with the event trigger, we veto the event.
+                muonveto_offline = np.any(veto_mask, axis=1)
+                muon_flag = np.any(coincidence_mask, axis=1)
+
+                out_table.add_field(
+                    "muon/timestamp",
+                    VectorOfVectors(
+                        ak.values_astype(triggers[coincidence_mask], np.float32),
+                        attrs={"units": "ns"},
+                    ),
+                )
+                out_table.add_field(
+                    "muon/energy_sum",
+                    VectorOfVectors(
+                        ak.values_astype(integral_light[coincidence_mask], np.float32)
+                    ),
+                )
+                out_table.add_field(
+                    "muon/multiplicity",
+                    VectorOfVectors(
+                        ak.values_astype(multiplicity[coincidence_mask], np.int32)
+                    ),
+                )
+
             # coincidences table
             # ------------------
             out_table.add_field("coincident", Table(size=len(unified_tcm)))
@@ -620,6 +738,12 @@ def main() -> None:
             if not skip_opt:
                 lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
                 out_table.add_field("coincident/spms", Array(lar_veto))
+
+            if not skip_muonveto:
+                # This is the "muon" field in the data, which is the aux channel. It is True if there was a muonveto hardware trigger in coincidence
+                out_table.add_field("coincident/muon", Array(muon_flag))
+                # This represents the "muon_offline" field in the data. True if the coincident muontrigger passed the software cut.
+                out_table.add_field("coincident/muon_offline", Array(muonveto_offline))
 
             # now write down
             with perf_block("write_chunk()"):
