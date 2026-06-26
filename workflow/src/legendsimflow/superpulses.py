@@ -232,7 +232,7 @@ def lookup_superpulse_inputs(
     max_files: int | None = None,
     *,
     evt_tier_name: str = "evt",
-) -> tuple[list[Path], list[Path], list[Path], Path, dict[str, int]]:
+) -> tuple[list[Path], list[Path], Path, dict[str, int], str]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
     Parameters
@@ -252,17 +252,31 @@ def lookup_superpulse_inputs(
 
     Returns
     -------
-    raw_files, dsp_files, evt_files
-        Sorted lists of LH5 file paths for each tier.
+    raw_files, evt_files
+        Sorted lists of LH5 file paths for the raw and evt tiers.
     dsp_cfg_file
         Path to the DSP configuration file.
     tab_map
         Mapping ``{detector_name: rawid}``.
+    data_runid
+        Run whose data was looked up: the reference calibration run for a
+        physics ``runid``, otherwise ``runid`` itself.
     """
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
     _, period_int, run_int, data_type = mutils.parse_runid(runid)
+
+    # for physics runs we build superpulses from the reference calibration run:
+    # its raw/evt data and channel map are what we actually read below
+    data_runid = runid
+    if data_type == "phy":
+        data_runid = mutils.reference_cal_run(metadata, runid)
+        _, period_int, run_int, data_type = mutils.parse_runid(data_runid)
+
+        msg = f"inferred reference calibration run: {data_runid}"
+        log.debug(msg)
+
     period = f"p{period_int:02d}"
     run = f"r{run_int:03d}"
     df_cfg = utils.lookup_dataflow_config(l200data).paths
@@ -275,7 +289,7 @@ def lookup_superpulse_inputs(
     )[:max_files]
 
     if not evt_files:
-        msg = f"no evt tier files found for {runid}."
+        msg = f"no evt tier files found for {data_runid}."
         raise FileNotFoundError(msg)
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
@@ -290,31 +304,30 @@ def lookup_superpulse_inputs(
         msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
         raise RuntimeError(msg)
 
-    tstamp = mutils.runinfo(metadata, runid).start_key
+    tstamp = mutils.runinfo(metadata, data_runid).start_key
     chmap = metadata.channelmap(tstamp, skip_version_check=True)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
-    return raw_files, evt_files, dsp_cfg_files[0], tab_map
+    return raw_files, evt_files, dsp_cfg_files[0], tab_map, data_runid
 
 
 def _read_and_sel_evts(
     evt_files: str | list[str],
     detector: str,
+    t0_field: str | None = None,
     aoe_low_threshold: float = -3.0,
     aoe_high_threshold: float = 3.0,
 ) -> ak.Array:
     """Read evt data and perform basic selections."""
+    field_mask = ["geds", "coincident", "trigger"]
+    if t0_field is not None:
+        field_mask.append(t0_field)
+
     evt_data = lh5.read_as(
         "evt",
         evt_files,
         library="ak",
-        field_mask=[
-            "geds",
-            "coincident",
-            "trigger",
-            "spms/energy_sum",
-            "spms/event_t0",
-        ],
+        field_mask=field_mask,
     )
 
     mask = (
@@ -325,9 +338,17 @@ def _read_and_sel_evts(
         & (~evt_data.coincident.muon_offline)
         & evt_data.geds.quality.is_bb_like
         & (evt_data.geds.multiplicity == 1)
-        & (evt_data.spms.energy_sum > 10)
         & (ak.all(evt_data.geds.detector_name == detector, axis=-1))
     )
+
+    # `t0_field` names the event start time used for the drift time; it is set
+    # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
+    # those are exactly the low-p.e. events. `t0_field` is None only when the
+    # drift time is taken directly from `end_time_field`, in which case there is
+    # no t0 to cut.
+    if t0_field is not None:
+        mask = mask & ~np.isnan(_get_nested_field(evt_data, t0_field))
+
     evt_data = evt_data[mask]
 
     psd_mask = ak.all(
@@ -378,7 +399,7 @@ def lookup_wfs_indices(
     evt_files: list[str],
     n_target: int,
     detector: str,
-    t0_field: str | None = "spms/first_t0",
+    t0_field: str | None = "spms/event_t0",
     end_time_field: str = "geds/psd/low_aoe/time",
 ) -> list[AttrsDict]:
     """Extract the indices of the waveforms to use in superpulse construction.
@@ -424,7 +445,7 @@ def lookup_wfs_indices(
             msg = f"Reading file {file_idx} out of {len(evt_files)} {m} target ({n_target})"
             log.info(msg)
 
-        evts = _read_and_sel_evts(evt_file, detector=detector)
+        evts = _read_and_sel_evts(evt_file, detector=detector, t0_field=t0_field)
         drift_time = get_drift_time(evts, end_time_field, t0_field)
 
         all_drift_times = (

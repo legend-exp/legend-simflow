@@ -405,6 +405,7 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
+    """Flag to compute the superpulses."""
     raw_elecmod = metautils.simpars(
         config.metadata,
         "geds.elecmod",
@@ -418,26 +419,50 @@ def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
     return elecmod_default is None
 
 
-def output_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
+def output_superpulses_filename(
+    config: SimflowConfig, build_per_runid: bool = False, **kwargs
+) -> Path:
     """The path to the HPGe superpulses file for a detector."""
+    if not build_per_runid:
+        return _expand(
+            config.paths.pars / "hpge/superpulses/{hpge_detector}-superpulses.lh5",
+            **kwargs,
+        )
     return _expand(
-        config.paths.pars / "hpge/superpulses/{hpge_detector}-superpulses.lh5",
+        config.paths.pars / "hpge/superpulses/{runid}-{hpge_detector}-superpulses.lh5",
         **kwargs,
     )
 
 
-def plot_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
+def plot_superpulses_filename(
+    config: SimflowConfig, build_per_runid: bool = False, **kwargs
+) -> Path:
     """The path to the HPGe superpulses diagnostic plot file for a detector."""
+    if not build_per_runid:
+        return _expand(
+            config.paths.pars
+            / "hpge/superpulses/plots/{hpge_detector}-superpulses.pdf",
+            **kwargs,
+        )
     return _expand(
-        config.paths.pars / "hpge/superpulses/plots/{hpge_detector}-superpulses.pdf",
+        config.paths.pars
+        / "hpge/superpulses/plots/{runid}-{hpge_detector}-superpulses.pdf",
         **kwargs,
     )
 
 
-def log_superpulses_filename(config: SimflowConfig, **kwargs) -> Path:
+def log_superpulses_filename(
+    config: SimflowConfig, build_per_runid: bool = False, **kwargs
+) -> Path:
     """The log file path for HPGe superpulse generation for a detector."""
+    if not build_per_runid:
+        return _expand(
+            log_dirname(config) / "hpge/superpulses/{hpge_detector}-superpulses.log",
+            **kwargs,
+        )
     return _expand(
-        log_dirname(config) / "hpge/superpulses/{hpge_detector}-superpulses.log",
+        log_dirname(config)
+        / "hpge/superpulses/{runid}-{hpge_detector}-superpulses.log",
         **kwargs,
     )
 

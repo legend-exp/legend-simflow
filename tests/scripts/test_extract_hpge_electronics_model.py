@@ -22,7 +22,7 @@ l200data = Path(__file__).parent.parent / "l200data" / "v3.0.0"
 
 def test_lookup_inputs(test_make_ssc_data):
     meta = LegendMetadata(test_make_ssc_data / "inputs")
-    raw_files, evt_files, dsp_config, tab_map = lookup_superpulse_inputs(
+    raw_files, evt_files, dsp_config, tab_map, _ = lookup_superpulse_inputs(
         l200data, meta, "l200-p16-r008-ssc", "V03422A", evt_tier_name="pet"
     )
 
