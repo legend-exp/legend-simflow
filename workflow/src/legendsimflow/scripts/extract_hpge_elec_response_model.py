@@ -257,6 +257,7 @@ def main() -> None:
         "rms": result["best_rms"],
     }
 
+
     # Plots
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
@@ -273,6 +274,7 @@ def main() -> None:
                 data_superpulses,
                 comparison_window=comparison_window,
                 plot_window=None,
+                detector = args.hpge_detector
             )
             output["aoe_data"] = data_amax
             output["aoe_mc"] = mc_amax
@@ -286,6 +288,7 @@ def main() -> None:
                 comparison_window=comparison_window,
                 plot_window=None,
                 plot_charge=True,
+                detector = args.hpge_detector
             )
             decorate(fig)
             pdf.savefig(fig)
@@ -294,7 +297,6 @@ def main() -> None:
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
-
 
 if __name__ == "__main__":
     main()

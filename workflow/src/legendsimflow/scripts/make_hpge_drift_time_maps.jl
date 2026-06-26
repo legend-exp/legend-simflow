@@ -24,6 +24,7 @@ const DEFAULT_REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
 # nr of pixels for padding around the map to avoid grid edge effects (default; can be overridden via metadata settings file)
 const DEFAULT_PADDING = 3
 
+
 # Imports for main script
 using LegendDataManagement
 using LegendHDF5IO

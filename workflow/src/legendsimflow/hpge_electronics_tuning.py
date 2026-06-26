@@ -447,6 +447,7 @@ def plot_best_fit(
     comparison_window: tuple[float, float] | None = None,
     plot_window: tuple[float, float] | None = None,
     plot_charge: bool = False,
+    detector: str| None = None
 ) -> tuple:
     """Overlay data and best-fit simulated superpulses (current or charge).
 
@@ -561,7 +562,7 @@ def plot_best_fit(
         rms = compute_rms_in_slice(sim_avg, sim_time, data_sp, comparison_window)
         dt_lo, dt_hi = sl.drift_time_range
         ax.set_title(
-            f"dt = [{dt_lo:.0f}, {dt_hi:.0f}] ns\nRMS = {rms:.5f}", fontsize=10
+            f"{detector} dt = [{dt_lo:.0f}, {dt_hi:.0f}] ns\nRMS = {rms:.5f}", fontsize=10
         )
 
         # Axis limits
