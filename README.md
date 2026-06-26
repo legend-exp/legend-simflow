@@ -38,12 +38,9 @@ post-processing:
   FWHM(E) used to smear the simulated energy.
 - **HPGe active volume**: dead-layer / active-volume model from detector
   geometry and metadata.
-- **HPGe pulse shape and PSD**: drift-time maps and ideal pulse-shape libraries
-  computed with
-  [_SolidStateDetectors.jl_](https://juliaphysics.github.io/SolidStateDetectors.jl),
-  convolved with an electronics-response model fitted to data superpulses; A/E
-  response from current-signal templates and measured A/E resolution, with
-  data-driven PSD survival cuts.
+- **HPGe pulse shape and PSD**: Extraction of the A/E PSD observables based on drift-time maps and ideal pulse-shape libraries computed with
+  [_SolidStateDetectors.jl_](https://juliaphysics.github.io/SolidStateDetectors.jl). This is
+  combined with an electronics-response model's fitted to data waveforms.
 - **Liquid-argon scintillation and SiPMs**: scintillation photon generation,
   photoelectron detection sampled from optical maps, per-photoelectron amplitude
   resolution, and time clustering reproducing the SiPM time response.
