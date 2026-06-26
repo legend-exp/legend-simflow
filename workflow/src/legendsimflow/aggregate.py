@@ -532,19 +532,6 @@ def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
-def gen_list_of_superpulses(config: SimflowConfig) -> list[Path]:
-    """Generate the list of HPGe superpulses files for all runlists."""
-    hpges = {
-        hpge
-        for runid in gen_list_of_all_runids(config)
-        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid)
-    }
-    return [
-        patterns.output_superpulses_filename(config, hpge_detector=hpge)
-        for hpge in sorted(hpges)
-    ]
-
-
 def gen_list_of_currmod_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
