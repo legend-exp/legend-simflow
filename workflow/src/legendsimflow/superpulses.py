@@ -232,7 +232,7 @@ def lookup_superpulse_inputs(
     max_files: int | None = None,
     *,
     evt_tier_name: str = "evt",
-) -> tuple[list[Path], list[Path], list[Path], Path, dict[str, int]]:
+) -> tuple[list[Path], list[Path], Path, dict[str, int], str]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
     Parameters
@@ -252,12 +252,15 @@ def lookup_superpulse_inputs(
 
     Returns
     -------
-    raw_files, dsp_files, evt_files
-        Sorted lists of LH5 file paths for each tier.
+    raw_files, evt_files
+        Sorted lists of LH5 file paths for the raw and evt tiers.
     dsp_cfg_file
         Path to the DSP configuration file.
     tab_map
         Mapping ``{detector_name: rawid}``.
+    data_runid
+        Run whose data was looked up: the reference calibration run for a
+        physics ``runid``, otherwise ``runid`` itself.
     """
     if isinstance(l200data, str):
         l200data = Path(l200data)
@@ -286,7 +289,7 @@ def lookup_superpulse_inputs(
     )[:max_files]
 
     if not evt_files:
-        msg = f"no evt tier files found for {runid}."
+        msg = f"no evt tier files found for {data_runid}."
         raise FileNotFoundError(msg)
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
@@ -305,7 +308,7 @@ def lookup_superpulse_inputs(
     chmap = metadata.channelmap(tstamp, skip_version_check=True)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
-    return raw_files, evt_files, dsp_cfg_files[0], tab_map
+    return raw_files, evt_files, dsp_cfg_files[0], tab_map, data_runid
 
 
 def _read_and_sel_evts(

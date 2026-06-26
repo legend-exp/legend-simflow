@@ -176,9 +176,10 @@ def main() -> int:
     evt_files = []
     dsp_config = None
     tab_map = {}
+    seen_data_runids = set()
 
     for runid in runids:
-        raw_run_files, evt_run_files, dsp_cfg_file, tab_map_run = (
+        raw_run_files, evt_run_files, dsp_cfg_file, tab_map_run, data_runid = (
             lookup_superpulse_inputs(
                 l200data=l200data,
                 metadata=lmeta,
@@ -188,6 +189,15 @@ def main() -> int:
                 evt_tier_name=settings.evt_tier_name,
             )
         )
+
+        # several physics runs can resolve to the same reference calibration
+        # run; collect each set of input files only once to avoid duplicating
+        # events in the superpulse (and reprocessing the same files)
+        if data_runid in seen_data_runids:
+            log.debug("skipping %s: data already collected via %s", runid, data_runid)
+            continue
+        seen_data_runids.add(data_runid)
+
         raw_files.extend(raw_run_files)
         evt_files.extend(evt_run_files)
 
