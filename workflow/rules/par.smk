@@ -389,23 +389,37 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
+# whether superpulses are built one file per (run, detector) instead of a single
+# file per detector accumulating all runs; drives both the producer rule below
+# and the consumer `extract_electronics_model_pars`
+_build_per_runid = get_par_settings(config, "superpulses").get("build_per_runid", False)
+
+
 rule build_superpulses_from_data:
     """Build HPGe superpulses by accumulating all runs in the configured runlists.
 
-    Uses wildcard `hpge_detector`.
+    Uses wildcard `hpge_detector` and `runid` if per run superpulses are requested.
     """
     message:
         "Building data superpulses for detector {wildcards.hpge_detector}"
     params:
-        runids=sorted(aggregate.gen_list_of_all_runids(config)),
+        runids=lambda wc: (
+            wc.runid
+            if _build_per_runid
+            else sorted(aggregate.gen_list_of_all_runids(config))
+        ),
         # track l200data so the rule reruns when it changes: raw data files are
         # discovered dynamically and not listed as inputs
         _l200data=config.paths.get("l200data", None),
     output:
-        superpulses=patterns.output_superpulses_filename(config),
-        plots=patterns.plot_superpulses_filename(config),
+        superpulses=patterns.output_superpulses_filename(
+            config, build_per_runid=_build_per_runid
+        ),
+        plots=patterns.plot_superpulses_filename(
+            config, build_per_runid=_build_per_runid
+        ),
     log:
-        patterns.log_superpulses_filename(config),
+        patterns.log_superpulses_filename(config, build_per_runid=_build_per_runid),
     script:
         "../src/legendsimflow/scripts/build_superpulses_from_data.py"
 
@@ -420,7 +434,13 @@ rule extract_electronics_model_pars:
         "Extracting electronics model for detector {wildcards.hpge_detector} in {wildcards.runid}"
     input:
         superpulses=lambda wc: (
-            patterns.output_superpulses_filename(config)
+            (
+                patterns.output_superpulses_filename(
+                    config, build_per_runid=True, runid=wc.runid
+                )
+                if _build_per_runid
+                else patterns.output_superpulses_filename(config)
+            )
             if patterns.compute_superpulses(config, runid=wc.runid)
             else []
         ),
