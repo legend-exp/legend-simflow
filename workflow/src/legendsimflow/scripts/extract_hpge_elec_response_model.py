@@ -17,7 +17,7 @@
 
 """Tune the electronics response parameters (sigma, tau) against data superpulses.
 
-Reads an ideal pulse shape library and data superpulses from LH5, fits the
+Reads an ideal pulse-shape library and data superpulses from LH5, fits the
 Gaussian sigma and exponential tau of the system response kernel by minimising
 the mean RMS between simulated and measured current superpulses, and writes
 the best-fit parameters to a YAML file.

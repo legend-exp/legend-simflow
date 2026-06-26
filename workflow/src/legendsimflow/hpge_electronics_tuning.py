@@ -231,7 +231,7 @@ def get_ideal_wfs_all_slices(
 ) -> dict:
     """Select ideal waveforms per drift-time slice.
 
-    Reads the ideal pulse shape library, flattens the (r, z) grid,
+    Reads the ideal pulse-shape library, flattens the (r, z) grid,
     and selects waveforms whose drift time falls in each data
     superpulse slice.
 

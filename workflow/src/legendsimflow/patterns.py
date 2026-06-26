@@ -245,11 +245,11 @@ def plot_tier_cvt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
-# drift time maps
+# drift-time maps
 
 
 def output_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the HPGe drift time map file for a detector and voltage."""
+    """The path to the HPGe drift-time map file for a detector and voltage."""
     return _expand(
         config.paths.dtmaps
         / "singles/{hpge_detector}-{hpge_voltage}V-hpge-drift-time-map.lh5",
@@ -258,12 +258,12 @@ def output_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def output_dtmap_merged_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the merged HPGe drift time map file for a `runid`."""
+    """The path to the merged HPGe drift-time map file for a `runid`."""
     return _expand(config.paths.dtmaps / "{runid}-hpge-drift-time-maps.lh5", **kwargs)
 
 
 def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The log file path for drift time map generation for a detector and voltage."""
+    """The log file path for drift-time map generation for a detector and voltage."""
     pat = (
         log_dirname(config)
         / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.log"
@@ -272,7 +272,7 @@ def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the drift time map validation plot for a detector and voltage."""
+    """The path to the drift-time map validation plot for a detector and voltage."""
     pat = (
         config.paths.dtmaps
         / "singles/plots/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
@@ -281,7 +281,7 @@ def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The benchmark file path for drift time map generation for a detector and voltage."""
+    """The benchmark file path for drift-time map generation for a detector and voltage."""
     pat = (
         config.paths.benchmarks
         / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.tsv"
@@ -289,11 +289,11 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-# hpge pulse shape libraries
+# hpge pulse-shape libraries
 
 
 def output_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the ideal HPGe pulse shape library for a detector and voltage."""
+    """The path to the ideal HPGe pulse-shape library for a detector and voltage."""
     pat = (
         config.paths.pars
         / "hpge/psl/ideal/singles/{hpge_detector}-{hpge_voltage}V-hpge-pulse-shape-lib.lh5"
@@ -302,7 +302,7 @@ def output_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def log_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The log file path for ideal pulse shape library generation for a detector and voltage."""
+    """The log file path for ideal pulse-shape library generation for a detector and voltage."""
     pat = (
         log_dirname(config)
         / "hpge/psl/ideal/{hpge_detector}-{hpge_voltage}V-hpge-pulse-shape-lib.log"
@@ -311,7 +311,7 @@ def log_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def benchmark_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The benchmark file path for ideal pulse shape library generation for a detector and voltage."""
+    """The benchmark file path for ideal pulse-shape library generation for a detector and voltage."""
     pat = (
         config.paths.benchmarks
         / "hpge/psl/ideal/{hpge_detector}-{hpge_voltage}V-hpge-pulse-shape-lib.tsv"
@@ -320,7 +320,7 @@ def benchmark_ideal_psl_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def output_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the realistic HPGe pulse shape library for a detector and run."""
+    """The path to the realistic HPGe pulse-shape library for a detector and run."""
     pat = (
         config.paths.pars
         / "hpge/psl/realistic/singles/{runid}-{hpge_detector}-hpge-pulse-shape-lib.lh5"
@@ -329,7 +329,7 @@ def output_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def plot_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the realistic HPGe pulse shape library plots for a detector and run."""
+    """The path to the realistic HPGe pulse-shape library plots for a detector and run."""
     pat = (
         config.paths.pars
         / "hpge/psl/realistic/singles/plots/{runid}-{hpge_detector}-hpge-pulse-shape-lib.pdf"
@@ -346,7 +346,7 @@ def output_realistic_psl_merged_filename(config: SimflowConfig, **kwargs) -> Pat
 
 
 def log_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The log file path for realistic pulse shape library generation for a detector and run."""
+    """The log file path for realistic pulse-shape library generation for a detector and run."""
     pat = (
         log_dirname(config)
         / "hpge/psl/realistic/{runid}-{hpge_detector}-hpge-pulse-shape-lib.log"
@@ -355,7 +355,7 @@ def log_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def benchmark_realistic_psl_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The benchmark file path for realistic pulse shape library generation for a detector and run."""
+    """The benchmark file path for realistic pulse-shape library generation for a detector and run."""
     pat = (
         config.paths.benchmarks
         / "hpge/psl/realistic/{runid}-{hpge_detector}-hpge-pulse-shape-lib.tsv"
@@ -373,7 +373,7 @@ def input_currmod_evt_idx_file(config: SimflowConfig, **kwargs) -> Path:
 
 
 def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the per-detector HPGe current pulse model parameter file."""
+    """The path to the per-detector HPGe current-pulse model parameter file."""
     return _expand(
         config.paths.pars / "hpge/currmod/{runid}-{hpge_detector}-model.yaml",
         **kwargs,
@@ -381,7 +381,7 @@ def output_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def output_currmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the merged HPGe current pulse model parameter file for a `runid`."""
+    """The path to the merged HPGe current-pulse model parameter file for a `runid`."""
     return _expand(
         config.paths.pars / "hpge/currmod/{runid}-model.yaml",
         **kwargs,
@@ -482,13 +482,13 @@ def plot_elecmod_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def log_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The log file path for current pulse model extraction for a detector and `runid`."""
+    """The log file path for current-pulse model extraction for a detector and `runid`."""
     pat = log_dirname(config) / "hpge/currmod/{runid}-{hpge_detector}-model.log"
     return _expand(pat, **kwargs)
 
 
 def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the current pulse model fit validation plot for a detector and `runid`."""
+    """The path to the current-pulse model fit validation plot for a detector and `runid`."""
     pat = (
         config.paths.pars / "hpge/currmod/plots/{runid}-{hpge_detector}-fit-result.pdf"
     )

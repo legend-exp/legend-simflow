@@ -3,18 +3,41 @@
 Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
 `Makefile` for other useful targets.
 
+## Structure
+
+- `meta.md`: description of the input metadata that configures the production,
+  format and meaning;
+- `output.md`: description of the outputs of the production, format and
+  contents, organized by step;
+- `pipeline.md`: description of the workflow steps and what they do. No details
+  about the output formats here, they go in `output.md`;
+- `prod.md`: Simflow execution modes and configuration;
+- `setup.md`: high level setup of the Simflow, installation and main
+  configuration file.
+- `sites.md`: Computing site execution tips.
+- `tips.md`: Collection of tips&tricks.
+
 ## Conventions
 
 - Source in `docs/source/`, user manual under `manual/`
 - A script in `tools/` generates the Snakemake rule reference from docstrings
 - Pages written in Markdown
+- Use admonitions when appropriate, to highlight important messages to end
+  users.
 - Colon fences (`:::`) for sphinx directives like admonitions. Always add an
   empty line after the open and before the close of a `:::` block, otherwise
   `prettier` will re-wrap and break rendering
 - Always enable code block highlighting. Use `console` for shell commands
   (prompt delimiter `>`)
+- Write LaTeX-formatted math when appropriate. MyST `dollarmath` is enabled so
+  you can use `$...$` and `$$...$$` for inline and block math, respectively.
+- Runids (including components) and tier names must be formatted as monospaced
+  text.
 - Document each function and Snakemake rule in its docstring; higher-level docs
   go in the user manual
+- Avoid duplication between docstrings and manual when possible and rather xref
+  docstrings (also from other packages through intersphinx). Keep details in the
+  docstrings.
 - All new pages must appear in a toctree — orphan pages cause build warnings
 - API reference is auto-generated; do not write it by hand
 

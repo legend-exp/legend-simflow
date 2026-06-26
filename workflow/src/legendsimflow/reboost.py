@@ -200,7 +200,7 @@ def load_hpge_realistic_psl(
 ):
     """Load HPGe PSL from disk.
 
-    Loads the waveforms as well as drift time maps for
+    Loads the waveforms as well as drift-time maps for
     both coordinates.
 
     Parameters
@@ -219,8 +219,8 @@ def load_hpge_realistic_psl(
 
     Returns
     -------
-    A tuple of two dictionaries: the first contains the drift time maps for different crystal axes, keyed by angle.
-    The second contains the corresponding pulse shape libraries.
+    A tuple of two dictionaries: the first contains the drift-time maps for different crystal axes, keyed by angle.
+    The second contains the corresponding pulse-shape libraries.
     If no valid maps are found, ``None`` is returned for both.
 
     Note
@@ -237,7 +237,7 @@ def load_hpge_realistic_psl(
     )
 
     if len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2:
-        log.debug("loading drift time maps from %s", psl_file)
+        log.debug("loading drift-time maps from %s", psl_file)
         # both axes needed: hpge_corrected_drift_time() blends them (and small)
         dt_map = {
             angle: reboost.hpge.utils.get_hpge_rz_field(
@@ -275,9 +275,9 @@ def load_hpge_realistic_psl(
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
 ) -> dict[str, reboost.hpge.utils.HPGeRZField] | None:
-    """Load HPGe drift time maps from disk.
+    """Load HPGe drift-time maps from disk.
 
-    Automatically finds and loads drift time maps for crystal axes <100> <110>.
+    Automatically finds and loads drift-time maps for crystal axes <100> <110>.
     If no map is found, ``None`` is returned.
 
     Parameters
@@ -300,7 +300,7 @@ def load_hpge_dtmaps(
     )
 
     if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
-        log.debug("loading drift time maps")
+        log.debug("loading drift-time maps")
         dt_map = {}
         for angle in ("000", "045"):
             dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
@@ -394,7 +394,7 @@ def extract_psd_observables(
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
 
-    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift time maps and current model parameters.
+    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift-time maps and current model parameters.
 
     Parameters
     ----------
@@ -405,7 +405,7 @@ def extract_psd_observables(
     energy
         Energy deposited in the active volume, used for A/E calculation.
     dt_map
-        Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
+        Dictionary of drift-time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
     currmod_pars
         Dictionary of parameters for the current model, (see
         :func:`reboost.hpge.psd.get_current_template`)
@@ -491,7 +491,7 @@ def extract_detailed_psd_observables(
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
 
-    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift time maps and current model parameters.
+    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift-time maps and current model parameters.
 
     Parameters
     ----------
@@ -502,7 +502,7 @@ def extract_detailed_psd_observables(
     energy
         Energy deposited in the active volume, used for A/E calculation.
     dt_map
-        Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
+        Dictionary of drift-time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
     pulse_shape_lib
         Dictionary of waveform templates for different crystal axes, as returned by `load_hpge_realistic_psl()`.
     det_loc

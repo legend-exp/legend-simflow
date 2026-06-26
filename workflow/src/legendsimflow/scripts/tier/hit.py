@@ -70,7 +70,7 @@ def main() -> None:
     parser.add_argument("--hit-file", required=True, help="output hit tier file")
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
     parser.add_argument(
-        "--dtmap-files", nargs="*", default=[], help="HPGe drift time map files"
+        "--dtmap-files", nargs="*", default=[], help="HPGe drift-time map files"
     )
     parser.add_argument(
         "--currmod-files",
@@ -230,7 +230,7 @@ def main() -> None:
             aoe_res_pars=aoeresmod_pars_all,
         )
 
-        log.debug("loading current pulse model parameters")
+        log.debug("loading current-pulse model parameters")
 
         currmod_pars_file = patterns.output_currmod_merged_filename(
             config, runid=runid, has_psd=simulate_psd
@@ -463,7 +463,7 @@ def main() -> None:
                     energy_res / 2.35482,
                 )
 
-                # PSD: if the drift time map is none, it means that we don't
+                # PSD: if the drift-time map is none, it means that we don't
                 # have the detector model to simulate PSD in a more advanced
                 # way
 
@@ -501,7 +501,7 @@ def main() -> None:
 
                 if can_model_psd_with_psl:
                     log.info(
-                        "computing detailed PSD observables based on realistic pulse shape libraries"
+                        "computing detailed PSD observables based on realistic pulse-shape libraries"
                     )
                     with perf_block("extract_detailed_psd_observables()"):
                         psd_fields_detailed = (

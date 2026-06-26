@@ -43,7 +43,7 @@ def _plot_currmod_from_metadata(
     ax.set_xlim(-500, 1500)
     ax.set_xlabel("time [ns]")
     ax.set_ylabel("current [a.u.]")
-    ax.set_title(f"{hpge} in {runid}: current pulse model (from metadata)")
+    ax.set_title(f"{hpge} in {runid}: current-pulse model (from metadata)")
     with PdfPages(plot_file) as pdf:
         decorate(fig)
         pdf.savefig(fig)
@@ -62,7 +62,7 @@ def _plot_currmod_from_metadata(
 )
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Extract the HPGe current pulse model for a LEGEND run."
+        description="Extract the HPGe current-pulse model for a LEGEND run."
     )
     parser.add_argument(
         "--runid",
@@ -78,7 +78,7 @@ def main() -> None:
     parser.add_argument(
         "--pars-file",
         required=True,
-        help="output YAML file for the current pulse model parameters",
+        help="output YAML file for the current-pulse model parameters",
     )
     parser.add_argument(
         "--plot-file",
@@ -130,7 +130,7 @@ def main() -> None:
     if l200data is None:
         msg = (
             "l200data is not configured and no currmod metadata with a 'default' "
-            "key was found — cannot extract current pulse model"
+            "key was found — cannot extract current-pulse model"
         )
         raise RuntimeError(msg)
 
