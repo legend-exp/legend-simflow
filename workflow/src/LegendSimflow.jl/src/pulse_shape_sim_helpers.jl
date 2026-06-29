@@ -355,23 +355,22 @@ function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
     opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
     temperature::Real = 87.0,
-    recompute_corrections::Bool = true
-        
-    )::Tuple{Simulation,Real}
-    
-    rescale_impurities = recompute_corrections & 
-    !(meta.characterization.l200_site.depletion_voltage_in_V isa PropDicts.MissingProperty) &
-    (meta.characterization.l200_site.depletion_voltage_in_V!=nothing)
-    
+    recompute_corrections::Bool = true)::Tuple{Simulation,Real}
+
+    rescale_impurities =
+        recompute_corrections &
+        !(meta.characterization.l200_site.depletion_voltage_in_V isa PropDicts.MissingProperty) &
+        (meta.characterization.l200_site.depletion_voltage_in_V!=nothing)
+
     scale = nothing
-    
+
     if rescale_impurities
 
         if haskey(xtal.impurity_curve, :corrections)
             xtal.impurity_curve.corrections.scale = 1.0
             xtal.impurity_curve.corrections.offset = 0.0
         end
-        
+
     end
     sim = Simulation{T}(
         LegendData,
@@ -385,18 +384,18 @@ function setup_hpge_simulation(meta_path::String,
 
     if rescale_impurities
         Vdep = meta.characterization.l200_site.depletion_voltage_in_V
-        
+
         scale = scale_electric_potential_impurity_to_match_depletion!(sim, Vdep,
-            check_for_depletion = false, 
+            check_for_depletion = false,
             reconverge_electric_potential = false)
 
         @info "Rescaled impurities to match $Vdep (at opv $opv_val) with scale: $scale"
     end
 
-    
-    shift_electric_potential_to_match_bias!(sim, opv_val*u"V", 
+
+    shift_electric_potential_to_match_bias!(sim, opv_val*u"V",
         check_against_depletion_voltage = false)
-    
+
     @info "Calculating electric field..."
     calculate_electric_field!(sim)
 
