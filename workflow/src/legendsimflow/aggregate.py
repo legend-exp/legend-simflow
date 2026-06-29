@@ -203,7 +203,7 @@ def gen_list_of_hpges_valid_for_modeling(
 
         if m is not None:
             schema = {
-                "impurity_curve": {"parameters": None, "corrections": {"scale": 0}}
+                "impurity_curve": {"parameters": None}
             }
 
             if validate_dict_schema(
