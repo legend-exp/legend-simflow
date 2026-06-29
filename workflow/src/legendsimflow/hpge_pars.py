@@ -1208,7 +1208,9 @@ def build_aoe_mean_func_dict(
     Parameters
     ----------
     aoe_mean_pars
-        Parameters of the aoe energy depenndence model.
+        Parameters of the A/E energy-dependence model. May contain a
+        ``default`` entry, which the caller is expected to have already
+        expanded across the relevant detectors.
     sim_type
         Type of PSD simulation (`single_template` or `psl`)
     """

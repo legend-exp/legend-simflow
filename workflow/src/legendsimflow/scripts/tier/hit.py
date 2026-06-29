@@ -188,6 +188,31 @@ def main() -> None:
         aoemean_mod = mutils.simpars(
             metadata, "geds.aoemeanmod", runid, config.experiment, default=None
         )
+        # unlike eresmod/aoeresmod/psdcuts, the A/E mean model cannot be
+        # extracted from l200data, so this metadata is the only source and is
+        # mandatory
+        if aoemean_mod is None:
+            msg = (
+                f"no A/E mean energy-dependence model (geds.aoemeanmod) found "
+                f"for {runid}: this metadata is mandatory"
+            )
+            raise RuntimeError(msg)
+
+        # expand the "default" entry across all geds detectors in the channel
+        # map, applying per-detector overrides where present (mirrors the
+        # aoeresmod collection in extract_hpge_observables_models)
+        aoemean_default = aoemean_mod.get("default", None)
+        if aoemean_default is not None:
+            tstamp = mutils.runinfo(metadata, runid).start_key
+            chmap = metadata.channelmap(tstamp, skip_version_check=True)
+            aoemean_mod = AttrsDict(
+                {
+                    name: aoemean_mod.get(name, aoemean_default)
+                    for name, info in chmap.items()
+                    if getattr(info, "system", None) == "geds"
+                }
+            )
+
         aoemean_func_psl = hpge_pars.build_aoe_mean_func_dict(
             aoemean_mod, sim_type="psl"
         )
@@ -257,6 +282,13 @@ def main() -> None:
                 usability = det_info.usability
                 psd_usability = det_info.psd_usability
             psd_usability_code = mutils.encode_psd_usability(psd_usability)
+
+            if usability == "on" and det_name not in aoemean_func:
+                log.warning(
+                    "%s is ON but has no A/E mean energy-dependence model "
+                    "(geds.aoemeanmod); falling back to a flat A/E mean of 1",
+                    det_name,
+                )
 
             log.debug("looking for indices of hit table rows to read...")
             with perf_block("get_remage_hit_range()"):

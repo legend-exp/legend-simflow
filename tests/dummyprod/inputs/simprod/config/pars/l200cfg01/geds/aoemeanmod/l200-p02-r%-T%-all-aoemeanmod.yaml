@@ -1,0 +1,22 @@
+default:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: -0.000001
+      b: 1.0
+  psl:
+    expression: a * x + b
+    pars:
+      a: -0.000002
+      b: 1.0
+V02160A:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: -0.000003
+      b: 1.0
+  psl:
+    expression: a * x + b
+    pars:
+      a: -0.000004
+      b: 1.0
