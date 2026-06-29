@@ -100,7 +100,7 @@ function main()
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)
 
-    sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
+    sim, scale = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
 
     # Compute drift time maps for each crystal axis angle
     output = nothing
