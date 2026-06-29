@@ -60,7 +60,12 @@ The workflow tests form a progression:
    only. Run directly: `pytest tests/test_workflow.py::test_dag`
 2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage,
    experiment `l1000dsg01`; runs in CI. **Requires pixi** (remage is only in the
-   pixi environment): `pixi run -e test test-l1000-workflow`
+   pixi environment): `pixi run -e test test-l1000-workflow`. The `l1000dsg01`
+   hit settings enable the `simulate_psd_with_psl` tier setting (the live name
+   of what used to be the unread `has_detailed_psd` key), so this test also
+   exercises the PSL-based "detailed" PSD path: the realistic pulse-shape
+   library is built in the par tier, consumed by the hit tier into a `psd_psl`
+   sub-table, and read back by the evt tier into `geds/psd_psl`.
 3. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
    pipeline, experiment `l200cfg01`, requires `l200data`, NERSC-only. Run with:
    `pixi run -e test test-l200-workflow`
