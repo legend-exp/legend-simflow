@@ -464,7 +464,7 @@ def main() -> None:
 
                     aoe_corr = _read_hits(tcm, "hit", "psd_psl/aoe_corr")
                     out_table.add_field(
-                        "geds/psd/aoe_corr",
+                        "geds/psd_psl/aoe_corr",
                         VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
                     )
 
@@ -488,13 +488,13 @@ def main() -> None:
                     out_table.add_field(
                         "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
                     )
-                    is_bb_like = _read_hits(tcm, "hit", "psd/is_bb_like")
+                    is_bb_like = _read_hits(tcm, "hit", "psd_psl/is_bb_like")
                     out_table.add_field(
-                        "geds/psd/is_bb_like", VectorOfVectors(is_bb_like[hitsel])
+                        "geds/psd_psl/is_bb_like", VectorOfVectors(is_bb_like[hitsel])
                     )
-                    is_high_aoe = _read_hits(tcm, "hit", "psd/is_high_aoe")
+                    is_high_aoe = _read_hits(tcm, "hit", "psd_psl/is_high_aoe")
                     out_table.add_field(
-                        "geds/psd/is_high_aoe", VectorOfVectors(is_high_aoe[hitsel])
+                        "geds/psd_psl/is_high_aoe", VectorOfVectors(is_high_aoe[hitsel])
                     )
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)

@@ -236,7 +236,10 @@ def load_hpge_realistic_psl(
         ),
     )
 
-    if len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2:
+    if (
+        Path(psl_file).exists()
+        and len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2
+    ):
         log.debug("loading drift-time maps from %s", psl_file)
         # both axes needed: hpge_corrected_drift_time() blends them (and small)
         dt_map = {
