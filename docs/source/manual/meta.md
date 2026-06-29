@@ -639,6 +639,61 @@ Each entry must contain:
 See {ref}`hpge-aoeresmod-extraction` for a description of how these files are
 used at runtime.
 
+(aoemeanmod-metadata-dir)=
+
+### A/E mean energy-dependence model
+
+A **mandatory** validity-based metadata directory providing the HPGe A/E mean as
+a function of energy. Unlike {ref}`eresmod-metadata-dir`,
+{ref}`aoeresmod-metadata-dir` and {ref}`psdcuts-metadata-dir`, this model cannot
+be extracted from `l200data`, so the metadata is the only source and must be
+present for every simulated run. It is read directly when building the `hit`
+tier.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/aoemeanmod/l200-p03-r%-T%-all-aoemeanmod.yaml
+
+default:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: -0.000001
+      b: 1.0
+  psl:
+    expression: a * x + b
+    pars:
+      a: -0.000002
+      b: 1.0
+
+# optional per-detector override
+V02160A:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: -0.000003
+      b: 1.0
+  psl:
+    expression: a * x + b
+    pars:
+      a: -0.000004
+      b: 1.0
+```
+
+- `default` _(optional)_: model applied to all HPGe detectors not listed
+  explicitly. When present it is expanded across all `geds` detectors in the
+  channel map, mirroring {ref}`aoeresmod-metadata-dir`.
+- `<detector>` _(optional)_: per-detector override.
+
+Each entry must provide a `single_template` and a `psl` block (one per PSD
+simulation type), and each block must contain:
+
+- `expression`: a Python expression for the A/E mean as a function of the energy
+  `x` (in keV), using the parameters `a` and `b`
+- `pars`: mapping of the parameters `a` and `b` to their values
+
+A detector with neither an explicit entry nor a `default` falls back to a flat
+A/E mean of 1 (a warning is logged for `on` detectors).
+
 (psdcuts-metadata-dir)=
 
 ### PSD cut defaults
