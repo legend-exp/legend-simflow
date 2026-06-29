@@ -1090,8 +1090,6 @@ def plot_superpulses(
         Detector name (top-level group in the file).
     curve
         ``"charge"`` or ``"current"``.
-    xlim
-        x-axis limits in ns.
 
     Returns
     -------
@@ -1165,27 +1163,39 @@ def plot_superpulses(
     cbar = fig.colorbar(sm, ax=ax, pad=0.02)
     cbar.set_label("Drift Time [ns]", labelpad=10)
 
-    # inset (charge only)
+    # inset
+    ax_inset = ax.inset_axes([0.08, 0.5, 0.45, 0.45])
+    for s in slices:
+        ax_inset.plot(
+            s["times"],
+            s["wf"],
+            color=cmap(norm(s["dt_center"])),
+            linewidth=1.8,
+        )
+    ax_inset.tick_params(labelsize=7)
+    ax_inset.grid(True, color="grey", linestyle="--", alpha=0.2)
+
     if curve == "charge":
-        ax_inset = ax.inset_axes([0.08, 0.5, 0.45, 0.45])
-        for s in slices:
-            ax_inset.plot(
-                s["times"],
-                s["wf"],
-                color=cmap(norm(s["dt_center"])),
-                linewidth=1.8,
-            )
         ax_inset.set_xlim(-1000, -400)
         ax_inset.set_ylim(-0.001, 0.105)
-        ax_inset.tick_params(labelsize=7)
         # 1% amplitude reference line
         ax_inset.axhline(0.01, color="gray", linestyle="--", linewidth=0.8)
         xlo, xhi = ax_inset.get_xlim()
         x_ann = xlo + 0.95 * (xhi - xlo)
-        ax_inset.grid(True, color="grey", linestyle="--", alpha=0.2)
         ax_inset.annotate(
             "1% amplitude", xy=(x_ann, 0.012), fontsize=8, color="gray", ha="right"
         )
+    else:
+        ax_inset.set_xlim(-50, 50)
+        xlo, xhi = ax_inset.get_xlim()
+        y_in_view = [
+            v
+            for s in slices
+            for t, v in zip(s["times"], s["wf"], strict=True)
+            if xlo <= t <= xhi
+        ]
+        if y_in_view:
+            ax_inset.set_ylim(min(y_in_view) - 0.002, max(y_in_view) + 0.002)
 
     fig.tight_layout()
     return fig, ax
