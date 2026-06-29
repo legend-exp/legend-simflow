@@ -477,25 +477,56 @@ checks depletion voltage, and calculates weighting potential.
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
 - `medium`: Detector environment medium (default: "LAr")
 - `temperature`: Detector environment temperature in K (default: 87 K)
+- `recompute_correction`: flag to recompute impurity corrections to match depletion.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
+- `scale`: scaling factor needed to match Vdep
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
     opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
-    temperature::Real = 87.0)::Simulation
+    temperature::Real = 87.0,
+    recompute_corrections::Bool = true)::Tuple{Simulation,Real}
 
+    rescale_impurities =
+        recompute_corrections &
+        !(meta.characterization.l200_site.depletion_voltage_in_V isa PropDicts.MissingProperty) &
+        (meta.characterization.l200_site.depletion_voltage_in_V!=nothing)
+
+    scale = nothing
+
+    if rescale_impurities
+
+        if haskey(xtal.impurity_curve, :corrections)
+            xtal.impurity_curve.corrections.scale = 1.0
+            xtal.impurity_curve.corrections.offset = 0.0
+        end
+
+    end
     sim = Simulation{T}(
         LegendData,
         meta,
         xtal,
         HPGeEnvironment(medium, temperature*u"K"),
-        operational_voltage = opv_val*u"V",
-        allow_cylindrical_asymmetry = false
+        allow_cylindrical_asymmetry = false,
+        operational_voltage = 6000.0*u"V"
     )
-
     @info "Calculating electric potential at $(opv_val) V..."
     calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
+
+    if rescale_impurities
+        Vdep = meta.characterization.l200_site.depletion_voltage_in_V
+
+        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, Vdep,
+            check_for_depletion = false,
+            reconverge_electric_potential = false)
+
+        @info "Rescaled impurities to match $Vdep (at opv $opv_val) with scale: $scale"
+    end
+
+
+    adjust_bias_and_electric_potential!(sim, opv_val*u"V",
+        check_against_depletion_voltage = false)
 
     @info "Calculating electric field..."
     calculate_electric_field!(sim)
@@ -528,7 +559,7 @@ function setup_hpge_simulation(meta_path::String,
         verbose = false
     )
 
-    return sim
+    return sim, scale
 end
 
 
