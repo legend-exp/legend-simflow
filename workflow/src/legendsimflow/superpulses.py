@@ -607,10 +607,10 @@ def get_wfs_for_slice(
         return None
 
     # Find the common time window (max of left edges, min of right edges)
-    charge_t_min = max(-1000, *(e["charge_t"][0] for e in waveforms))
+    charge_t_min = max(-2000, *(e["charge_t"][0] for e in waveforms))
     charge_t_max = min(3000.0, *(e["charge_t"][-1] for e in waveforms))
 
-    current_t_min = max(-1000, *(e["current_t"][0] for e in waveforms))
+    current_t_min = max(-2000, *(e["current_t"][0] for e in waveforms))
     current_t_max = min(3000.0, *(e["current_t"][-1] for e in waveforms))
 
     log.info("Current range across events: [%f, %f] ns", current_t_min, current_t_max)
@@ -1136,7 +1136,7 @@ def plot_superpulses(
 
     for s in slices:
         ax.plot(s["times"], s["wf"], color=cmap(norm(s["dt_center"])), linewidth=2)
-    ax.set_xlim(-1000, 500)
+    ax.set_xlim(-2000, 1000)
 
     # 10% amplitude reference line (charge only)
     if curve == "charge":
@@ -1176,14 +1176,14 @@ def plot_superpulses(
     ax_inset.grid(True, color="grey", linestyle="--", alpha=0.2)
 
     if curve == "charge":
-        ax_inset.set_xlim(-1000, -400)
+        ax_inset.set_xlim(-2000, -100)
         ax_inset.set_ylim(-0.001, 0.105)
         # 1% amplitude reference line
         ax_inset.axhline(0.01, color="gray", linestyle="--", linewidth=0.8)
         xlo, xhi = ax_inset.get_xlim()
-        x_ann = xlo + 0.95 * (xhi - xlo)
+        x_ann = xlo + 0.05 * abs(xhi - xlo)
         ax_inset.annotate(
-            "1% amplitude", xy=(x_ann, 0.012), fontsize=8, color="gray", ha="right"
+            "1% amplitude", xy=(x_ann, 0.012), fontsize=8, color="gray", ha="left"
         )
     else:
         ax_inset.set_xlim(-50, 50)
