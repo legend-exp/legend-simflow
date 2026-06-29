@@ -490,7 +490,8 @@ function setup_hpge_simulation(meta_path::String,
         meta,
         xtal,
         HPGeEnvironment(medium, temperature*u"K"),
-        operational_voltage = opv_val*u"V"
+        operational_voltage = opv_val*u"V",
+        allow_cylindrical_asymmetry = false
     )
 
     @info "Calculating electric potential at $(opv_val) V..."
