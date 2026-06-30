@@ -127,7 +127,7 @@ checkpoint cache_modelable_hpges:
     and current-pulse model generation requires querying `legend-metadata` for
     every run in the Simflow. This can be slow, so the result is cached on disk
     as a YAML file mapping ``runid -> {hpge: {"operational_voltage_in_V":
-    voltage}}``. Downstream rules that
+    voltage, "crystal_impurity_status": status}}``. Downstream rules that
     need this information (e.g. `merge_hpge_drift_time_maps`) depend on this
     checkpoint so that the DAG can be re-evaluated after the cache is built.
 

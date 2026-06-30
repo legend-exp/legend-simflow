@@ -237,21 +237,24 @@ def gen_list_of_hpges_valid_for_modeling(
 def gen_list_of_all_hpges_valid_for_modeling(
     config: SimflowConfig,
     write_to_file: str | Path | None = None,
-) -> dict[str, dict[str, dict[str, int]]]:
+) -> dict[str, dict[str, dict[str, int | str]]]:
     """Generate the complete list of HPGe detectors valid for modeling.
 
-    Find out which HPGe detectors are valid for each runid and their voltages.
-    Returns the following dictionary:
+    Find out which HPGe detectors are valid for each runid, their voltages and
+    crystal impurity status. Returns the following dictionary:
 
     .. code-block::
 
         {
-          'l200-p03-r000-phy': {'V00048A': {'operational_voltage_in_V': 4200}, ...},
-          'l200-p03-r001-phy': {'V00050B': {'operational_voltage_in_V': 3500}, ...},
+          'l200-p03-r000-phy': {
+            'V00048A': {'operational_voltage_in_V': 4200, 'crystal_impurity_status': 'valid'},
+            ...
+          },
           ...
         }
 
-    i.e. a mapping ``runid -> hpge -> {"operational_voltage_in_V": voltage}``.
+    i.e. a mapping ``runid -> hpge -> {"operational_voltage_in_V": voltage,
+    "crystal_impurity_status": status}``.
     """
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
@@ -261,7 +264,10 @@ def gen_list_of_all_hpges_valid_for_modeling(
     for runid in sorted(all_runids):
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         out[runid] = {
-            hpge: {"operational_voltage_in_V": get_hpge_voltage(config, hpge, runid)}
+            hpge: {
+                "operational_voltage_in_V": get_hpge_voltage(config, hpge, runid),
+                "crystal_impurity_status": get_hpge_impurity_status(config, hpge),
+            }
             for hpge in hpges
         }
 
@@ -359,6 +365,23 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
     return int(opv)
 
 
+def get_hpge_impurity_status(config: SimflowConfig, hpge: str) -> str | None:
+    """Get the crystal impurity status for an HPGe detector.
+
+    Reads ``hardware.detectors.germanium.crystals[...].slices[...].status`` for
+    the slice the detector was cut from. Returns ``None`` if the information is
+    not available in the metadata.
+    """
+    diode = config.metadata.hardware.detectors.germanium.diodes[hpge]
+    crystal = crystal_meta(config, diode)
+    if crystal is None:
+        return None
+    try:
+        return crystal.slices[diode.production.slice].status
+    except (KeyError, AttributeError):
+        return None
+
+
 def gen_list_of_dtmaps(
     config: SimflowConfig,
     runid: str,
@@ -407,9 +430,9 @@ def gen_list_of_ideal_psls(
 ) -> list[Path]:
     """Generate the list of ideal HPGe pulse-shape library files for a `runid`.
 
-    If ``cache`` is provided, it must be the modelable-HPGe cache mapping
-    ``runid -> {hpge: {"operational_voltage_in_V": voltage}}`` and avoids
-    repeated metadata lookups.
+    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
+    :func:`gen_list_of_all_hpges_valid_for_modeling` and avoids repeated
+    metadata lookups.
     """
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
@@ -441,9 +464,9 @@ def gen_list_of_realistic_psls(
 ) -> list[Path]:
     """Generate the list of realistic HPGe pulse-shape library files for a `runid`.
 
-    If ``cache`` is provided, it must be the modelable-HPGe cache mapping
-    ``runid -> {hpge: {"operational_voltage_in_V": voltage}}`` and avoids
-    repeated metadata lookups.
+    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
+    :func:`gen_list_of_all_hpges_valid_for_modeling` and avoids repeated
+    metadata lookups.
     """
     files = []
     if not simulate_psd_with_psl:
