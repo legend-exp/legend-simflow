@@ -387,6 +387,9 @@ def main() -> None:
                 # first read usability and energy
                 usability = _read_hits(tcm, "hit", "usability")
                 psd_usability = _read_hits(tcm, "hit", "psd_usability")
+                crystal_impurity_status = _read_hits(
+                    tcm, "hit", "crystal_impurity_status"
+                )
                 energy = _read_hits(tcm, "hit", "energy")
 
                 # we want to only store hits from events in ON and AC detectors and above
@@ -396,6 +399,12 @@ def main() -> None:
                 # we want to still be able to know which detectors are ON (and not AC)
                 out_table.add_field(
                     "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
+                )
+                # crystal impurity status (encoded, see
+                # legendsimflow.metadata.CRYSTAL_IMPURITY_STATUS_CODE)
+                out_table.add_field(
+                    "geds/crystal_impurity_status",
+                    VectorOfVectors(crystal_impurity_status[hitsel]),
                 )
                 out_table.add_field(
                     "geds/energy",

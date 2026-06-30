@@ -238,8 +238,16 @@ def test_usability_harvesting(config):
         "l200-p02-r007-phy",
     ]
     assert usability["l200-p02-r000-phy"] == {
-        "V99000A": {"usability": "on", "psd_usability": "valid"},
-        "B99000A": {"usability": "off", "psd_usability": "missing"},
+        "V99000A": {
+            "usability": "on",
+            "psd_usability": "valid",
+            "crystal_impurity_status": "valid",
+        },
+        "B99000A": {
+            "usability": "off",
+            "psd_usability": "missing",
+            "crystal_impurity_status": "valid",
+        },
     }
 
 

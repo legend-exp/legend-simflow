@@ -290,17 +290,25 @@ def gen_list_of_all_usabilities(
 
         {
           'l200-p03-r000-phy': {
-            'V00048A': {'usability': 'on', 'psd_usability': 0},
+            'V00048A': {
+              'usability': 'on',
+              'psd_usability': 'valid',
+              'crystal_impurity_status': 'valid',
+            },
             ...
           },
           ...
         }
 
-    ``psd_usability`` is an integer encoding of the ``psd.status.low_aoe``
-    field in the channel map status for germanium detectors (see
+    ``psd_usability`` is the ``psd.status.low_aoe`` field in the channel map
+    status for germanium detectors (encoded later via
     ``legendsimflow.metadata.PSD_USABILITY_CODE``). If the field is absent it
     defaults silently to ``"valid"``; if it has an unexpected value a warning
     is emitted and it also defaults to ``"valid"``.
+
+    ``crystal_impurity_status`` is the crystal impurity status for germanium
+    detectors (see :func:`get_hpge_impurity_status`); it is ``None`` when the
+    information is not available in the metadata.
 
     Parameters
     ----------
@@ -335,6 +343,9 @@ def gen_list_of_all_usabilities(
                     except AttributeError:
                         pass
                     entry["psd_usability"] = psd_usability
+                    entry["crystal_impurity_status"] = get_hpge_impurity_status(
+                        config, chname
+                    )
 
                 out_dict[runid][chname] = entry
 
@@ -372,11 +383,11 @@ def get_hpge_impurity_status(config: SimflowConfig, hpge: str) -> str | None:
     the slice the detector was cut from. Returns ``None`` if the information is
     not available in the metadata.
     """
-    diode = config.metadata.hardware.detectors.germanium.diodes[hpge]
-    crystal = crystal_meta(config, diode)
-    if crystal is None:
-        return None
     try:
+        diode = config.metadata.hardware.detectors.germanium.diodes[hpge]
+        crystal = crystal_meta(config, diode)
+        if crystal is None:
+            return None
         return crystal.slices[diode.production.slice].status
     except (KeyError, AttributeError):
         return None

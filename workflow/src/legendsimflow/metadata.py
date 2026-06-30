@@ -45,6 +45,12 @@ PSD_USABILITY_CODE = {
     "missing": 2,
 }
 
+CRYSTAL_IMPURITY_STATUS_CODE = {
+    "valid": 0,
+    "invalid": 1,
+    "missing": 2,
+}
+
 
 def get_simconfig(
     config: SimflowConfig,
@@ -202,6 +208,20 @@ def decode_psd_usability(psd_usability_code: int) -> str:
     """Decode the PSD usability (see :func:`encode_psd_usability`)."""
     _codes = {v: k for k, v in PSD_USABILITY_CODE.items()}
     return _codes[psd_usability_code]
+
+
+def encode_crystal_impurity_status(status: str | None) -> int:
+    """Encode the crystal impurity status in an int.
+
+    A ``None`` status (information not available) is encoded as ``"missing"``.
+    """
+    return CRYSTAL_IMPURITY_STATUS_CODE["missing" if status is None else status]
+
+
+def decode_crystal_impurity_status(status_code: int) -> str:
+    """Decode the crystal impurity status (see :func:`encode_crystal_impurity_status`)."""
+    _codes = {v: k for k, v in CRYSTAL_IMPURITY_STATUS_CODE.items()}
+    return _codes[status_code]
 
 
 def parse_runid(runid: str) -> (str, int, int, str):

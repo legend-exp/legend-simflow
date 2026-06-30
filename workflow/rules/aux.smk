@@ -151,8 +151,8 @@ rule cache_detector_usabilities:
 
     Querying the metadata for detector usability can be slow and constitute
     the bottleneck in post-processing (``opt`` and ``hit`` tiers). This rule
-    caches the mapping ``run -> detector -> {usability, psd_usability}`` on
-    disk.
+    caches the mapping ``run -> detector -> {usability, psd_usability,
+    crystal_impurity_status}`` on disk.
     """
     localrule: True
     message:
