@@ -96,11 +96,12 @@ directory is described in {ref}`currmod-metadata-dir`.
 ### Manual HPGe skip-list
 
 In addition to the automatic exclusions performed by
-`gen_list_of_hpges_valid_for_modeling` (usability `on` + valid crystal metadata
-required), individual detectors can be removed from the modelable HPGe list for
-a given set of runs via the {ref}`skip-metadata-dir` directory. A WARNING is
-emitted for each skipped detector, including the reason string and the run
-identifier.
+{func}`~legendsimflow.aggregate.gen_list_of_hpges_valid_for_modeling` (a
+detector must be operated at least 100 V above its depletion voltage and have an
+impurity curve in the crystal metadata), individual detectors can be removed
+from the modelable HPGe list for a given set of runs via the
+{ref}`skip-metadata-dir` directory. A WARNING is emitted for each skipped
+detector, including the reason string and the run identifier.
 
 (hpge-psl-overview)=
 
