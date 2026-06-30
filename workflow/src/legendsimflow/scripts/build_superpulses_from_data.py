@@ -41,6 +41,7 @@ from legendsimflow.superpulses import (
     lookup_superpulse_inputs,
     lookup_wfs_indices,
     plot_chi2_cut,
+    plot_current_superpulses_fwhm_and_amplitude,
     plot_superpulses,
     plot_wfs_and_superpulse,
     write_superpulses,
@@ -393,6 +394,14 @@ def main() -> int:
 
         # plot current superpulses
         fig, _ = plot_superpulses(str(output_lh5), args.detector, curve="current")
+        decorate(fig)
+        pdf.savefig(fig)
+        plt.close(fig)
+
+        # plot fwhm and Amax vs drift time
+        fig, _ = plot_current_superpulses_fwhm_and_amplitude(
+            str(output_lh5), args.detector
+        )
         decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)
