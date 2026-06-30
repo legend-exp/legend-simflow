@@ -19,8 +19,8 @@
 /RMG/Output/Scintillator/StoreSinglePrecisionEnergy
 /RMG/Output/Vertex/StoreSinglePrecisionPosition
 
-# do not track optical photons if no energy in germanium
-/RMG/Output/Germanium/DiscardPhotonsIfNoGermaniumEdep
+# drop deferred (e.g. optical photon) tracks if no energy in germanium
+/RMG/Output/Germanium/DiscardWaitingTracksUnlessGermaniumEdep
 
 # do not store events with no energy deposition in germanium
 /RMG/Output/Germanium/EdepCutLow 1 eV

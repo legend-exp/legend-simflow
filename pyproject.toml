@@ -149,7 +149,7 @@ reboost = ">=0.12.2,<0.13"
 particle = "<1"
 
 # tier stp
-remage = ">=0.19.5,<0.20"
+remage = ">=0.24,<0.25"
 
 # drift-time maps and other SSD.jl jobs
 julia = ">=1.12,<1.13"
