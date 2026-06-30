@@ -126,7 +126,8 @@ checkpoint cache_modelable_hpges:
     Computing the list of HPGe detectors that are suitable for drift-time map
     and current-pulse model generation requires querying `legend-metadata` for
     every run in the Simflow. This can be slow, so the result is cached on disk
-    as a YAML file mapping ``runid -> {hpge: voltage}``. Downstream rules that
+    as a YAML file mapping ``runid -> {hpge: {"operational_voltage_in_V":
+    voltage}}``. Downstream rules that
     need this information (e.g. `merge_hpge_drift_time_maps`) depend on this
     checkpoint so that the DAG can be re-evaluated after the cache is built.
 

@@ -286,7 +286,9 @@ rule convolve_hpge_ideal_pulse_shape_lib:
         ideal_psl=lambda wc: patterns.output_ideal_psl_filename(
             config,
             hpge_detector=wc.hpge_detector,
-            hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector],
+            hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector][
+                "operational_voltage_in_V"
+            ],
         ),
         electronics_model=lambda wc: patterns.output_elecmod_merged_filename(
             config, runid=wc.runid
@@ -538,7 +540,9 @@ rule extract_electronics_model_pars:
         ideal_psl=lambda wc: patterns.output_ideal_psl_filename(
             config,
             hpge_detector=wc.hpge_detector,
-            hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector],
+            hpge_voltage=smk_load_hpge_cache()[wc.runid][wc.hpge_detector][
+                "operational_voltage_in_V"
+            ],
         ),
     output:
         pars_file=temp(patterns.output_elecmod_filename(config)),
