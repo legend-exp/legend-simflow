@@ -647,6 +647,16 @@ def main() -> None:
     )
     lh5.write(detector_uids, "detector_uids", evt_file, wo_mode="append")
 
+    # forward the number of simulated primary events that remage stores at the
+    # root of the stp file, so it can be summed across jobs at the cvt tier and
+    # used to normalise the pdf histograms.
+    lh5.write(
+        lh5.read("number_of_simulated_events", stp_file),
+        "number_of_simulated_events",
+        evt_file,
+        wo_mode="append",
+    )
+
     with perf_block("move_to_cfs()"):
         move2cfs()
 

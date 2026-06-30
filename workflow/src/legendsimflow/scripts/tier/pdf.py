@@ -28,7 +28,7 @@ from lgdo import Histogram, Scalar, Struct
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils
-from legendsimflow.metadata import get_simconfig, get_tier_settings
+from legendsimflow.metadata import get_tier_settings
 from legendsimflow.scripts import log_script_invocation
 
 
@@ -64,7 +64,6 @@ def main() -> None:
     cvt_file = nersc.dvs_ro(config, args.cvt_file)
     pdf_file = args.pdf_file
     log_file = args.log_file
-    simid = args.simid
 
     log = ldfs.utils.build_log(config.metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "tier-pdf", parser, args)
@@ -108,13 +107,16 @@ def main() -> None:
         buffer_len=buffer_len,
     )
 
-    # TODO: in future, read number_of_primaries directly from the stp file
-    simconfig_block = get_simconfig(config, "stp", simid)
-    number_of_primaries = (
-        simconfig_block.primaries_per_job * simconfig_block.number_of_jobs
+    # the number of simulated primary events is written by remage at the root
+    # of each stp file, forwarded through the evt tier and summed over all jobs
+    # at the cvt tier.
+    number_of_primaries = int(
+        lh5.read("number_of_simulated_events", str(cvt_file)).value
     )
 
-    log.info("... extracted number of primaries from simconfig %s", number_of_primaries)
+    log.info(
+        "... read number of simulated events from cvt file %s", number_of_primaries
+    )
 
     # 1 keV/bin over 0-6000 keV; boost-histogram only provides Double (float64) storage
     h1 = hist.new.Reg(6000, 0, 6000).Double
