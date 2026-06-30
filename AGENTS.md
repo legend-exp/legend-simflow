@@ -32,6 +32,8 @@ including Pixi configuration.
 - Lint/format: `pre-commit run --all-files` — run before committing; every
   commit must pass
 - Build docs: `cd docs && make` — verify after any documentation change
+- Note about `snakemake --touch`: the _only_ thing it does is to update the
+  modification times of empty files
 
 ## Architecture
 
