@@ -580,8 +580,8 @@ def plot_best_fit(
             label="Simulation",
         )
         if (idx == len(sorted_slices) - 1) and not plot_charge:
-            data_amax = float(np.max(data_wf))
-            mc_amax = float(np.max(f_interp(data_time)))
+            data_amax = float(np.nanmax(data_wf))
+            mc_amax = float(np.nanmax(f_interp(data_time)))
 
         # Shade comparison window
         if comparison_window is not None:
