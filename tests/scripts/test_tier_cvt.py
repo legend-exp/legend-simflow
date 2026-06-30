@@ -4,9 +4,10 @@ import sys
 from pathlib import Path
 
 import lh5
+import numpy as np
 import pytest
 import yaml
-from lgdo import Scalar, Struct, Table
+from lgdo import Array, Scalar, Struct, Table
 
 from legendsimflow.scripts.tier import cvt
 
@@ -57,21 +58,19 @@ def test_union_detector_uids_uid_collision_raises(tmp_path):
         cvt.union_detector_uids([f1, f2])
 
 
-def test_cvt_script_cli(tmp_path, monkeypatch):
+def _write_config(tmp_path: Path) -> Path:
     config_path = tmp_path / "simflow-config.yaml"
     raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
     raw_config["paths"]["metadata"] = str(dummyprod / "inputs")
     config_path.write_text(yaml.safe_dump(raw_config))
+    return config_path
 
-    evt_file = tmp_path / "evt.lh5"
-    lh5.write(Table(), "evt", evt_file, wo_mode="write_safe")
 
-    cvt_file = tmp_path / "cvt.lh5"
-
+def _run_cvt(monkeypatch, evt_files: list[Path], cvt_file: Path, config_path: Path):
     argv = [
         "cvt",
         "--evt-files",
-        str(evt_file),
+        *[str(f) for f in evt_files],
         "--cvt-file",
         str(cvt_file),
         "--simflow-config",
@@ -80,5 +79,43 @@ def test_cvt_script_cli(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", argv)
     cvt.main()
 
+
+def test_cvt_script_cli(tmp_path, monkeypatch):
+    config_path = _write_config(tmp_path)
+
+    evt_file = tmp_path / "evt.lh5"
+    lh5.write(Table(), "evt", evt_file, wo_mode="write_safe")
+    lh5.write(Scalar(1000), "number_of_simulated_events", evt_file, wo_mode="append")
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _run_cvt(monkeypatch, [evt_file], cvt_file, config_path)
+
     assert cvt_file.exists()
     assert "evt" in lh5.ls(cvt_file)
+    # the single-file copy path must preserve number_of_simulated_events
+    assert lh5.read("number_of_simulated_events", cvt_file).value == 1000
+
+
+def test_cvt_script_cli_sums_number_of_events(tmp_path, monkeypatch):
+    """With multiple evt files, number_of_events is summed across jobs."""
+    config_path = _write_config(tmp_path)
+
+    evt_files = []
+    for i, n in enumerate((1000, 2500)):
+        evt_file = tmp_path / f"evt_{i}.lh5"
+        lh5.write(
+            Table(col_dict={"x": Array(np.arange(3, dtype="int32"))}),
+            "evt",
+            evt_file,
+            wo_mode="write_safe",
+        )
+        _write_detector_uids(evt_file, {"V01": 11})
+        lh5.write(Scalar(n), "number_of_simulated_events", evt_file, wo_mode="append")
+        evt_files.append(evt_file)
+
+    cvt_file = tmp_path / "cvt.lh5"
+    _run_cvt(monkeypatch, evt_files, cvt_file, config_path)
+
+    assert cvt_file.exists()
+    assert "evt" in lh5.ls(cvt_file)
+    assert lh5.read("number_of_simulated_events", cvt_file).value == 3500

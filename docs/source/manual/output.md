@@ -132,6 +132,12 @@ tier skipped). See {ref}`evt-tier-settings-meta` for details.
 
 :::
 
+Each `evt` file also carries a root-level `number_of_simulated_events` scalar,
+forwarded verbatim from the `number_of_simulated_events` field that _remage_
+writes into the `stp` file. The `cvt` tier sums these per-job counts into a
+single `number_of_simulated_events` scalar, which the `pdf` tier reads back as
+`nr_sim_events`.
+
 ### `trigger/` — event metadata
 
 Constant fields identifying each event.
@@ -241,9 +247,9 @@ attribute in the LH5 attrs.
 
 ### Root-level fields
 
-| Field           | Type     | Units | Description                                                                                                                        |
-| --------------- | -------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `nr_sim_events` | `Scalar` | —     | Total number of simulated primary events (`primaries_per_job` × `number_of_jobs`). Used to normalise PDFs to physical event rates. |
+| Field           | Type     | Units | Description                                                                                                                                                                                                                             |
+| --------------- | -------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nr_sim_events` | `Scalar` | —     | Total number of simulated primary events, read from the `number_of_simulated_events` scalar that _remage_ stores in each `stp` file and that is summed over all jobs at the `cvt` tier. Used to normalise PDFs to physical event rates. |
 
 ### `pdf/` — histogram struct
 
