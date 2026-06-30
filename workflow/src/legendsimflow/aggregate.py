@@ -177,8 +177,11 @@ def gen_list_of_hpges_valid_for_modeling(
     """Make a sorted list of HPGe detectors for which we want to compute a model.
 
     It generates the list of deployed detectors in `runid` via the LEGEND
-    channelmap, then checks if in the crystal metadata there's all the
-    information required to generate a drift-time map etc.
+    channelmap, then keeps only those operated at least 100 V above their
+    depletion voltage (``characterization.l200_site.depletion_voltage_in_V`` in
+    the diode metadata). Detectors with no depletion voltage in the metadata are
+    excluded, as are detectors without an impurity curve in the crystal
+    metadata.
 
     Detectors listed in the validity-based metadata directory
     ``simprod/config/pars/{experiment}/geds/skip/`` for the given `runid` are
@@ -200,31 +203,39 @@ def gen_list_of_hpges_valid_for_modeling(
 
     hpges = []
     for _, hpge in chmap.group("system").geds.items():
-        # we don't model detectors that are OFF or AC
-        if chmap[hpge.name].analysis.usability != "on":
-            continue
-
-        try:
-            _ = get_hpge_voltage(config, hpge.name, runid)
-        except KeyError:
-            msg = f"operational voltage for hpge {hpge.name} not found in run {runid}, detector cannot be modelled."
-            log.warning(msg)
-            continue
-
         if hpge.name in skip:
             continue
 
-        m = crystal_meta(
-            config, metadata.hardware.detectors.germanium.diodes[hpge.name]
-        )
+        # detectors not operated at least 100 V above their depletion voltage
+        # are not modeled (off detectors have no operational voltage)
+        try:
+            operational_voltage = get_hpge_voltage(config, hpge.name, runid)
+        except KeyError:
+            continue
 
-        if m is not None:
-            schema = {"impurity_curve": {"parameters": None}}
+        # detectors without a depletion voltage in the metadata are not modeled
+        diode = metadata.hardware.detectors.germanium.diodes[hpge.name]
+        try:
+            depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
+        except (KeyError, AttributeError):
+            continue
 
-            if validate_dict_schema(
-                m, schema, greedy=False, typecheck=False, verbose=False
-            ):
-                hpges.append(hpge.name)
+        if operational_voltage < depletion_voltage + 100:
+            continue
+
+        # detectors without an impurity curve in the crystal metadata cannot be
+        # modeled
+        m = crystal_meta(config, diode)
+        if m is None or not validate_dict_schema(
+            m,
+            {"impurity_curve": {"parameters": None}},
+            greedy=False,
+            typecheck=False,
+            verbose=False,
+        ):
+            continue
+
+        hpges.append(hpge.name)
 
     if len(hpges) == 0:
         msg = f"the list of HPGes valid for drift-time map generation in {runid} is empty!"
