@@ -628,10 +628,10 @@ def get_wfs_for_slice(
         return None
 
     # Find the common time window (max of left edges, min of right edges)
-    charge_t_min = max(-1000, *(e["charge_t"][0] for e in waveforms))
+    charge_t_min = max(-2000, *(e["charge_t"][0] for e in waveforms))
     charge_t_max = min(3000.0, *(e["charge_t"][-1] for e in waveforms))
 
-    current_t_min = max(-1000, *(e["current_t"][0] for e in waveforms))
+    current_t_min = max(-2000, *(e["current_t"][0] for e in waveforms))
     current_t_max = min(3000.0, *(e["current_t"][-1] for e in waveforms))
 
     log.info("Current range across events: [%f, %f] ns", current_t_min, current_t_max)
@@ -1100,11 +1100,8 @@ def plot_superpulses(
     lh5_file: str,
     detector: str,
     curve: str = "charge",
-    xlim: tuple[float, float] | None = None,
-    ylim: tuple[float, float] | None = None,
 ) -> tuple:
-    """
-    Plot superpulses from all drift-time slices, color-coded by drift time.
+    """Plot superpulses from all drift-time slices, color-coded by drift time.
 
     Parameters
     ----------
@@ -1113,11 +1110,7 @@ def plot_superpulses(
     detector
         Detector name (top-level group in the file).
     curve
-        ``"charge"`` or ``"current"``. Default ``"charge"``.
-    xlim
-        x-axis limits in ns. Default ``(-5000, 5000)``.
-    ylim
-        y-axis limits. If ``None``, matplotlib auto-scales.
+        ``"charge"`` or ``"current"``.
 
     Returns
     -------
@@ -1135,53 +1128,95 @@ def plot_superpulses(
         key=lambda g: int(g.split("_")[1]),
     )
 
-    norm = mcolors.Normalize(vmin=0, vmax=2500)
-    viridis = colormaps["viridis"]
-
-    ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
-
-    fig, ax = plt.subplots(figsize=(12, 6), layout="constrained")
-
-    e_lo, e_hi = None, None
+    # collect all slices first so we can normalise the colormap to actual data
+    slices = []
     for group in groups:
         struct = lh5.read(group, lh5_file)
-
-        if e_lo is None:
-            e_lo = struct["energy_lo"].value
-            e_hi = struct["energy_hi"].value
-
-        dt_center = struct["drift_time_center"].value
-        dt_lo = struct["drift_time_lo"].value
-        dt_hi = struct["drift_time_hi"].value
-        n_events = struct["n_events_final"].value
-        times = struct[f"{curve}_time_axis"].nda
-        wf = struct[f"{curve}_wf"].nda
-
-        color = mcolors.to_hex(viridis(norm(dt_center)))
-        ax.plot(
-            times,
-            wf,
-            color=color,
-            alpha=0.8,
-            linewidth=2,
-            label=f"dt=[{dt_lo:.0f}, {dt_hi:.0f}] ns  ({n_events} ev)",
+        slices.append(
+            {
+                "times": struct[f"{curve}_time_axis"].nda,
+                "wf": struct[f"{curve}_wf"].nda,
+                "dt_center": struct["drift_time_center"].value,
+                "dt_lo": struct["drift_time_lo"].value,
+                "dt_hi": struct["drift_time_hi"].value,
+                "e_lo": struct["energy_lo"].value,
+                "e_hi": struct["energy_hi"].value,
+                "n_events": struct["n_events_final"].value,
+            }
         )
 
-    ax.set_title(f"{detector} - {curve} superpulses  |  E = [{e_lo}, {e_hi}] keV")
+    dt_centers = [s["dt_center"] for s in slices]
+    dt_min, dt_max = min(dt_centers), max(dt_centers)
+    norm = mcolors.Normalize(vmin=dt_min, vmax=dt_min + (dt_max - dt_min) / 0.85)
+    cmap = colormaps["viridis"]
+
+    ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
+    e_lo, e_hi = slices[0]["e_lo"], slices[0]["e_hi"]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for s in slices:
+        ax.plot(s["times"], s["wf"], color=cmap(norm(s["dt_center"])), linewidth=2)
+    ax.set_xlim(-2000, 1000)
+
+    # 10% amplitude reference line (charge only)
+    if curve == "charge":
+        ax.axhline(0.10, color="gray", linestyle="--", linewidth=1)
+        xlo, xhi = ax.get_xlim()
+        x_ann = xlo + 0.95 * (xhi - xlo)
+        ax.annotate(
+            "10% amplitude",
+            xy=(x_ann, 0.10),
+            xytext=(x_ann, 0.107),
+            fontsize=10,
+            color="gray",
+            va="bottom",
+            ha="right",
+        )
+    ax.set_title(f"{detector} - Average {curve} pulses  |  E = [{e_lo}, {e_hi}] keV")
     ax.set_xlabel("Time [ns]")
     ax.set_ylabel(ylabel)
+    ax.grid(True, color="grey", linestyle="--", alpha=0.2)
 
-    if xlim is not None:
-        ax.set_xlim(*xlim)
-    if ylim is not None:
-        ax.set_ylim(*ylim)
-
-    ax.grid(visible=True, which="both", linestyle="--", alpha=0.5)
-
-    sm = plt.cm.ScalarMappable(cmap=viridis, norm=norm)
+    # colorbar
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.8)
-    cbar.set_label("Drift Time [ns]", rotation=270, labelpad=20)
-    # fig.tight_layout()
+    cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+    cbar.set_label("Drift Time [ns]", labelpad=10)
 
+    # inset
+    ax_inset = ax.inset_axes([0.08, 0.5, 0.45, 0.45])
+    for s in slices:
+        ax_inset.plot(
+            s["times"],
+            s["wf"],
+            color=cmap(norm(s["dt_center"])),
+            linewidth=1.8,
+        )
+    ax_inset.tick_params(labelsize=7)
+    ax_inset.grid(True, color="grey", linestyle="--", alpha=0.2)
+
+    if curve == "charge":
+        ax_inset.set_xlim(-2000, -100)
+        ax_inset.set_ylim(-0.001, 0.105)
+        # 1% amplitude reference line
+        ax_inset.axhline(0.01, color="gray", linestyle="--", linewidth=0.8)
+        xlo, xhi = ax_inset.get_xlim()
+        x_ann = xlo + 0.05 * abs(xhi - xlo)
+        ax_inset.annotate(
+            "1% amplitude", xy=(x_ann, 0.012), fontsize=8, color="gray", ha="left"
+        )
+    else:
+        ax_inset.set_xlim(-50, 50)
+        xlo, xhi = ax_inset.get_xlim()
+        y_in_view = [
+            v
+            for s in slices
+            for t, v in zip(s["times"], s["wf"], strict=True)
+            if xlo <= t <= xhi
+        ]
+        if y_in_view:
+            ax_inset.set_ylim(min(y_in_view) - 0.002, max(y_in_view) + 0.002)
+
+    fig.tight_layout()
     return fig, ax
