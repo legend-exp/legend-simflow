@@ -242,7 +242,7 @@ def gen_list_of_hpges_valid_for_modeling(
 def gen_list_of_all_hpges_valid_for_modeling(
     config: SimflowConfig,
     write_to_file: str | Path | None = None,
-) -> dict[str, dict[str, int]]:
+) -> dict[str, dict[str, dict[str, int]]]:
     """Generate the complete list of HPGe detectors valid for modeling.
 
     Find out which HPGe detectors are valid for each runid and their voltages.
@@ -251,12 +251,12 @@ def gen_list_of_all_hpges_valid_for_modeling(
     .. code-block::
 
         {
-          'l200-p03-r000-phy': {'V00048A': 4200, ...},
-          'l200-p03-r001-phy': {'V00050B': 3500, ...},
+          'l200-p03-r000-phy': {'V00048A': {'operational_voltage_in_V': 4200}, ...},
+          'l200-p03-r001-phy': {'V00050B': {'operational_voltage_in_V': 3500}, ...},
           ...
         }
 
-    i.e. a mapping ``runid -> hpge -> voltage``.
+    i.e. a mapping ``runid -> hpge -> {"operational_voltage_in_V": voltage}``.
     """
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
@@ -265,8 +265,10 @@ def gen_list_of_all_hpges_valid_for_modeling(
     out = {}
     for runid in sorted(all_runids):
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
-
-        out[runid] = {hpge: get_hpge_voltage(config, hpge, runid) for hpge in hpges}
+        out[runid] = {
+            hpge: {"operational_voltage_in_V": get_hpge_voltage(config, hpge, runid)}
+            for hpge in hpges
+        }
 
     if write_to_file is not None:
         Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)
@@ -363,7 +365,9 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
 
 
 def gen_list_of_dtmaps(
-    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    runid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Generate the list of HPGe drift-time map files for a `runid`."""
     if cache is None:
@@ -382,9 +386,9 @@ def gen_list_of_dtmaps(
         patterns.output_dtmap_filename(
             config,
             hpge_detector=hpge,
-            hpge_voltage=voltage,
+            hpge_voltage=entry["operational_voltage_in_V"],
         )
-        for hpge, voltage in hpge_voltages.items()
+        for hpge, entry in hpge_voltages.items()
     ]
 
 
@@ -402,12 +406,15 @@ def gen_list_of_merged_dtmaps(
 
 
 def gen_list_of_ideal_psls(
-    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    runid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Generate the list of ideal HPGe pulse-shape library files for a `runid`.
 
     If ``cache`` is provided, it must be the modelable-HPGe cache mapping
-    ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
+    ``runid -> {hpge: {"operational_voltage_in_V": voltage}}`` and avoids
+    repeated metadata lookups.
     """
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
@@ -425,22 +432,23 @@ def gen_list_of_ideal_psls(
         patterns.output_ideal_psl_filename(
             config,
             hpge_detector=hpge,
-            hpge_voltage=voltage,
+            hpge_voltage=entry["operational_voltage_in_V"],
         )
-        for hpge, voltage in hpge_voltages.items()
+        for hpge, entry in hpge_voltages.items()
     ]
 
 
 def gen_list_of_realistic_psls(
     config: SimflowConfig,
     runid: str,
-    cache: dict[str, dict[str, int]] | None = None,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
     simulate_psd_with_psl: bool = True,
 ) -> list[Path]:
     """Generate the list of realistic HPGe pulse-shape library files for a `runid`.
 
     If ``cache`` is provided, it must be the modelable-HPGe cache mapping
-    ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
+    ``runid -> {hpge: {"operational_voltage_in_V": voltage}}`` and avoids
+    repeated metadata lookups.
     """
     files = []
     if not simulate_psd_with_psl:
@@ -475,7 +483,9 @@ def gen_list_of_merged_realistic_psls(
 
 
 def gen_list_of_dtmap_plots_outputs(
-    config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    simid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Generate the list of HPGe drift-time map plot outputs."""
     files = set()
@@ -492,19 +502,21 @@ def gen_list_of_dtmap_plots_outputs(
                 )
         else:
             # use the cache to avoid calling get_hpge_voltage()
-            for hpge, voltage in cache[runid].items():
+            for hpge, entry in cache[runid].items():
                 files.add(
                     patterns.plot_dtmap_filename(
                         config,
                         hpge_detector=hpge,
-                        hpge_voltage=voltage,
+                        hpge_voltage=entry["operational_voltage_in_V"],
                     )
                 )
     return list(files)
 
 
 def gen_list_of_currmods(
-    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    runid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Generate the list of HPGe current model parameter files for a `runid`."""
     hpges = (
@@ -532,7 +544,9 @@ def gen_list_of_merged_currmods(
 
 
 def gen_list_of_elecmods(
-    config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    runid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Generate the list of HPGe electronics model parameter files for a `runid`."""
     hpges = (
@@ -555,7 +569,9 @@ def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]
 
 
 def gen_list_of_currmod_plots_outputs(
-    config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
+    config: SimflowConfig,
+    simid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Generate the list of HPGe current-pulse model plot outputs."""
     files = []
