@@ -260,7 +260,7 @@ def main() -> None:
             msg = f"looking for data from sensitive volume {det_name} table (uid={geom_meta.uid})..."
             log.debug(msg)
 
-            if f"stp/{det_name}" not in lh5.ls(stp_file, "*/*"):
+            if f"stp/{det_name}" not in lh5.ls(stp_file, "stp/*"):
                 msg = (
                     f"detector {det_name} not found in {stp_file}. "
                     "possibly because it was not read-out or there were no hits recorded"
