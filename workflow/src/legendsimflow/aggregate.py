@@ -91,7 +91,7 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
     if tier == "stp":
         return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
     if tier == "par":
-        # HPGe drift time map plots, a byproduct of the par step; only produced
+        # HPGe drift-time map plots, a byproduct of the par step; only produced
         # when PSD is simulated in the hit tier
         if not get_tier_settings(config, "hit").get("simulate_psd", True):
             return []
@@ -168,7 +168,7 @@ def gen_list_of_hpges_valid_for_modeling(
 
     It generates the list of deployed detectors in `runid` via the LEGEND
     channelmap, then checks if in the crystal metadata there's all the
-    information required to generate a drift time map etc.
+    information required to generate a drift-time map etc.
 
     Detectors listed in the validity-based metadata directory
     ``simprod/config/pars/{experiment}/geds/skip/`` for the given `runid` are
@@ -212,7 +212,7 @@ def gen_list_of_hpges_valid_for_modeling(
                 hpges.append(hpge.name)
 
     if len(hpges) == 0:
-        msg = f"the list of HPGes valid for drift time map generation in {runid} is empty!"
+        msg = f"the list of HPGes valid for drift-time map generation in {runid} is empty!"
         log.warning(msg)
 
     return sorted(hpges)
@@ -343,7 +343,7 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
 def gen_list_of_dtmaps(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map files for a `runid`."""
+    """Generate the list of HPGe drift-time map files for a `runid`."""
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
         return [
@@ -369,7 +369,7 @@ def gen_list_of_dtmaps(
 def gen_list_of_merged_dtmaps(
     config: SimflowConfig, simid: str, has_psd=True
 ) -> list[Path]:
-    r"""Generate the list of (merged) HPGe drift time map files for all requested `runid`\ s."""
+    r"""Generate the list of (merged) HPGe drift-time map files for all requested `runid`\ s."""
     if not has_psd:
         return []
 
@@ -382,7 +382,7 @@ def gen_list_of_merged_dtmaps(
 def gen_list_of_ideal_psls(
     config: SimflowConfig, runid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of ideal HPGe pulse shape library files for a `runid`.
+    """Generate the list of ideal HPGe pulse-shape library files for a `runid`.
 
     If ``cache`` is provided, it must be the modelable-HPGe cache mapping
     ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
@@ -413,15 +413,15 @@ def gen_list_of_realistic_psls(
     config: SimflowConfig,
     runid: str,
     cache: dict[str, dict[str, int]] | None = None,
-    has_detailed_psd: bool = True,
+    simulate_psd_with_psl: bool = True,
 ) -> list[Path]:
-    """Generate the list of realistic HPGe pulse shape library files for a `runid`.
+    """Generate the list of realistic HPGe pulse-shape library files for a `runid`.
 
     If ``cache`` is provided, it must be the modelable-HPGe cache mapping
     ``runid -> {hpge: voltage}`` and avoids repeated metadata lookups.
     """
     files = []
-    if not has_detailed_psd:
+    if not simulate_psd_with_psl:
         return []
 
     hpges = (
@@ -440,10 +440,10 @@ def gen_list_of_realistic_psls(
 
 
 def gen_list_of_merged_realistic_psls(
-    config: SimflowConfig, simid: str, has_detailed_psd: bool = True
+    config: SimflowConfig, simid: str, simulate_psd_with_psl: bool = True
 ) -> list[Path]:
     r"""Generate the list of (merged) HPGe PSL files for all requested `runid`\ s."""
-    if not has_detailed_psd:
+    if not simulate_psd_with_psl:
         return []
 
     return [
@@ -455,7 +455,7 @@ def gen_list_of_merged_realistic_psls(
 def gen_list_of_dtmap_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe drift time map plot outputs."""
+    """Generate the list of HPGe drift-time map plot outputs."""
     files = set()
     for runid in get_runlist(config, simid):
         if cache is None:
@@ -532,23 +532,10 @@ def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
-def gen_list_of_superpulses(config: SimflowConfig) -> list[Path]:
-    """Generate the list of HPGe superpulses files for all runlists."""
-    hpges = {
-        hpge
-        for runid in gen_list_of_all_runids(config)
-        for hpge in gen_list_of_hpges_valid_for_modeling(config, runid)
-    }
-    return [
-        patterns.output_superpulses_filename(config, hpge_detector=hpge)
-        for hpge in sorted(hpges)
-    ]
-
-
 def gen_list_of_currmod_plots_outputs(
     config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
 ) -> list[Path]:
-    """Generate the list of HPGe current pulse model plot outputs."""
+    """Generate the list of HPGe current-pulse model plot outputs."""
     files = []
     for runid in get_runlist(config, simid):
         hpges = (

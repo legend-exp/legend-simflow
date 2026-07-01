@@ -55,8 +55,8 @@ rule build_tier_hit:
         hpges_realistic_psls=lambda wc: aggregate.gen_list_of_merged_realistic_psls(
             config,
             wc.simid,
-            has_detailed_psd=get_tier_settings(config, "hit").get(
-                "simulate_psd_with_psl", True
+            simulate_psd_with_psl=get_tier_settings(config, "hit").get(
+                "simulate_psd_with_psl", False
             ),
         ),
         hpge_psdcuts=lambda wc: aggregate.gen_list_of_psdcuts(config, wc.simid),

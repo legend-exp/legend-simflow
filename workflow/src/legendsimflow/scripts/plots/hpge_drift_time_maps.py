@@ -25,6 +25,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import nersc
 from legendsimflow.plot import decorate
+from legendsimflow.psl import symmetrize
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -33,11 +34,6 @@ output_pdf = args.output[0]
 
 reg = pyg4ometry.geant4.Registry()
 natge = pygeomhpges.materials.make_natural_germanium(registry=reg)
-
-
-def symmetrize(a):
-    a = a.T
-    return np.concatenate((np.fliplr(a), a), axis=1)
 
 
 def save_page(pdf, make_fig):

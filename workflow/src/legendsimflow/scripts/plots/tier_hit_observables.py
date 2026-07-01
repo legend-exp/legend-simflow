@@ -80,7 +80,7 @@ def fig(table):
 
     # A/E
     ax = fig.add_subplot(gs_mid[0, 0])
-    aoe_raw = data.aoe_raw[data.energy > 100]
+    aoe_raw = data.psd.aoe_corr[data.energy > 100]
     h_aoe = hist.new.Reg(200, 0, 2, name="A/E").Double()
     h_aoe.fill(aoe_raw)
 
@@ -90,7 +90,7 @@ def fig(table):
             ax,
             color="tab:red",
             label="energy > 100 keV",
-            n_nans=n_nans(data.aoe_raw),
+            n_nans=n_nans(data.psd.aoe_corr),
         )
         if plotted:
             ax.legend()
@@ -102,7 +102,7 @@ def fig(table):
     h_dt = hist.new.Reg(
         300, 0, 3000, name="drift time · $t_{max(A)} - t_0$ (ns)"
     ).Double()
-    dt = data.drift_time_amax[data.energy > 100]
+    dt = data.psd.drift_time_amax[data.energy > 100]
     h_dt.fill(dt)
 
     if len(dt) > 0:
@@ -111,7 +111,7 @@ def fig(table):
             ax,
             color="tab:orange",
             label="energy > 100 keV",
-            n_nans=n_nans(data.drift_time_amax),
+            n_nans=n_nans(data.psd.drift_time_amax),
         )
         if plotted:
             ax.legend()
@@ -132,12 +132,12 @@ def fig(table):
 
     # A/E classifier
     _d = data[data.energy > 1000][:10_000]
-    _ss = _d.is_single_site
+    _ss = _d.psd.is_single_site
 
     ax1 = fig.add_subplot(gs_bot[0, 0])
-    h_aoec = hist.new.Reg(100, -20, 5).Double().fill(_d.aoe[_ss])
+    h_aoec = hist.new.Reg(100, -20, 5).Double().fill(_d.psd.aoe[_ss])
     plot.plot_hist(
-        hist.new.Reg(100, -20, 5).Double().fill(_d.aoe[~_ss]),
+        hist.new.Reg(100, -20, 5).Double().fill(_d.psd.aoe[~_ss]),
         ax1,
         color="tab:gray",
         flow="none",
@@ -166,9 +166,9 @@ def fig(table):
 
     ax2 = fig.add_subplot(gs_bot[0, 1], sharey=ax1)
     ax2.scatter(
-        _d.energy[_ss], _d.aoe[_ss], s=2, color="tab:red", label="is_single_site"
+        _d.energy[_ss], _d.psd.aoe[_ss], s=2, color="tab:red", label="is_single_site"
     )
-    ax2.scatter(_d.energy[~_ss], _d.aoe[~_ss], s=2, color="tab:gray")
+    ax2.scatter(_d.energy[~_ss], _d.psd.aoe[~_ss], s=2, color="tab:gray")
     ax2.set_xlim(1000, None)
     ax2.set_ylim(-20, 5)
     ax2.set_xlabel("energy (keV)")

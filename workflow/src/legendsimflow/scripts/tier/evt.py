@@ -147,6 +147,11 @@ def main() -> None:
         load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
     )
 
+    # get the psd settings
+    tier_hit_settings = get_tier_settings(config, "hit")
+    simulate_psd = tier_hit_settings.get("simulate_psd", True)
+    simulate_psd_with_psl = tier_hit_settings.get("simulate_psd_with_psl", False)
+
     evt_file, move2cfs = nersc.make_on_scratch(config, evt_file)
 
     # setup logging
@@ -420,26 +425,77 @@ def main() -> None:
                 )
 
                 # PSD subtable
-                out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
-                out_table.add_field(
-                    "geds/psd/is_good",
-                    VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
-                )
+                if simulate_psd:
+                    out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
+                    out_table.add_field(
+                        "geds/psd/is_good",
+                        VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
+                    )
 
-                aoe = _read_hits(tcm, "hit", "aoe")
-                out_table.add_field(
-                    "geds/psd/aoe",
-                    VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
-                )
-                out_table.add_field(
-                    "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
-                )
+                    aoe = _read_hits(tcm, "hit", "psd/aoe")
+                    out_table.add_field(
+                        "geds/psd/aoe",
+                        VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
+                    )
+                    drift_time = _read_hits(tcm, "hit", "psd/drift_time_amax")
+                    out_table.add_field(
+                        "geds/psd/drift_time_amax",
+                        VectorOfVectors(
+                            ak.values_astype(drift_time[hitsel], np.float32)
+                        ),
+                    )
+                    aoe_corr = _read_hits(tcm, "hit", "psd/aoe_corr")
+                    out_table.add_field(
+                        "geds/psd/aoe_corr",
+                        VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
+                    )
+                    out_table.add_field(
+                        "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                    )
 
-                is_ss = _read_hits(tcm, "hit", "is_single_site")
-                out_table.add_field(
-                    "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
-                )
+                    is_ss = _read_hits(tcm, "hit", "psd/is_single_site")
+                    out_table.add_field(
+                        "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
+                    )
 
+                # PSL based PSD
+                if simulate_psd_with_psl:
+                    out_table.add_field("geds/psd_psl", Table(size=len(unified_tcm)))
+
+                    aoe_corr = _read_hits(tcm, "hit", "psd_psl/aoe_corr")
+                    out_table.add_field(
+                        "geds/psd_psl/aoe_corr",
+                        VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
+                    )
+
+                    aoe = _read_hits(tcm, "hit", "psd_psl/aoe")
+
+                    out_table.add_field(
+                        "geds/psd_psl/aoe",
+                        VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
+                    )
+                    out_table.add_field(
+                        "geds/psd_psl/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                    )
+                    drift_time = _read_hits(tcm, "hit", "psd_psl/drift_time_amax")
+                    out_table.add_field(
+                        "geds/psd_psl/drift_time_amax",
+                        VectorOfVectors(
+                            ak.values_astype(drift_time[hitsel], np.float32)
+                        ),
+                    )
+                    is_ss = _read_hits(tcm, "hit", "psd_psl/is_single_site")
+                    out_table.add_field(
+                        "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
+                    )
+                    is_bb_like = _read_hits(tcm, "hit", "psd_psl/is_bb_like")
+                    out_table.add_field(
+                        "geds/psd_psl/is_bb_like", VectorOfVectors(is_bb_like[hitsel])
+                    )
+                    is_high_aoe = _read_hits(tcm, "hit", "psd_psl/is_high_aoe")
+                    out_table.add_field(
+                        "geds/psd_psl/is_high_aoe", VectorOfVectors(is_high_aoe[hitsel])
+                    )
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)
                 out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
@@ -590,6 +646,16 @@ def main() -> None:
         }
     )
     lh5.write(detector_uids, "detector_uids", evt_file, wo_mode="append")
+
+    # forward the number of simulated primary events that remage stores at the
+    # root of the stp file, so it can be summed across jobs at the cvt tier and
+    # used to normalise the pdf histograms.
+    lh5.write(
+        lh5.read("number_of_simulated_events", stp_file),
+        "number_of_simulated_events",
+        evt_file,
+        wo_mode="append",
+    )
 
     with perf_block("move_to_cfs()"):
         move2cfs()

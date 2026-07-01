@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import awkward as ak
@@ -30,6 +30,7 @@ import pygeomtools
 import reboost.hpge.utils
 import reboost.units
 from lgdo import LGDO
+from numpy.typing import ArrayLike
 
 from legendsimflow import nersc, utils
 
@@ -186,7 +187,10 @@ def get_senstables(
 
 
 def load_hpge_realistic_psl(
-    config: SimflowConfig, det_name: str, runid: str
+    config: SimflowConfig,
+    det_name: str,
+    runid: str,
+    waveform_angles: Sequence[str] = ("000",),
 ) -> (
     tuple[
         dict[str, reboost.hpge.utils.HPGeRZField],
@@ -196,7 +200,7 @@ def load_hpge_realistic_psl(
 ):
     """Load HPGe PSL from disk.
 
-    Loads the waveforms as well as drift time maps for
+    Loads the waveforms as well as drift-time maps for
     both coordinates.
 
     Parameters
@@ -207,11 +211,16 @@ def load_hpge_realistic_psl(
         HPGe detector name.
     runid
         Run identifier.
+    waveform_angles
+        Crystal-axis angles for which to load the (large) waveform
+        pulse-shape libraries. Defaults to the 000-degree axis only, which is
+        the single axis consumed by :func:`extract_detailed_psd_observables`.
+        The drift-time maps are always loaded for both axes regardless.
 
     Returns
     -------
-    A tuple of two dictionaries: the first contains the drift time maps for different crystal axes, keyed by angle.
-    The second contains the corresponding pulse shape libraries.
+    A tuple of two dictionaries: the first contains the drift-time maps for different crystal axes, keyed by angle.
+    The second contains the corresponding pulse-shape libraries.
     If no valid maps are found, ``None`` is returned for both.
 
     Note
@@ -227,19 +236,31 @@ def load_hpge_realistic_psl(
         ),
     )
 
-    if len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2:
-        log.debug("loading drift time maps from %s", psl_file)
-        dt_map = {}
-        waveform_map = {}
-        for angle in ("000", "045"):
-            dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
+    if (
+        Path(psl_file).exists()
+        and len(lh5.ls(psl_file, f"{det_name}/drift_time_*")) >= 2
+    ):
+        log.debug("loading drift-time maps from %s", psl_file)
+        # both axes needed: hpge_corrected_drift_time() blends them (and small)
+        dt_map = {
+            angle: reboost.hpge.utils.get_hpge_rz_field(
                 psl_file,
                 det_name,
                 f"drift_time_{angle}_deg",
                 bounds_error=False,
             )
-            waveform_map[angle] = reboost.hpge.utils.get_hpge_pulse_shape_library(
+            for angle in ("000", "045")
+        }
+        # waveforms dominate memory (PSL file is O(10 GB)); load only the axes
+        # used downstream (extract_detailed_psd_observables() is single-axis)
+        waveform_map = {}
+        for angle in waveform_angles:
+            lib = reboost.hpge.utils.get_hpge_pulse_shape_library(
                 psl_file, det_name, f"waveform_{angle}_deg", out_of_bounds_val=0
+            )
+            # float32 is enough for ~1% A/E; halves the templates if read as f64
+            waveform_map[angle] = lib._replace(
+                waveforms=np.asarray(lib.waveforms, dtype=np.float32)
             )
 
     else:
@@ -257,9 +278,9 @@ def load_hpge_realistic_psl(
 def load_hpge_dtmaps(
     config: SimflowConfig, det_name: str, runid: str
 ) -> dict[str, reboost.hpge.utils.HPGeRZField] | None:
-    """Load HPGe drift time maps from disk.
+    """Load HPGe drift-time maps from disk.
 
-    Automatically finds and loads drift time maps for crystal axes <100> <110>.
+    Automatically finds and loads drift-time maps for crystal axes <100> <110>.
     If no map is found, ``None`` is returned.
 
     Parameters
@@ -282,7 +303,7 @@ def load_hpge_dtmaps(
     )
 
     if len(lh5.ls(hpge_dtmap_file, f"{det_name}/drift_time_*")) >= 2:
-        log.debug("loading drift time maps")
+        log.debug("loading drift-time maps")
         dt_map = {}
         for angle in ("000", "045"):
             dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
@@ -369,14 +390,14 @@ def extract_psd_observables(
     currmod_pars: Mapping,
     det_loc: pyg4ometry.gdml.Defines.Position,
     *,
-    aoe_res: float,
+    aoe_res: ArrayLike,
+    aoe_mean: ArrayLike,
     psdcuts: Mapping,
     current_reso: float,
-    mean_aoe: float,
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
 
-    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift time maps and current model parameters.
+    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift-time maps and current model parameters.
 
     Parameters
     ----------
@@ -387,7 +408,7 @@ def extract_psd_observables(
     energy
         Energy deposited in the active volume, used for A/E calculation.
     dt_map
-        Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
+        Dictionary of drift-time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
     currmod_pars
         Dictionary of parameters for the current model, (see
         :func:`reboost.hpge.psd.get_current_template`)
@@ -397,12 +418,13 @@ def extract_psd_observables(
         Name of the detector.
     aoe_res
         A/E resolution (sigma) used for A/E classifier calculation, typically determined from data.
+    aoe_mean
+        A/E mean used in the A/E classifier calculation, typically from fitting simulated data.
     psdcuts
         Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
     current_reso
         Standard deviation of the Gaussian noise to smear the maximum current, representing the current resolution of the detector.
-    mean_aoe
-        Mean A/E value at the energy of interest, used for normalizing the current resolution smearing.
+
 
     Returns
     -------
@@ -420,21 +442,21 @@ def extract_psd_observables(
     utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
 
     # Apply current resolution smearing based on configured A/E noise parameters
-    _a_max = gauss_smear(_a_max_true, current_reso / mean_aoe)
+    _a_max = gauss_smear(_a_max_true, current_reso)
 
     # finally calculate A/E, comparable to the A/E in data
     # corrected for energy dependence
     aoe = _a_max / energy
 
+    aoe_corr = aoe - aoe_mean + 1
+
     # ...and A/E classifier
     # NOTE: we use the resolution determined from data here instead
     # of the intrinsic simulated ones due to noise
-    aoe_class = (aoe - 1) / aoe_res
+    aoe_class = (aoe_corr - 1) / aoe_res
 
     # ...and PSD flag
-    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
-        aoe_class < psdcuts.aoe.high_side
-    )
+    is_single_site = aoe_class > psdcuts.aoe.low_side
 
     # also calculate drift time at A position
     # FIXME: this is wasting compute resources, max_current should
@@ -449,6 +471,7 @@ def extract_psd_observables(
     return ak.Array(
         {
             "aoe": aoe,
+            "aoe_corr": aoe_corr,
             "aoe_class": aoe_class,
             "is_single_site": is_single_site,
             "t_max": t_max,
@@ -464,14 +487,14 @@ def extract_detailed_psd_observables(
     pulse_shape_lib: reboost.hpge.utils.HPGePulseShapeLibrary,
     det_loc: pyg4ometry.gdml.Defines.Position,
     *,
-    aoe_res: float,
+    aoe_res: ArrayLike,
+    aoe_mean: ArrayLike,
     psdcuts: Mapping,
-    mean_aoe: float | None = None,
     current_reso: float | None = None,
 ) -> ak.Array:
     """Extract PSD observables for a chunk of events in an HPGe detector.
 
-    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift time maps and current model parameters.
+    This function calculates the A/E observable, its classifier, and the single-site flag for a chunk of events in an HPGe detector, using the provided drift-time maps and current model parameters.
 
     Parameters
     ----------
@@ -482,7 +505,7 @@ def extract_detailed_psd_observables(
     energy
         Energy deposited in the active volume, used for A/E calculation.
     dt_map
-        Dictionary of drift time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
+        Dictionary of drift-time maps for different crystal axes, as returned by `load_hpge_dtmaps()`.
     pulse_shape_lib
         Dictionary of waveform templates for different crystal axes, as returned by `load_hpge_realistic_psl()`.
     det_loc
@@ -491,6 +514,8 @@ def extract_detailed_psd_observables(
         Name of the detector.
     aoe_res
         A/E resolution (sigma) used for A/E classifier calculation, typically determined from data.
+    aoe_mean
+        A/E mean used in the A/E classifier calculation, typically from fitting simulated data.
     psdcuts
         Dictionary containing the low and high side cuts for the A/E classifier to determine single-site events.
     current_reso
@@ -540,25 +565,22 @@ def extract_detailed_psd_observables(
     utils.check_nans_leq(_a_max_true, "_a_max_true", 0.01, min_entries=1000)
 
     # Apply current resolution smearing based on configured A/E noise parameters
-    _a_max = (
-        gauss_smear(_a_max_true, current_reso / mean_aoe)
-        if (current_reso is not None and mean_aoe is not None)
-        else _a_max_true
-    )
+    _a_max = gauss_smear(_a_max_true, current_reso)
 
     # finally calculate A/E, comparable to the A/E in data
     # corrected for energy dependence
     aoe = _a_max / energy
 
+    aoe_corr = aoe - aoe_mean + 1
     # ...and A/E classifier
     # NOTE: we use the resolution determined from data here instead
     # of the intrinsic simulated ones due to noise
-    aoe_class = (aoe - 1) / aoe_res
+    aoe_class = (aoe_corr - 1) / aoe_res
 
     # ...and PSD flag
-    is_single_site = (aoe_class > psdcuts.aoe.low_side) & (
-        aoe_class < psdcuts.aoe.high_side
-    )
+    is_single_site = aoe_class > psdcuts.aoe.low_side
+    is_high_aoe = aoe_class > psdcuts.aoe.high_side
+    is_bb_like = is_single_site & (~is_high_aoe)
 
     # also calculate drift time at A position
     # FIXME: this is wasting compute resources, max_current should
@@ -576,8 +598,11 @@ def extract_detailed_psd_observables(
     return ak.Array(
         {
             "aoe": aoe,
+            "aoe_corr": aoe_corr,
             "aoe_class": aoe_class,
             "is_single_site": is_single_site,
+            "is_bb_like": is_bb_like,
+            "is_high_aoe": is_high_aoe,
             "t_max": t_max,
         }
     )

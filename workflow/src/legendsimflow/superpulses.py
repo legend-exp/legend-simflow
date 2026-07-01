@@ -232,7 +232,7 @@ def lookup_superpulse_inputs(
     max_files: int | None = None,
     *,
     evt_tier_name: str = "evt",
-) -> tuple[list[Path], list[Path], list[Path], Path, dict[str, int]]:
+) -> tuple[list[Path], list[Path], Path, dict[str, int], str]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
     Parameters
@@ -252,17 +252,31 @@ def lookup_superpulse_inputs(
 
     Returns
     -------
-    raw_files, dsp_files, evt_files
-        Sorted lists of LH5 file paths for each tier.
+    raw_files, evt_files
+        Sorted lists of LH5 file paths for the raw and evt tiers.
     dsp_cfg_file
         Path to the DSP configuration file.
     tab_map
         Mapping ``{detector_name: rawid}``.
+    data_runid
+        Run whose data was looked up: the reference calibration run for a
+        physics ``runid``, otherwise ``runid`` itself.
     """
     if isinstance(l200data, str):
         l200data = Path(l200data)
 
     _, period_int, run_int, data_type = mutils.parse_runid(runid)
+
+    # for physics runs we build superpulses from the reference calibration run:
+    # its raw/evt data and channel map are what we actually read below
+    data_runid = runid
+    if data_type == "phy":
+        data_runid = mutils.reference_cal_run(metadata, runid)
+        _, period_int, run_int, data_type = mutils.parse_runid(data_runid)
+
+        msg = f"inferred reference calibration run: {data_runid}"
+        log.debug(msg)
+
     period = f"p{period_int:02d}"
     run = f"r{run_int:03d}"
     df_cfg = utils.lookup_dataflow_config(l200data).paths
@@ -275,7 +289,7 @@ def lookup_superpulse_inputs(
     )[:max_files]
 
     if not evt_files:
-        msg = f"no evt tier files found for {runid}."
+        msg = f"no evt tier files found for {data_runid}."
         raise FileNotFoundError(msg)
 
     dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
@@ -290,31 +304,30 @@ def lookup_superpulse_inputs(
         msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
         raise RuntimeError(msg)
 
-    tstamp = mutils.runinfo(metadata, runid).start_key
+    tstamp = mutils.runinfo(metadata, data_runid).start_key
     chmap = metadata.channelmap(tstamp, skip_version_check=True)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
-    return raw_files, evt_files, dsp_cfg_files[0], tab_map
+    return raw_files, evt_files, dsp_cfg_files[0], tab_map, data_runid
 
 
 def _read_and_sel_evts(
     evt_files: str | list[str],
     detector: str,
+    t0_field: str | None = None,
     aoe_low_threshold: float = -3.0,
     aoe_high_threshold: float = 3.0,
 ) -> ak.Array:
     """Read evt data and perform basic selections."""
+    field_mask = ["geds", "coincident", "trigger"]
+    if t0_field is not None:
+        field_mask.append(t0_field)
+
     evt_data = lh5.read_as(
         "evt",
         evt_files,
         library="ak",
-        field_mask=[
-            "geds",
-            "coincident",
-            "trigger",
-            "spms/energy_sum",
-            "spms/event_t0",
-        ],
+        field_mask=field_mask,
     )
 
     mask = (
@@ -325,9 +338,17 @@ def _read_and_sel_evts(
         & (~evt_data.coincident.muon_offline)
         & evt_data.geds.quality.is_bb_like
         & (evt_data.geds.multiplicity == 1)
-        & (evt_data.spms.energy_sum > 10)
         & (ak.all(evt_data.geds.detector_name == detector, axis=-1))
     )
+
+    # `t0_field` names the event start time used for the drift time; it is set
+    # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
+    # those are exactly the low-p.e. events. `t0_field` is None only when the
+    # drift time is taken directly from `end_time_field`, in which case there is
+    # no t0 to cut.
+    if t0_field is not None:
+        mask = mask & ~np.isnan(_get_nested_field(evt_data, t0_field))
+
     evt_data = evt_data[mask]
 
     psd_mask = ak.all(
@@ -378,7 +399,7 @@ def lookup_wfs_indices(
     evt_files: list[str],
     n_target: int,
     detector: str,
-    t0_field: str | None = "spms/first_t0",
+    t0_field: str | None = "spms/event_t0",
     end_time_field: str = "geds/psd/low_aoe/time",
 ) -> list[AttrsDict]:
     """Extract the indices of the waveforms to use in superpulse construction.
@@ -424,7 +445,7 @@ def lookup_wfs_indices(
             msg = f"Reading file {file_idx} out of {len(evt_files)} {m} target ({n_target})"
             log.info(msg)
 
-        evts = _read_and_sel_evts(evt_file, detector=detector)
+        evts = _read_and_sel_evts(evt_file, detector=detector, t0_field=t0_field)
         drift_time = get_drift_time(evts, end_time_field, t0_field)
 
         all_drift_times = (
@@ -607,10 +628,10 @@ def get_wfs_for_slice(
         return None
 
     # Find the common time window (max of left edges, min of right edges)
-    charge_t_min = max(-1000, *(e["charge_t"][0] for e in waveforms))
+    charge_t_min = max(-2000, *(e["charge_t"][0] for e in waveforms))
     charge_t_max = min(3000.0, *(e["charge_t"][-1] for e in waveforms))
 
-    current_t_min = max(-1000, *(e["current_t"][0] for e in waveforms))
+    current_t_min = max(-2000, *(e["current_t"][0] for e in waveforms))
     current_t_max = min(3000.0, *(e["current_t"][-1] for e in waveforms))
 
     log.info("Current range across events: [%f, %f] ns", current_t_min, current_t_max)
@@ -1079,11 +1100,8 @@ def plot_superpulses(
     lh5_file: str,
     detector: str,
     curve: str = "charge",
-    xlim: tuple[float, float] | None = None,
-    ylim: tuple[float, float] | None = None,
 ) -> tuple:
-    """
-    Plot superpulses from all drift-time slices, color-coded by drift time.
+    """Plot superpulses from all drift-time slices, color-coded by drift time.
 
     Parameters
     ----------
@@ -1092,11 +1110,7 @@ def plot_superpulses(
     detector
         Detector name (top-level group in the file).
     curve
-        ``"charge"`` or ``"current"``. Default ``"charge"``.
-    xlim
-        x-axis limits in ns. Default ``(-5000, 5000)``.
-    ylim
-        y-axis limits. If ``None``, matplotlib auto-scales.
+        ``"charge"`` or ``"current"``.
 
     Returns
     -------
@@ -1114,53 +1128,95 @@ def plot_superpulses(
         key=lambda g: int(g.split("_")[1]),
     )
 
-    norm = mcolors.Normalize(vmin=0, vmax=2500)
-    viridis = colormaps["viridis"]
-
-    ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
-
-    fig, ax = plt.subplots(figsize=(12, 6), layout="constrained")
-
-    e_lo, e_hi = None, None
+    # collect all slices first so we can normalise the colormap to actual data
+    slices = []
     for group in groups:
         struct = lh5.read(group, lh5_file)
-
-        if e_lo is None:
-            e_lo = struct["energy_lo"].value
-            e_hi = struct["energy_hi"].value
-
-        dt_center = struct["drift_time_center"].value
-        dt_lo = struct["drift_time_lo"].value
-        dt_hi = struct["drift_time_hi"].value
-        n_events = struct["n_events_final"].value
-        times = struct[f"{curve}_time_axis"].nda
-        wf = struct[f"{curve}_wf"].nda
-
-        color = mcolors.to_hex(viridis(norm(dt_center)))
-        ax.plot(
-            times,
-            wf,
-            color=color,
-            alpha=0.8,
-            linewidth=2,
-            label=f"dt=[{dt_lo:.0f}, {dt_hi:.0f}] ns  ({n_events} ev)",
+        slices.append(
+            {
+                "times": struct[f"{curve}_time_axis"].nda,
+                "wf": struct[f"{curve}_wf"].nda,
+                "dt_center": struct["drift_time_center"].value,
+                "dt_lo": struct["drift_time_lo"].value,
+                "dt_hi": struct["drift_time_hi"].value,
+                "e_lo": struct["energy_lo"].value,
+                "e_hi": struct["energy_hi"].value,
+                "n_events": struct["n_events_final"].value,
+            }
         )
 
-    ax.set_title(f"{detector} - {curve} superpulses  |  E = [{e_lo}, {e_hi}] keV")
+    dt_centers = [s["dt_center"] for s in slices]
+    dt_min, dt_max = min(dt_centers), max(dt_centers)
+    norm = mcolors.Normalize(vmin=dt_min, vmax=dt_min + (dt_max - dt_min) / 0.85)
+    cmap = colormaps["viridis"]
+
+    ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
+    e_lo, e_hi = slices[0]["e_lo"], slices[0]["e_hi"]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for s in slices:
+        ax.plot(s["times"], s["wf"], color=cmap(norm(s["dt_center"])), linewidth=2)
+    ax.set_xlim(-2000, 1000)
+
+    # 10% amplitude reference line (charge only)
+    if curve == "charge":
+        ax.axhline(0.10, color="gray", linestyle="--", linewidth=1)
+        xlo, xhi = ax.get_xlim()
+        x_ann = xlo + 0.95 * (xhi - xlo)
+        ax.annotate(
+            "10% amplitude",
+            xy=(x_ann, 0.10),
+            xytext=(x_ann, 0.107),
+            fontsize=10,
+            color="gray",
+            va="bottom",
+            ha="right",
+        )
+    ax.set_title(f"{detector} - Average {curve} pulses  |  E = [{e_lo}, {e_hi}] keV")
     ax.set_xlabel("Time [ns]")
     ax.set_ylabel(ylabel)
+    ax.grid(True, color="grey", linestyle="--", alpha=0.2)
 
-    if xlim is not None:
-        ax.set_xlim(*xlim)
-    if ylim is not None:
-        ax.set_ylim(*ylim)
-
-    ax.grid(visible=True, which="both", linestyle="--", alpha=0.5)
-
-    sm = plt.cm.ScalarMappable(cmap=viridis, norm=norm)
+    # colorbar
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.8)
-    cbar.set_label("Drift Time [ns]", rotation=270, labelpad=20)
-    # fig.tight_layout()
+    cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+    cbar.set_label("Drift Time [ns]", labelpad=10)
 
+    # inset
+    ax_inset = ax.inset_axes([0.08, 0.5, 0.45, 0.45])
+    for s in slices:
+        ax_inset.plot(
+            s["times"],
+            s["wf"],
+            color=cmap(norm(s["dt_center"])),
+            linewidth=1.8,
+        )
+    ax_inset.tick_params(labelsize=7)
+    ax_inset.grid(True, color="grey", linestyle="--", alpha=0.2)
+
+    if curve == "charge":
+        ax_inset.set_xlim(-2000, -100)
+        ax_inset.set_ylim(-0.001, 0.105)
+        # 1% amplitude reference line
+        ax_inset.axhline(0.01, color="gray", linestyle="--", linewidth=0.8)
+        xlo, xhi = ax_inset.get_xlim()
+        x_ann = xlo + 0.05 * abs(xhi - xlo)
+        ax_inset.annotate(
+            "1% amplitude", xy=(x_ann, 0.012), fontsize=8, color="gray", ha="left"
+        )
+    else:
+        ax_inset.set_xlim(-50, 50)
+        xlo, xhi = ax_inset.get_xlim()
+        y_in_view = [
+            v
+            for s in slices
+            for t, v in zip(s["times"], s["wf"], strict=True)
+            if xlo <= t <= xhi
+        ]
+        if y_in_view:
+            ax_inset.set_ylim(min(y_in_view) - 0.002, max(y_in_view) + 0.002)
+
+    fig.tight_layout()
     return fig, ax

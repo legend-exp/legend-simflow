@@ -81,15 +81,15 @@ Test data for LEGEND-200 is stored in `tests/l200data/`.
 Some integration tests require **remage**, which is only available inside the
 pixi `test` environment. The table below summarises what each test needs:
 
-| Test                  | Command                                   | Needs pixi | Needs NERSC/l200data |
-| --------------------- | ----------------------------------------- | ---------- | -------------------- |
-| `test_dag`            | `pytest tests/test_workflow.py::test_dag` | no         | no                   |
-| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow`    | **yes**    | no                   |
-| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`     | **yes**    | **yes**              |
-| unit / script tests   | `pytest tests/`                           | no         | no                   |
+| Test                  | Command                                | Needs pixi | Needs NERSC/l200data |
+| --------------------- | -------------------------------------- | ---------- | -------------------- |
+| DAG tests             | `pytest tests/test_dag.py`             | no         | no                   |
+| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow` | **yes**    | no                   |
+| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`  | **yes**    | **yes**              |
+| unit / script tests   | `pytest tests/`                        | no         | no                   |
 
 **Always run `pixi run -e test test-l1000-workflow` before committing changes
-that touch the workflow, scripts, or metadata.** The `test_dag` dry-run alone is
+that touch the workflow, scripts, or metadata.** The dry-run DAG tests alone are
 not sufficient to catch runtime failures.
 
 ## Code style and linting

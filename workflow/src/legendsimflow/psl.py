@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Mapping
 
 import awkward as ak
@@ -34,7 +35,7 @@ DT_DATA: float = 16.0
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
 
 
-def get_avg_aoe(waveforms: list[np.ndarray]) -> float:
+def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
     """Estimate the average A/E from the PSL.
 
     Estimated as the mode of the distribution of
@@ -56,9 +57,14 @@ def get_avg_aoe(waveforms: list[np.ndarray]) -> float:
     aoe = np.concatenate([np.max(waveform, axis=2).ravel() for waveform in waveforms])
     aoe = aoe[~np.isnan(aoe)]
 
-    hist_aoe = hist.new.Reg(
-        1000, np.min(aoe), np.max(aoe), name="A/E", label="A/E"
-    ).Double()
+    amin, amax = float(np.min(aoe)), float(np.max(aoe))
+    if amax <= amin:
+        # degenerate distribution (e.g. constant amplitudes): pad to a finite
+        # range so the histogram axis is valid
+        pad = abs(amin) * 1e-3 or 1.0
+        amin, amax = amin - pad, amax + pad
+
+    hist_aoe = hist.new.Reg(1000, amin, amax, name="A/E", label="A/E").Double()
 
     hist_aoe.fill(aoe)
     counts, bin_edges = hist_aoe.to_numpy()
@@ -494,7 +500,7 @@ def make_realistic_pulse_shape_lib(
         drift_indices = current_peak_indices - kernel_delay_idx
         drift_times_flat = drift_indices * dt
         drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(
-            np.float64
+            np.float32
         )
 
         # Restore NaN for invalid pixels in drift time
@@ -502,10 +508,11 @@ def make_realistic_pulse_shape_lib(
         dt_key = key.replace("waveform", "drift_time")
         realistic_pulse_shape_lib[dt_key] = Array(drift_times_2d, attrs={"units": "ns"})
 
-        # Reshape
+        # Reshape. float32 halves the on-disk library and the load footprint
+        # (more than enough for the ~1% A/E it feeds)
         new_length = curr_aligned.shape[-1]
         new_shape = (*original_shape[:-1], new_length)
-        wfs_out = curr_aligned.reshape(new_shape).astype(np.float64)
+        wfs_out = curr_aligned.reshape(new_shape).astype(np.float32)
 
         # Restore NaN for invalid pixels in waveforms
         wfs_out[nan_mask] = np.nan
@@ -526,7 +533,7 @@ def plot_rz_scan(
     step: int = 1,
     xlim: tuple[float, float] | None = None,
 ) -> tuple[Figure, plt.Axes]:
-    """Plot an R or Z scan of waveforms from a pulse shape library.
+    """Plot an R or Z scan of waveforms from a pulse-shape library.
 
     For a given azimuthal angle, produces one figure scanning over
     radial or axial positions at a fixed index on the other axis.
@@ -535,7 +542,7 @@ def plot_rz_scan(
     Parameters
     ----------
     pulse_shape_lib
-        Mapping containing the pulse shape library (ideal or realistic),
+        Mapping containing the pulse-shape library (ideal or realistic),
         as returned by :func:`make_realistic_pulse_shape_lib` or read from
         the ideal LH5 file.  Must contain ``r``, ``z``, ``dt`` keys and at
         least one ``waveform_<angle>_deg`` key.
@@ -567,7 +574,7 @@ def plot_rz_scan(
 
     wf_key = f"waveform_{str(angle_deg).zfill(3)}_deg"
     if wf_key not in pulse_shape_lib:
-        msg = f"Key '{wf_key}' not found in pulse shape library"
+        msg = f"Key '{wf_key}' not found in pulse-shape library"
         raise KeyError(msg)
 
     wfs = pulse_shape_lib[wf_key].nda
@@ -615,3 +622,137 @@ def plot_rz_scan(
     cbar.set_label(label)
 
     return fig, ax
+
+
+def symmetrize(a: np.ndarray) -> np.ndarray:
+    """Mirror a half ``[n_r, n_z]`` R/Z map about ``r = 0`` into a full image."""
+    a = a.T
+    return np.concatenate((np.fliplr(a), a), axis=1)
+
+
+def plot_aoe_rz_map(
+    pulse_shape_lib: Mapping[str, Array | Scalar],
+    detector_id: str,
+    *,
+    hpge_profile: object | None = None,
+) -> Figure:
+    """Plot the A/E R/Z map(s) of a pulse-shape library.
+
+    For each azimuthal angle present in the library, computes the per-pixel A/E
+    as the maximum of the (energy-normalized) current waveform over the time
+    axis and renders it as a symmetrized R/Z heatmap, styled like the HPGe
+    drift-time-map validation plot. When both the ``<100>`` (0 deg) and
+    ``<110>`` (45 deg) angles are present, an additional ``<100>/<110>`` ratio
+    panel is appended.
+
+    Parameters
+    ----------
+    pulse_shape_lib
+        Mapping containing the pulse-shape library, as returned by
+        :func:`make_realistic_pulse_shape_lib`. Must contain ``r``, ``z`` (in
+        mm) and at least one ``waveform_<angle>_deg`` key.
+    detector_id
+        Detector name, e.g. ``"V03422A"``, used in the panel titles.
+    hpge_profile
+        Optional detector geometry object (as returned by
+        ``pygeomhpges.make_hpge``). When given, its profile is overlaid on every
+        panel.
+
+    Returns
+    -------
+    fig : Figure
+    """
+    import pygeomhpges.draw  # noqa: PLC0415
+
+    axis_labels = {0: "<100>", 45: "<110>"}
+
+    angles = sorted(int(k.split("_")[1]) for k in pulse_shape_lib if "waveform" in k)
+    if not angles:
+        msg = "no 'waveform_<angle>_deg' keys found in pulse-shape library"
+        raise KeyError(msg)
+
+    r = pulse_shape_lib["r"].nda  # already in mm
+    z = pulse_shape_lib["z"].nda
+
+    # per-angle A/E maps (max current amplitude over the time axis)
+    images = {}
+    for angle in angles:
+        wfs = pulse_shape_lib[f"waveform_{angle:03d}_deg"].nda
+        with warnings.catch_warnings():
+            # invalid pixels are all-NaN waveforms; keep them NaN (rendered blank)
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            aoe = np.nanmax(wfs, axis=-1)
+        images[angle] = symmetrize(aoe)
+
+    has_ratio = {0, 45}.issubset(angles)
+    n_panels = len(angles) + (1 if has_ratio else 0)
+
+    extent = (-r.max(), r.max(), z.min(), z.max())
+    stacked = list(images.values())
+    vmin, vmax = np.nanmin(stacked), np.nanmax(stacked)
+
+    fig, axes = plt.subplots(
+        ncols=n_panels,
+        figsize=(4 * n_panels, 4),
+        sharey=True,
+        squeeze=False,
+    )
+    axes = axes[0]
+
+    def plot(ax, img, title, *, cmap, vmin=None, vmax=None):
+        im = ax.imshow(
+            img,
+            origin="lower",
+            extent=extent,
+            aspect="equal",
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+        )
+        if hpge_profile is not None:
+            pygeomhpges.draw.plot_profile(
+                hpge_profile,
+                axes=ax,
+                marker=None,
+                linewidth=1,
+                color="black",
+            )
+
+        xmin, xmax, ymin, ymax = extent
+
+        f = 0.04
+        ax.set_xlim(xmin - f * (xmax - xmin), xmax + f * (xmax - xmin))
+        ax.set_ylim(ymin - f * (ymax - ymin), ymax + f * (ymax - ymin))
+
+        ax.set_xlabel("r (mm)")
+        ax.set_title(f"{detector_id} · {title}")
+
+        return im
+
+    im = None
+    for ax, angle in zip(axes[: len(angles)], angles, strict=True):
+        im = plot(
+            ax,
+            images[angle],
+            axis_labels.get(angle, f"{angle}°"),
+            cmap="viridis",
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+    axes[0].set_ylabel("z (mm)")
+
+    # shared A/E colorbar across all angle panels
+    fig.colorbar(im, ax=axes[: len(angles)], label="A/E")
+
+    if has_ratio:
+        ratio = np.divide(
+            images[0],
+            images[45],
+            out=np.full_like(images[0], np.nan),
+            where=images[45] > 0,
+        )
+        im_ratio = plot(axes[-1], ratio, "<100> / <110>", cmap="coolwarm")
+        fig.colorbar(im_ratio, ax=axes[-1], label="ratio")
+
+    return fig

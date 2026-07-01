@@ -80,11 +80,18 @@ def compute_rms_in_slice(
     sim_time: NDArray,
     data_sp: Superpulse,
     comparison_window: tuple[float, float] | None = None,
+    weight_power: float = 0.0,
 ) -> float:
     """RMS residual between a simulated and a data current superpulse.
 
     The simulation is linearly interpolated onto the data time grid.
     Samples outside the sim time range are excluded from the comparison.
+
+    With ``weight_power > 0`` the squared residuals are weighted by the data
+    current amplitude, ``w = |data|**weight_power``, before the RMS, so the
+    high-amplitude samples around the current peak dominate the cost and the
+    near-zero tail is down-weighted (a data-amplitude-weighted RMS).
+    ``weight_power = 0`` (the default) reproduces the plain equal-weight RMS.
 
     Parameters
     ----------
@@ -98,11 +105,15 @@ def compute_rms_in_slice(
     comparison_window
         ``(t_min, t_max)`` in ns relative to the current peak.
         If ``None``, the full waveform overlap is used.
+    weight_power
+        Exponent ``p`` of the data-amplitude weight ``w = |data|**p`` applied
+        to the squared residuals. ``0`` (default) is the unweighted RMS;
+        larger values concentrate the fit on the current peak and its flanks.
 
     Returns
     -------
     rms
-        Root mean square of the residuals.
+        (Optionally data-amplitude-weighted) root mean square of the residuals.
 
     """
     data_time = data_sp.current_time_axis
@@ -127,7 +138,17 @@ def compute_rms_in_slice(
         msg = "no valid samples in comparison region"
         raise ValueError(msg)
 
-    return float(np.sqrt(np.mean((sim_on_data - data_wf) ** 2)))
+    sq_resid = (sim_on_data - data_wf) ** 2
+
+    if weight_power:
+        weights = np.abs(data_wf) ** weight_power
+        weight_sum = np.sum(weights)
+        if weight_sum == 0:
+            msg = "data-amplitude weights sum to zero in comparison region"
+            raise ValueError(msg)
+        return float(np.sqrt(np.sum(weights * sq_resid) / weight_sum))
+
+    return float(np.sqrt(np.mean(sq_resid)))
 
 
 def build_cost_function(
@@ -137,6 +158,7 @@ def build_cost_function(
     alignment_idx: int,
     nsamples_output: int,
     comparison_window: tuple[float, float] | None = None,
+    weight_power: float = 0.0,
 ) -> Callable:
     """Build the scalar cost function for the Minuit minimiser.
 
@@ -158,6 +180,9 @@ def build_cost_function(
         Length of the output waveforms.
     comparison_window
         ``(t_min, t_max)`` in ns. Passed through to :func:`compute_rms_in_slice`.
+    weight_power
+        Data-amplitude weight exponent ``p`` (``w = |data|**p``) passed through
+        to :func:`compute_rms_in_slice`. ``0`` (default) is the unweighted RMS.
 
     Returns
     -------
@@ -188,7 +213,11 @@ def build_cost_function(
             sim_avg = np.mean(processed, axis=0)
             sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
             total += compute_rms_in_slice(
-                sim_avg, sim_time, data_superpulses[sl], comparison_window
+                sim_avg,
+                sim_time,
+                data_superpulses[sl],
+                comparison_window,
+                weight_power,
             )
         return total / len(ideal_wfs_slice)
 
@@ -202,7 +231,7 @@ def get_ideal_wfs_all_slices(
 ) -> dict:
     """Select ideal waveforms per drift-time slice.
 
-    Reads the ideal pulse shape library, flattens the (r, z) grid,
+    Reads the ideal pulse-shape library, flattens the (r, z) grid,
     and selects waveforms whose drift time falls in each data
     superpulse slice.
 
@@ -276,6 +305,7 @@ def fit_electronics_parameters(
     sigma_limits: tuple[float, float],
     tau_limits: tuple[float, float],
     comparison_window: tuple[float, float] | None = None,
+    weight_power: float = 0.0,
     max_calls: int = 5000,
 ) -> dict:
     """Fit the electronics response parameters sigma and tau.
@@ -307,6 +337,10 @@ def fit_electronics_parameters(
     comparison_window
         ``(t_min, t_max)`` in ns relative to the current peak.
         If ``None``, the full waveform overlap is used.
+    weight_power
+        Data-amplitude weight exponent ``p`` for the cost (``w = |data|**p``);
+        ``0`` (default) is the plain equal-weight RMS, larger values bias the
+        fit toward the current peak. See :func:`compute_rms_in_slice`.
     max_calls
         Maximum number of Minuit function evaluations.
 
@@ -325,6 +359,7 @@ def fit_electronics_parameters(
         alignment_idx,
         nsamples_output,
         comparison_window,
+        weight_power,
     )
 
     history: list[tuple[tuple[float, float], float]] = []
@@ -475,6 +510,8 @@ def plot_best_fit(
     -------
     fig : matplotlib.figure.Figure
     axes : array of matplotlib.axes.Axes
+    data_amax: the Amax value of the highest drift time slice
+    mc_amax: the Amax value of the highest drift time slice
     """
     sigma = result["sigma"]
     tau = result["tau"]
@@ -501,6 +538,8 @@ def plot_best_fit(
         constrained_layout=True,
     )
     axes_flat = axes.flatten()
+    data_amax = None
+    mc_amax = None
 
     for idx, sl in enumerate(sorted_slices):
         ax = axes_flat[idx]
@@ -540,6 +579,9 @@ def plot_best_fit(
             linestyle="--",
             label="Simulation",
         )
+        if (idx == len(sorted_slices) - 1) and not plot_charge:
+            data_amax = float(np.nanmax(data_wf))
+            mc_amax = float(np.nanmax(f_interp(data_time)))
 
         # Shade comparison window
         if comparison_window is not None:
@@ -581,4 +623,4 @@ def plot_best_fit(
         fontsize=12,
     )
 
-    return fig, axes
+    return fig, axes, data_amax, mc_amax

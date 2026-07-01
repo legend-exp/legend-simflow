@@ -400,6 +400,8 @@ absent, accessing any field raises an error.
 
 dead_layer_fraction: 0.5
 buffer_len: "500*MB"
+simulate_psd: True
+simulate_psd_with_psl: False
 
 eresmod_default:
   expression: FWHMLinear
@@ -431,6 +433,13 @@ psdcuts_default:
 - `aoeresmod_default` — A/E resolution model applied to detectors without a
   per-detector entry. See {ref}`build-tier-hit-hpge` for when this fallback is
   triggered.
+- `simulate_psd` (bool, default `True`): enable the single-template A/E PSD
+  simulation, written to the `geds/psd` subtable of the `hit` tier.
+- `simulate_psd_with_psl` (bool, default `False`): enable the
+  pulse-shape-library based PSD simulation (see {ref}`hpge-psl-overview`),
+  written to the `geds/psd_psl` subtable. The two flags are independent: enable
+  either, both, or neither. Setting both to `False` disables the HPGe PSD
+  simulation entirely.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 
@@ -523,26 +532,30 @@ detector_groups:
 Metadata is organized in this directory by experimental configuration (first
 level) and detector type (second level), mirroring the `tier/` structure.
 
-### Drift time map settings
+(ssd-settings-meta)=
+
+### Pulse shape simulation settings
 
 A single shared YAML file (applies to all detectors and voltages) that overrides
+[`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
 simulation control parameters for the
-[`build_hpge_drift_time_map`](../api/snakemake_rules.md) rule. When absent, the
-script uses built-in production defaults.
+[`build_hpge_drift_time_map`](../api/snakemake_rules.md) and
+[`build_hpge_pulse_shape_library`](../api/snakemake_rules.md) rules. When
+absent, the scripts use built-in production defaults.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/{experiment}/geds/dtmap/settings.yaml
+:caption: simprod/config/pars/{experiment}/geds/ssd/settings.yaml
 
 grid_size_in_mm: 0.5
 ssd_refinement_limits: [0.2, 0.1, 0.05, 0.02]
 padding: 3
 ```
 
-| Key                     | Type          | Default                  | Description                                                                                                                                                                                                                         |
-| ----------------------- | ------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `grid_size_in_mm`       | float         | `0.5`                    | Drift time map grid spacing in mm. Execution time scales quadratically with `1/grid_size_in_mm`.                                                                                                                                    |
-| `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.** |
-| `padding`               | int           | `3`                      | Number of pixel layers padded around the drift time map boundary to avoid grid edge effects.                                                                                                                                        |
+| Key                     | Type          | Default                  | Description                                                                                                                                                                                                                                  |
+| ----------------------- | ------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid_size_in_mm`       | float         | `0.5`                    | Simulation grid spacing in mm. Execution time scales quadratically with `1/grid_size_in_mm`. The built-in default differs per rule (0.5 mm for the drift-time map, 5 mm for the pulse-shape library); an explicit value here overrides both. |
+| `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.**          |
+| `padding`               | int           | `3`                      | Number of pixel layers padded around the simulated map (drift-time map and pulse-shape library) boundary to avoid grid edge effects.                                                                                                         |
 
 :::{tip}
 
@@ -598,8 +611,8 @@ at runtime.
 ### A/E resolution model defaults
 
 An optional validity-based metadata directory providing HPGe-specific A/E
-resolution parameters. Follows the same structure and four-case logic as
-{ref}`eresmod-metadata-dir`.
+resolution parameters. Follows the same structure as {ref}`eresmod-metadata-dir`
+and the same {ref}`source-resolution logic <par-collection-model>`.
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/aoeresmod/l200-p03-r%-T%-all-aoeresmod.yaml
@@ -632,13 +645,68 @@ Each entry must contain:
 See {ref}`hpge-aoeresmod-extraction` for a description of how these files are
 used at runtime.
 
+(aoemeanmod-metadata-dir)=
+
+### A/E mean energy-dependence model
+
+A **mandatory** validity-based metadata directory providing the HPGe A/E mean as
+a function of energy. Unlike {ref}`eresmod-metadata-dir`,
+{ref}`aoeresmod-metadata-dir` and {ref}`psdcuts-metadata-dir`, this model cannot
+be extracted from `l200data`, so the metadata is the only source and must be
+present for every simulated run. It is read directly when building the `hit`
+tier.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/aoemeanmod/l200-p03-r%-T%-all-aoemeanmod.yaml
+
+default:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: -0.000001
+      b: 1.0
+  psl:
+    expression: a * x + b
+    pars:
+      a: -0.000002
+      b: 1.0
+
+# optional per-detector override
+V02160A:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: -0.000003
+      b: 1.0
+  psl:
+    expression: a * x + b
+    pars:
+      a: -0.000004
+      b: 1.0
+```
+
+- `default` _(optional)_: model applied to all HPGe detectors not listed
+  explicitly. When present it is expanded across all `geds` detectors in the
+  channel map, mirroring {ref}`aoeresmod-metadata-dir`.
+- `<detector>` _(optional)_: per-detector override.
+
+Each entry must provide a `single_template` and a `psl` block (one per PSD
+simulation type), and each block must contain:
+
+- `expression`: a Python expression for the A/E mean as a function of the energy
+  `x` (in keV), using the parameters `a` and `b`
+- `pars`: mapping of the parameters `a` and `b` to their values
+
+A detector with neither an explicit entry nor a `default` falls back to a flat
+A/E mean of 1 (a warning is logged for `on` detectors).
+
 (psdcuts-metadata-dir)=
 
 ### PSD cut defaults
 
 An optional validity-based metadata directory providing HPGe-specific PSD cut
-values. Follows the same structure and four-case logic as
-{ref}`eresmod-metadata-dir`.
+values. Follows the same structure as {ref}`eresmod-metadata-dir` and the same
+{ref}`source-resolution logic <par-collection-model>`.
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/psdcuts/l200-p03-r%-T%-all-psdcuts.yaml
@@ -671,10 +739,20 @@ at runtime.
 
 ### Current pulse model defaults
 
+:::{note}
+
+The current-pulse model drives the single-template A/E PSD simulation, enabled
+with `simulate_psd: True` in {ref}`hit-tier-settings` (default `True`). Set it
+to `False` to disable the single-template PSD path. See
+{ref}`build-tier-hit-hpge`.
+
+:::
+
 An optional validity-based metadata directory providing HPGe-specific current
-pulse model parameters. Follows the same structure and four-case logic as
-{ref}`eresmod-metadata-dir`, but applied per-detector rather than per-run (one
-output file per `(runid, hpge_detector)` pair).
+pulse model parameters. Follows the same structure as
+{ref}`eresmod-metadata-dir` and the same
+{ref}`source-resolution logic <par-collection-model>`, but applied per-detector
+rather than per-run (one output file per `(runid, hpge_detector)` pair).
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/currmod/l200-p03-r%-T%-all-currmod.yaml
@@ -705,14 +783,14 @@ V02160A:
   current_reso: 0.012
 ```
 
-- `default` _(optional)_ — current pulse model applied to all HPGe detectors not
+- `default` _(optional)_ — current-pulse model applied to all HPGe detectors not
   listed explicitly.
 - `<detector>` _(optional)_ — per-detector override.
 
 Each entry must contain:
 
 - `current_pulse_pars` — mapping of parameter names to their values for the
-  current pulse model (`amax`, `mu`, `sigma`, `tail_fraction`, `tau`,
+  current-pulse model (`amax`, `mu`, `sigma`, `tail_fraction`, `tau`,
   `high_tail_fraction`, `high_tau`; the last two default to `0` if omitted)
 - `mean_aoe` — mean A/E value
 - `current_reso` — current resolution (σ) from the noise-fit
@@ -720,12 +798,110 @@ Each entry must contain:
 See {ref}`hpge-currmod-extraction` for a description of how these files are used
 at runtime.
 
+(superpulses-settings-meta)=
+
+### Superpulse settings
+
+:::{note}
+
+These settings apply only when the pulse-shape-library (PSL) PSD simulation is
+enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
+`False`). See {ref}`hpge-psl-overview`.
+
+:::
+
+A static YAML settings file that controls the superpulse building step
+(`build_superpulses_from_data`). When absent, the script uses built-in
+production defaults. Settings are read via
+`get_par_settings(config, "superpulses")` from
+`simprod/config/pars/{experiment}/geds/superpulses/`.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/superpulses/settings.yaml
+
+build_per_runid: false
+min_number_wfs: 10
+target_wfs: 100
+chi2_threshold: 3
+t0_field: spms/event_t0
+end_time_field: geds/psd/low_aoe/time
+drift_time_slices: "1000:200:2000"
+evt_tier_name: pet
+max_files: null
+charge_output: wf_pz_win
+curr_output: curr_av
+energy_output: cuspEmax
+```
+
+| Key                 | Type        | Default                 | Description                                                                                                                                                                                  |
+| ------------------- | ----------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build_per_runid`   | bool        | `false`                 | When `true`, produce one superpulse LH5 file per `(runid, detector)` instead of one file per detector accumulating all runs. See {ref}`hpge-superpulses-extraction`.                         |
+| `min_number_wfs`    | int         | `10`                    | Minimum waveforms required to form a superpulse for a slice; slices with fewer events are skipped.                                                                                           |
+| `target_wfs`        | int         | `100`                   | Target number of waveforms to collect per slice before stopping accumulation.                                                                                                                |
+| `chi2_threshold`    | float       | `3`                     | Reduced chi2 threshold for the self-similarity cut; waveforms above this value are rejected before computing the final superpulse.                                                           |
+| `t0_field`          | str         | `spms/event_t0`         | Event-level field used as the start time for drift-time calculation. Events where this field is NaN are discarded; for `spms/event_t0` this removes events without a coincident SiPM signal. |
+| `end_time_field`    | str         | `geds/psd/low_aoe/time` | Event-level field used as the end time for drift-time calculation.                                                                                                                           |
+| `drift_time_slices` | str         | `"1000:200:2000"`       | Drift-time bins as `start:step:stop` in ns; the default creates 200 ns-wide bins from 1000 to 2000 ns.                                                                                       |
+| `evt_tier_name`     | str         | `pet`                   | Name of the evt tier to read from the data production (e.g. `pet` or `evt`).                                                                                                                 |
+| `max_files`         | int or null | `null`                  | If set, limits the number of raw and evt files processed per run (useful for testing).                                                                                                       |
+| `charge_output`     | str         | `wf_pz_win`             | DSP processing chain output name for the charge waveform.                                                                                                                                    |
+| `curr_output`       | str         | `curr_av`               | DSP processing chain output name for the current waveform.                                                                                                                                   |
+| `energy_output`     | str         | `cuspEmax`              | DSP processing chain output name for the energy estimator used in waveform normalisation.                                                                                                    |
+
+(elecmod-metadata-dir)=
+
+### Electronics-response model defaults
+
+:::{note}
+
+These settings apply only when the pulse-shape-library (PSL) PSD simulation is
+enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
+`False`). See {ref}`hpge-psl-overview`.
+
+:::
+
+An optional validity-based metadata directory providing HPGe-specific
+electronics-response model parameters. When a `default` key is present, the
+data-driven fit in `extract_electronics_model_pars` is bypassed entirely and the
+metadata values are written directly to the output YAML. This makes PSL-based
+simulations possible without access to LEGEND-200 data (e.g. for LEGEND-1000
+studies). The structure follows the same validity-based format as
+{ref}`eresmod-metadata-dir`.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/elecmod/l200-p03-r%-T%-all-elecmod.yaml
+
+default:
+  sigma: 10.0
+  tau: 50.0
+
+# optional per-detector override
+V02160A:
+  sigma: 12.0
+  tau: 45.0
+```
+
+- `default` _(optional)_ — electronics-response model parameters applied to all
+  HPGe detectors not listed explicitly. When present, also removes the
+  requirement for `build_superpulses_from_data` as an input to
+  `extract_electronics_model_pars`.
+- `<detector>` _(optional)_ — per-detector override; key is the detector name as
+  it appears in the channel map (e.g. `V02160A`).
+
+Each entry must contain:
+
+- `sigma` — Gaussian sigma of the digitizer bandwidth in ns.
+- `tau` — exponential decay constant of the preamplifier response in ns.
+
+See {ref}`hpge-elecmod-extraction` for a description of how these files are used
+at runtime.
+
 (skip-metadata-dir)=
 
 ### Manual HPGe skip-list
 
 An optional validity-based metadata directory listing HPGe detectors that should
-be excluded from drift-time map and current pulse model generation, regardless
+be excluded from drift-time map and current-pulse model generation, regardless
 of their status in the channel map.
 
 ```{code-block} yaml
@@ -740,12 +916,12 @@ Each entry is a mapping of detector name (as it appears in the channel map, e.g.
 The reason is written to the workflow log as a WARNING when the skip is applied.
 
 Detectors listed here are removed from the "modelable" HPGe list for the
-matching runs. They will not get a drift-time map nor a current pulse model
+matching runs. They will not get a drift-time map nor a current-pulse model
 produced. The validity rules are the same as those of the other `geds/`
 parameter directories (see {ref}`eresmod-metadata-dir`).
 
 A detector that is manually skipped is treated identically to one that lacks a
-drift-time map or current pulse model for any other reason: PSD output columns
+drift-time map or current-pulse model for any other reason: PSD output columns
 are filled with NaN and the fallback A/E resolution and PSD cuts
 (`aoeresmod_default` / `psdcuts_default`) are used. No hard error is raised. See
 {ref}`build-tier-hit-hpge` for the full fallback policy.

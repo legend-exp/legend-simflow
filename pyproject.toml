@@ -67,7 +67,7 @@ dependencies = [
     "pygama >=2.3.6",
     "pylegendmeta >=1.4.4",
     "pyyaml",
-    "reboost >=0.12.2,<0.13",
+    "reboost >=0.12.3,<0.13",
     "revertex >=0.1.2",
     "ruamel.yaml",
     "snakemake >=9.19,<9.20",
@@ -142,10 +142,10 @@ mplhep = ">=1.0"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"
-reboost = ">=0.12.2,<0.13"
+reboost = ">=0.12.3,<0.13"
 
 # tier stp
-remage = ">=0.19.5,<0.20"
+remage = ">=0.24,<0.25"
 
 # drift-time maps and other SSD.jl jobs
 julia = ">=1.12,<1.13"

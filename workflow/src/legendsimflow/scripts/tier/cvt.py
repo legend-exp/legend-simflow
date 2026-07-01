@@ -102,6 +102,8 @@ def main() -> None:
     log.info("starting cvt merge")
 
     if len(evt_files) == 1:
+        # the single evt file already carries the root-level
+        # number_of_simulated_events scalar, which is copied along verbatim.
         shutil.copy(evt_files[0], cvt_file)
     else:
         # detector_uids may differ across jobs because low-rate decays can leave
@@ -113,10 +115,24 @@ def main() -> None:
         lh5.write(merged, "detector_uids", cvt_file, wo_mode="write_safe")
 
         for table in lh5.ls(evt_files[0]):
-            if table == "detector_uids":
+            # number_of_simulated_events is a root-level scalar summed below,
+            # not a table
+            if table in ("detector_uids", "number_of_simulated_events"):
                 continue
             for chunk in lh5.LH5Iterator(evt_files, table, buffer_len=buffer_len):
                 lh5.write(chunk, table, cvt_file, wo_mode="append")
+
+        # total number of simulated primary events for this simid is the sum of
+        # the per-job counts forwarded from the stp files by the evt tier.
+        total_n_events = sum(
+            int(lh5.read("number_of_simulated_events", f).value) for f in evt_files
+        )
+        lh5.write(
+            Scalar(total_n_events),
+            "number_of_simulated_events",
+            cvt_file,
+            wo_mode="append",
+        )
 
     move2cfs()
 

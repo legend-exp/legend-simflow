@@ -17,7 +17,7 @@
 
 """Tune the electronics response parameters (sigma, tau) against data superpulses.
 
-Reads an ideal pulse shape library and data superpulses from LH5, fits the
+Reads an ideal pulse-shape library and data superpulses from LH5, fits the
 Gaussian sigma and exponential tau of the system response kernel by minimising
 the mean RMS between simulated and measured current superpulses, and writes
 the best-fit parameters to a YAML file.
@@ -54,6 +54,10 @@ DEFAULT_SETTINGS = {
     "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
+    # data-amplitude weight exponent p for the fit cost (w = |data|**p): biases
+    # the fit toward the current peak and its flanks; 0.0 reproduces the plain
+    # equal-weight RMS
+    "weight_power": 2.0,
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
@@ -237,6 +241,7 @@ def main() -> None:
         sigma_limits=tuple(settings.sigma_limits),
         tau_limits=tuple(settings.tau_limits),
         comparison_window=comparison_window,
+        weight_power=settings.get("weight_power", 0.0),
         max_calls=settings.max_calls,
     )
 
@@ -257,12 +262,7 @@ def main() -> None:
         "rms": result["best_rms"],
     }
 
-    dbetto.utils.write_dict(output, pars_file)
-
-    log.info("... results written to %s", args.pars_file)
-
     # Plots
-
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)
@@ -273,17 +273,19 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
 
-            fig, _ = plot_best_fit(
+            fig, _, data_amax, mc_amax = plot_best_fit(
                 result,
                 data_superpulses,
                 comparison_window=comparison_window,
                 plot_window=None,
             )
+            output["aoe_data"] = data_amax
+            output["aoe_mc"] = mc_amax
             decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
 
-            fig, _ = plot_best_fit(
+            fig, _, _, _ = plot_best_fit(
                 result,
                 data_superpulses,
                 comparison_window=comparison_window,
@@ -294,6 +296,9 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
         log.info("... saved diagnostic plots to %s", args.plot_file)
+
+    dbetto.utils.write_dict(output, pars_file)
+    log.info("... results written to %s", args.pars_file)
 
 
 if __name__ == "__main__":

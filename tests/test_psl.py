@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import matplotlib as mpl
+
+mpl.use("Agg")
+
 import awkward as ak
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from lgdo import Array, Scalar
+from matplotlib.figure import Figure
 
 from legendsimflow import psl
 
@@ -305,6 +311,47 @@ def test_make_realistic_pulse_shape_lib_3d():
 
     assert output["waveform_0"].view_as("np").shape == (n_r, n_z, n_samples)
     assert output["drift_time_0"].view_as("np").shape == (n_r, n_z)
+
+
+def test_plot_aoe_rz_map_single_angle():
+    n_r, n_z, n_samples = 3, 4, 50
+    rng = np.random.default_rng(0)
+    wfs = rng.random((n_r, n_z, n_samples))
+    # invalid pixels are all-NaN waveforms
+    wfs[0, 0, :] = np.nan
+    wfs[2, 3, :] = np.nan
+
+    lib = {
+        "r": Array(np.linspace(0.0, 30.0, n_r), attrs={"units": "mm"}),
+        "z": Array(np.linspace(-20.0, 20.0, n_z), attrs={"units": "mm"}),
+        "waveform_000_deg": Array(wfs),
+    }
+
+    fig = psl.plot_aoe_rz_map(lib, "V99000A", hpge_profile=None)
+    assert isinstance(fig, Figure)
+    # a single A/E panel, no ratio panel (only one angle available)
+    panels = [ax for ax in fig.axes if ax.get_images()]
+    assert len(panels) == 1
+    plt.close(fig)
+
+
+def test_plot_aoe_rz_map_two_angles():
+    n_r, n_z, n_samples = 3, 4, 50
+    rng = np.random.default_rng(1)
+
+    lib = {
+        "r": Array(np.linspace(0.0, 30.0, n_r), attrs={"units": "mm"}),
+        "z": Array(np.linspace(-20.0, 20.0, n_z), attrs={"units": "mm"}),
+        "waveform_000_deg": Array(rng.random((n_r, n_z, n_samples))),
+        "waveform_045_deg": Array(rng.random((n_r, n_z, n_samples))),
+    }
+
+    fig = psl.plot_aoe_rz_map(lib, "V99000A", hpge_profile=None)
+    assert isinstance(fig, Figure)
+    # two angle panels plus the <100>/<110> ratio panel
+    panels = [ax for ax in fig.axes if ax.get_images()]
+    assert len(panels) == 3
+    plt.close(fig)
 
 
 def test_process_ideal_waveforms():

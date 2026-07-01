@@ -52,16 +52,42 @@ contains constant 1000 ns drift times on a 1 mm grid for detector V05261B at
 4200 V. The `legend_dtmap_path` fixture uses this file directly so that the
 Julia drift-time map script does not need to run during unit tests.
 
+## DAG tests (`test_dag.py`)
+
+Assert on the resolved DAG structure (via `dag.jobs`, not run logs); no
+remage/NERSC, run in the default suite. Builds use the **touch** executor on a
+throwaway output dir, not a dry run: touch marks the `cache_modelable_hpges`
+checkpoint complete, so `smk_load_hpge_cache` falls back to metadata and the
+per-detector rules downstream of it (PSL / drift-time map builds) expand (a dry
+run leaves them unresolved); the throwaway dir keeps placeholders out of the
+real `generated*` dirs.
+
+- `test_dag` / `test_dag_simlist`: full DAG resolves; a simlist target schedules
+  the PSD-gated drift-time map plots.
+- `test_make_steps_selects_tiers`: `make_steps` selects which tier rules enter
+  the DAG (tiers are decoupled, e.g. hit without opt).
+- `test_simulate_psd[_with_psl]_toggles_*`: the hit-tier `simulate_psd_with_psl`
+  / `simulate_psd` settings (edited in a temp metadata copy) add/remove exactly
+  the PSL / drift-time-map rules; guards the YAML-to-DAG wiring the dead
+  `has_detailed_psd` key broke.
+- `test_skip_{opt,hit}_drops_*` / `..._mutually_exclusive`: the evt-tier
+  `skip_opt` / `skip_hit` switches drop the opt / hit jobs (negative case: the
+  same `make_steps` is unsatisfiable without the switch); both-skip is rejected
+  at build time.
+
 ## Integration tests (`test_workflow.py`)
 
-The workflow tests form a progression:
+The remage-driven workflow tests form a progression:
 
-1. **`test_dag`** — touch executor, no remage needed; verifies DAG resolution
-   only. Run directly: `pytest tests/test_workflow.py::test_dag`
-2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage,
+1. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage,
    experiment `l1000dsg01`; runs in CI. **Requires pixi** (remage is only in the
-   pixi environment): `pixi run -e test test-l1000-workflow`
-3. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
+   pixi environment): `pixi run -e test test-l1000-workflow`. The `l1000dsg01`
+   hit settings enable the `simulate_psd_with_psl` tier setting (the live name
+   of what used to be the unread `has_detailed_psd` key), so this test also
+   exercises the PSL-based "detailed" PSD path: the realistic pulse-shape
+   library is built in the par tier, consumed by the hit tier into a `psd_psl`
+   sub-table, and read back by the evt tier into `geds/psd_psl`.
+2. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
    pipeline, experiment `l200cfg01`, requires `l200data`, NERSC-only. Run with:
    `pixi run -e test test-l200-workflow`
 

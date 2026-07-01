@@ -91,12 +91,9 @@ def test_hit_script_cli(
     assert len(det_tables) > 0, "no detector tables found under hit/"
 
     expected_fields = {
-        "aoe",
-        "aoe_raw",
-        "drift_time_amax",
+        "psd",
         "energy",
         "evtid",
-        "is_single_site",
         "period",
         "psd_usability",
         "run",
@@ -119,7 +116,7 @@ def test_hit_script_cli(
     # r000 has a dtmap for V05261B → finite PSD; r001 has none → NaN
     # both partitions land in the same hit/V05261B table, distinguishable by run
     assert "hit/V05261B" in det_tables, "V05261B not found in hit output"
-    v_drift = _field("hit/V05261B", "drift_time_amax")
+    v_drift = _field("hit/V05261B/psd", "drift_time_amax")
     v_run = _field("hit/V05261B", "run")
     assert not np.all(np.isnan(v_drift[v_run == 0])), (
         "r000 V05261B drift_time_amax is all NaN despite having a dtmap"

@@ -22,6 +22,8 @@ import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
+import pyg4ometry
+import pygeomhpges
 from lgdo import Array, Struct
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -189,6 +191,23 @@ def main():
                 label=f"mean A/E = {mean_aoe:.2f}",
             )
             ax.legend()
+            decorate(fig)
+            pdf.savefig(fig)
+            plt.close(fig)
+
+            # A/E R/Z map, styled like the HPGe drift-time-map validation plot
+            reg = pyg4ometry.geant4.Registry()
+            natge = pygeomhpges.materials.make_natural_germanium(registry=reg)
+            hpge_profile = pygeomhpges.make_hpge(
+                metadata.hardware.detectors.germanium.diodes[args.detector],
+                registry=reg,
+                material=natge,
+                allow_cylindrical_asymmetry=False,
+            )
+
+            fig = psl.plot_aoe_rz_map(
+                realistic_dict, args.detector, hpge_profile=hpge_profile
+            )
             decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)

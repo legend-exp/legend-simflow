@@ -14,12 +14,22 @@ from legendsimflow.scripts.tier import pdf
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
 
+# number of simulated primary events stored in the synthetic cvt files; the pdf
+# script reads it back and writes it as ``nr_sim_events``.
+_N_SIM_EVENTS = 1000
 
-def _write_detector_uids(path: Path, names: list[str], uids: list[int]) -> None:
+
+def _write_cvt_root(
+    path: Path, names: list[str], uids: list[int], n_sim_events: int = _N_SIM_EVENTS
+) -> None:
+    """Write the cvt root metadata: detector_uids and number_of_simulated_events."""
     detector_uids = Struct(
         {name: Scalar(int(uid)) for name, uid in zip(names, uids, strict=True)}
     )
     lh5.write(detector_uids, "detector_uids", path, wo_mode="append")
+    lh5.write(
+        Scalar(n_sim_events), "number_of_simulated_events", path, wo_mode="append"
+    )
 
 
 _SIMID_LEGEND = "birds_nest_K40"
@@ -119,7 +129,7 @@ def _make_cvt_file(path: Path) -> None:
     coincident = Table(col_dict={"spms": spms})
     evt = Table(col_dict={"geds": geds, "coincident": coincident})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
-    _write_detector_uids(path, ["V01", "B02"], [1, 2])
+    _write_cvt_root(path, ["V01", "B02"], [1, 2])
 
 
 def test_pdf_script_cli(tmp_path, monkeypatch):
@@ -133,6 +143,8 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert "nr_sim_events" in root_keys
     nr_sim_events = lh5.read("nr_sim_events", pdf_file)
     assert np.issubdtype(type(nr_sim_events.value), np.integer)
+    # the pdf script must read number_of_events back from the cvt file
+    assert nr_sim_events.value == _N_SIM_EVENTS
 
     inner_keys = lh5.ls(pdf_file, "pdf/")
     for name in (
@@ -218,7 +230,7 @@ def _make_cvt_file_no_spms(path: Path) -> None:
     )
     evt = Table(col_dict={"geds": geds, "coincident": coincident})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
-    _write_detector_uids(path, ["V01", "B02"], [1, 2])
+    _write_cvt_root(path, ["V01", "B02"], [1, 2])
 
 
 def _make_cvt_file_no_geds(path: Path) -> None:
@@ -229,7 +241,7 @@ def _make_cvt_file_no_geds(path: Path) -> None:
     evt = Table(col_dict={"coincident": coincident})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
     # detector_uids is still present (skip_hit produces an empty mapping at evt tier)
-    _write_detector_uids(path, [], [])
+    _write_cvt_root(path, [], [])
 
 
 def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
