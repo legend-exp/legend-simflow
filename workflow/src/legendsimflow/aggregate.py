@@ -89,7 +89,12 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
             patterns.plot_tier_opt_observables_filename(config, simid=simid),
         ]
     if tier == "stp":
-        return [patterns.plot_tier_stp_vertices_filename(config, simid=simid)]
+        # geometry validation plots, a byproduct of the stp geometry build
+        return [
+            patterns.plot_tier_stp_vertices_filename(config, simid=simid),
+            patterns.plot_geom_rendering_filename(config, simid=simid),
+            patterns.plot_geom_hpge_mass_filename(config, simid=simid),
+        ]
     if tier == "par":
         # HPGe drift-time map plots, a byproduct of the par step; only produced
         # when PSD is simulated in the hit tier

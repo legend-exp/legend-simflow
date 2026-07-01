@@ -186,3 +186,27 @@ rule plot_tier_stp_vertices:
     priority: 100  # prioritize producing the needed input files over the others
     script:
         "../src/legendsimflow/scripts/plots/tier_stp_vertices.py"
+
+
+rule plot_geom:
+    """Produce the geometry validation plots (HPGe mass comparison and rendering).
+
+    Both are derived from the `stp` geometry config by
+    {func}`legendsimflow.geometry.make_hpge_mass_plot` and
+    {func}`legendsimflow.geometry.render_geometry`.
+
+    Uses wildcard `simid`.
+    """
+    input:
+        patterns.geom_config_filename(config, tier="stp"),
+    output:
+        mass=patterns.plot_geom_hpge_mass_filename(config),
+        rendering=patterns.plot_geom_rendering_filename(config),
+    run:
+        from dbetto import utils as dbetto_utils
+
+        from legendsimflow import geometry
+
+        geom_config = dbetto_utils.load_dict(input[0])
+        geometry.make_hpge_mass_plot(config, geom_config, output.mass)
+        geometry.render_geometry(config, geom_config, output.rendering)

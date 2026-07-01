@@ -328,3 +328,9 @@ def test_skip_opt_and_hit_are_mutually_exclusive(tmp_path):
                 settings_by_tier={"evt": {"skip_opt": True, "skip_hit": True}},
             ),
         )
+
+
+def test_geom_plots_scheduled(tmp_path):
+    """The geometry validation plots are scheduled with the stp tier."""
+    rules = dag_rule_names(default_config, overrides(tmp_path))
+    assert "plot_geom" in rules
