@@ -1150,10 +1150,10 @@ def plot_superpulses(
     norm = mcolors.Normalize(vmin=dt_min, vmax=dt_min + (dt_max - dt_min) / 0.85)
     cmap = colormaps["viridis"]
 
-    ylabel = "ADC / cuspEmax" if curve == "charge" else "d(ADC/cuspEmax)/dt"
+    ylabel = "Charge [arb]" if curve == "charge" else "Current [arb]"
     e_lo, e_hi = slices[0]["e_lo"], slices[0]["e_hi"]
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(6, 4.5))
 
     for s in slices:
         ax.plot(s["times"], s["wf"], color=cmap(norm(s["dt_center"])), linewidth=2)
