@@ -107,3 +107,6 @@ set-resources:
 
   build_tier_opt:
     runtime: 10
+
+  plot_geom:
+    mem_mb: 2500

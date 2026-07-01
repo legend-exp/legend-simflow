@@ -19,3 +19,5 @@ set-resources:
     mem_mb: 8000
   build_hpge_pulse_shape_library:
     mem_mb: 8000
+  plot_geom:
+    mem_mb: 2500
