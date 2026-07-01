@@ -525,7 +525,7 @@ function setup_hpge_simulation(meta_path::String,
     end
 
 
-    shift_electric_potential_to_match_bias!(sim, opv_val*u"V",
+    adjust_bias_and_electric_potential!(sim, opv_val*u"V",
         check_against_depletion_voltage = false)
 
     @info "Calculating electric field..."
