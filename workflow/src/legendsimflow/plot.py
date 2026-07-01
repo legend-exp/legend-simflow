@@ -31,16 +31,41 @@ USABILITY_COLOR = {
 }
 
 
-def decorate(fig):
-    fig.text(
-        1,
-        0,
-        f"legend-simflow · {date.today().isoformat()}",
-        ha="right",
-        va="bottom",
-        fontsize=8,
-        color="0.4",
-    )
+def decorate(fig, rotate=False):
+    """Add the ``legend-simflow`` watermark to *fig*.
+
+    By default it sits horizontally at the bottom-right corner; with `rotate` it
+    is placed vertically (rotated 90°) along the right edge.
+    """
+    text = f"legend-simflow · {date.today().isoformat()}"
+    if rotate:
+        # place it vertically just outside the right spine of the (last) axes,
+        # following the legend-styles watermark convention (the offset is in
+        # font-size units, so it scales with the font)
+        fig.axes[-1].annotate(
+            text,
+            xy=(1, 1),
+            xytext=(1.1, 0),
+            xycoords="axes fraction",
+            textcoords="offset fontsize",
+            rotation=270,
+            rotation_mode="anchor",
+            ha="left",
+            va="top",
+            fontsize=8,
+            color="0.4",
+            annotation_clip=False,
+        )
+    else:
+        fig.text(
+            1,
+            0,
+            text,
+            ha="right",
+            va="bottom",
+            fontsize=8,
+            color="0.4",
+        )
 
 
 def save_page(pdf, make_fig):

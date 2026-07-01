@@ -128,6 +128,11 @@ def geom_gdml_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
+def geom_vis_config_filename(config: SimflowConfig) -> Path:
+    """The path to the optional geometry rendering vis config for the experiment."""
+    return Path(config.paths.config) / "geom" / (config.experiment + "-vis-config.yaml")
+
+
 def geom_log_filename(config: SimflowConfig, **kwargs) -> str:
     """The log file path for geometry generation for a `tier` and `simid`."""
     pat = (
@@ -221,6 +226,20 @@ def plot_tier_stp_vertices_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the primary vertex validation plot for a `stp` `simid`."""
     return _expand(
         plots_dirname(config, "stp") / "{simid}-tier-stp-vertices.pdf", **kwargs
+    )
+
+
+def plot_geom_hpge_mass_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the simulated-vs-measured HPGe mass plot for a `stp` `simid`."""
+    return _expand(
+        plots_dirname(config, "stp") / "{simid}-tier-stp-geom-hpge-mass.pdf", **kwargs
+    )
+
+
+def plot_geom_rendering_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the geometry rendering for a `stp` `simid`."""
+    return _expand(
+        plots_dirname(config, "stp") / "{simid}-tier-stp-geom-rendering.png", **kwargs
     )
 
 
