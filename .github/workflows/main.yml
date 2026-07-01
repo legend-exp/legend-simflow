@@ -80,7 +80,7 @@ jobs:
           pixi run -e test test-python-pixi
 
       - name: Upload Coverage to codecov.io
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -117,7 +117,7 @@ jobs:
         with:
           directories: workflow/src/LegendSimflow.jl/src
       - name: Upload Julia coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
