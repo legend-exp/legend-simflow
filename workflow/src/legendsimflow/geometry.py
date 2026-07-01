@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -111,6 +112,11 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     # is created
     os.environ["VTK_DEFAULT_OPENGL_WINDOW"] = "vtkOSOpenGLRenderWindow"
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
+
+    # pygeoml200 warns once per detector missing an enrichment value in
+    # metadata, but it already substitutes a documented dummy value, so the
+    # warning is expected and would otherwise spam the Snakemake log
+    logging.getLogger("pygeoml200.hpge_strings").setLevel(logging.ERROR)
 
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry
