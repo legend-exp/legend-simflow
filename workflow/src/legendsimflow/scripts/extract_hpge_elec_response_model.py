@@ -45,7 +45,10 @@ from legendsimflow.hpge_electronics_tuning import (
 )
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
-from legendsimflow.superpulses import read_superpulses
+from legendsimflow.superpulses import (
+    plot_current_superpulses_fwhm_and_amplitude,
+    read_superpulses,
+)
 
 DEFAULT_SETTINGS = {
     "angle": "000",
@@ -227,6 +230,12 @@ def main() -> None:
             )[0 : settings.max_num_superpulses]
         )
 
+    slices_used = ideal_wfs["ideal_wfs_slice"].keys()
+    dt_range_fit = (
+        min(sl.drift_time_range[0] for sl in slices_used),
+        max(sl.drift_time_range[1] for sl in slices_used),
+    )
+
     # Run fit
     log.info(
         "starting fit (sigma0=%.1f, tau0=%.1f) ...",
@@ -291,6 +300,15 @@ def main() -> None:
                 comparison_window=comparison_window,
                 plot_window=None,
                 plot_charge=True,
+            )
+            decorate(fig)
+            pdf.savefig(fig)
+            plt.close(fig)
+
+            fig, _ = plot_current_superpulses_fwhm_and_amplitude(
+                args.superpulses,
+                args.hpge_detector,
+                dt_range_tuning=dt_range_fit,
             )
             decorate(fig)
             pdf.savefig(fig)

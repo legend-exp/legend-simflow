@@ -1225,6 +1225,7 @@ def plot_superpulses(
 def plot_current_superpulses_fwhm_and_amplitude(
     lh5_file: str,
     detector: str,
+    dt_range_tuning: tuple[float, float] | None = None,
 ) -> tuple:
     """Plot FWHM and peak amplitude of current superpulses vs drift time.
 
@@ -1237,6 +1238,8 @@ def plot_current_superpulses_fwhm_and_amplitude(
         Path to the LH5 file produced by :func:`write_superpulses`.
     detector
         Detector name (top-level group in the file).
+    dt_range_tuning
+        Optional tuple of (dt_lo, dt_hi) to indicate the drift time range used for tuning.
 
     Returns
     -------
@@ -1343,5 +1346,14 @@ def plot_current_superpulses_fwhm_and_amplitude(
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=[ax1, ax2], pad=0.02)
     cbar.set_label("Drift Time [ns]", labelpad=10)
+
+    if dt_range_tuning is not None:
+        for ax in (ax1, ax2):
+            ax.axvline(dt_range_tuning[0], color="black", linestyle="--", linewidth=0.8)
+            ax.axvline(dt_range_tuning[1], color="black", linestyle="--", linewidth=0.8)
+            xlim = ax.get_xlim()
+            ax.axvspan(xlim[0], dt_range_tuning[0], color="grey", alpha=0.2)
+            ax.axvspan(dt_range_tuning[1], xlim[1], color="grey", alpha=0.2)
+            ax.set_xlim(xlim)
 
     return fig, (ax1, ax2)
