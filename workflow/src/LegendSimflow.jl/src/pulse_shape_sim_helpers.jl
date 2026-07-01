@@ -517,7 +517,7 @@ function setup_hpge_simulation(meta_path::String,
     if rescale_impurities
         Vdep = meta.characterization.l200_site.depletion_voltage_in_V
 
-        scale = scale_electric_potential_impurity_to_match_depletion!(sim, Vdep,
+        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, Vdep,
             check_for_depletion = false,
             reconverge_electric_potential = false)
 
