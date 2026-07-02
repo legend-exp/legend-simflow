@@ -99,7 +99,7 @@ function main()
 
         key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
         if output === nothing
-            output = Dict(pairs(result))
+            output = Dict{Symbol,Any}(pairs(result))
 
             # also save the info
             for (name, value) in info
