@@ -41,6 +41,7 @@ from legendsimflow.superpulses import (
     lookup_superpulse_inputs,
     lookup_wfs_indices,
     plot_chi2_cut,
+    # plot_current_superpulses_fwhm_and_amplitude,
     plot_superpulses,
     plot_wfs_and_superpulse,
     write_superpulses,
@@ -396,6 +397,8 @@ def main() -> int:
         decorate(fig)
         pdf.savefig(fig)
         plt.close(fig)
+
+        # plot fwhm and Amax vs drift time --- moved to extract_hpge_elec_response_model.py to have tuning range
 
     log.info("summary plots saved to %s", plot_file)
     log.info("done!")

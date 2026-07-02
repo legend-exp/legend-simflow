@@ -1220,3 +1220,146 @@ def plot_superpulses(
 
     fig.tight_layout()
     return fig, ax
+
+
+def plot_current_superpulses_fwhm_and_amplitude(
+    lh5_file: str,
+    detector: str,
+    dt_range_tuning: tuple[float, float] | None = None,
+) -> tuple:
+    """Plot FWHM and peak amplitude of current superpulses vs drift time.
+
+    Two-row figure sharing the x-axis (drift time center). Color coding
+    matches :func:`plot_superpulses`.
+
+    Parameters
+    ----------
+    lh5_file
+        Path to the LH5 file produced by :func:`write_superpulses`.
+    detector
+        Detector name (top-level group in the file).
+    dt_range_tuning
+        Optional tuple of (dt_lo, dt_hi) to indicate the drift time range used for tuning.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    (ax_fwhm, ax_amp) : tuple of Axes
+    """
+    import matplotlib.colors as mcolors  # noqa: PLC0415
+
+    groups = sorted(
+        lh5.ls(lh5_file, f"{detector}/"),
+        key=lambda g: int(g.split("_")[1]),
+    )
+
+    slices = []
+    for group in groups:
+        struct = lh5.read(group, lh5_file)
+        times = struct["current_time_axis"].nda
+        wf = struct["current_wf"].nda
+        dt_center = struct["drift_time_center"].value
+
+        # Current amplitude
+        amax = np.max(wf)
+
+        # FWHM via linear interpolation at half-max crossings
+        half_max = amax / 2.0
+        idx_peak = np.argmax(wf)
+        shifted = wf - half_max
+
+        sign_changes = np.where(np.diff(np.sign(shifted)))[0]
+
+        left = sign_changes[sign_changes < idx_peak]
+        right = sign_changes[sign_changes >= idx_peak]
+
+        if len(left) > 0:
+            il = left[-1]
+            den = shifted[il + 1] - shifted[il]
+            t_left = (
+                times[il]
+                if den == 0
+                else times[il] - shifted[il] * (times[il + 1] - times[il]) / den
+            )
+        else:
+            t_left = times[0]
+
+        if len(right) > 0:
+            ir = right[0]
+            den = shifted[ir + 1] - shifted[ir]
+            t_right = (
+                times[ir]
+                if den == 0
+                else times[ir] - shifted[ir] * (times[ir + 1] - times[ir]) / den
+            )
+        else:
+            t_right = times[-1]
+
+        fwhm = t_right - t_left
+
+        slices.append(
+            {
+                "dt_center": dt_center,
+                "amax": amax,
+                "fwhm": fwhm,
+                "e_lo": struct["energy_lo"].value,
+                "e_hi": struct["energy_hi"].value,
+            }
+        )
+
+    dt_centers = [s["dt_center"] for s in slices]
+    dt_min, dt_max = min(dt_centers), max(dt_centers)
+    norm = mcolors.Normalize(vmin=dt_min, vmax=dt_min + (dt_max - dt_min) / 0.85)
+    cmap = colormaps["viridis"]
+
+    e_lo, e_hi = slices[0]["e_lo"], slices[0]["e_hi"]
+
+    fig, (ax1, ax2) = plt.subplots(
+        2,
+        1,
+        figsize=(8, 4),
+        sharex=True,
+        gridspec_kw={"hspace": 0.08},
+        constrained_layout=True,
+    )
+
+    for s in slices:
+        color = cmap(norm(s["dt_center"]))
+        ax1.plot(s["dt_center"], s["fwhm"], "o", color=color, markersize=7)
+        ax2.plot(s["dt_center"], s["amax"], "o", color=color, markersize=7)
+
+    ax1.set_ylabel("Current FWHM [ns]")
+    ax1.grid(True, color="grey", linestyle="--", alpha=0.2)
+    ax1.set_ylim(
+        bottom=np.min([s["fwhm"] for s in slices]) - 2,
+        top=np.max([s["fwhm"] for s in slices]) + 2,
+    )
+
+    ax2.set_ylabel("Current amplitude [A.U.]")
+    ax2.set_xlabel("Drift time [ns]")
+    ax2.grid(True, color="grey", linestyle="--", alpha=0.2)
+    ax2.set_ylim(
+        bottom=np.min([s["amax"] for s in slices]) - 0.002,
+        top=np.max([s["amax"] for s in slices]) + 0.002,
+    )
+
+    fig.suptitle(
+        f"{detector} - Response uniformity  | E = [{e_lo}, {e_hi}] keV",
+        fontsize=13,
+    )
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=[ax1, ax2], pad=0.02)
+    cbar.set_label("Drift Time [ns]", labelpad=10)
+
+    if dt_range_tuning is not None:
+        for ax in (ax1, ax2):
+            ax.axvline(dt_range_tuning[0], color="black", linestyle="--", linewidth=0.8)
+            ax.axvline(dt_range_tuning[1], color="black", linestyle="--", linewidth=0.8)
+            xlim = ax.get_xlim()
+            ax.axvspan(xlim[0], dt_range_tuning[0], color="grey", alpha=0.2)
+            ax.axvspan(dt_range_tuning[1], xlim[1], color="grey", alpha=0.2)
+            ax.set_xlim(xlim)
+
+    return fig, (ax1, ax2)
