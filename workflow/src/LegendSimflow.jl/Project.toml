@@ -18,7 +18,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 LegendDataManagement = "=0.6.7"
 LegendHDF5IO = "=0.1.18"
 RadiationDetectorDSP = "=0.2.18"
-SolidStateDetectors = "^0.11"
+SolidStateDetectors = "=0.11.4"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
