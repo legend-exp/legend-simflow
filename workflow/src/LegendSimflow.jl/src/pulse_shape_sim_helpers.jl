@@ -488,10 +488,12 @@ function setup_hpge_simulation(meta_path::String,
     temperature::Real = 87.0,
     recompute_corrections::Bool = true)::Tuple{Simulation,Real}
 
+    vdep = meta.characterization.l200_site.depletion_voltage_in_V
+
     rescale_impurities =
-        recompute_corrections &
-        !(meta.characterization.l200_site.depletion_voltage_in_V isa PropDicts.MissingProperty) &
-        (meta.characterization.l200_site.depletion_voltage_in_V!=nothing)
+        recompute_corrections &&
+        !(vdep isa PropDicts.MissingProperty) &&
+        vdep !== nothing
 
     scale = nothing
 
@@ -515,18 +517,18 @@ function setup_hpge_simulation(meta_path::String,
     calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
 
     if rescale_impurities
-        Vdep = meta.characterization.l200_site.depletion_voltage_in_V
 
-        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, Vdep,
+        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep,
             check_for_depletion = false,
             reconverge_electric_potential = false)
 
-        @info "Rescaled impurities to match $Vdep (at opv $opv_val) with scale: $scale"
+        @info "Rescaled impurities to match $vdep (at opv $opv_val) with scale: $scale"
     end
 
-
     adjust_bias_and_electric_potential!(sim, opv_val*u"V",
-        check_against_depletion_voltage = false)
+        check_against_depletion_voltage = false,
+        reconverge_electric_potential = false,
+    )
 
     @info "Calculating electric field..."
     calculate_electric_field!(sim)
@@ -539,15 +541,7 @@ function setup_hpge_simulation(meta_path::String,
     end
     @info "Simulated depletion voltage is $dep"
 
-    dep_meas = nothing
-    try
-        dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
-        @info "Depletion measured during characterization is $dep_meas"
-    catch
-        @warn "Measured depletion voltage not found in metadata"
-    end
-
-    if dep_meas !== nothing && abs(dep_meas - dep) > threshold * u"V"
+    if vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
         error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
