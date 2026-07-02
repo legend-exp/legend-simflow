@@ -231,6 +231,9 @@ def main() -> None:
         )
 
     slices_used = ideal_wfs["ideal_wfs_slice"].keys()
+    if not slices_used:
+        msg = "no ideal waveforms matched any data superpulse slice"
+        raise RuntimeError(msg)
     dt_range_fit = (
         min(sl.drift_time_range[0] for sl in slices_used),
         max(sl.drift_time_range[1] for sl in slices_used),

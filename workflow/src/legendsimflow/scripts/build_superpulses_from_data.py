@@ -399,14 +399,6 @@ def main() -> int:
         plt.close(fig)
 
         # plot fwhm and Amax vs drift time --- moved to extract_hpge_elec_response_model.py to have tuning range
-        """
-        fig, _ = plot_current_superpulses_fwhm_and_amplitude(
-            str(output_lh5), args.detector
-        )
-        decorate(fig)
-        pdf.savefig(fig)
-        plt.close(fig)
-        """
 
     log.info("summary plots saved to %s", plot_file)
     log.info("done!")

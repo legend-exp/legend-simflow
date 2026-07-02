@@ -1275,16 +1275,22 @@ def plot_current_superpulses_fwhm_and_amplitude(
 
         if len(left) > 0:
             il = left[-1]
-            t_left = times[il] - shifted[il] * (times[il + 1] - times[il]) / (
-                shifted[il + 1] - shifted[il]
+            den = shifted[il + 1] - shifted[il]
+            t_left = (
+                times[il]
+                if den == 0
+                else times[il] - shifted[il] * (times[il + 1] - times[il]) / den
             )
         else:
             t_left = times[0]
 
         if len(right) > 0:
             ir = right[0]
-            t_right = times[ir] - shifted[ir] * (times[ir + 1] - times[ir]) / (
-                shifted[ir + 1] - shifted[ir]
+            den = shifted[ir + 1] - shifted[ir]
+            t_right = (
+                times[ir]
+                if den == 0
+                else times[ir] - shifted[ir] * (times[ir + 1] - times[ir]) / den
             )
         else:
             t_right = times[-1]
