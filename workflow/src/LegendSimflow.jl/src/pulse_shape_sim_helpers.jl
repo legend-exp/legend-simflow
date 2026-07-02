@@ -480,13 +480,18 @@ checks depletion voltage, and calculates weighting potential.
 - `recompute_correction`: flag to recompute impurity corrections to match depletion.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
-- `scale`: scaling factor needed to match Vdep
+- `info`: dictonary of information on the SSD simulation, contains:
+    - `:scale`:scaling factor needed to match Vdep
+    - `:vdep_raw`: unscaled depletion voltage
+    - `:vdep_corr`: scaled depletion voltage
+    - `:vdep_meas`: measured depletion voltage
+
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
     opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
     temperature::Real = 87.0,
-    recompute_corrections::Bool = true)::Tuple{Simulation,Real}
+    recompute_corrections::Bool = true)::Tuple{Simulation,Dict}
 
     vdep = meta.characterization.l200_site.depletion_voltage_in_V
 
@@ -516,6 +521,16 @@ function setup_hpge_simulation(meta_path::String,
     @info "Calculating electric potential at $(opv_val) V..."
     calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
 
+    @info "Calculating electric field before corrections..."
+    calculate_electric_field!(sim)
+
+    dep_raw = nothing
+    try
+        dep_raw = estimate_depletion_voltage(sim)
+    catch
+        error("Detector is not depleted!")
+    end
+    
     if rescale_impurities
 
         scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep,
@@ -553,7 +568,7 @@ function setup_hpge_simulation(meta_path::String,
         verbose = false
     )
 
-    return sim, scale
+    return sim, Dict(:scale=>scale,:vdep_meas=>vdep,:vdep_raw=>dep_raw,:vdep_corr=>dep)
 end
 
 
