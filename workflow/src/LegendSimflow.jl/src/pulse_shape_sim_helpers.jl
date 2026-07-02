@@ -481,7 +481,7 @@ checks depletion voltage, and calculates weighting potential.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
 - `info`: dictionary of information on the SSD simulation, contains:
-    - `:scale`:scaling factor needed to match Vdep
+    - `:impurity_scale`:scaling factor for impurities to match measured depletion voltage
     - `:vdep_raw`: unscaled depletion voltage
     - `:vdep_corr`: scaled depletion voltage
     - `:vdep_meas`: measured depletion voltage
@@ -526,7 +526,7 @@ function setup_hpge_simulation(meta_path::String,
 
     dep_raw = nothing
     try
-        dep_raw = estimate_depletion_voltage(sim)
+        dep_raw = estimate_depletion_voltage(sim, tolerance = 1*u"V")
     catch
         error("Detector is not depleted!")
     end
@@ -550,7 +550,7 @@ function setup_hpge_simulation(meta_path::String,
 
     dep = nothing
     try
-        dep = estimate_depletion_voltage(sim)
+        dep = estimate_depletion_voltage(sim, tolerance = 1*u"V")
     catch
         error("Detector is not depleted!")
     end
@@ -568,7 +568,7 @@ function setup_hpge_simulation(meta_path::String,
         verbose = false
     )
 
-    return sim, Dict(:scale=>scale, :vdep_meas=>vdep, :vdep_raw=>dep_raw, :vdep_corr=>dep)
+    return sim, Dict(:impurity_scale=>scale, :vdep_meas=>vdep, :vdep_raw=>dep_raw, :vdep_corr=>dep)
 end
 
 

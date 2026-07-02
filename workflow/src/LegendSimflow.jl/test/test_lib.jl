@@ -67,16 +67,22 @@ end
     det = "V99000A"
     opv_val = 4200.0
     T = Float32
-    refinement_limits = [0.2, 0.1, 0.05, 0.02]
+    refinement_limits = [0.2, 0.1, 0.05, 0.02, 0.01]
 
     meta, xtal, opv = load_detector_metadata(meta_path, det, opv_val)
 
-    sim = setup_hpge_simulation(meta_path, meta, xtal, opv, T, refinement_limits, threshold = 20000)
+    sim, info = setup_hpge_simulation(meta_path, meta, xtal, opv, T, refinement_limits, threshold = 20000)
 
     @test isa(sim, Simulation{T})
     @test isa(sim.detector.semiconductor.charge_drift_model, ADL2016ChargeDriftModel)
     @test isa(sim.detector.semiconductor.charge_drift_model.temperaturemodel, PowerLawTemperatureModel)
     @test sim.detector.semiconductor.charge_drift_model.temperaturemodel.reference_temperature == T(87)
+
+    @test info isa Dict
+    @test haskey(info, :impurity_scale)
+    @test haskey(info, :vdep_raw)
+    @test haskey(info, :vdep_corr)
+    @test haskey(info, :vdep_meas)
 
     # test valid spawn pos
     # Candidate positions include one valid and one invalid

@@ -111,8 +111,8 @@ function main()
         if output === nothing
             output = Dict(pairs(result))
 
-            for (key, value) in info
-                output[key] = value
+            for (name, value) in info
+                output[name] = value
             end
         else
             output[key] = result[key]
