@@ -92,7 +92,7 @@ function main()
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)
 
     @info "using ref limits $ref_limits"
-    sim = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
+    sim, info = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
         result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
@@ -100,6 +100,11 @@ function main()
         key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
         if output === nothing
             output = Dict(pairs(result))
+
+            # also save the info
+            for (key,value) in info
+                output[key] = value
+            end
         else
             output[key] = result[key]
         end

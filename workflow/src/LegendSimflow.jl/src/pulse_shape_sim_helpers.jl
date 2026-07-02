@@ -477,14 +477,39 @@ checks depletion voltage, and calculates weighting potential.
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
 - `medium`: Detector environment medium (default: "LAr")
 - `temperature`: Detector environment temperature in K (default: 87 K)
+- `recompute_correction`: flag to recompute impurity corrections to match depletion.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
+- `info`: dictonary of information on the SSD simulation, contains:
+    - `:scale`:scaling factor needed to match Vdep
+    - `:vdep_raw`: unscaled depletion voltage
+    - `:vdep_corr`: scaled depletion voltage
+    - `:vdep_meas`: measured depletion voltage
+
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
     opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
-    temperature::Real = 87.0)::Simulation
+    temperature::Real = 87.0,
+    recompute_corrections::Bool = true)::Tuple{Simulation,Dict}
 
+    vdep = meta.characterization.l200_site.depletion_voltage_in_V
+
+    rescale_impurities =
+        recompute_corrections &&
+        !(vdep isa PropDicts.MissingProperty) &&
+        vdep !== nothing
+
+    scale = nothing
+
+    if rescale_impurities
+
+        if haskey(xtal.impurity_curve, :corrections)
+            xtal.impurity_curve.corrections.scale = 1.0
+            xtal.impurity_curve.corrections.offset = 0.0
+        end
+
+    end
     sim = Simulation{T}(
         LegendData,
         meta,
@@ -493,9 +518,32 @@ function setup_hpge_simulation(meta_path::String,
         operational_voltage = opv_val*u"V",
         allow_cylindrical_asymmetry = false
     )
-
     @info "Calculating electric potential at $(opv_val) V..."
     calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
+
+    @info "Calculating electric field before corrections..."
+    calculate_electric_field!(sim)
+
+    dep_raw = nothing
+    try
+        dep_raw = estimate_depletion_voltage(sim)
+    catch
+        error("Detector is not depleted!")
+    end
+    
+    if rescale_impurities
+
+        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep,
+            check_for_depletion = false,
+            reconverge_electric_potential = false)
+
+        @info "Rescaled impurities to match $vdep (at opv $opv_val) with scale: $scale"
+    end
+
+    adjust_bias_and_electric_potential!(sim, opv_val*u"V",
+        check_against_depletion_voltage = false,
+        reconverge_electric_potential = false,
+    )
 
     @info "Calculating electric field..."
     calculate_electric_field!(sim)
@@ -508,15 +556,7 @@ function setup_hpge_simulation(meta_path::String,
     end
     @info "Simulated depletion voltage is $dep"
 
-    dep_meas = nothing
-    try
-        dep_meas = meta[:characterization][:l200_site][:depletion_voltage_in_V] * u"V"
-        @info "Depletion measured during characterization is $dep_meas"
-    catch
-        @warn "Measured depletion voltage not found in metadata"
-    end
-
-    if dep_meas !== nothing && abs(dep_meas - dep) > threshold * u"V"
+    if vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
         error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
@@ -528,7 +568,7 @@ function setup_hpge_simulation(meta_path::String,
         verbose = false
     )
 
-    return sim
+    return sim, Dict(:scale=>scale,:vdep_meas=>vdep,:vdep_raw=>dep_raw,:vdep_corr=>dep)
 end
 
 
