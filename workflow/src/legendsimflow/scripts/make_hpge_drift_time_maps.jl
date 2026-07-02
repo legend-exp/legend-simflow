@@ -88,8 +88,6 @@ function main()
 
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
-    @info meta
-    @info xtal
 
     # Load optional simulation settings, falling back to built-in defaults.
     # The settings file path is passed via --ssd-settings and applies globally
@@ -109,7 +107,7 @@ function main()
 
         key = Symbol("drift_time_$(lpad(string(angle), 3, '0'))_deg")
         if output === nothing
-            output = Dict(pairs(result))
+            output = Dict{Symbol,Any}(pairs(result))
 
             for (name, value) in info
                 output[name] = value
