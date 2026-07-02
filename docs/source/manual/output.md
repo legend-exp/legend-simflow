@@ -48,13 +48,14 @@ These fields are carried over from the
 
 ### Added fields
 
-| Field           | Type    | Units | Description                                                                                                                                                                                                 |
-| --------------- | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `energy`        | `Array` | keV   | Reconstructed energy after smearing with the detector energy resolution. Computed from the sum of active energy depositions (weighted by the dead-layer activeness model).                                  |
-| `period`        | `Array` | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                             |
-| `run`           | `Array` | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                |
-| `usability`     | `Array` | —     | Encoded detector usability status for this run (e.g. `on`, `off`, `ac`). Decode with {func}`legendsimflow.metadata.decode_usability`. See the detector status flags in `legend-metadata/datasets/statuses`. |
-| `psd_usability` | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.        |
+| Field                     | Type    | Units | Description                                                                                                                                                                                                 |
+| ------------------------- | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `energy`                  | `Array` | keV   | Reconstructed energy after smearing with the detector energy resolution. Computed from the sum of active energy depositions (weighted by the dead-layer activeness model).                                  |
+| `period`                  | `Array` | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                             |
+| `run`                     | `Array` | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                |
+| `usability`               | `Array` | —     | Encoded detector usability status for this run (e.g. `on`, `off`, `ac`). Decode with {func}`legendsimflow.metadata.decode_usability`. See the detector status flags in `legend-metadata/datasets/statuses`. |
+| `psd_usability`           | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.        |
+| `crystal_impurity_status` | `Array` | —     | Encoded crystal impurity status (e.g. `valid`, `invalid`, `missing`) for the slice the detector was cut from. Decode with {func}`legendsimflow.metadata.decode_crystal_impurity_status`.                    |
 
 The `hit` tier can add HPGe pulse-shape-discrimination (PSD) fields in two
 optional subtables, selected by the metadata settings in
@@ -154,14 +155,15 @@ Constant fields identifying each event.
 Per-event arrays collecting HPGe hits that pass the energy threshold (25 keV)
 and are from non-OFF detectors.
 
-| Field             | Type              | Units | Description                                                                                                             |
-| ----------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| `energy`          | `VectorOfVectors` | keV   | Hit energies from ON and AC detectors above threshold. Variable-length per event.                                       |
-| `energy_sum`      | `Array`           | keV   | Summed energy from ON detectors only (excludes AC). Scalar per event.                                                   |
-| `rawid`           | `VectorOfVectors` | —     | Detector channel UID for each hit, matching the channel identifiers used in LEGEND-200 data. Variable-length per event. |
-| `hit_idx`         | `VectorOfVectors` | —     | Row index in the `hit`-tier table, for looking up additional hit-level fields. Variable-length per event.               |
-| `is_good_channel` | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                             |
-| `multiplicity`    | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                        |
+| Field                     | Type              | Units | Description                                                                                                                                    |
+| ------------------------- | ----------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `energy`                  | `VectorOfVectors` | keV   | Hit energies from ON and AC detectors above threshold. Variable-length per event.                                                              |
+| `energy_sum`              | `Array`           | keV   | Summed energy from ON detectors only (excludes AC). Scalar per event.                                                                          |
+| `rawid`                   | `VectorOfVectors` | —     | Detector channel UID for each hit, matching the channel identifiers used in LEGEND-200 data. Variable-length per event.                        |
+| `hit_idx`                 | `VectorOfVectors` | —     | Row index in the `hit`-tier table, for looking up additional hit-level fields. Variable-length per event.                                      |
+| `is_good_channel`         | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                                                    |
+| `crystal_impurity_status` | `VectorOfVectors` | —     | Encoded crystal impurity status per hit. Decode with {func}`legendsimflow.metadata.decode_crystal_impurity_status`. Variable-length per event. |
+| `multiplicity`            | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                                               |
 
 #### `geds/psd/` and `geds/psd_psl` — PSD fields
 

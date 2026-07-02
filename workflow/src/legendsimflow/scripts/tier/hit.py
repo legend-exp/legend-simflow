@@ -278,10 +278,15 @@ def main() -> None:
                 )
                 usability = "on"
                 psd_usability = "valid"
+                crystal_impurity_status = None
             else:
                 usability = det_info.usability
                 psd_usability = det_info.psd_usability
+                crystal_impurity_status = det_info.crystal_impurity_status
             psd_usability_code = mutils.encode_psd_usability(psd_usability)
+            crystal_impurity_status_code = mutils.encode_crystal_impurity_status(
+                crystal_impurity_status
+            )
 
             if usability == "on" and det_name not in aoemean_func:
                 log.warning(
@@ -610,6 +615,14 @@ def main() -> None:
                     "psd_usability",
                     lgdo.Array(
                         np.full(shape=len(chunk), fill_value=psd_usability_code)
+                    ),
+                )
+                out_table.add_field(
+                    "crystal_impurity_status",
+                    lgdo.Array(
+                        np.full(
+                            shape=len(chunk), fill_value=crystal_impurity_status_code
+                        )
                     ),
                 )
 

@@ -132,8 +132,13 @@ def test_hpge_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    # now returns dict[str, int] (hpge -> voltage)
-    assert hpges["l200-p02-r000-phy"] == {"V99000A": 4200}
+    # maps hpge -> {"operational_voltage_in_V": voltage, "crystal_impurity_status": status}
+    assert hpges["l200-p02-r000-phy"] == {
+        "V99000A": {
+            "operational_voltage_in_V": 4200,
+            "crystal_impurity_status": "valid",
+        }
+    }
 
 
 def test_runlist_harvesting(config):
@@ -233,8 +238,16 @@ def test_usability_harvesting(config):
         "l200-p02-r007-phy",
     ]
     assert usability["l200-p02-r000-phy"] == {
-        "V99000A": {"usability": "on", "psd_usability": "valid"},
-        "B99000A": {"usability": "off", "psd_usability": "missing"},
+        "V99000A": {
+            "usability": "on",
+            "psd_usability": "valid",
+            "crystal_impurity_status": "valid",
+        },
+        "B99000A": {
+            "usability": "off",
+            "psd_usability": "missing",
+            "crystal_impurity_status": "valid",
+        },
     }
 
 

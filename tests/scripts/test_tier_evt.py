@@ -76,6 +76,7 @@ def test_evt_script_cli(
         "energy",
         "energy_sum",
         "is_good_channel",
+        "crystal_impurity_status",
         "multiplicity",
         "rawid",
         "hit_idx",
