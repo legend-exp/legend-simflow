@@ -1150,13 +1150,13 @@ def plot_superpulses(
     norm = mcolors.Normalize(vmin=dt_min, vmax=dt_min + (dt_max - dt_min) / 0.85)
     cmap = colormaps["viridis"]
 
-    ylabel = "Charge [arb]" if curve == "charge" else "Current [arb]"
+    ylabel = "Charge [A.U.]" if curve == "charge" else "Current [A.U.]"
     e_lo, e_hi = slices[0]["e_lo"], slices[0]["e_hi"]
 
     fig, ax = plt.subplots(figsize=(6, 4.5))
 
     for s in slices:
-        ax.plot(s["times"], s["wf"], color=cmap(norm(s["dt_center"])), linewidth=2)
+        ax.plot(s["times"], s["wf"], color=cmap(norm(s["dt_center"])), linewidth=1.8)
     ax.set_xlim(-2000, 1000)
 
     # 10% amplitude reference line (charge only)
@@ -1185,19 +1185,22 @@ def plot_superpulses(
     cbar.set_label("Drift Time [ns]", labelpad=10)
 
     # inset
-    ax_inset = ax.inset_axes([0.08, 0.5, 0.45, 0.45])
+    ax_inset = ax.inset_axes([0.11, 0.5, 0.45, 0.45])
     for s in slices:
         ax_inset.plot(
             s["times"],
             s["wf"],
             color=cmap(norm(s["dt_center"])),
-            linewidth=1.8,
+            linewidth=1.5,
         )
     ax_inset.tick_params(labelsize=7)
     ax_inset.grid(True, color="grey", linestyle="--", alpha=0.2)
 
     if curve == "charge":
-        ax_inset.set_xlim(-2000, -100)
+        t0 = min(s["times"][0] for s in slices)
+        margin = 0.15 * (dt_max - dt_min)
+        left_edge = max(-dt_max - margin, t0)
+        ax_inset.set_xlim(left_edge, -dt_min + margin)
         ax_inset.set_ylim(-0.001, 0.105)
         # 1% amplitude reference line
         ax_inset.axhline(0.01, color="gray", linestyle="--", linewidth=0.8)
