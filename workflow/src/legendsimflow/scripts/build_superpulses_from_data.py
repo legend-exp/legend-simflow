@@ -41,7 +41,6 @@ from legendsimflow.superpulses import (
     lookup_superpulse_inputs,
     lookup_wfs_indices,
     plot_chi2_cut,
-    # plot_current_superpulses_fwhm_and_amplitude,
     plot_superpulses,
     plot_wfs_and_superpulse,
     write_superpulses,

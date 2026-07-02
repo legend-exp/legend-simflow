@@ -156,9 +156,9 @@ def test_dtmap_stuff(config):
 
     # dtmap plots are produced as par-tier plots, so they flow through the
     # generic plots aggregator
-    assert agg.gen_list_of_plots_outputs(
-        config, "par", simid
-    ) == agg.gen_list_of_dtmap_plots_outputs(config, simid)
+    par_plots = agg.gen_list_of_plots_outputs(config, "par", simid)
+    for p in agg.gen_list_of_dtmap_plots_outputs(config, simid):
+        assert p in par_plots
     assert len(agg.gen_list_of_all_plots_outputs(config, "par")) >= 1
 
 

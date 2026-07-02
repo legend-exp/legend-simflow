@@ -1232,6 +1232,10 @@ def plot_current_superpulses_fwhm_and_amplitude(
     Two-row figure sharing the x-axis (drift time center). Color coding
     matches :func:`plot_superpulses`.
 
+    NOTE: dt_range_tuning shows the contiguous span of slices used
+    # for the fit; individual points within this range may not all
+    # have been used if max_num_superpulses further truncated them
+
     Parameters
     ----------
     lh5_file
@@ -1261,7 +1265,12 @@ def plot_current_superpulses_fwhm_and_amplitude(
         dt_center = struct["drift_time_center"].value
 
         # Current amplitude
-        amax = np.max(wf)
+        amax = np.nanmax(wf)
+        if np.isnan(amax):
+            log.warning(
+                "slice %s: current waveform contains only NaNs, skipping", group
+            )
+            continue
 
         # FWHM via linear interpolation at half-max crossings
         half_max = amax / 2.0
@@ -1273,27 +1282,18 @@ def plot_current_superpulses_fwhm_and_amplitude(
         left = sign_changes[sign_changes < idx_peak]
         right = sign_changes[sign_changes >= idx_peak]
 
-        if len(left) > 0:
-            il = left[-1]
-            den = shifted[il + 1] - shifted[il]
-            t_left = (
-                times[il]
-                if den == 0
-                else times[il] - shifted[il] * (times[il + 1] - times[il]) / den
-            )
-        else:
-            t_left = times[0]
+        if len(left) == 0 or len(right) == 0:
+            log.warning("slice %s: half-max crossing not found, skipping", group)
+            continue
 
-        if len(right) > 0:
-            ir = right[0]
-            den = shifted[ir + 1] - shifted[ir]
-            t_right = (
-                times[ir]
-                if den == 0
-                else times[ir] - shifted[ir] * (times[ir + 1] - times[ir]) / den
-            )
-        else:
-            t_right = times[-1]
+        il = left[-1]
+        t_left = times[il] - shifted[il] * (times[il + 1] - times[il]) / (
+            shifted[il + 1] - shifted[il]
+        )
+        ir = right[0]
+        t_right = times[ir] - shifted[ir] * (times[ir + 1] - times[ir]) / (
+            shifted[ir + 1] - shifted[ir]
+        )
 
         fwhm = t_right - t_left
 

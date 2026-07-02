@@ -95,7 +95,12 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
         # when PSD is simulated in the hit tier
         if not get_tier_settings(config, "hit").get("simulate_psd", True):
             return []
-        return gen_list_of_dtmap_plots_outputs(config, simid)
+        files = gen_list_of_dtmap_plots_outputs(config, simid)
+        if get_tier_settings(config, "hit").get("simulate_psd_with_psl", True):
+            files.extend(
+                gen_list_of_superpulses_uniformity_plots_outputs(config, simid)
+            )
+        return files
     return []
 
 
@@ -548,6 +553,26 @@ def gen_list_of_currmod_plots_outputs(
                 patterns.plot_currmod_filename(config, hpge_detector=hpge, runid=runid)
             )
 
+    return files
+
+
+def gen_list_of_superpulses_uniformity_plots_outputs(
+    config: SimflowConfig, simid: str, cache: dict[str, dict[str, int]] | None = None
+) -> list[Path]:
+    """Generate the list of superpulse response uniformity plot outputs."""
+    files = []
+    for runid in get_runlist(config, simid):
+        hpges = (
+            gen_list_of_hpges_valid_for_modeling(config, runid)
+            if cache is None
+            else cache[runid].keys()
+        )
+        for hpge in hpges:
+            files.append(
+                patterns.plot_superpulses_uniformity_filename(
+                    config, build_per_runid=True, hpge_detector=hpge, runid=runid
+                )
+            )
     return files
 
 

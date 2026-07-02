@@ -76,6 +76,7 @@ DEFAULT_SETTINGS = {
         "superpulses": "input.superpulses",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
+        "uniformity_plot": "output.uniformity_plot",
         "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
@@ -139,6 +140,14 @@ def main() -> None:
         help="File name for diagnostic plots.",
     )
 
+    parser.add_argument(
+        "--uniformity-plot",
+        type=str,
+        required=False,
+        default=None,
+        help="File name for the response uniformity plot.",
+    )
+
     args = parser.parse_args()
 
     config = utils.init_simflow_context(args.simflow_config, workflow=None).config
@@ -176,6 +185,9 @@ def main() -> None:
             plot_dir = Path(args.plot_file).parent
             plot_dir.mkdir(parents=True, exist_ok=True)
             Path(args.plot_file).touch()
+        if args.uniformity_plot is not None:
+            Path(args.uniformity_plot).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.uniformity_plot).touch()
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
@@ -308,15 +320,17 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
 
-            fig, _ = plot_current_superpulses_fwhm_and_amplitude(
-                args.superpulses,
-                args.hpge_detector,
-                dt_range_tuning=dt_range_fit,
-            )
-            decorate(fig)
-            pdf.savefig(fig)
-            plt.close(fig)
         log.info("... saved diagnostic plots to %s", args.plot_file)
+
+    if args.uniformity_plot is not None:
+        fig, _ = plot_current_superpulses_fwhm_and_amplitude(
+            args.superpulses,
+            args.hpge_detector,
+            dt_range_tuning=dt_range_fit,
+        )
+        decorate(fig)
+        fig.savefig(args.uniformity_plot)
+        plt.close(fig)
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)

@@ -543,6 +543,9 @@ rule extract_electronics_model_pars:
     output:
         pars_file=temp(patterns.output_elecmod_filename(config)),
         plot_file=patterns.plot_elecmod_filename(config),
+        uniformity_plot=patterns.plot_superpulses_uniformity_filename(
+            config, build_per_runid=True
+        ),
     log:
         patterns.log_elecmod_filename(config),
     script:
