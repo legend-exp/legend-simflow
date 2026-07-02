@@ -477,10 +477,10 @@ checks depletion voltage, and calculates weighting potential.
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
 - `medium`: Detector environment medium (default: "LAr")
 - `temperature`: Detector environment temperature in K (default: 87 K)
-- `recompute_correction`: flag to recompute impurity corrections to match depletion.
+- `recompute_corrections`: flag to recompute impurity corrections to match depletion.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
-- `info`: dictonary of information on the SSD simulation, contains:
+- `info`: dictionary of information on the SSD simulation, contains:
     - `:scale`:scaling factor needed to match Vdep
     - `:vdep_raw`: unscaled depletion voltage
     - `:vdep_corr`: scaled depletion voltage
@@ -530,7 +530,7 @@ function setup_hpge_simulation(meta_path::String,
     catch
         error("Detector is not depleted!")
     end
-    
+
     if rescale_impurities
 
         scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep,
@@ -542,7 +542,7 @@ function setup_hpge_simulation(meta_path::String,
 
     adjust_bias_and_electric_potential!(sim, opv_val*u"V",
         check_against_depletion_voltage = false,
-        reconverge_electric_potential = false,
+        reconverge_electric_potential = false
     )
 
     @info "Calculating electric field..."
@@ -556,7 +556,7 @@ function setup_hpge_simulation(meta_path::String,
     end
     @info "Simulated depletion voltage is $dep"
 
-    if vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
+    if !(vdep isa PropDicts.MissingProperty) && vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
         error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
@@ -568,7 +568,7 @@ function setup_hpge_simulation(meta_path::String,
         verbose = false
     )
 
-    return sim, Dict(:scale=>scale,:vdep_meas=>vdep,:vdep_raw=>dep_raw,:vdep_corr=>dep)
+    return sim, Dict(:scale=>scale, :vdep_meas=>vdep, :vdep_raw=>dep_raw, :vdep_corr=>dep)
 end
 
 

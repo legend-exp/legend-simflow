@@ -102,7 +102,7 @@ function main()
             output = Dict(pairs(result))
 
             # also save the info
-            for (key,value) in info
+            for (key, value) in info
                 output[key] = value
             end
         else

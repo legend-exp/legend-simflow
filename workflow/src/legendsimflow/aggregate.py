@@ -199,6 +199,13 @@ def gen_list_of_hpges_valid_for_modeling(
         if chmap[hpge.name].analysis.usability != "on":
             continue
 
+        try:
+            _ = get_hpge_voltage(config, hpge.name, runid)
+        except KeyError:
+            msg = f"operational voltage for hpge {hpge.name} not found in run {runid}, detector cannot be modelled."
+            log.warning(msg)
+            continue
+
         if hpge.name in skip:
             continue
 
@@ -207,9 +214,7 @@ def gen_list_of_hpges_valid_for_modeling(
         )
 
         if m is not None:
-            schema = {
-                "impurity_curve": {"parameters": None}
-            }
+            schema = {"impurity_curve": {"parameters": None}}
 
             if validate_dict_schema(
                 m, schema, greedy=False, typecheck=False, verbose=False
@@ -249,6 +254,7 @@ def gen_list_of_all_hpges_valid_for_modeling(
     out = {}
     for runid in sorted(all_runids):
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+
         out[runid] = {hpge: get_hpge_voltage(config, hpge, runid) for hpge in hpges}
 
     if write_to_file is not None:
