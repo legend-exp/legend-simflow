@@ -20,5 +20,17 @@ if !ispath(joinpath(first(DEPOT_PATH), "registries", "LegendJuliaRegistry"))
     Pkg.Registry.add(url = "https://github.com/legend-exp/LegendJuliaRegistry.git")
 end
 
+# If Project.toml changed since the (gitignored) Manifest was resolved,
+# regenerate the Manifest from scratch so a re-run picks up the updated packages.
+# A plain instantiate() would silently keep the stale versions and resolve()
+# refuses to upgrade already-pinned packages; only a fresh resolve honors a
+# bumped compat bound.
+proj = dirname(Base.active_project())
+if Pkg.is_manifest_current(proj) !== true
+    @info("Project.toml changed, regenerating the Julia environment")
+    Pkg.Registry.update()
+    rm(joinpath(proj, "Manifest.toml"); force = true)
+end
+
 Pkg.instantiate()
 Pkg.precompile()
