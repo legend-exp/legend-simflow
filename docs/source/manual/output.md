@@ -26,6 +26,51 @@ The data-superpulse layout switches to one file per `(runid, detector)` pair
 {ref}`superpulses-settings-meta`). The drift-time map and realistic PSL also
 have per-detector `singles/` files that the merge step combines.
 
+(par-detinfo)=
+
+## `par` tier — detector-info cache (`pars/detinfo/`)
+
+Post-processing needs per-detector, per-run information queried from
+`legend-metadata` (channel-map status, diode and crystal records). Those lookups
+are slow, so the `par` tier caches the results once as a set of small YAML files
+under `{config.paths.pars}/detinfo/`, one file per _flag_, and the `opt`, `hit`,
+and modeling rules read them instead of re-querying the metadata.
+
+Every file is named `{flag}.yaml` and holds a two-level mapping
+`runid -> detector -> value`:
+
+```yaml
+# usability.yaml
+l200-p03-r000-phy:
+  V00048A: on
+  B00035B: ac
+  S002: off
+l200-p03-r001-phy:
+  V00048A: on
+  ...
+```
+
+A detector appears under a flag only when that flag applies to it: SiPM channels
+carry `usability` alone, while `psd_usability`, `crystal_metadata_usability`,
+`is_modelable`, and `operational_voltage_in_V` are germanium-only.
+
+The [`cache_detector_usabilities`](../api/snakemake_rules.md) rule writes the
+data-quality flags for **all** deployed detectors:
+
+| File                              | Applies to  | Value                | Description                                                                                                                                       |
+| --------------------------------- | ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `usability.yaml`                  | geds + SiPM | `on`, `off`, `ac`, … | Analysis usability from the channel-map status (`analysis.usability`).                                                                            |
+| `psd_usability.yaml`              | geds        | `valid`, …           | PSD usability from `analysis.psd.status.low_aoe`; defaults to `valid` when the field is absent.                                                   |
+| `crystal_metadata_usability.yaml` | geds        | `valid`, …, `null`   | Usability of the crystal metadata required for modeling (the crystal-slice `status`). `null` when the information is unavailable in the metadata. |
+
+The [`cache_modelable_hpges`](../api/snakemake_rules.md) checkpoint writes the
+modeling flags for **every deployed germanium** detector:
+
+| File                            | Value            | Description                                                                                                                                     |
+| ------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `is_modelable.yaml`             | `true` / `false` | Whether the detector is suitable for drift-time-map and current-pulse modeling. See {ref}`hpge-modeling-criteria` for the eligibility criteria. |
+| `operational_voltage_in_V.yaml` | integer / `null` | Operational bias voltage read from the parameters database. `null` for detectors with no bias (e.g. off detectors).                             |
+
 ## `hit` tier — HPGe detector post-processing
 
 The `hit` tier applies detector response models (energy resolution, pulse-shape
@@ -48,13 +93,14 @@ These fields are carried over from the
 
 ### Added fields
 
-| Field           | Type    | Units | Description                                                                                                                                                                                                 |
-| --------------- | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `energy`        | `Array` | keV   | Reconstructed energy after smearing with the detector energy resolution. Computed from the sum of active energy depositions (weighted by the dead-layer activeness model).                                  |
-| `period`        | `Array` | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                             |
-| `run`           | `Array` | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                |
-| `usability`     | `Array` | —     | Encoded detector usability status for this run (e.g. `on`, `off`, `ac`). Decode with {func}`legendsimflow.metadata.decode_usability`. See the detector status flags in `legend-metadata/datasets/statuses`. |
-| `psd_usability` | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.        |
+| Field           | Type    | Units | Description                                                                                                                                                                                                                                                                                     |
+| --------------- | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `energy`        | `Array` | keV   | Reconstructed energy after smearing with the detector energy resolution. Computed from the sum of active energy depositions (weighted by the dead-layer activeness model).                                                                                                                      |
+| `period`        | `Array` | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                                                                                                                 |
+| `run`           | `Array` | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                                                                                                    |
+| `usability`     | `Array` | —     | Encoded detector usability status for this run (e.g. `on`, `off`, `ac`). Decode with {func}`legendsimflow.metadata.decode_usability`. See the detector status flags in `legend-metadata/datasets/statuses`.                                                                                     |
+| `psd_usability` | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.                                                                                            |
+| `is_valid_sim`  | `Array` | —     | Boolean. `True` when the crystal metadata needed to model this detector is usable (`crystal_metadata_usability` is `valid`, see {ref}`par-detinfo`), so the simulated detector response can be trusted. `False` otherwise. Reshaped into `geds/psd/is_valid_sim` by the [`evt` tier](evt-tier). |
 
 The `hit` tier can add HPGe pulse-shape-discrimination (PSD) fields in two
 optional subtables, selected by the metadata settings in
@@ -173,16 +219,17 @@ single-template, `psd_psl` is PSL based; see {ref}`hpge-psl-overview`), so a
 field's meaning depends on which subtable it is in. All fields are
 `VectorOfVectors` (variable-length per event).
 
-| Field             | Units | Subtable         | Description                                                                      |
-| ----------------- | ----- | ---------------- | -------------------------------------------------------------------------------- |
-| `is_good`         |       | `psd`            | Boolean. `True` if the PSD usability flag is valid in LEGEND-200 data.           |
-| `aoe`             |       | `psd`, `psd_psl` | A/E classifier values forwarded from the `hit` tier.                             |
-| `aoe_corr`        |       | `psd`, `psd_psl` | Energy-corrected A/E values forwarded from the `hit` tier.                       |
-| `drift_time_amax` | ns    | `psd`, `psd_psl` | Drift time at the maximum-current position, forwarded from the `hit` tier.       |
-| `has_aoe`         |       | `psd`, `psd_psl` | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed).           |
-| `is_single_site`  |       | `psd`, `psd_psl` | Boolean single-site PSD flag forwarded from the `hit` tier.                      |
-| `is_bb_like`      |       | `psd_psl`        | Boolean flag for $0\nu\beta\beta$-like single-site events, forwarded from `hit`. |
-| `is_high_aoe`     |       | `psd_psl`        | Boolean high-A/E flag forwarded from the `hit` tier.                             |
+| Field             | Units | Subtable         | Description                                                                                                                                                                                             |
+| ----------------- | ----- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `is_good`         |       | `psd`            | Boolean. `True` if the PSD usability flag is valid in LEGEND-200 data.                                                                                                                                  |
+| `is_valid_sim`    |       | `psd`            | Boolean. `True` when the crystal metadata needed to model the detector is usable, so its simulated response can be trusted. Reshaped from the `hit`-tier `is_valid_sim` field (see {ref}`par-detinfo`). |
+| `aoe`             |       | `psd`, `psd_psl` | A/E classifier values forwarded from the `hit` tier.                                                                                                                                                    |
+| `aoe_corr`        |       | `psd`, `psd_psl` | Energy-corrected A/E values forwarded from the `hit` tier.                                                                                                                                              |
+| `drift_time_amax` | ns    | `psd`, `psd_psl` | Drift time at the maximum-current position, forwarded from the `hit` tier.                                                                                                                              |
+| `has_aoe`         |       | `psd`, `psd_psl` | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed).                                                                                                                                  |
+| `is_single_site`  |       | `psd`, `psd_psl` | Boolean single-site PSD flag forwarded from the `hit` tier.                                                                                                                                             |
+| `is_bb_like`      |       | `psd_psl`        | Boolean flag for $0\nu\beta\beta$-like single-site events, forwarded from `hit`.                                                                                                                        |
+| `is_high_aoe`     |       | `psd_psl`        | Boolean high-A/E flag forwarded from the `hit` tier.                                                                                                                                                    |
 
 ### `spms/` — SiPM (LAr scintillation) array
 
