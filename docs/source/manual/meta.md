@@ -896,6 +896,25 @@ Each entry must contain:
 See {ref}`hpge-elecmod-extraction` for a description of how these files are used
 at runtime.
 
+(modeling-settings-meta)=
+
+### HPGe modeling settings
+
+An optional single shared YAML file (applies to all detectors) that tunes the
+automatic gate deciding which HPGe detectors are eligible for drift-time map and
+current-pulse model generation (see {ref}`hpge-modeling-criteria`). When absent,
+the built-in defaults are used.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/modeling/settings.yaml
+
+min_voltage_above_depletion_in_V: 100
+```
+
+| Key                                | Type | Default | Description                                                                                                                                                    |
+| ---------------------------------- | ---- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `min_voltage_above_depletion_in_V` | int  | `100`   | Minimum margin (in V) by which a detector's operational voltage must exceed its depletion voltage to be considered modelable. Detectors below it are excluded. |
+
 (skip-metadata-dir)=
 
 ### Manual HPGe skip-list

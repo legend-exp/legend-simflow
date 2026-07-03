@@ -26,6 +26,7 @@ from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
     encode_psd_usability,
+    get_par_settings,
     get_runlist,
     get_simconfig,
     get_tier_settings,
@@ -193,6 +194,7 @@ def _hpge_is_modelable(
     name: str,
     skip: Mapping[str, str],
     operational_voltage: int | None,
+    min_voltage_above_depletion: int,
 ) -> bool:
     """Whether the HPGe `name` is valid for drift-time-map modeling.
 
@@ -202,8 +204,8 @@ def _hpge_is_modelable(
     if name in skip:
         return False
 
-    # detectors not operated at least 100 V above their depletion voltage are
-    # not modeled (off detectors have no operational voltage)
+    # detectors not operated far enough above their depletion voltage are not
+    # modeled (off detectors have no operational voltage)
     if operational_voltage is None:
         return False
 
@@ -214,7 +216,7 @@ def _hpge_is_modelable(
     except (KeyError, AttributeError, FileNotFoundError):
         return False
 
-    if operational_voltage < depletion_voltage + 100:
+    if operational_voltage < depletion_voltage + min_voltage_above_depletion:
         return False
 
     # detectors without an impurity curve in the crystal metadata cannot be
@@ -254,7 +256,8 @@ def gen_hpge_modeling_status(
     A detector ``is_modelable`` when all of the following hold: it is not listed
     in the validity-based skip metadata
     ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it is operated
-    at least 100 V above its depletion voltage
+    at least ``min_voltage_above_depletion_in_V`` (default 100 V, configurable
+    via the ``modeling`` par settings) above its depletion voltage
     (``characterization.l200_site.depletion_voltage_in_V`` in the diode
     metadata), and its crystal metadata provides an impurity curve.
     ``operational_voltage_in_V`` is ``None`` for detectors with no operational
@@ -271,6 +274,12 @@ def gen_hpge_modeling_status(
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
+    # minimum operational-voltage margin above depletion required to consider an
+    # HPGe modelable; overridable per experiment via the modeling par settings
+    min_voltage_above_depletion = get_par_settings(config, "modeling").get(
+        "min_voltage_above_depletion_in_V", 100
+    )
+
     status = {}
     for _, hpge in chmap.group("system").geds.items():
         name = hpge.name
@@ -282,7 +291,9 @@ def gen_hpge_modeling_status(
             operational_voltage = None
 
         status[name] = {
-            "is_modelable": _hpge_is_modelable(config, name, skip, operational_voltage),
+            "is_modelable": _hpge_is_modelable(
+                config, name, skip, operational_voltage, min_voltage_above_depletion
+            ),
             "operational_voltage_in_V": operational_voltage,
         }
 
