@@ -93,12 +93,19 @@ has per-detector rather than per-run granularity, and cases 3 and 4 bypass the
 waveform fitting entirely (so they do not need `l200data`). The metadata
 directory is described in {ref}`currmod-metadata-dir`.
 
-### Manual HPGe skip-list
+(hpge-modeling-criteria)=
 
-In addition to the automatic exclusions performed by
-{func}`~legendsimflow.aggregate.gen_list_of_hpges_valid_for_modeling` (a
-detector must be operated at least 100 V above its depletion voltage and have an
-impurity curve in the crystal metadata), individual detectors can be removed
+### HPGe modeling criteria and skip-list
+
+A deployed HPGe is _modelable_ (i.e. eligible for drift-time-map and
+current-pulse model generation, tracked by the `is_modelable` flag in
+{ref}`par-detinfo`) when, for the given run, it is operated at least 100 V above
+its depletion voltage (`characterization.l200_site.depletion_voltage_in_V` in
+the diode metadata) and its crystal metadata provides an impurity curve. The
+eligibility is assessed by
+{func}`~legendsimflow.aggregate.gen_list_of_hpges_valid_for_modeling`.
+
+In addition to these automatic exclusions, individual detectors can be removed
 from the modelable HPGe list for a given set of runs via the
 {ref}`skip-metadata-dir` directory. A WARNING is emitted for each skipped
 detector, including the reason string and the run identifier.
