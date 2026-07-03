@@ -1198,7 +1198,8 @@ def plot_superpulses(
 
     if curve == "charge":
         t0 = min(s["times"][0] for s in slices)
-        margin = 0.15 * (dt_max - dt_min)
+        dt_span = dt_max - dt_min
+        margin = 0.15 * (dt_span if dt_span > 0 else dt_max)
         left_edge = max(-dt_max - margin, t0)
         ax_inset.set_xlim(left_edge, -dt_min + margin)
         ax_inset.set_ylim(-0.001, 0.105)
