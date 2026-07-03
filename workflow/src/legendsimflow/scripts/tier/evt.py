@@ -58,7 +58,7 @@ VALID_CRYSTAL = encode_crystal_metadata_usability("valid")
             snakemake.input.hit_file[0] if snakemake.input.hit_file else None
         ),
         "simstat_part_file": "input.simstat_part_file",
-        "detector_usabilities_file": "input.detector_usabilities[0]",
+        "usability_file": "input.usability",
         "jobid": "wildcards.jobid",
         "evt_file": "output[0]",
         "log_file": "log[0]",
@@ -83,9 +83,9 @@ def main() -> None:
         help="simulation statistics partition file",
     )
     parser.add_argument(
-        "--detector-usabilities-file",
+        "--usability-file",
         required=True,
-        help="detector usabilities YAML file",
+        help="detector usability YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
     parser.add_argument("--evt-file", required=True, help="output evt tier file")
@@ -145,9 +145,7 @@ def main() -> None:
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
-    usabilities = AttrsDict(
-        load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
-    )
+    usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
 
     # get the psd settings
     tier_hit_settings = get_tier_settings(config, "hit")
@@ -299,8 +297,7 @@ def main() -> None:
             sorted(
                 uid
                 for det_name, uid in det2uid["opt"].items()
-                if (usabilities[runid].get(det_name) or {}).get("usability", "on")
-                != "off"
+                if usability_map[runid].get(det_name, "on") != "off"
             )
             if not skip_opt
             else []

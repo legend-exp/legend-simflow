@@ -52,7 +52,7 @@ from legendsimflow.tcm import build_tcm
         "optmap_lar": "input.optmap_lar",
         "geom_file": "input.geom",
         "simstat_part_file": "input.simstat_part_file",
-        "detector_usabilities_file": "input.detector_usabilities[0]",
+        "usability_file": "input.usability",
         "jobid": "wildcards.jobid",
         "opt_file": "output[0]",
         "log_file": "log[0]",
@@ -72,9 +72,9 @@ def main() -> None:
         help="simulation statistics partition file",
     )
     parser.add_argument(
-        "--detector-usabilities-file",
+        "--usability-file",
         required=True,
-        help="detector usabilities YAML file",
+        help="detector usability YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
     parser.add_argument("--opt-file", required=True, help="output opt tier file")
@@ -111,9 +111,7 @@ def main() -> None:
     optmap_per_sipm = args.optmap_per_sipm
     scintillator_volume_name = args.scintillator_volume_name
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
-    usabilities = AttrsDict(
-        load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
-    )
+    usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
 
     opt_file, move2cfs = nersc.make_on_scratch(config, opt_file)
 
@@ -290,13 +288,11 @@ def main() -> None:
                     sipm_uid = sens_tables[sipm].uid
 
                     # get the usability
-                    det_info = usabilities[runid].get(sipm, None)
-                    if det_info is None:
+                    usability = usability_map[runid].get(sipm)
+                    if usability is None:
                         msg = f"usability not found for {sipm} in {runid}, defaulting to on"
                         log.warning(msg)
                         usability = "on"
-                    else:
-                        usability = det_info.usability
 
                     msg = f"applying optical map for SiPM {sipm}"
                     log.debug(msg)

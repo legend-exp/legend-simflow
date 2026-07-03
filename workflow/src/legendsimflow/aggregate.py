@@ -19,7 +19,6 @@ import logging
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
-import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
 
@@ -171,6 +170,24 @@ def start_key(config: SimflowConfig, runid: str) -> str:
     return config.metadata.datasets.runinfo[period][run][datatype].start_key
 
 
+def pivot_detinfo(
+    nested: Mapping[str, Mapping[str, Mapping[str, object]]],
+) -> dict[str, dict[str, dict[str, object]]]:
+    """Pivot ``{runid: {det: {flag: value}}}`` into ``{flag: {runid: {det: value}}}``.
+
+    Used to lay out the per-detector information as one ``detinfo`` file per
+    flag (see :func:`legendsimflow.patterns.detinfo_filename`). Flags absent
+    from an entry (e.g. non-geds detectors carry only ``usability``) simply do
+    not contribute to the corresponding flag mapping.
+    """
+    out: dict[str, dict[str, dict[str, object]]] = {}
+    for runid, dets in nested.items():
+        for det, entry in dets.items():
+            for flag, value in entry.items():
+                out.setdefault(flag, {}).setdefault(runid, {})[det] = value
+    return out
+
+
 def _hpge_is_modelable(
     config: SimflowConfig,
     name: str,
@@ -217,7 +234,7 @@ def _hpge_is_modelable(
 
 def gen_hpge_modeling_status(
     config: SimflowConfig, runid: str
-) -> dict[str, dict[str, bool | int | str | None]]:
+) -> dict[str, dict[str, bool | int | None]]:
     """Assess every HPGe deployed in `runid` for drift-time-map modeling.
 
     Iterates over the germanium detectors deployed in `runid` (via the LEGEND
@@ -230,7 +247,6 @@ def gen_hpge_modeling_status(
           'V00048A': {
             'is_modelable': True,
             'operational_voltage_in_V': 4200,
-            'crystal_metadata_usability': 'valid',
           },
           ...
         }
@@ -242,9 +258,7 @@ def gen_hpge_modeling_status(
     (``characterization.l200_site.depletion_voltage_in_V`` in the diode
     metadata), and its crystal metadata provides an impurity curve.
     ``operational_voltage_in_V`` is ``None`` for detectors with no operational
-    voltage (e.g. off detectors), and ``crystal_metadata_usability`` is ``None``
-    when the crystal metadata is unavailable (see
-    :func:`get_hpge_crystal_metadata_usability`).
+    voltage (e.g. off detectors).
 
     Warning
     -------
@@ -270,9 +284,6 @@ def gen_hpge_modeling_status(
         status[name] = {
             "is_modelable": _hpge_is_modelable(config, name, skip, operational_voltage),
             "operational_voltage_in_V": operational_voltage,
-            "crystal_metadata_usability": get_hpge_crystal_metadata_usability(
-                config, name
-            ),
         }
 
     return status
@@ -304,8 +315,7 @@ def gen_list_of_hpges_valid_for_modeling(
 
 def gen_list_of_all_hpges_valid_for_modeling(
     config: SimflowConfig,
-    write_to_file: str | Path | None = None,
-) -> dict[str, dict[str, dict[str, bool | int | str | None]]]:
+) -> dict[str, dict[str, dict[str, bool | int | None]]]:
     """Generate the modeling status of every HPGe detector, for every runid.
 
     Assesses all deployed HPGe detectors for each runid via
@@ -315,30 +325,24 @@ def gen_list_of_all_hpges_valid_for_modeling(
 
         {
           'l200-p03-r000-phy': {
-            'V00048A': {'is_modelable': True, 'operational_voltage_in_V': 4200, 'crystal_metadata_usability': 'valid'},
+            'V00048A': {'is_modelable': True, 'operational_voltage_in_V': 4200},
             ...
           },
           ...
         }
 
     i.e. a mapping ``runid -> hpge -> {"is_modelable": flag,
-    "operational_voltage_in_V": voltage, "crystal_metadata_usability":
-    status}`` covering both modelable and non-modelable detectors. Filter on
-    ``is_modelable`` to recover the detectors valid for modeling.
+    "operational_voltage_in_V": voltage}`` covering both modelable and
+    non-modelable detectors. Filter on ``is_modelable`` to recover the
+    detectors valid for modeling.
     """
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
 
-    out = {
+    return {
         runid: gen_hpge_modeling_status(config, runid) for runid in sorted(all_runids)
     }
-
-    if write_to_file is not None:
-        Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)
-        dbetto.utils.write_dict(out, write_to_file)
-
-    return out
 
 
 def gen_list_of_all_usabilities(
@@ -728,8 +732,14 @@ def gen_list_of_psdcuts(config: SimflowConfig, simid: str) -> list[Path]:
 def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
     """Generate the list of all (non-plot) ``par`` step output files in the Simflow."""
     files: list[Path] = [
-        config.paths.pars / "modelable_hpge_detectors.yaml",
-        config.paths.pars / "detector_usabilities.yaml",
+        patterns.detinfo_filename(config, flag)
+        for flag in (
+            "usability",
+            "psd_usability",
+            "crystal_metadata_usability",
+            "is_modelable",
+            "operational_voltage_in_V",
+        )
     ]
     for simid in gen_list_of_all_simids(config):
         files.append(patterns.simstat_part_filename(config, simid=simid))

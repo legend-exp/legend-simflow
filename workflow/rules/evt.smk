@@ -67,7 +67,7 @@ rule build_tier_evt:
             ]
         ),
         simstat_part_file=patterns.simstat_part_filename(config),
-        detector_usabilities=rules.cache_detector_usabilities.output,
+        usability=rules.cache_detector_usabilities.output.usability,
     params:
         add_random_coincidences=_tier_setting("evt", "add_random_coincidences"),
         geds_energy_thr_kev=_tier_setting("evt", "geds_energy_thr_kev"),

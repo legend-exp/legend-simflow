@@ -58,7 +58,9 @@ from legendsimflow.tcm import build_tcm
         "dtmap_files": "input.hpge_dtmaps",
         "currmod_files": "input.hpge_currmods",
         "simstat_part_file": "input.simstat_part_file",
-        "detector_usabilities_file": "input.detector_usabilities[0]",
+        "usability_file": "input.usability",
+        "psd_usability_file": "input.psd_usability",
+        "crystal_metadata_usability_file": "input.crystal_metadata_usability",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -84,9 +86,19 @@ def main() -> None:
         help="simulation statistics partition file",
     )
     parser.add_argument(
-        "--detector-usabilities-file",
+        "--usability-file",
         required=True,
-        help="detector usabilities YAML file",
+        help="detector usability YAML file",
+    )
+    parser.add_argument(
+        "--psd-usability-file",
+        required=True,
+        help="PSD usability YAML file",
+    )
+    parser.add_argument(
+        "--crystal-metadata-usability-file",
+        required=True,
+        help="crystal metadata usability YAML file",
     )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -108,8 +120,12 @@ def main() -> None:
     metadata = config.metadata
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     l200data = config.paths.get("l200data", None)
-    usabilities = AttrsDict(
-        load_dict(nersc.dvs_ro(config, args.detector_usabilities_file))
+    usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
+    psd_usability_map = AttrsDict(
+        load_dict(nersc.dvs_ro(config, args.psd_usability_file))
+    )
+    crystal_metadata_usability_map = AttrsDict(
+        load_dict(nersc.dvs_ro(config, args.crystal_metadata_usability_file))
     )
 
     # default resolutions/cuts for non-ON detectors, sourced from hit tier settings
@@ -269,8 +285,8 @@ def main() -> None:
                 continue
 
             # get the usability
-            det_info = usabilities[runid][det_name]
-            if det_info is None:
+            usability = usability_map[runid].get(det_name)
+            if usability is None:
                 log.warning(
                     "usability not found for %s in %s, defaulting to on",
                     det_name,
@@ -280,9 +296,10 @@ def main() -> None:
                 psd_usability = "valid"
                 crystal_metadata_usability = None
             else:
-                usability = det_info.usability
-                psd_usability = det_info.psd_usability
-                crystal_metadata_usability = det_info.crystal_metadata_usability
+                psd_usability = psd_usability_map[runid].get(det_name, "valid")
+                crystal_metadata_usability = crystal_metadata_usability_map[runid].get(
+                    det_name
+                )
             psd_usability_code = mutils.encode_psd_usability(psd_usability)
             crystal_metadata_usability_code = mutils.encode_crystal_metadata_usability(
                 crystal_metadata_usability

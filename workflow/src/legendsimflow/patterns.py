@@ -37,6 +37,16 @@ from . import SimflowConfig
 from . import metadata as metautils
 
 
+def detinfo_filename(config: SimflowConfig, flag: str) -> Path:
+    """Path to the per-flag detector-info file for `flag` in the `par` tier.
+
+    The `par` tier caches detector-level information (usability, modelability,
+    ...) as one YAML file per flag under ``pars/detinfo/``, each a mapping
+    ``runid -> detector -> value``.
+    """
+    return config.paths.pars / "detinfo" / f"{flag}.yaml"
+
+
 def _expand(pattern: str | Path, keep_list: bool = False, **kwargs) -> str | Path:
     """Expand a path pattern with Snakemake wildcards.
 

@@ -63,7 +63,9 @@ rule build_tier_hit:
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
-        detector_usabilities=rules.cache_detector_usabilities.output,
+        usability=rules.cache_detector_usabilities.output.usability,
+        psd_usability=rules.cache_detector_usabilities.output.psd_usability,
+        crystal_metadata_usability=rules.cache_detector_usabilities.output.crystal_metadata_usability,
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:

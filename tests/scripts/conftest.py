@@ -214,22 +214,24 @@ def legend_simstat_part_path(tmp_path_factory, legend_stp_path):
 
 @pytest.fixture(scope="session")
 def legend_detector_usabilities_path(tmp_path_factory):
-    """Cache detector usabilities for all l1000dsg01 runs.
+    """Build the per-flag detector-info files for all l1000dsg01 runs.
 
     Calls ``aggregate.gen_list_of_all_usabilities`` with the l1000dsg01
-    metadata (no remage or Julia required).  Returns the path to the output
-    YAML file.
+    metadata (no remage or Julia required) and writes one YAML per flag
+    (``usability.yaml``, ``psd_usability.yaml``,
+    ``crystal_metadata_usability.yaml``). Returns the directory containing them.
     """
-    out_dir = tmp_path_factory.mktemp("legend_usabilities")
+    out_dir = tmp_path_factory.mktemp("legend_detinfo")
     config_path = _l1000_config(out_dir)
-    output_file = out_dir / "detector_usabilities.yaml"
 
     config = utils.init_simflow_context(config_path, workflow=None).config
-    dbetto.utils.write_dict(
-        aggregate.gen_list_of_all_usabilities(config).to_dict(), output_file
+    detinfo = aggregate.pivot_detinfo(
+        aggregate.gen_list_of_all_usabilities(config).to_dict()
     )
+    for flag, mapping in detinfo.items():
+        dbetto.utils.write_dict(mapping, out_dir / f"{flag}.yaml")
 
-    return output_file
+    return out_dir
 
 
 @pytest.fixture(scope="session")
@@ -303,8 +305,8 @@ def legend_opt_path(
         str(legend_gdml_path),
         "--simstat-part-file",
         str(legend_simstat_part_path),
-        "--detector-usabilities-file",
-        str(legend_detector_usabilities_path),
+        "--usability-file",
+        str(legend_detector_usabilities_path / "usability.yaml"),
         "--jobid",
         "0000",
         "--opt-file",
@@ -388,8 +390,12 @@ def legend_hit_path(
         str(legend_currmod_paths[_RUNIDS_L1000[1]]),
         "--simstat-part-file",
         str(legend_simstat_part_path),
-        "--detector-usabilities-file",
-        str(legend_detector_usabilities_path),
+        "--usability-file",
+        str(legend_detector_usabilities_path / "usability.yaml"),
+        "--psd-usability-file",
+        str(legend_detector_usabilities_path / "psd_usability.yaml"),
+        "--crystal-metadata-usability-file",
+        str(legend_detector_usabilities_path / "crystal_metadata_usability.yaml"),
         "--simflow-config",
         str(config_path),
     ):
@@ -425,8 +431,8 @@ def legend_evt_path(
         str(legend_hit_path),
         "--simstat-part-file",
         str(legend_simstat_part_path),
-        "--detector-usabilities-file",
-        str(legend_detector_usabilities_path),
+        "--usability-file",
+        str(legend_detector_usabilities_path / "usability.yaml"),
         "--jobid",
         "0000",
         "--evt-file",
