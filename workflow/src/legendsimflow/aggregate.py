@@ -251,7 +251,7 @@ def gen_list_of_all_hpges_valid_for_modeling(
     """Generate the complete list of HPGe detectors valid for modeling.
 
     Find out which HPGe detectors are valid for each runid, their voltages and
-    crystal impurity status. Returns the following dictionary:
+    crystal metadata usability. Returns the following dictionary:
 
     .. code-block::
 
@@ -302,17 +302,25 @@ def gen_list_of_all_usabilities(
 
         {
           'l200-p03-r000-phy': {
-            'V00048A': {'usability': 'on', 'psd_usability': 0},
+            'V00048A': {
+              'usability': 'on',
+              'psd_usability': 'valid',
+              'crystal_metadata_usability': 'valid',
+            },
             ...
           },
           ...
         }
 
-    ``psd_usability`` is an integer encoding of the ``psd.status.low_aoe``
-    field in the channel map status for germanium detectors (see
+    ``psd_usability`` is the ``psd.status.low_aoe`` field in the channel map
+    status for germanium detectors (encoded later via
     ``legendsimflow.metadata.PSD_USABILITY_CODE``). If the field is absent it
     defaults silently to ``"valid"``; if it has an unexpected value a warning
     is emitted and it also defaults to ``"valid"``.
+
+    ``crystal_metadata_usability`` is the crystal metadata usability for
+    germanium detectors (see :func:`get_hpge_crystal_metadata_usability`); it is
+    ``None`` when the information is not available in the metadata.
 
     Parameters
     ----------
@@ -347,6 +355,9 @@ def gen_list_of_all_usabilities(
                     except AttributeError:
                         pass
                     entry["psd_usability"] = psd_usability
+                    entry["crystal_metadata_usability"] = (
+                        get_hpge_crystal_metadata_usability(config, chname)
+                    )
 
                 out_dict[runid][chname] = entry
 
@@ -378,19 +389,19 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
 
 
 def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str | None:
-    """Get the crystal impurity status for an HPGe detector.
+    """Get the crystal metadata usability for an HPGe detector.
 
     Reads ``hardware.detectors.germanium.crystals[...].slices[...].status`` for
     the slice the detector was cut from. Returns ``None`` if the information is
     not available in the metadata.
     """
-    diode = config.metadata.hardware.detectors.germanium.diodes[hpge]
-    crystal = crystal_meta(config, diode)
-    if crystal is None:
-        return None
     try:
+        diode = config.metadata.hardware.detectors.germanium.diodes[hpge]
+        crystal = crystal_meta(config, diode)
+        if crystal is None:
+            return None
         return crystal.slices[diode.production.slice].status
-    except (KeyError, AttributeError):
+    except (KeyError, AttributeError, FileNotFoundError):
         return None
 
 

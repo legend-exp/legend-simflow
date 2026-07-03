@@ -86,7 +86,7 @@ def test_evt_script_cli(
     psd_fields = {
         f.removeprefix("evt/geds/psd/") for f in lh5.ls(evt_file, "evt/geds/psd/")
     }
-    for field in ("is_good", "aoe", "has_aoe", "is_single_site"):
+    for field in ("is_good", "is_valid_sim", "aoe", "has_aoe", "is_single_site"):
         assert field in psd_fields, f"'geds/psd/{field}' missing; got {psd_fields}"
 
     spms_fields = {f.removeprefix("evt/spms/") for f in lh5.ls(evt_file, "evt/spms/")}

@@ -96,6 +96,7 @@ def test_hit_script_cli(
         "evtid",
         "period",
         "psd_usability",
+        "crystal_metadata_usability",
         "run",
         "t0",
         "usability",
@@ -151,4 +152,9 @@ def test_hit_script_cli(
     psd_usability_vals = _field(first_det, "psd_usability")
     assert np.all(np.isin(psd_usability_vals, [0, 1, 2])), (
         f"invalid psd_usability codes: {np.unique(psd_usability_vals)}"
+    )
+
+    crystal_metadata_usability_vals = _field(first_det, "crystal_metadata_usability")
+    assert np.all(np.isin(crystal_metadata_usability_vals, [0, 1, 2])), (
+        f"invalid crystal_metadata_usability codes: {np.unique(crystal_metadata_usability_vals)}"
     )
