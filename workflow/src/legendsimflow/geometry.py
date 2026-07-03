@@ -91,6 +91,10 @@ def make_hpge_mass_plot(
 
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
 
+    # silence pygeoml200's expected noise (per-detector dummy-enrichment
+    # warnings, public-geometry notice) that would otherwise spam the log
+    logging.getLogger("pygeoml200").setLevel(logging.ERROR)
+
     fig, ax = plt.subplots(figsize=(13, 3.5))
     plot_hpge_mass_comparison(geom_config, ax=ax)
     decorate(fig, rotate=True)
@@ -113,10 +117,9 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     os.environ["VTK_DEFAULT_OPENGL_WINDOW"] = "vtkOSOpenGLRenderWindow"
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
 
-    # pygeoml200 warns once per detector missing an enrichment value in
-    # metadata, but it already substitutes a documented dummy value, so the
-    # warning is expected and would otherwise spam the Snakemake log
-    logging.getLogger("pygeoml200.hpge_strings").setLevel(logging.ERROR)
+    # silence pygeoml200's expected noise (per-detector dummy-enrichment
+    # warnings, public-geometry notice) that would otherwise spam the log
+    logging.getLogger("pygeoml200").setLevel(logging.ERROR)
 
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry
