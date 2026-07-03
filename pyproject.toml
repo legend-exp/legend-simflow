@@ -160,8 +160,8 @@ default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
 
 [tool.pixi.tasks]
-snakemake = { cmd = "snakemake", depends-on = ["precompile"] }
-snakemake-nersc = { cmd = "snakemake-nersc", depends-on = ["precompile"] }
+snakemake = { cmd = "snakemake", depends-on = ["warmup"] }
+snakemake-nersc = { cmd = "snakemake-nersc", depends-on = ["warmup"] }
 dry = { cmd = "snakemake --dry-run" }
 touch = { cmd = "snakemake --touch" }
 
@@ -180,31 +180,31 @@ args = [
   {arg = "profile", default = "default"},
   {arg = "logger", default = "snkmt rich"},
 ]
-depends-on = ["precompile"]
+depends-on = ["warmup"]
 
 [tool.pixi.tasks.prodnodes]
 # NOTE: snkmt does not work here because of race condition
 cmd = "snakemake-nersc --nodes {{ n_nodes }}"
 args = ["n_nodes"]
-depends-on = ["precompile"]
+depends-on = ["warmup"]
 
 [tool.pixi.tasks.prodsubmit]
-# NOTE: no need to depend on precompile since this command calls `pixi run
+# NOTE: no need to depend on warmup since this command calls `pixi run
 # snakemake[-nersc]` internally
 cmd = "snakemake-nersc-batch"
 
-[tool.pixi.tasks.precompile]
-cmd = "python -c 'from dspeed.processors import *; from lh5.compression import *; import matplotlib; import pygama; import pygeomhpges; import pygeomoptics; import pygeomtools; import reboost; import remage; import revertex' && touch .pixi/precompile.stamp"
-outputs = [".pixi/precompile.stamp"]
+[tool.pixi.tasks.warmup]
+cmd = "python -m legendsimflow.warmup && touch .pixi/warmup.stamp"
+outputs = [".pixi/warmup.stamp"]
 
 [tool.pixi.feature.test.tasks]
 test-python = { cmd = "pytest -vvv" }
 init-julia-env = { cmd = "julia --project=workflow/src/LegendSimflow.jl workflow/src/legendsimflow/scripts/init-julia-env.jl && touch .pixi/julia-env.stamp", outputs = [".pixi/julia-env.stamp"] }
 test-julia = { cmd = "julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
 test-julia-ci = { cmd = "julia --code-coverage=user --project=. -e 'using Pkg; Pkg.test(coverage=true)'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
-test-python-pixi = { cmd = "pytest -vvv -m 'not needs_nersc' --ignore=tests/test_workflow.py --cov=legendsimflow --cov-report=xml", depends-on = ["precompile", "init-julia-env"] }
-test-l1000-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' tests/test_workflow.py::test_l1000_workflow", depends-on = ["precompile"] }
-test-l200-workflow = { cmd = "pytest -s -m needs_nersc", depends-on = ["precompile"] }
+test-python-pixi = { cmd = "pytest -vvv -m 'not needs_nersc' --ignore=tests/test_workflow.py --cov=legendsimflow --cov-report=xml", depends-on = ["warmup", "init-julia-env"] }
+test-l1000-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' tests/test_workflow.py::test_l1000_workflow", depends-on = ["warmup"] }
+test-l200-workflow = { cmd = "pytest -s -m needs_nersc", depends-on = ["warmup"] }
 test = { depends-on = ["test-python", "test-julia"] }
 
 [tool.uv.workspace]
