@@ -132,8 +132,13 @@ def test_hpge_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    # maps hpge -> {"operational_voltage_in_V": voltage}
-    assert hpges["l200-p02-r000-phy"] == {"V99000A": {"operational_voltage_in_V": 4200}}
+    # maps hpge -> {"operational_voltage_in_V": voltage, "crystal_metadata_usability": status}
+    assert hpges["l200-p02-r000-phy"] == {
+        "V99000A": {
+            "operational_voltage_in_V": 4200,
+            "crystal_metadata_usability": "valid",
+        }
+    }
 
 
 def test_runlist_harvesting(config):

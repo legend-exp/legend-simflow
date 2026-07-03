@@ -27,3 +27,4 @@ impurity_curve:
 slices:
   A:
     detector_offset_in_mm: 80
+    status: valid
