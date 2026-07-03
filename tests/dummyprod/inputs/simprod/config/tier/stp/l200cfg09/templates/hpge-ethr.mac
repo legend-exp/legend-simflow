@@ -1,0 +1,50 @@
+/RMG/Manager/Randomization/Seed {SEED}
+
+/RMG/Geometry/RegisterDetectorsFromGDML Germanium
+/RMG/Geometry/RegisterDetectorsFromGDML Scintillator
+/RMG/Geometry/GDMLDisableOverlapCheck
+
+# record energy deposited in passive "dead" materials with the calorimeter
+# output scheme.
+# hpge_holding: HPGe support/cabling copper, ultem clamps & insulators, PhBr
+# springs & washers, LMFE, birds nest (everything but the PEN plates)
+/RMG/Geometry/RegisterDetector Calorimeter (hpge_(?!.*_pen).*)|birds_nest_plate_copper 90000001 0 true hpge_holding
+# fiber_support: LAr-instrumentation inner/outer support copper
+/RMG/Geometry/RegisterDetector Calorimeter larinstr_support_.*_copper.* 90000002 0 true fiber_support
+# calibration_sources: source capsule (steel + active), Ta absorber, PEEK
+# holder, Cu cap, and the nylon SIS guide tube (LAr buffers excluded). the
+# nylon tube is the only calibration volume always built (sources/absorbers
+# exist only when a SIS source is deployed), so keeping it in the pattern
+# avoids a zero-match remage warning in source-free runs.
+/RMG/Geometry/RegisterDetector Calorimeter calibration_(?!.*liquid_argon).* 90000003 0 true calibration_sources
+
+# name tables with ntuple
+/RMG/Output/NtupleUseVolumeName true
+
+# physics options
+/RMG/Processes/EnableGammaAngularCorrelation true
+
+/run/initialize
+
+# discard events without energy in germanium
+/RMG/Output/Germanium/EdepCutLow $HPGE_ENERGY_THRESHOLD
+
+# store everything in single precision
+/RMG/Output/Germanium/StoreSinglePrecisionPosition
+/RMG/Output/Germanium/StoreSinglePrecisionEnergy
+/RMG/Output/Scintillator/StoreSinglePrecisionPosition
+/RMG/Output/Scintillator/StoreSinglePrecisionEnergy
+/RMG/Output/Vertex/StoreSinglePrecisionPosition
+
+# do not track optical photons if no energy in germanium
+/RMG/Output/Germanium/DiscardWaitingTracksUnlessGermaniumEdep
+
+# store trackid
+/RMG/Output/Germanium/StoreTrackID true
+/RMG/Output/Scintillator/StoreTrackID true
+
+$GENERATOR
+
+$CONFINEMENT
+
+/run/beamOn {N_EVENTS}

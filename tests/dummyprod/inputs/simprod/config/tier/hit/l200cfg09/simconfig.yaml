@@ -1,0 +1,8 @@
+# map each SIS source-position simid to the l200 ssc run it reproduces
+sis1_z8230_slot2_Pb212_to_Pb208:
+  runlist:
+    - l200-p16-r008-ssc
+
+sis1_z8430_slot2_Pb212_to_Pb208:
+  runlist:
+    - l200-p16-r009-ssc

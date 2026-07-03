@@ -1,0 +1,34 @@
+# two SIS calibration-source simulations matching the p16 ssc runs, trimmed
+# for a fast test (primaries/jobs are overridden by the benchmark settings)
+
+# r008-ssc
+sis1_z8230_slot2_Pb212_to_Pb208: &sis1_slot2_Th228
+  template: $_/templates/hpge-ethr.mac
+  geom_config_extra:
+    sis:
+      1: &sis1_base
+        sis_z: 8230
+        offset: -5.9
+        phi_offset: 2.0
+        sources:
+          1:
+          2: Th228
+          3:
+          4:
+  generator: ~defines:Pb212_to_Pb208
+  confinement: ~volumes.bulk:calibration_source_inner_sis1_slot2
+  macro_substitutions:
+    HPGE_ENERGY_THRESHOLD: 450 keV
+  primaries_per_job: 5_000_000
+  number_of_jobs: 1
+
+# r009-ssc
+sis1_z8430_slot2_Pb212_to_Pb208:
+  <<: *sis1_slot2_Th228
+  geom_config_extra:
+    sis:
+      1:
+        <<: *sis1_base
+        sis_z: 8430
+        offset: -7.5
+        phi_offset: -0.3
