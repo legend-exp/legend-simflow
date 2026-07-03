@@ -15,6 +15,11 @@
   Avoid using it repeatedly in functions invoked at Snakemake DAG build time.
   `LegendMetadata.channelmap()` also calls `.on()`. Consider caching strategies
   instead
+- When adding code that calls a new lazily-compiled `@njit(cache=True)` kernel
+  from a rule that runs in parallel (here or in a dependency like `reboost`),
+  add a call to it in `warm_numba_caches` (`legendsimflow/warmup.py`) with the
+  exact runtime dtypes, else parallel jobs race the on-disk cache and segfault.
+  Verify with `NUMBA_DEBUG_CACHE=1 pixi run warmup`. See `developer.md`.
 - Other conventions are enforced by pre-commit
 
 ## Resource constraints
