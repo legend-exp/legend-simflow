@@ -99,10 +99,12 @@ directory is described in {ref}`currmod-metadata-dir`.
 
 A deployed HPGe is _modelable_ (i.e. eligible for drift-time-map and
 current-pulse model generation, tracked by the `is_modelable` flag in
-{ref}`par-detinfo`) when, for the given run, it is operated at least 100 V above
-its depletion voltage (`characterization.l200_site.depletion_voltage_in_V` in
-the diode metadata) and its crystal metadata provides an impurity curve. The
-eligibility is assessed by
+{ref}`par-detinfo`) when, for the given run, it is operated at least
+`min_voltage_above_depletion_in_V` (default 100 V, configurable per experiment
+via the {ref}`modeling settings <modeling-settings-meta>`) above its depletion
+voltage (`characterization.l200_site.depletion_voltage_in_V` in the diode
+metadata) and its crystal metadata provides an impurity curve. The eligibility
+is assessed by
 {func}`~legendsimflow.aggregate.gen_list_of_hpges_valid_for_modeling`.
 
 In addition to these automatic exclusions, individual detectors can be removed

@@ -146,6 +146,26 @@ def test_hpge_harvesting(config):
     }
 
 
+def test_hpge_modeling_voltage_threshold_configurable(fresh_config, monkeypatch):
+    config = fresh_config
+    runid = "l200-p02-r000-phy"
+
+    # V99000A: depletion 4000 V, operated at 4200 V -> 200 V headroom.
+    # with the default 100 V margin it is modelable
+    assert agg.gen_hpge_modeling_status(config, runid)["V99000A"]["is_modelable"]
+
+    # raising the required margin above the 200 V headroom (via the modeling par
+    # settings) drops it from the modelable set
+    monkeypatch.setattr(
+        agg,
+        "get_par_settings",
+        lambda _cfg, par: AttrsDict(
+            {"min_voltage_above_depletion_in_V": 300} if par == "modeling" else {}
+        ),
+    )
+    assert not agg.gen_hpge_modeling_status(config, runid)["V99000A"]["is_modelable"]
+
+
 def test_runlist_harvesting(config):
     assert agg.gen_list_of_all_runids(config) == {
         f"l200-p02-r00{i}-phy" for i in range(8)
