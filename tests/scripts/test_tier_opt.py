@@ -39,7 +39,7 @@ def test_opt_script_cli(
         "--stp-file", str(legend_stp_path),
         "--optmap-lar", str(optmap_path),
         "--geom-file", str(legend_gdml_path),
-        "--detector-usabilities-file", str(legend_detector_usabilities_path),
+        "--usability-file", str(legend_detector_usabilities_path / "usability.yaml"),
         "--jobid", "0000",
         "--scintillator-volume-name", "liquid_argon",
         "--simflow-config", str(config_path),

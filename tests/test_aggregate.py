@@ -132,18 +132,16 @@ def test_hpge_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    # maps hpge -> {"is_modelable": flag, "operational_voltage_in_V": voltage,
-    # "crystal_metadata_usability": status} for every deployed HPGe
+    # maps hpge -> {"is_modelable": flag, "operational_voltage_in_V": voltage}
+    # for every deployed HPGe
     assert hpges["l200-p02-r000-phy"] == {
         "V99000A": {
             "is_modelable": True,
             "operational_voltage_in_V": 4200,
-            "crystal_metadata_usability": "valid",
         },
         "B99000A": {
             "is_modelable": False,
             "operational_voltage_in_V": None,
-            "crystal_metadata_usability": "valid",
         },
     }
 

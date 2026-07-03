@@ -57,7 +57,7 @@ rule build_tier_opt:
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
-        detector_usabilities=rules.cache_detector_usabilities.output,
+        usability=rules.cache_detector_usabilities.output.usability,
     params:
         optmap_per_sipm=_tier_setting("opt", "optmap_per_sipm"),
         scintillator_volume_name=_tier_setting("opt", "scintillator_volume_name"),

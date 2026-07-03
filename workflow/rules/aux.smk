@@ -115,20 +115,28 @@ def smk_load_hpge_cache() -> dict:
     """
     global HPGE_MODELING_CACHE
 
-    yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
-    if yaml_path.exists():
-        cache = dbetto.utils.load_dict(yaml_path)
+    outputs = checkpoints.cache_modelable_hpges.get().output
+    is_modelable_path = Path(outputs.is_modelable)
+    opv_path = Path(outputs.operational_voltage_in_V)
+    if is_modelable_path.exists() and opv_path.exists():
+        is_modelable = dbetto.utils.load_dict(is_modelable_path)
+        opv = dbetto.utils.load_dict(opv_path)
     else:
         # touch executor marks the checkpoint complete without running it
         if HPGE_MODELING_CACHE is None:
-            HPGE_MODELING_CACHE = aggregate.gen_list_of_all_hpges_valid_for_modeling(
-                config
+            HPGE_MODELING_CACHE = aggregate.pivot_detinfo(
+                aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
             )
-        cache = HPGE_MODELING_CACHE
+        is_modelable = HPGE_MODELING_CACHE["is_modelable"]
+        opv = HPGE_MODELING_CACHE["operational_voltage_in_V"]
 
     return {
-        runid: {hpge: entry for hpge, entry in dets.items() if entry["is_modelable"]}
-        for runid, dets in cache.items()
+        runid: {
+            hpge: {"operational_voltage_in_V": opv[runid][hpge]}
+            for hpge, flag in dets.items()
+            if flag
+        }
+        for runid, dets in is_modelable.items()
     }
 
 
@@ -138,12 +146,12 @@ checkpoint cache_modelable_hpges:
     Computing which HPGe detectors are suitable for drift-time map and
     current-pulse model generation requires querying `legend-metadata` for
     every run in the Simflow. This can be slow, so the result is cached on disk
-    as a YAML file mapping ``runid -> {hpge: {"is_modelable": flag,
-    "operational_voltage_in_V": voltage, "crystal_metadata_usability":
-    status}}``, covering every deployed HPGe (both modelable and not).
-    Downstream rules that need this information (e.g.
-    `merge_hpge_drift_time_maps`) depend on this checkpoint so that the DAG can
-    be re-evaluated after the cache is built.
+    under ``pars/detinfo/`` as one file per flag (``is_modelable.yaml`` and
+    ``operational_voltage_in_V.yaml``), each a mapping ``runid -> detector ->
+    value`` covering every deployed HPGe (both modelable and not). Downstream
+    rules that need this information (e.g. `merge_hpge_drift_time_maps`) depend
+    on this checkpoint so that the DAG can be re-evaluated after the cache is
+    built.
 
     No wildcards are used.
     """
@@ -153,10 +161,17 @@ checkpoint cache_modelable_hpges:
     params:
         runlist=config.runlist,
     output:
-        config.paths.pars / "modelable_hpge_detectors.yaml",
+        is_modelable=patterns.detinfo_filename(config, "is_modelable"),
+        operational_voltage_in_V=patterns.detinfo_filename(
+            config, "operational_voltage_in_V"
+        ),
     run:
-        aggregate.gen_list_of_all_hpges_valid_for_modeling(
-            config, write_to_file=output[0]
+        detinfo = aggregate.pivot_detinfo(
+            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+        )
+        dbetto.utils.write_dict(detinfo["is_modelable"], output.is_modelable)
+        dbetto.utils.write_dict(
+            detinfo["operational_voltage_in_V"], output.operational_voltage_in_V
         )
 
 
@@ -165,8 +180,9 @@ rule cache_detector_usabilities:
 
     Querying the metadata for detector usability can be slow and constitute
     the bottleneck in post-processing (``opt`` and ``hit`` tiers). This rule
-    caches the mapping ``run -> detector -> {usability, psd_usability,
-    crystal_metadata_usability}`` on disk.
+    caches, under ``pars/detinfo/``, one file per flag (``usability.yaml``,
+    ``psd_usability.yaml``, ``crystal_metadata_usability.yaml``), each a mapping
+    ``runid -> detector -> value``.
     """
     localrule: True
     message:
@@ -174,13 +190,20 @@ rule cache_detector_usabilities:
     params:
         runlist=config.runlist,
     output:
-        config.paths.pars / "detector_usabilities.yaml",
+        usability=patterns.detinfo_filename(config, "usability"),
+        psd_usability=patterns.detinfo_filename(config, "psd_usability"),
+        crystal_metadata_usability=patterns.detinfo_filename(
+            config, "crystal_metadata_usability"
+        ),
     run:
-        import dbetto
-
+        detinfo = aggregate.pivot_detinfo(
+            aggregate.gen_list_of_all_usabilities(config).to_dict()
+        )
+        dbetto.utils.write_dict(detinfo["usability"], output.usability)
+        dbetto.utils.write_dict(detinfo["psd_usability"], output.psd_usability)
         dbetto.utils.write_dict(
-            aggregate.gen_list_of_all_usabilities(config).to_dict(),
-            output[0],
+            detinfo["crystal_metadata_usability"],
+            output.crystal_metadata_usability,
         )
 
 

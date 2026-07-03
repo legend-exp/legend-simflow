@@ -54,16 +54,24 @@ _smk_dag.DAG.is_draft_notebook_job = _guard_none_execution_settings(
 )
 
 sys.path.insert(0, str(ROOT / "workflow/src"))
-from legendsimflow import aggregate  # noqa: E402
+import dbetto  # noqa: E402
+
+from legendsimflow import aggregate, patterns  # noqa: E402
 from legendsimflow.utils import init_simflow_context  # noqa: E402
 
 
 def main() -> None:
     config = init_simflow_context(CONFIG).config
 
-    yaml_path = config.paths.pars / "modelable_hpge_detectors.yaml"
-    yaml_path.parent.mkdir(parents=True, exist_ok=True)
-    aggregate.gen_list_of_all_hpges_valid_for_modeling(config, write_to_file=yaml_path)
+    # pre-write the modeling-status detinfo files so the checkpoint output
+    # exists when the DAG is built
+    detinfo = aggregate.pivot_detinfo(
+        aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+    )
+    for flag in ("is_modelable", "operational_voltage_in_V"):
+        path = patterns.detinfo_filename(config, flag)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dbetto.utils.write_dict(detinfo[flag], path)
 
     with smkapi.SnakemakeApi(smkapi.OutputSettings()) as api:
         dag_api = api.workflow(
