@@ -75,11 +75,17 @@ rule print_benchmark_stats:
 
 
 # we use a dedicated dummy rule to initialize the Julia environment, in this
-# way it's still possible to use Julia from a rule-specific conda env
+# way it's still possible to use Julia from a rule-specific conda env.
+#
+# Project.toml is an input so that editing it re-triggers instantiate; without it
+# the input-less rule would be considered permanently up-to-date. Manifest.toml
+# is gitignored (regenerated locally) so it must not be declared here.
 rule _init_julia_env:
     localrule: True
     message:
         "Initializing Julia environment"
+    input:
+        "workflow/src/LegendSimflow.jl/Project.toml",
     output:
         config.paths.generated / ".julia-env-initialized",
     log:
