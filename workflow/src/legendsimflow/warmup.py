@@ -20,7 +20,8 @@ legendsimflow.warmup``, wired to the ``warmup`` pixi task). A lazily-compiled
 only on its first *call*; parallel jobs racing to write it segfault. Warming
 each kernel once here leaves them only reading the cache.
 """
-# heavy imports are for their side effects, all inside the warmup function
+# heavy imports are kept inside the function so importing this module stays
+# cheap (e.g. sphinx autodoc can import it without the full runtime stack).
 # ruff: noqa: F401, ICN001, PLC0415
 
 from __future__ import annotations
@@ -29,8 +30,7 @@ from __future__ import annotations
 def warm_numba_caches() -> None:
     """Warm the heavy imports and the Numba kernels the workflow calls."""
     # importing these pays their one-off cost (Matplotlib font cache, ...) and
-    # compiles their vectorized kernels (dspeed/lh5 were ``import *``, illegal
-    # inside a function; a plain import triggers the same compilation)
+    # compiles their vectorized kernels
     import dspeed.processors
     import lh5.compression
     import matplotlib
@@ -42,6 +42,16 @@ def warm_numba_caches() -> None:
     import reboost
     import remage
     import revertex
+
+    # dspeed.processors/lh5.compression expose their members lazily (PEP 562), so
+    # a plain import leaves their eager @guvectorize kernels (e.g.
+    # moving_window_multi, used by the parallel realistic-PSL rule) uncompiled and
+    # the parallel jobs race the cache and segfault. The precompile task this
+    # replaced used `import *` to force every name to load and compile; `import *`
+    # is illegal inside a function, so reproduce it by materializing __all__.
+    for _module in (dspeed.processors, lh5.compression):
+        for _name in _module.__all__:
+            getattr(_module, _name)
 
     # lazily-compiled kernels must be called once, with the exact runtime type
     # signature (Numba caches per signature). These are the only cache=True
