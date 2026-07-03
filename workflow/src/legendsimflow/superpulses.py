@@ -1222,7 +1222,6 @@ def plot_superpulses(
         if y_in_view:
             ax_inset.set_ylim(min(y_in_view) - 0.002, max(y_in_view) + 0.002)
 
-    fig.tight_layout()
     return fig, ax
 
 
