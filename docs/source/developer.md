@@ -252,6 +252,31 @@ After adding the script, also:
 3. **Add a test** in `tests/scripts/test_tier_foo.py` following the pattern in
    `tests/scripts/test_tier_cvt.py`.
 
+## Warming Numba caches
+
+Numba `@njit(cache=True)` kernels are compiled to machine code and written to a
+shared on-disk cache only on their **first call** with a given type signature.
+Importing the module merely defines the kernel; it does not compile it. When
+many parallel Snakemake jobs hit an uncached kernel at once, they race to write
+the same cache file and segfault.
+
+The `legendsimflow.warmup` module (run by the `warmup` pixi task, a `depends-on`
+prerequisite of the production and test tasks) sidesteps this by calling every
+such kernel once, serially, before the parallel fan-out, so the jobs only ever
+read the cache.
+
+:::{important}
+
+Whenever you add code that calls a new lazily-compiled `@njit(cache=True)`
+kernel from a rule that runs in parallel (whether defined here or in a
+dependency such as `reboost`), add a call to it in
+{func}`legendsimflow.warmup.warm_numba_caches`, using the **exact** argument
+dtypes seen at run time (Numba caches per type signature). Verify with
+`NUMBA_DEBUG_CACHE=1 pixi run warmup` that the kernel's `.nbc`/`.nbi` files get
+written.
+
+:::
+
 ## Contributing
 
 ### Git workflow
