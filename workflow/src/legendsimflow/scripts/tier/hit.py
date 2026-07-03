@@ -301,9 +301,9 @@ def main() -> None:
                     det_name
                 )
             psd_usability_code = mutils.encode_psd_usability(psd_usability)
-            crystal_metadata_usability_code = mutils.encode_crystal_metadata_usability(
-                crystal_metadata_usability
-            )
+            # the simulation of this detector is valid only if the crystal
+            # metadata is valid
+            is_valid_sim = crystal_metadata_usability == "valid"
 
             if usability == "on" and det_name not in aoemean_func:
                 log.warning(
@@ -635,13 +635,8 @@ def main() -> None:
                     ),
                 )
                 out_table.add_field(
-                    "crystal_metadata_usability",
-                    lgdo.Array(
-                        np.full(
-                            shape=len(chunk),
-                            fill_value=crystal_metadata_usability_code,
-                        )
-                    ),
+                    "is_valid_sim",
+                    lgdo.Array(np.full(shape=len(chunk), fill_value=is_valid_sim)),
                 )
 
                 with perf_block("write_chunk()"):
