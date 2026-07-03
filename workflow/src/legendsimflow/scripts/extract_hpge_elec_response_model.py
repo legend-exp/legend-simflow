@@ -76,7 +76,7 @@ DEFAULT_SETTINGS = {
         "superpulses": "input.superpulses",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
-        "uniformity_plot": "output.uniformity_plot",
+        "uniformity_plot_file": "output.uniformity_plot_file",
         "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
@@ -141,7 +141,7 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--uniformity-plot",
+        "--uniformity-plot-file",
         type=str,
         required=False,
         default=None,
@@ -185,9 +185,9 @@ def main() -> None:
             plot_dir = Path(args.plot_file).parent
             plot_dir.mkdir(parents=True, exist_ok=True)
             Path(args.plot_file).touch()
-        if args.uniformity_plot is not None:
-            Path(args.uniformity_plot).parent.mkdir(parents=True, exist_ok=True)
-            Path(args.uniformity_plot).touch()
+        if args.uniformity_plot_file is not None:
+            Path(args.uniformity_plot_file).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.uniformity_plot_file).touch()
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
@@ -322,14 +322,14 @@ def main() -> None:
 
         log.info("... saved diagnostic plots to %s", args.plot_file)
 
-    if args.uniformity_plot is not None:
+    if args.uniformity_plot_file is not None:
         fig, _ = plot_current_superpulses_fwhm_and_amplitude(
             args.superpulses,
             args.hpge_detector,
             dt_range_tuning=dt_range_fit,
         )
         decorate(fig)
-        fig.savefig(args.uniformity_plot)
+        fig.savefig(args.uniformity_plot_file)
         plt.close(fig)
 
     dbetto.utils.write_dict(output, pars_file)

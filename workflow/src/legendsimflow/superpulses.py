@@ -1232,10 +1232,6 @@ def plot_current_superpulses_fwhm_and_amplitude(
     Two-row figure sharing the x-axis (drift time center). Color coding
     matches :func:`plot_superpulses`.
 
-    NOTE: dt_range_tuning shows the contiguous span of slices used
-    # for the fit; individual points within this range may not all
-    # have been used if max_num_superpulses further truncated them
-
     Parameters
     ----------
     lh5_file
@@ -1243,12 +1239,19 @@ def plot_current_superpulses_fwhm_and_amplitude(
     detector
         Detector name (top-level group in the file).
     dt_range_tuning
-        Optional tuple of (dt_lo, dt_hi) to indicate the drift time range used for tuning.
+        Optional ``(dt_lo, dt_hi)`` tuple marking the drift time range used
+        for tuning.
 
     Returns
     -------
     fig : matplotlib.figure.Figure
-    (ax_fwhm, ax_amp) : tuple of Axes
+    (ax_fwhm, ax_amp) : tuple of matplotlib.axes.Axes
+
+    Notes
+    -----
+    ``dt_range_tuning`` shows the contiguous span of slices used for the fit;
+    individual points within this range may not all have been used if
+    ``max_num_superpulses`` further truncated them.
     """
     import matplotlib.colors as mcolors  # noqa: PLC0415
 
