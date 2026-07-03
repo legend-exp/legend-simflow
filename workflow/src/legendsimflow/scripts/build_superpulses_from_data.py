@@ -397,6 +397,8 @@ def main() -> int:
         pdf.savefig(fig)
         plt.close(fig)
 
+        # plot fwhm and Amax vs drift time --- moved to extract_hpge_elec_response_model.py to have tuning range
+
     log.info("summary plots saved to %s", plot_file)
     log.info("done!")
 

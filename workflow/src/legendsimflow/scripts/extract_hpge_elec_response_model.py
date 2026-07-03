@@ -45,7 +45,10 @@ from legendsimflow.hpge_electronics_tuning import (
 )
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
-from legendsimflow.superpulses import read_superpulses
+from legendsimflow.superpulses import (
+    plot_current_superpulses_fwhm_and_amplitude,
+    read_superpulses,
+)
 
 DEFAULT_SETTINGS = {
     "angle": "000",
@@ -73,6 +76,7 @@ DEFAULT_SETTINGS = {
         "superpulses": "input.superpulses",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
+        "uniformity_plot_file": "output.uniformity_plot_file",
         "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
@@ -136,6 +140,14 @@ def main() -> None:
         help="File name for diagnostic plots.",
     )
 
+    parser.add_argument(
+        "--uniformity-plot-file",
+        type=str,
+        required=False,
+        default=None,
+        help="File name for the response uniformity plot.",
+    )
+
     args = parser.parse_args()
 
     config = utils.init_simflow_context(args.simflow_config, workflow=None).config
@@ -173,6 +185,9 @@ def main() -> None:
             plot_dir = Path(args.plot_file).parent
             plot_dir.mkdir(parents=True, exist_ok=True)
             Path(args.plot_file).touch()
+        if args.uniformity_plot_file is not None:
+            Path(args.uniformity_plot_file).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.uniformity_plot_file).touch()
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
@@ -226,6 +241,15 @@ def main() -> None:
                 reverse=True,
             )[0 : settings.max_num_superpulses]
         )
+
+    slices_used = ideal_wfs["ideal_wfs_slice"].keys()
+    if not slices_used:
+        msg = "no ideal waveforms matched any data superpulse slice"
+        raise RuntimeError(msg)
+    dt_range_fit = (
+        min(sl.drift_time_range[0] for sl in slices_used),
+        max(sl.drift_time_range[1] for sl in slices_used),
+    )
 
     # Run fit
     log.info(
@@ -295,7 +319,18 @@ def main() -> None:
             decorate(fig)
             pdf.savefig(fig)
             plt.close(fig)
+
         log.info("... saved diagnostic plots to %s", args.plot_file)
+
+    if args.uniformity_plot_file is not None:
+        fig, _ = plot_current_superpulses_fwhm_and_amplitude(
+            args.superpulses,
+            args.hpge_detector,
+            dt_range_tuning=dt_range_fit,
+        )
+        decorate(fig)
+        fig.savefig(args.uniformity_plot_file)
+        plt.close(fig)
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)

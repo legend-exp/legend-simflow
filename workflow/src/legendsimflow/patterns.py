@@ -486,6 +486,23 @@ def log_superpulses_filename(
     )
 
 
+def plot_superpulses_uniformity_filename(
+    config: SimflowConfig, build_per_runid: bool = False, **kwargs
+) -> Path:
+    """The path to the response uniformity plot for a detector."""
+    if not build_per_runid:
+        return _expand(
+            config.paths.pars
+            / "hpge/superpulses/plots/{hpge_detector}-response-uniformity.pdf",
+            **kwargs,
+        )
+    return _expand(
+        config.paths.pars
+        / "hpge/superpulses/plots/{runid}-{hpge_detector}-response-uniformity.pdf",
+        **kwargs,
+    )
+
+
 def log_elecmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for elec pulse model extraction for a detector and `runid`."""
     pat = log_dirname(config) / "hpge/elecmod/{runid}-{hpge_detector}-model.log"
