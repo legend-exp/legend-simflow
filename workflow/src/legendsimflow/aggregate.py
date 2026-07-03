@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
 import dbetto
@@ -171,29 +171,85 @@ def start_key(config: SimflowConfig, runid: str) -> str:
     return config.metadata.datasets.runinfo[period][run][datatype].start_key
 
 
-def gen_list_of_hpges_valid_for_modeling(
+def _hpge_is_modelable(
+    config: SimflowConfig,
+    name: str,
+    skip: Mapping[str, str],
+    operational_voltage: int | None,
+) -> bool:
+    """Whether the HPGe `name` is valid for drift-time-map modeling.
+
+    See :func:`gen_hpge_modeling_status` for the criteria.
+    """
+    # explicitly excluded via the validity-based skip metadata
+    if name in skip:
+        return False
+
+    # detectors not operated at least 100 V above their depletion voltage are
+    # not modeled (off detectors have no operational voltage)
+    if operational_voltage is None:
+        return False
+
+    # detectors without a depletion voltage in the metadata are not modeled
+    try:
+        diode = config.metadata.hardware.detectors.germanium.diodes[name]
+        depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
+    except (KeyError, AttributeError, FileNotFoundError):
+        return False
+
+    if operational_voltage < depletion_voltage + 100:
+        return False
+
+    # detectors without an impurity curve in the crystal metadata cannot be
+    # modeled
+    m = crystal_meta(config, diode)
+    return bool(
+        m is not None
+        and validate_dict_schema(
+            m,
+            {"impurity_curve": {"parameters": None}},
+            greedy=False,
+            typecheck=False,
+            verbose=False,
+        )
+    )
+
+
+def gen_hpge_modeling_status(
     config: SimflowConfig, runid: str
-) -> list[str]:
-    """Make a sorted list of HPGe detectors for which we want to compute a model.
+) -> dict[str, dict[str, bool | int | str | None]]:
+    """Assess every HPGe deployed in `runid` for drift-time-map modeling.
 
-    It generates the list of deployed detectors in `runid` via the LEGEND
-    channelmap, then keeps only those operated at least 100 V above their
-    depletion voltage (``characterization.l200_site.depletion_voltage_in_V`` in
-    the diode metadata). Detectors with no depletion voltage in the metadata are
-    excluded, as are detectors without an impurity curve in the crystal
-    metadata.
+    Iterates over the germanium detectors deployed in `runid` (via the LEGEND
+    channelmap) and records, for each, whether it is valid for modeling along
+    with the quantities needed downstream. Returns a mapping
 
-    Detectors listed in the validity-based metadata directory
-    ``simprod/config/pars/{experiment}/geds/skip/`` for the given `runid` are
-    additionally excluded from the result. The skip list is a mapping
-    ``{detector_name: reason}``; a WARNING is logged for each skipped
-    detector. A missing directory or empty mapping is a no-op.
+    .. code-block::
+
+        {
+          'V00048A': {
+            'is_modelable': True,
+            'operational_voltage_in_V': 4200,
+            'crystal_metadata_usability': 'valid',
+          },
+          ...
+        }
+
+    A detector ``is_modelable`` when all of the following hold: it is not listed
+    in the validity-based skip metadata
+    ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it is operated
+    at least 100 V above its depletion voltage
+    (``characterization.l200_site.depletion_voltage_in_V`` in the diode
+    metadata), and its crystal metadata provides an impurity curve.
+    ``operational_voltage_in_V`` is ``None`` for detectors with no operational
+    voltage (e.g. off detectors), and ``crystal_metadata_usability`` is ``None``
+    when the crystal metadata is unavailable (see
+    :func:`get_hpge_crystal_metadata_usability`).
 
     Warning
     -------
     This function is expensive in terms of filesystem I/O! Do not call it
     multiple times or in hot loops.
-
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
@@ -201,87 +257,82 @@ def gen_list_of_hpges_valid_for_modeling(
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
-    hpges = []
+    status = {}
     for _, hpge in chmap.group("system").geds.items():
-        if hpge.name in skip:
-            continue
+        name = hpge.name
 
-        # detectors not operated at least 100 V above their depletion voltage
-        # are not modeled (off detectors have no operational voltage)
+        # off detectors (and others without a bias) have no operational voltage
         try:
-            operational_voltage = get_hpge_voltage(config, hpge.name, runid)
+            operational_voltage = get_hpge_voltage(config, name, runid)
         except KeyError:
-            continue
+            operational_voltage = None
 
-        # detectors without a depletion voltage in the metadata are not modeled
-        diode = metadata.hardware.detectors.germanium.diodes[hpge.name]
-        try:
-            depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
-        except (KeyError, AttributeError):
-            continue
+        status[name] = {
+            "is_modelable": _hpge_is_modelable(config, name, skip, operational_voltage),
+            "operational_voltage_in_V": operational_voltage,
+            "crystal_metadata_usability": get_hpge_crystal_metadata_usability(
+                config, name
+            ),
+        }
 
-        if operational_voltage < depletion_voltage + 100:
-            continue
+    return status
 
-        # detectors without an impurity curve in the crystal metadata cannot be
-        # modeled
-        m = crystal_meta(config, diode)
-        if m is None or not validate_dict_schema(
-            m,
-            {"impurity_curve": {"parameters": None}},
-            greedy=False,
-            typecheck=False,
-            verbose=False,
-        ):
-            continue
 
-        hpges.append(hpge.name)
+def gen_list_of_hpges_valid_for_modeling(
+    config: SimflowConfig, runid: str
+) -> list[str]:
+    """Make a sorted list of HPGe detectors for which we want to compute a model.
+
+    Convenience wrapper over :func:`gen_hpge_modeling_status` returning the
+    sorted names of the detectors that are valid for modeling in `runid` (see
+    that function for the criteria).
+
+    Warning
+    -------
+    This function is expensive in terms of filesystem I/O! Do not call it
+    multiple times or in hot loops.
+    """
+    status = gen_hpge_modeling_status(config, runid)
+    hpges = sorted(name for name, entry in status.items() if entry["is_modelable"])
 
     if len(hpges) == 0:
         msg = f"the list of HPGes valid for drift-time map generation in {runid} is empty!"
         log.warning(msg)
 
-    return sorted(hpges)
+    return hpges
 
 
 def gen_list_of_all_hpges_valid_for_modeling(
     config: SimflowConfig,
     write_to_file: str | Path | None = None,
-) -> dict[str, dict[str, dict[str, int | str]]]:
-    """Generate the complete list of HPGe detectors valid for modeling.
+) -> dict[str, dict[str, dict[str, bool | int | str | None]]]:
+    """Generate the modeling status of every HPGe detector, for every runid.
 
-    Find out which HPGe detectors are valid for each runid, their voltages and
-    crystal metadata usability. Returns the following dictionary:
+    Assesses all deployed HPGe detectors for each runid via
+    :func:`gen_hpge_modeling_status`. Returns the following dictionary:
 
     .. code-block::
 
         {
           'l200-p03-r000-phy': {
-            'V00048A': {'operational_voltage_in_V': 4200, 'crystal_metadata_usability': 'valid'},
+            'V00048A': {'is_modelable': True, 'operational_voltage_in_V': 4200, 'crystal_metadata_usability': 'valid'},
             ...
           },
           ...
         }
 
-    i.e. a mapping ``runid -> hpge -> {"operational_voltage_in_V": voltage,
-    "crystal_metadata_usability": status}``.
+    i.e. a mapping ``runid -> hpge -> {"is_modelable": flag,
+    "operational_voltage_in_V": voltage, "crystal_metadata_usability":
+    status}`` covering both modelable and non-modelable detectors. Filter on
+    ``is_modelable`` to recover the detectors valid for modeling.
     """
     all_runids = set()
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
 
-    out = {}
-    for runid in sorted(all_runids):
-        hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
-        out[runid] = {
-            hpge: {
-                "operational_voltage_in_V": get_hpge_voltage(config, hpge, runid),
-                "crystal_metadata_usability": get_hpge_crystal_metadata_usability(
-                    config, hpge
-                ),
-            }
-            for hpge in hpges
-        }
+    out = {
+        runid: gen_hpge_modeling_status(config, runid) for runid in sorted(all_runids)
+    }
 
     if write_to_file is not None:
         Path(write_to_file).parent.mkdir(parents=True, exist_ok=True)

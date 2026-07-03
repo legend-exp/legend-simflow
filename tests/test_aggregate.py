@@ -132,12 +132,19 @@ def test_hpge_harvesting(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ]
-    # maps hpge -> {"operational_voltage_in_V": voltage, "crystal_metadata_usability": status}
+    # maps hpge -> {"is_modelable": flag, "operational_voltage_in_V": voltage,
+    # "crystal_metadata_usability": status} for every deployed HPGe
     assert hpges["l200-p02-r000-phy"] == {
         "V99000A": {
+            "is_modelable": True,
             "operational_voltage_in_V": 4200,
             "crystal_metadata_usability": "valid",
-        }
+        },
+        "B99000A": {
+            "is_modelable": False,
+            "operational_voltage_in_V": None,
+            "crystal_metadata_usability": "valid",
+        },
     }
 
 
@@ -336,11 +343,12 @@ def test_skip_list_usability_gate_takes_precedence(config, caplog):
 
 
 def test_skip_list_all_hpges_reflects_exclusion(config):
-    """gen_list_of_all_hpges_valid_for_modeling omits detectors for all skip-covered runs."""
+    """gen_list_of_all_hpges_valid_for_modeling flags skip-covered runs as not modelable."""
     hpges = agg.gen_list_of_all_hpges_valid_for_modeling(config)
-    # r000-r002 have V99000A (empty skip list); r003-r007 do not
+    # V99000A is always present in the (widened) status dict; the skip list
+    # flips is_modelable. r000-r002 have an empty skip list; r003-r007 skip it.
     for runid in ("l200-p02-r000-phy", "l200-p02-r001-phy", "l200-p02-r002-phy"):
-        assert "V99000A" in hpges[runid]
+        assert hpges[runid]["V99000A"]["is_modelable"] is True
     for runid in (
         "l200-p02-r003-phy",
         "l200-p02-r004-phy",
@@ -348,4 +356,4 @@ def test_skip_list_all_hpges_reflects_exclusion(config):
         "l200-p02-r006-phy",
         "l200-p02-r007-phy",
     ):
-        assert "V99000A" not in hpges[runid]
+        assert hpges[runid]["V99000A"]["is_modelable"] is False

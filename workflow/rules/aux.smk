@@ -93,11 +93,11 @@ rule _init_julia_env:
 # Memoize the on-demand fallback result to avoid re-running the expensive
 # gen_list_of_all_hpges_valid_for_modeling() more than once per Snakemake
 # invocation (touch executor / no YAML on disk).
-MODELABLE_HPGES: dict | None = None
+HPGE_MODELING_CACHE: dict | None = None
 
 
 def smk_load_hpge_cache() -> dict:
-    """Load the modelable HPGe cache, triggering the checkpoint if needed.
+    """Load the modelable HPGe detectors, triggering the checkpoint if needed.
 
     Call this inside a Snakemake input function (lambda) or ``params:``
     lambda. Calling ``checkpoints.cache_modelable_hpges.get()`` triggers DAG
@@ -105,31 +105,45 @@ def smk_load_hpge_cache() -> dict:
     Snakemake will schedule it first and re-evaluate the calling rule's inputs
     once it completes.
 
+    The on-disk cache lists every deployed HPGe with an ``is_modelable`` flag;
+    this function returns only the modelable detectors (still keyed by name, per
+    runid), so callers can expand the per-detector modeling rules directly.
+
     Falls back to computing the cache on-demand when running under the touch
     executor, which marks the checkpoint complete without executing its
     ``run:`` block (so the YAML may not exist on disk).
     """
-    global MODELABLE_HPGES
+    global HPGE_MODELING_CACHE
 
     yaml_path = Path(checkpoints.cache_modelable_hpges.get().output[0])
     if yaml_path.exists():
-        return dbetto.utils.load_dict(yaml_path)
-    # touch executor marks the checkpoint complete without running it
-    if MODELABLE_HPGES is None:
-        MODELABLE_HPGES = aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
-    return MODELABLE_HPGES
+        cache = dbetto.utils.load_dict(yaml_path)
+    else:
+        # touch executor marks the checkpoint complete without running it
+        if HPGE_MODELING_CACHE is None:
+            HPGE_MODELING_CACHE = aggregate.gen_list_of_all_hpges_valid_for_modeling(
+                config
+            )
+        cache = HPGE_MODELING_CACHE
+
+    return {
+        runid: {hpge: entry for hpge, entry in dets.items() if entry["is_modelable"]}
+        for runid, dets in cache.items()
+    }
 
 
 checkpoint cache_modelable_hpges:
-    """Cache the list of HPGe detectors valid for modeling.
+    """Cache the modeling status of the HPGe detectors.
 
-    Computing the list of HPGe detectors that are suitable for drift-time map
-    and current-pulse model generation requires querying `legend-metadata` for
+    Computing which HPGe detectors are suitable for drift-time map and
+    current-pulse model generation requires querying `legend-metadata` for
     every run in the Simflow. This can be slow, so the result is cached on disk
-    as a YAML file mapping ``runid -> {hpge: {"operational_voltage_in_V":
-    voltage, "crystal_metadata_usability": status}}``. Downstream rules that
-    need this information (e.g. `merge_hpge_drift_time_maps`) depend on this
-    checkpoint so that the DAG can be re-evaluated after the cache is built.
+    as a YAML file mapping ``runid -> {hpge: {"is_modelable": flag,
+    "operational_voltage_in_V": voltage, "crystal_metadata_usability":
+    status}}``, covering every deployed HPGe (both modelable and not).
+    Downstream rules that need this information (e.g.
+    `merge_hpge_drift_time_maps`) depend on this checkpoint so that the DAG can
+    be re-evaluated after the cache is built.
 
     No wildcards are used.
     """
