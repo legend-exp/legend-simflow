@@ -32,7 +32,6 @@ from legendsimflow import nersc, spms_pars, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import (
-    encode_crystal_metadata_usability,
     encode_psd_usability,
     encode_usability,
     get_tier_settings,
@@ -45,7 +44,6 @@ from legendsimflow.tcm import merge_stp_n_opt_tcms_to_lh5
 OFF = encode_usability("off")
 ON = encode_usability("on")
 VALID_PSD = encode_psd_usability("valid")
-VALID_CRYSTAL = encode_crystal_metadata_usability("valid")
 
 
 @snakemake_compatible(
@@ -386,9 +384,7 @@ def main() -> None:
                 # first read usability and energy
                 usability = _read_hits(tcm, "hit", "usability")
                 psd_usability = _read_hits(tcm, "hit", "psd_usability")
-                crystal_metadata_usability = _read_hits(
-                    tcm, "hit", "crystal_metadata_usability"
-                )
+                is_valid_sim = _read_hits(tcm, "hit", "is_valid_sim")
                 energy = _read_hits(tcm, "hit", "energy")
 
                 # we want to only store hits from events in ON and AC detectors and above
@@ -433,12 +429,11 @@ def main() -> None:
                         "geds/psd/is_good",
                         VectorOfVectors(psd_usability[hitsel] == VALID_PSD),
                     )
-                    # whether the crystal metadata needed to model PSD is valid
+                    # whether the inputs needed to model PSD for this hit are
+                    # valid (computed in the hit tier)
                     out_table.add_field(
                         "geds/psd/is_valid_sim",
-                        VectorOfVectors(
-                            crystal_metadata_usability[hitsel] == VALID_CRYSTAL
-                        ),
+                        VectorOfVectors(is_valid_sim[hitsel]),
                     )
 
                     aoe = _read_hits(tcm, "hit", "psd/aoe")
