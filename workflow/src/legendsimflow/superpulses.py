@@ -951,7 +951,9 @@ def plot_wfs_and_superpulse(
     )
     ax1.set_ylabel("ADC / cuspEmax")
     ax1.set_xlim(*xlims)
-    ax1.legend()
+    # explicit loc avoids the slow "best"-location search with this many
+    # overlaid waveforms
+    ax1.legend(loc="upper right")
     ax1.grid(alpha=0.3, linestyle="--")
 
     # Current
@@ -976,7 +978,7 @@ def plot_wfs_and_superpulse(
     ax2.set_xlabel("Time [ns]")
     ax2.set_ylabel("d(ADC/cuspEmax)/dt")
     ax2.set_xlim(*xlims)
-    ax2.legend()
+    ax2.legend(loc="upper right")
     ax2.grid(alpha=0.3, linestyle="--")
 
     fig.tight_layout()
