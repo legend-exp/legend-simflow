@@ -15,10 +15,10 @@
 """Serial warmup of heavy dependencies and Numba caches.
 
 Run once before the parallel Snakemake jobs (via ``python -m
-legendsimflow.warmup``, wired to the ``warmup`` pixi task). A lazily-compiled
-``@njit(cache=True)`` kernel is compiled and written to a shared on-disk cache
-only on its first *call*; parallel jobs racing to write it segfault. Warming
-each kernel once here leaves them only reading the cache.
+legendsimflow.warmup [simflow-config.yaml]``, wired to the ``warmup`` pixi
+task). A lazily-compiled ``@njit(cache=True)`` kernel is compiled and written to
+a shared on-disk cache only on its first *call*; parallel jobs racing to write
+it segfault. Warming each kernel once here leaves them only reading the cache.
 """
 # heavy imports are kept inside the function so importing this module stays
 # cheap (e.g. sphinx autodoc can import it without the full runtime stack).
@@ -26,9 +26,19 @@ each kernel once here leaves them only reading the cache.
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 
-def warm_numba_caches() -> None:
-    """Warm the heavy imports and the Numba kernels the workflow calls."""
+log = logging.getLogger(__name__)
+
+
+def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
+    """Warm the heavy imports and the Numba kernels the workflow calls.
+
+    ``simflow_config`` (the production's config, or a path to it) is used only to
+    decide whether the HPGe DSP-chain kernels need warming; see
+    :func:`_resolve_dsp_config`.
+    """
     # importing these pays their one-off cost (Matplotlib font cache, ...) and
     # compiles their vectorized kernels
     import dspeed.processors
@@ -72,6 +82,144 @@ def warm_numba_caches() -> None:
         10.0,
     )
 
+    # HPGe DSP-chain kernels raced by the parallel par-tier rules, warmed only
+    # when this production actually runs them (see _resolve_dsp_config). Warn and
+    # skip on any problem rather than aborting: warmup gates every rule, and the
+    # par-tier rules would surface a real misconfiguration themselves.
+    try:
+        dsp_config = _resolve_dsp_config(simflow_config)
+        if dsp_config is not None:
+            log.info("warming the HPGe DSP-chain with config %s", dsp_config)
+            warm_hpge_dsp_cache(dsp_config)
+    except Exception:
+        log.warning(
+            "could not warm the HPGe DSP-chain; the parallel par-tier rules may "
+            "race the Numba cache and segfault",
+            exc_info=True,
+        )
+
+
+def _resolve_dsp_config(simflow_config: str | Path | dict | None) -> Path | None:
+    """DSP config to warm, or ``None`` if the par-tier rules that race it won't run.
+
+    ``build_superpulses_from_data`` / ``extract_current_pulse_model`` only run
+    when the production reads ``l200data`` and simulates PSD with the pulse-shape
+    library; the DSP config is then discovered in ``l200data`` as the workflow
+    does at run time (:func:`legendsimflow.utils.lookup_dsp_config`). Raises if
+    warming is needed but the config or DSP file cannot be resolved.
+    """
+    if simflow_config is None:
+        return None
+    if isinstance(simflow_config, (str, Path)) and not Path(simflow_config).exists():
+        return None
+
+    import dbetto
+
+    from legendsimflow import utils
+    from legendsimflow.metadata import get_tier_settings
+
+    # cheap peek before the heavier full context init
+    raw = (
+        simflow_config
+        if isinstance(simflow_config, dict)
+        else dbetto.utils.load_dict(str(simflow_config))
+    )
+    if "l200data" not in raw.get("paths", {}):
+        return None
+
+    config = utils.init_simflow_context(simflow_config).config
+    hit = get_tier_settings(config, "hit")
+    if not (hit.get("simulate_psd", True) and hit.get("simulate_psd_with_psl", True)):
+        return None
+
+    return utils.lookup_dsp_config(config.paths.l200data)
+
+
+def _make_dummy_raw_file(path: str, lh5_group: str = "ch0/raw", n_wfs: int = 4) -> str:
+    """Write a small synthetic HPGe raw file to drive the DSP-chain warmup.
+
+    The waveform must be a *realistic* pulse (baseline, charge-collection edge,
+    decay), not noise: only then does the ``tp_aoe_max`` alignment succeed and
+    the full chain (unit conversions, cusp filter, ...) execute and compile.
+    The pulse is a shaped current integrated to charge, then decimated /
+    windowed to the ``waveform_presummed`` / ``waveform_windowed`` / ``presum_rate``
+    fields the chain reads, with real L200 dtypes and sample lengths. Returns
+    the LH5 group written.
+    """
+    import lh5
+    import numpy as np
+    from lgdo import Array, Table, WaveformTable
+    from reboost.hpge.psd import _current_pulse_model
+
+    # shaped current -> integrated charge (see tests/conftest.py make_cal_data)
+    t = np.linspace(0, 99968, 6249)
+    curr = _current_pulse_model(t, 1.0, 51000.0, 50.0, 0.55, 150.0, 0.2, 80.0)
+    curr /= np.sum(curr) * 16
+    charge = np.cumsum(curr)
+    windowed = charge[2625:4025]  # 1400-sample high-resolution window
+    presummed = charge[::8][:-1] * 8  # 781-sample presummed (16 ns -> 128 ns)
+
+    energy = np.full(n_wfs, 1593.0)
+    win = (np.vstack([windowed] * n_wfs) * energy[:, None]).astype("int32")
+    presum = (np.vstack([presummed] * n_wfs) * energy[:, None]).astype("int32")
+
+    tb = Table(size=n_wfs)
+    tb.add_field(
+        "waveform_presummed",
+        WaveformTable(values=presum, dt=128, dt_units="ns", t0=0, t0_units="ns"),
+    )
+    tb.add_field(
+        "waveform_windowed",
+        WaveformTable(values=win, dt=16, dt_units="ns", t0=42000, t0_units="ns"),
+    )
+    tb.add_field("presum_rate", Array(np.full(n_wfs, 8, dtype="float32")))
+
+    lh5.write(tb, lh5_group, path, wo_mode="of")
+    return lh5_group
+
+
+def warm_hpge_dsp_cache(dsp_config: str | Path) -> None:
+    """Compile the HPGe DSP-chain (and fit) kernels raced by the par-tier rules.
+
+    Runs the exact production paths once on a small synthetic pulse so their
+    ``cache=True`` kernels compile serially and the parallel jobs only read the
+    cache: the current-pulse chain (:func:`legendsimflow.hpge_pars.get_current_pulse`,
+    raced by ``extract_current_pulse_model``), the superpulse chain
+    (:func:`legendsimflow.superpulses.get_wfs_for_slice`, raced by
+    ``build_superpulses_from_data``) and the ``iminuit`` noise fit
+    (:func:`legendsimflow.hpge_pars.fit_noise_gauss`). ``dsp_config`` is the
+    :mod:`dspeed` config to warm (see :func:`_resolve_dsp_config`).
+    """
+    import tempfile
+
+    import numpy as np
+    from scipy.stats import norm
+
+    from legendsimflow import hpge_pars, superpulses
+
+    dsp = str(dsp_config)
+    with tempfile.TemporaryDirectory() as tmp:
+        raw_file = str(Path(tmp) / "dummy-raw.lh5")
+        lh5_group = _make_dummy_raw_file(raw_file)
+        n = 4
+
+        # current-pulse chain (also warms the tp_aoe_max alignment conversions)
+        hpge_pars.get_current_pulse(
+            raw_file, lh5_group, 0, dsp, "curr_av", "tp_aoe_max"
+        )
+        # superpulse chain: charge (wf_pz_win) + current + baseline + energy outputs
+        superpulses.get_wfs_for_slice(
+            [raw_file], lh5_group, list(range(n)), [0] * n, dsp_config=dsp
+        )
+
+    # iminuit noise fit (deterministic Gaussian sample, no RNG)
+    hpge_pars.fit_noise_gauss(norm.ppf(np.linspace(1e-3, 1 - 1e-3, 2000)), bins=100)
+
 
 if __name__ == "__main__":
-    warm_numba_caches()
+    import sys
+
+    # the prod invocation runs from the prod-cycle cwd, where the config lives;
+    # override the path as first arg (e.g. for the test tasks)
+    config_file = sys.argv[1] if len(sys.argv) > 1 else "simflow-config.yaml"
+    warm_numba_caches(config_file)

@@ -265,6 +265,28 @@ prerequisite of the production and test tasks) sidesteps this by calling every
 such kernel once, serially, before the parallel fan-out, so the jobs only ever
 read the cache.
 
+Some rules do not call individual kernels but run a whole :mod:`dspeed`
+`WaveformBrowser` DSP chain, which lazily compiles dozens of processor and
+processing-chain kernels on first execution. The `build_superpulses_from_data`
+and `extract_current_pulse_model` rules race these. To warm them,
+{func}`legendsimflow.warmup.warm_hpge_dsp_cache` runs the real production paths
+once on a small synthetic pulse: the current-pulse chain
+({func}`legendsimflow.hpge_pars.get_current_pulse`), the superpulse chain
+({func}`legendsimflow.superpulses.get_wfs_for_slice`) and the `iminuit` noise
+fit ({func}`legendsimflow.hpge_pars.fit_noise_gauss`). The synthetic waveform
+must be a _realistic_ pulse (baseline, charge-collection edge, decay): only then
+does the `tp_aoe_max` alignment succeed and the whole chain (unit conversions,
+cusp filter, ...) actually execute and compile. Noise would leave those code
+paths and their kernels uncompiled, and the parallel jobs would still race them.
+
+The `warmup` task takes the production's Simflow configuration (defaulting to
+`simflow-config.yaml` in the current directory) so it can discover the DSP
+config in `l200data`, exactly as the workflow does at run time
+({func}`legendsimflow.utils.lookup_dsp_config`); no DSP config is shipped with
+the package. The DSP-chain warmup is skipped entirely when the production reads
+no `l200data` or has PSD (with the pulse-shape library) disabled, i.e. when
+those rules will not run.
+
 :::{important}
 
 Whenever you add code that calls a new lazily-compiled `@njit(cache=True)`
