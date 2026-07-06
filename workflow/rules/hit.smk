@@ -1,6 +1,15 @@
 from legendsimflow import aggregate, patterns
 from legendsimflow.metadata import get_tier_settings
 
+# realistic-PSL-based PSD simulation keeps a detector's PSL waveforms in
+# memory, pushing peak RSS above the usual 2 GB budget. left empty otherwise,
+# so default-resources applies
+_hit_resources = (
+    {"mem_mb": 2300}
+    if get_tier_settings(config, "hit").get("simulate_psd_with_psl", False)
+    else {}
+)
+
 
 rule gen_all_tier_hit:
     """Aggregate and produce all the hit tier files."""
@@ -72,6 +81,8 @@ rule build_tier_hit:
         patterns.log_filename(config, tier="hit"),
     benchmark:
         patterns.benchmark_filename(config, tier="hit")
+    resources:
+        **_hit_resources,
     script:
         "../src/legendsimflow/scripts/tier/hit.py"
 

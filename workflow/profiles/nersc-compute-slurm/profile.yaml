@@ -100,6 +100,8 @@ set-resources:
     runtime: 5
   build_tier_hit:
     runtime: 10
+    # NOTE: mem_mb is set dynamically in the rule (bumped to 2300 when
+    # realistic-PSL-based PSD simulation is enabled), do not override here
   build_hpge_drift_time_map:
     runtime: 20
   extract_current_pulse_model:
