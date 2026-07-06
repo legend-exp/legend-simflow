@@ -201,7 +201,8 @@ def _hpge_is_modelable(
 
     See :func:`gen_hpge_modeling_status` for the criteria.
     """
-    # we don't model detectors that are OFF or AC
+    # we don't model detectors that are OFF or AC because we need to tune the
+    # models to valid L200 data
     if usability != "on":
         return False
 
