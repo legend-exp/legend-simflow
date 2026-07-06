@@ -816,19 +816,7 @@ def lookup_currmod_fit_inputs(
         msg = f"no hit tier files found in {hit_path}/cal/{period}/{run}"
         raise ValueError(msg)
 
-    dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
-    dsp_cfg_files = list(
-        (l200data / "inputs/dataprod/config/tier_dsp").glob(dsp_cfg_regex)
-    )
-
-    if dsp_cfg_files == []:
-        dsp_cfg_files = list(
-            (l200data / "inputs/dataprod/config/tier/dsp").glob(dsp_cfg_regex)
-        )
-
-    if len(dsp_cfg_files) != 1:
-        msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
-        raise RuntimeError(msg)
+    dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
     lh5_group = mutils._get_lh5_table(metadata, hit_files[0], hpge, "hit", runid)
 
@@ -851,7 +839,7 @@ def lookup_currmod_fit_inputs(
     msg = "determined %d raw file/event pairs for simultaneous fitting"
     log.debug(msg, len(raw_wf_pairs))
 
-    return raw_wf_pairs, dsp_cfg_files[0], all_dts, selected_dts
+    return raw_wf_pairs, dsp_cfg_file, all_dts, selected_dts
 
 
 def _lookup_generated_pars_file(

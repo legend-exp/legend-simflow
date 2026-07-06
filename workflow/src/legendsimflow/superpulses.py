@@ -292,23 +292,13 @@ def lookup_superpulse_inputs(
         msg = f"no evt tier files found for {data_runid}."
         raise FileNotFoundError(msg)
 
-    dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
-    dsp_cfg_files = list(
-        (l200data / "inputs/dataprod/config/tier_dsp").glob(dsp_cfg_regex)
-    )
-    if dsp_cfg_files == []:
-        dsp_cfg_files = list(
-            (l200data / "inputs/dataprod/config/tier/dsp").glob(dsp_cfg_regex)
-        )
-    if len(dsp_cfg_files) != 1:
-        msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
-        raise RuntimeError(msg)
+    dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
     tstamp = mutils.runinfo(metadata, data_runid).start_key
     chmap = metadata.channelmap(tstamp, skip_version_check=True)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
-    return raw_files, evt_files, dsp_cfg_files[0], tab_map, data_runid
+    return raw_files, evt_files, dsp_cfg_file, tab_map, data_runid
 
 
 def _read_and_sel_evts(
