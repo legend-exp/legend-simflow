@@ -650,12 +650,13 @@ def main() -> None:
             # this table has been processed
             ondisk_stp_tables[stp_table_name] = True
 
-    # sanity check that all the stp tables were processed. this is important for
-    # TCM consistency across all tiers later on
+    # sanity check that all the stp tables were processed. tables not
+    # processed here are not included in the hit tier or the TCM (e.g.
+    # dead-material calorimeter tables registered ad hoc in the stp tier
+    # macros, which have no per-channel calibration/PSD information)
     not_done = [k for k, v in ondisk_stp_tables.items() if not v]
     if not_done:
-        msg = f"stp tables {not_done} were not processed!"
-        raise RuntimeError(msg)
+        log.warning("stp tables %s were not processed", not_done)
 
     log.debug("building the TCM")
     build_tcm(hit_file, hit_file)
