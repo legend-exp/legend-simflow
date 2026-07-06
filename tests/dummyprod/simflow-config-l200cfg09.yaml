@@ -1,0 +1,47 @@
+experiment: l200cfg09
+
+runlist:
+  - l200-p16-r008-ssc
+  - l200-p16-r009-ssc
+
+benchmark:
+  enabled: true
+  n_primaries:
+    stp: 1000
+
+make_steps:
+  - vtx
+  - stp
+  - par
+  - hit
+  - opt
+  - evt
+  - cvt
+  - pdf
+
+paths:
+  generated: $_/generated-l200cfg09
+  l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/v3.3.0
+  benchmarks: $_/generated-l200cfg09/benchmarks
+  log: $_/generated-l200cfg09/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    lar: $_/inputs/simprod/l200cfg01-optmap-dummy.lh5
+
+  pars: $_/generated-l200cfg09/pars
+  macros: $_/generated-l200cfg09/macros
+  tier:
+    vtx: $_/generated-l200cfg09/tier/vtx
+    stp: $_/generated-l200cfg09/tier/stp
+    opt: $_/generated-l200cfg09/tier/opt
+    hit: $_/generated-l200cfg09/tier/hit
+    evt: $_/generated-l200cfg09/tier/evt
+    cvt: $_/generated-l200cfg09/tier/cvt
+    pdf: $_/generated-l200cfg09/tier/pdf
+  pdf_releases: $_/generated-l200cfg09/releases
+
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow

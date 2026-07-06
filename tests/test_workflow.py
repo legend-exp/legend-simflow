@@ -140,3 +140,36 @@ def test_l200_workflow():
         dag.execute_workflow(
             execution_settings=smkapi.ExecutionSettings(keep_going=True),
         )
+
+
+@pytest.mark.needs_nersc
+@pytest.mark.needs_remage
+@pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
+def test_l200cfg09_workflow():
+    """Full vtx->pdf pipeline with the realistic (PSL-based) PSD on real data.
+
+    Uses experiment ``l200cfg09`` with ``l200data`` at ref/v3.3.0 (NERSC-only)
+    and a trimmed simconfig over two p16 ``ssc`` runs. PSD and the pulse-shape
+    library are enabled, so this exercises the realistic-PSL-from-data path (the
+    ``l1000dsg01`` test only builds the *ideal* PSL, having no ``l200data``).
+    """
+    output = smkapi.OutputSettings(show_failed_logs=True)
+
+    with smkapi.SnakemakeApi(output) as api:
+        wf_api = api.workflow(
+            snakefile=dummyprod / "workflow/Snakefile",
+            workdir=dummyprod,
+            config_settings=smkapi.ConfigSettings(
+                configfiles=(dummyprod / "simflow-config-l200cfg09.yaml",),
+            ),
+            storage_settings=smkapi.StorageSettings(),
+            resource_settings=smkapi.ResourceSettings(cores=all_cores),
+        )
+        dag = wf_api.dag()
+        dag.execute_workflow()
+
+    # PSL is enabled with real l200data: the detailed (PSL-based) PSD must be
+    # produced in the hit tier and read back in the evt tier
+    generated = dummyprod / "generated-l200cfg09"
+    _assert_psd_psl_in_hit(generated)
+    _assert_psd_psl_in_evt(generated)
