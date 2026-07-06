@@ -265,12 +265,18 @@ prerequisite of the production and test tasks) sidesteps this by calling every
 such kernel once, serially, before the parallel fan-out, so the jobs only ever
 read the cache.
 
+Some rules instead run a whole processing chain (e.g. a `dspeed`
+`WaveformBrowser` DSP chain) that lazily compiles dozens of kernels on first
+execution; these are warmed the same way by
+{func}`legendsimflow.warmup.warm_hpge_dsp_cache`, see its docstring for details.
+
 :::{important}
 
-Whenever you add code that calls a new lazily-compiled `@njit(cache=True)`
-kernel from a rule that runs in parallel (whether defined here or in a
-dependency such as `reboost`), add a call to it in
-{func}`legendsimflow.warmup.warm_numba_caches`, using the **exact** argument
+Whenever you add code that needs any lazily-compiled, on-disk-cached Numba
+kernel (`@njit(cache=True)`, a `dspeed`/`reboost` processing chain, or any other
+Numba-cached dependency) from a rule that runs in parallel, warm it in
+{func}`legendsimflow.warmup.warm_numba_caches` or
+{func}`legendsimflow.warmup.warm_hpge_dsp_cache`, using the **exact** argument
 dtypes seen at run time (Numba caches per type signature). Verify with
 `NUMBA_DEBUG_CACHE=1 pixi run warmup` that the kernel's `.nbc`/`.nbi` files get
 written.

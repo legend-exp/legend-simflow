@@ -422,6 +422,35 @@ def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
     return df_cfg
 
 
+def lookup_dsp_config(l200data: str | Path) -> Path:
+    """Find the ICPC DSP processing-chain configuration file in an l200data production.
+
+    Parameters
+    ----------
+    l200data
+        The path to the L200 data production cycle.
+
+    Returns
+    -------
+    path to the single matching DSP configuration file.
+    """
+    if not isinstance(l200data, Path):
+        l200data = Path(l200data)
+
+    dsp_cfg_regex = r"l200-*-r%-T%-ICPC-dsp_proc_chain.*"
+    dsp_cfg_files: list[Path] = []
+    for sub in ("inputs/dataprod/config/tier_dsp", "inputs/dataprod/config/tier/dsp"):
+        dsp_cfg_files = list((l200data / sub).glob(dsp_cfg_regex))
+        if dsp_cfg_files:
+            break
+
+    if len(dsp_cfg_files) != 1:
+        msg = f"could not find a suitable dsp config file in {l200data} (or multiple found)"
+        raise RuntimeError(msg)
+
+    return dsp_cfg_files[0]
+
+
 def init_generated_pars_db(
     l200data: str | Path, tier: str | None = None, lazy: bool = True
 ) -> TextDB:
