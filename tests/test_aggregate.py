@@ -146,6 +146,22 @@ def test_hpge_harvesting(config):
     }
 
 
+@pytest.mark.parametrize("usability", ["off", "ac"])
+def test_hpge_is_modelable_requires_usability_on(config, usability):
+    """A detector is excluded when its usability is not "on".
+
+    Even with an otherwise fully valid modeling profile (voltage headroom
+    above depletion, impurity curve), OFF/AC detectors must be excluded.
+    """
+    common_kwargs = {
+        "skip": {},
+        "operational_voltage": 4200,
+        "min_voltage_above_depletion": 100,
+    }
+    assert agg_mod._hpge_is_modelable(config, "V99000A", "on", **common_kwargs)
+    assert not agg_mod._hpge_is_modelable(config, "V99000A", usability, **common_kwargs)
+
+
 def test_hpge_modeling_voltage_threshold_configurable(fresh_config, monkeypatch):
     config = fresh_config
     runid = "l200-p02-r000-phy"

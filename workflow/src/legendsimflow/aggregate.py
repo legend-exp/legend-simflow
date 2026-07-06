@@ -192,6 +192,7 @@ def pivot_detinfo(
 def _hpge_is_modelable(
     config: SimflowConfig,
     name: str,
+    usability: str,
     skip: Mapping[str, str],
     operational_voltage: int | None,
     min_voltage_above_depletion: int,
@@ -200,6 +201,10 @@ def _hpge_is_modelable(
 
     See :func:`gen_hpge_modeling_status` for the criteria.
     """
+    # we don't model detectors that are OFF or AC
+    if usability != "on":
+        return False
+
     # explicitly excluded via the validity-based skip metadata
     if name in skip:
         return False
@@ -253,8 +258,8 @@ def gen_hpge_modeling_status(
           ...
         }
 
-    A detector ``is_modelable`` when all of the following hold: it is not listed
-    in the validity-based skip metadata
+    A detector ``is_modelable`` when all of the following hold: it is ``ON``
+    (i.e. not OFF or AC), it is not listed in the validity-based skip metadata
     ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it is operated
     at least ``min_voltage_above_depletion_in_V`` (default 100 V, configurable
     via the ``modeling`` par settings) above its depletion voltage
@@ -292,7 +297,12 @@ def gen_hpge_modeling_status(
 
         status[name] = {
             "is_modelable": _hpge_is_modelable(
-                config, name, skip, operational_voltage, min_voltage_above_depletion
+                config,
+                name,
+                chmap[name].analysis.usability,
+                skip,
+                operational_voltage,
+                min_voltage_above_depletion,
             ),
             "operational_voltage_in_V": operational_voltage,
         }
