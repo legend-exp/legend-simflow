@@ -19,6 +19,7 @@ import logging
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
+import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
 
@@ -511,6 +512,51 @@ def gen_list_of_dtmaps(
         )
         for hpge, entry in hpge_voltages.items()
     ]
+
+
+def gen_list_of_dtmap_info_files(
+    config: SimflowConfig,
+    cache: Mapping[str, Mapping[str, Mapping[str, int]]],
+) -> list[Path]:
+    """Deduplicated list of HPGe SSD-modeling info sidecars for the modeling `cache`.
+
+    One sidecar exists per ``(detector, voltage)`` pair, so the same file is
+    shared across every runid operating a detector at the same voltage; the
+    returned list is deduplicated.
+    """
+    seen: dict[str, Path] = {}
+    for dets in cache.values():
+        for hpge, entry in dets.items():
+            path = patterns.output_dtmap_info_filename(
+                config,
+                hpge_detector=hpge,
+                hpge_voltage=entry["operational_voltage_in_V"],
+            )
+            seen[str(path)] = path
+    return list(seen.values())
+
+
+def collect_hpge_ssd_modeling_info(
+    config: SimflowConfig,
+    cache: Mapping[str, Mapping[str, Mapping[str, int]]],
+) -> dict[str, dict[str, dict[str, object]]]:
+    """Aggregate the HPGe SSD-modeling sidecars into a ``runid -> detector`` mapping.
+
+    Reads the per-``(detector, voltage)`` YAML sidecars written next to the
+    drift-time maps (see :func:`legendsimflow.patterns.output_dtmap_info_filename`)
+    and lays them out as ``runid -> detector -> {scalars}`` following the
+    ``detinfo`` convention. Expects every referenced sidecar to exist on disk.
+    """
+    out: dict[str, dict[str, dict[str, object]]] = {}
+    for runid, dets in cache.items():
+        for hpge, entry in dets.items():
+            path = patterns.output_dtmap_info_filename(
+                config,
+                hpge_detector=hpge,
+                hpge_voltage=entry["operational_voltage_in_V"],
+            )
+            out.setdefault(runid, {})[hpge] = dict(dbetto.utils.load_dict(path))
+    return out
 
 
 def gen_list_of_merged_dtmaps(

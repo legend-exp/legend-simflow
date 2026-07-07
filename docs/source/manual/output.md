@@ -71,6 +71,27 @@ modeling flags for **every deployed germanium** detector:
 | `is_modelable.yaml`             | `true` / `false` | Whether the detector is suitable for drift-time-map and current-pulse modeling. See {ref}`hpge-modeling-criteria` for the eligibility criteria. |
 | `operational_voltage_in_V.yaml` | integer / `null` | Operational bias voltage read from the parameters database. `null` for detectors with no bias (e.g. off detectors).                             |
 
+Unlike the flags above (queried from `legend-metadata`), the
+[`aggregate_hpge_ssd_modeling_info`](../api/snakemake_rules.md) rule writes a
+single file whose values are **outputs of the SSD simulation** run for each
+drift-time map. Its `runid -> detector` leaves are a nested mapping rather than
+a scalar:
+
+| File                     | Applies to | Description                                                                         |
+| ------------------------ | ---------- | ----------------------------------------------------------------------------------- |
+| `hpge_ssd_modeling.yaml` | geds       | SSD-modeling provenance for each modelable detector: the four scalars listed below. |
+
+| Key                                    | Type           | Units | Description                                                                                                                             |
+| -------------------------------------- | -------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `impurity_scaling_factor`              | float / `null` | —     | Dimensionless factor applied to the crystal impurities to match the measured depletion voltage. `null` when no rescaling was performed. |
+| `measured_depletion_voltage_in_V`      | float / `null` | V     | Measured depletion voltage from `legend-metadata` (`characterization.l200_site.depletion_voltage_in_V`). `null` when absent.            |
+| `simulated_depletion_voltage_raw_in_V` | float          | V     | Depletion voltage estimated from the simulation before the impurity rescaling.                                                          |
+| `simulated_depletion_voltage_in_V`     | float          | V     | Depletion voltage estimated from the simulation after the impurity rescaling and bias adjustment.                                       |
+
+This file is produced together with the drift-time maps, so it is written only
+when the `hit` tier is built with PSD enabled (`simulate_psd`, see
+{ref}`hit-tier-settings`).
+
 ## `hit` tier — HPGe detector post-processing
 
 The `hit` tier applies detector response models (energy resolution, pulse-shape

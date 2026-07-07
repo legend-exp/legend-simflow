@@ -480,11 +480,18 @@ checks depletion voltage, and calculates weighting potential.
 - `recompute_corrections`: flag to recompute impurity corrections to match depletion.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
-- `info`: dictionary of information on the SSD simulation, contains:
-    - `:impurity_scale`:scaling factor for impurities to match measured depletion voltage
-    - `:vdep_raw`: unscaled depletion voltage
-    - `:vdep_corr`: scaled depletion voltage
-    - `:vdep_meas`: measured depletion voltage
+- `info`: dictionary of provenance on the SSD simulation, serialization-ready
+  (Unitful quantities stripped to plain numbers, missing values normalized to
+  `nothing`), with explicit keys:
+    - `:impurity_scaling_factor`: dimensionless scaling factor applied to the
+      impurities to match the measured depletion voltage (`nothing` when no
+      rescaling was performed)
+    - `:measured_depletion_voltage_in_V`: measured depletion voltage from
+      `legend-metadata` (`nothing` when absent)
+    - `:simulated_depletion_voltage_raw_in_V`: simulated depletion voltage
+      before the impurity rescaling
+    - `:simulated_depletion_voltage_in_V`: simulated depletion voltage after
+      the impurity rescaling and bias adjustment
 
 """
 function setup_hpge_simulation(meta_path::String,
@@ -568,7 +575,18 @@ function setup_hpge_simulation(meta_path::String,
         verbose = false
     )
 
-    return sim, Dict(:impurity_scale=>scale, :vdep_meas=>vdep, :vdep_raw=>dep_raw, :vdep_corr=>dep)
+    # normalize into a serialization-ready provenance dict with explicit names:
+    # strip Unitful voltages to plain numbers (in V) and map missing measured
+    # depletion voltage to `nothing`
+    vdep_meas = (vdep isa PropDicts.MissingProperty || vdep === nothing) ? nothing : Float64(vdep)
+
+    return sim,
+    Dict(
+        :impurity_scaling_factor => scale,
+        :measured_depletion_voltage_in_V => vdep_meas,
+        :simulated_depletion_voltage_raw_in_V => ustrip(u"V", dep_raw),
+        :simulated_depletion_voltage_in_V => ustrip(u"V", dep)
+    )
 end
 
 
