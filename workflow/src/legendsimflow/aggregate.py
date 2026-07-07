@@ -222,6 +222,9 @@ def _hpge_is_modelable(
     except (KeyError, AttributeError, FileNotFoundError):
         return False
 
+    if depletion_voltage is None:
+        return False
+
     if operational_voltage < depletion_voltage + min_voltage_above_depletion:
         return False
 
