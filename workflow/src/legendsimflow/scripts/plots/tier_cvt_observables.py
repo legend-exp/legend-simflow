@@ -119,24 +119,26 @@ base_mask = (  # noqa: E731
     lambda evt: evt.coincident.geds
     & (evt.geds.multiplicity == 1)
     & evt.geds.is_good_channel
-    & evt.geds.psd.has_aoe
+    & evt.geds.psd.single_temp.has_aoe
     & evt.geds.psd.is_good
 )
 _plot_ehist(
     ax,
     base_mask,
     color="silver",
-    label="geds.is_good_channel & geds.psd.has_aoe & geds.psd.is_good & geds.multiplicity == 1",
+    label="geds.is_good_channel & geds.psd.single_temp.has_aoe & geds.psd.is_good & geds.multiplicity == 1",
 )
 _plot_ehist(
     ax,
-    lambda evt: base_mask(evt) & evt.geds.psd.is_single_site,
+    lambda evt: base_mask(evt) & evt.geds.psd.single_temp.is_single_site,
     color="tab:green",
-    label="... geds.psd.is_single_site",
+    label="... geds.psd.single_temp.is_single_site",
 )
 _plot_ehist(
     ax,
-    lambda evt: base_mask(evt) & evt.geds.psd.is_single_site & ~evt.coincident.spms,
+    lambda evt: base_mask(evt)
+    & evt.geds.psd.single_temp.is_single_site
+    & ~evt.coincident.spms,
     color="tab:red",
     label="... ~coincident.spms",
 )

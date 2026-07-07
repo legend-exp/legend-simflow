@@ -209,27 +209,37 @@ and are from non-OFF detectors.
 | `is_good_channel` | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                             |
 | `multiplicity`    | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                        |
 
-#### `geds/psd/` and `geds/psd_psl` — PSD fields
+#### `geds/psd/` — PSD fields
 
-These two subtables are optional and gated by the `hit`-tier settings
-({ref}`hit-tier-settings`): `geds/psd` is present when `simulate_psd: True` and
-`geds/psd_psl` when `simulate_psd_with_psl: True`. Each carries the same-named
-fields forwarded from the corresponding `hit`-tier subtable (`psd` is
-single-template, `psd_psl` is PSL based; see {ref}`hpge-psl-overview`), so a
-field's meaning depends on which subtable it is in. All fields are
-`VectorOfVectors` (variable-length per event).
+The optional `geds/psd` subtable holds HPGe pulse-shape-discrimination fields.
+Flags common to every PSD method live directly under `geds/psd`, while
+method-specific fields are grouped in dedicated subtables, one per simulation
+method:
 
-| Field             | Units | Subtable         | Description                                                                                                                                                                                             |
-| ----------------- | ----- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `is_good`         |       | `psd`            | Boolean. `True` if the PSD usability flag is valid in LEGEND-200 data.                                                                                                                                  |
-| `is_valid_sim`    |       | `psd`            | Boolean. `True` when the crystal metadata needed to model the detector is usable, so its simulated response can be trusted. Reshaped from the `hit`-tier `is_valid_sim` field (see {ref}`par-detinfo`). |
-| `aoe`             |       | `psd`, `psd_psl` | A/E classifier values forwarded from the `hit` tier.                                                                                                                                                    |
-| `aoe_corr`        |       | `psd`, `psd_psl` | Energy-corrected A/E values forwarded from the `hit` tier.                                                                                                                                              |
-| `drift_time_amax` | ns    | `psd`, `psd_psl` | Drift time at the maximum-current position, forwarded from the `hit` tier.                                                                                                                              |
-| `has_aoe`         |       | `psd`, `psd_psl` | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed).                                                                                                                                  |
-| `is_single_site`  |       | `psd`, `psd_psl` | Boolean single-site PSD flag forwarded from the `hit` tier.                                                                                                                                             |
-| `is_bb_like`      |       | `psd_psl`        | Boolean flag for $0\nu\beta\beta$-like single-site events, forwarded from `hit`.                                                                                                                        |
-| `is_high_aoe`     |       | `psd_psl`        | Boolean high-A/E flag forwarded from the `hit` tier.                                                                                                                                                    |
+- `geds/psd/single_temp` — single-template A/E simulation, present when
+  `simulate_psd: True` in {ref}`hit-tier-settings`.
+- `geds/psd/pulse_lib` — pulse-shape-library (PSL) based simulation, present
+  when `simulate_psd_with_psl: True` (see {ref}`hpge-psl-overview`).
+
+The `geds/psd` subtable itself is present whenever at least one of the two
+methods is enabled. The two method subtables carry the same-named A/E fields but
+their **meaning differs**: `single_temp` values come from a single per-detector
+current-pulse template, while `pulse_lib` values come from the per-pixel
+pulse-shape library (see {ref}`hpge-psl-overview`). All fields are forwarded
+from the corresponding `hit`-tier subtable and are `VectorOfVectors`
+(variable-length per event).
+
+| Field             | Units | Subtable                   | Description                                                                                                                                                                                             |
+| ----------------- | ----- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `is_good`         |       | `psd`                      | Boolean. `True` if the PSD usability flag is valid in LEGEND-200 data.                                                                                                                                  |
+| `is_valid_sim`    |       | `psd`                      | Boolean. `True` when the crystal metadata needed to model the detector is usable, so its simulated response can be trusted. Reshaped from the `hit`-tier `is_valid_sim` field (see {ref}`par-detinfo`). |
+| `aoe`             |       | `single_temp`, `pulse_lib` | A/E classifier values forwarded from the `hit` tier.                                                                                                                                                    |
+| `aoe_corr`        |       | `single_temp`, `pulse_lib` | Energy-corrected A/E values forwarded from the `hit` tier.                                                                                                                                              |
+| `drift_time_amax` | ns    | `single_temp`, `pulse_lib` | Drift time at the maximum-current position, forwarded from the `hit` tier.                                                                                                                              |
+| `has_aoe`         |       | `single_temp`, `pulse_lib` | Boolean. `True` if the A/E value is not `NaN` (i.e. PSD was computed).                                                                                                                                  |
+| `is_single_site`  |       | `single_temp`, `pulse_lib` | Boolean single-site PSD flag forwarded from the `hit` tier.                                                                                                                                             |
+| `is_bb_like`      |       | `pulse_lib`                | Boolean flag for $0\nu\beta\beta$-like single-site events, forwarded from `hit`.                                                                                                                        |
+| `is_high_aoe`     |       | `pulse_lib`                | Boolean high-A/E flag forwarded from the `hit` tier.                                                                                                                                                    |
 
 ### `spms/` — SiPM (LAr scintillation) array
 
@@ -317,24 +327,24 @@ to be an ON detector (not AC or OFF). Per-group filtering restricts which
 detector energies are accumulated into the histogram; the event-level cuts
 themselves are unchanged and applied globally.
 
-| Cut           | Description                                                                                                                                                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                                                    |
-| `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                                               |
-| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon). Present only when SiPM data is available.                 |
-| `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires `psd.is_good`, `psd.has_aoe`, and `psd.is_single_site` for all hits. Events where PSD is not valid or not simulated are classified as background and excluded. |
-| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`). Present only when SiPM data is available.                                                       |
+| Cut           | Description                                                                                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                                                                            |
+| `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                                                                       |
+| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon). Present only when SiPM data is available.                                         |
+| `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires `psd.is_good`, `psd.single_temp.has_aoe`, and `psd.single_temp.is_single_site` for all hits. Events where PSD is not valid or not simulated are classified as background and excluded. |
+| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`). Present only when SiPM data is available.                                                                               |
 
 :::{warning}
 
 When a detector is ON with valid PSD in the data but its PSD response could not
 be simulated (e.g. because it is not included in the simulation model), the
-corresponding events will have `psd.has_aoe = False` in the `cvt` tier. Such
-events are treated as background and excluded from `mul_psd` and `mul_lar_psd`.
-This is a conservative choice: rather than keeping events we cannot
-characterise, we cut them. The `fail/psd` histogram does **not** include these
-events either, since it is restricted to events where both `psd.is_good = True`
-and `psd.has_aoe = True`.
+corresponding events will have `psd.single_temp.has_aoe = False` in the `cvt`
+tier. Such events are treated as background and excluded from `mul_psd` and
+`mul_lar_psd`. This is a conservative choice: rather than keeping events we
+cannot characterise, we cut them. The `fail/psd` histogram does **not** include
+these events either, since it is restricted to events where both
+`psd.is_good = True` and `psd.single_temp.has_aoe = True`.
 
 :::
 
@@ -355,7 +365,7 @@ explicitly rejected by a cut, providing a way to characterise the vetoed
 background. Like the pass histograms, each cut contains one `Histogram` per
 detector group (`pdf/fail/<cut>/<group>`).
 
-| Cut   | Description                                                                                                                                                                 |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lar` | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when SiPM data is available.                                                           |
-| `psd` | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.is_single_site == False`). Events without valid PSD are not included here. |
+| Cut   | Description                                                                                                                                                                             |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lar` | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when SiPM data is available.                                                                       |
+| `psd` | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.single_temp.is_single_site == False`). Events without valid PSD are not included here. |
