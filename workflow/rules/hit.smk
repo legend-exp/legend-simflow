@@ -16,6 +16,13 @@ rule gen_all_tier_hit:
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="hit"),
         lambda wc: aggregate.gen_list_of_all_plots_outputs(config, tier="hit"),
+        # SSD-modeling provenance detinfo, aggregated from the drift-time-map
+        # sidecars; gated by the same `simulate_psd` setting that builds them
+        lambda wc: (
+            [patterns.detinfo_filename(config, "hpge_ssd_modeling")]
+            if get_tier_settings(config, "hit").get("simulate_psd", True)
+            else []
+        ),
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.

@@ -127,7 +127,8 @@ rule build_hpge_drift_time_map:
     params:
         metadata_path=config.paths.metadata,
     output:
-        patterns.output_dtmap_filename(config),
+        dtmap_file=patterns.output_dtmap_filename(config),
+        info_file=patterns.output_dtmap_info_filename(config),
     log:
         patterns.log_dtmap_filename(config),
     benchmark:
@@ -141,7 +142,8 @@ rule build_hpge_drift_time_map:
         f"   --metadata {config.paths.metadata}"
         "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
-        "    --output-file {output} &> {log}"
+        "    --output-file {output.dtmap_file}"
+        "    --info-file {output.info_file} &> {log}"
 
 
 rule merge_hpge_drift_time_maps:
@@ -187,6 +189,36 @@ rule merge_hpge_drift_time_maps:
         """
 
 
+rule aggregate_hpge_ssd_modeling_info:
+    """Aggregate the HPGe SSD-modeling provenance into a `detinfo` file.
+
+    Each `build_hpge_drift_time_map` job writes, next to its LH5 map, a small
+    YAML sidecar holding the SSD simulation provenance scalars for that
+    `(detector, voltage)` pair (impurity scaling factor, measured and simulated
+    depletion voltages). This rule collects those sidecars and pivots them into
+    a single `pars/detinfo/hpge_ssd_modeling.yaml` mapping `runid -> detector ->
+    {impurity_scaling_factor, measured_depletion_voltage_in_V,
+    simulated_depletion_voltage_raw_in_V, simulated_depletion_voltage_in_V}`,
+    following the `detinfo` convention (see {ref}`par-detinfo`).
+
+    No wildcards are used.
+    """
+    localrule: True
+    message:
+        "Aggregating HPGe SSD-modeling provenance into a detinfo file"
+    input:
+        lambda wc: aggregate.gen_list_of_dtmap_info_files(
+            config, cache=smk_load_hpge_cache()
+        ),
+    output:
+        patterns.detinfo_filename(config, "hpge_ssd_modeling"),
+    run:
+        import dbetto
+
+        info = aggregate.collect_hpge_ssd_modeling_info(config, smk_load_hpge_cache())
+        dbetto.utils.write_dict(info, output[0])
+
+
 rule plot_hpge_drift_time_maps:
     """Produce a validation plot of an HPGe drift-time map.
 
@@ -198,7 +230,7 @@ rule plot_hpge_drift_time_maps:
     message:
         "Plotting drift-time map for HPGe {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
-        rules.build_hpge_drift_time_map.output,
+        rules.build_hpge_drift_time_map.output.dtmap_file,
     output:
         patterns.plot_dtmap_filename(config),
     script:

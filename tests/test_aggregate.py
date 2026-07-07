@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import dbetto
 import pytest
 from dbetto import AttrsDict
 
@@ -206,6 +207,41 @@ def test_dtmap_stuff(config):
     for p in agg.gen_list_of_dtmap_plots_outputs(config, simid):
         assert p in par_plots
     assert len(agg.gen_list_of_all_plots_outputs(config, "par")) >= 1
+
+
+def test_hpge_ssd_modeling_info_aggregation(fresh_config, tmp_path):
+    config = fresh_config
+    # keep the fake sidecars out of the shared dummyprod output tree
+    config.paths["dtmaps"] = tmp_path
+
+    # the modeling cache the Snakemake rule would pass in: runid -> det -> {opv}.
+    # two runids share the same (detector, voltage), so the sidecar is shared
+    cache = {
+        "l200-p02-r000-phy": {"V02160A": {"operational_voltage_in_V": 4200}},
+        "l200-p02-r001-phy": {"V02160A": {"operational_voltage_in_V": 4200}},
+    }
+
+    # one sidecar per (detector, voltage), deduplicated across runids
+    info_files = agg.gen_list_of_dtmap_info_files(config, cache)
+    assert len(info_files) == 1
+    assert "4200V" in str(info_files[0])
+    assert info_files[0].suffix == ".yaml"
+
+    # write a fake sidecar and check the pivot into runid -> det -> {scalars}
+    sidecar = {
+        "impurity_scaling_factor": 0.97,
+        "measured_depletion_voltage_in_V": 3600,
+        "simulated_depletion_voltage_raw_in_V": 3810,
+        "simulated_depletion_voltage_in_V": 3650,
+    }
+    info_files[0].parent.mkdir(parents=True, exist_ok=True)
+    dbetto.utils.write_dict(sidecar, info_files[0])
+
+    collected = agg.collect_hpge_ssd_modeling_info(config, cache)
+    assert collected == {
+        "l200-p02-r000-phy": {"V02160A": sidecar},
+        "l200-p02-r001-phy": {"V02160A": sidecar},
+    }
 
 
 def test_par_plots_psd_gate(fresh_config):

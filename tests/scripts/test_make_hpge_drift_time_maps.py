@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import dbetto
 import lh5
 import pytest
 
@@ -16,6 +17,7 @@ repo_root = Path(__file__).parent.parent.parent
 def test_make_hpge_drift_time_maps_l1000(tmp_path):
     """Run the Julia drift time map script and verify the output LH5 structure."""
     dtmap_file = tmp_path / "V05261B-4200V-hpge-drift-time-map.lh5"
+    info_file = tmp_path / "V05261B-4200V-hpge-ssd-modeling.yaml"
 
     subprocess.run(
         [
@@ -40,6 +42,8 @@ def test_make_hpge_drift_time_maps_l1000(tmp_path):
             ),
             "--output-file",
             str(dtmap_file),
+            "--info-file",
+            str(info_file),
         ],
         check=True,
         cwd=repo_root,
@@ -55,3 +59,23 @@ def test_make_hpge_drift_time_maps_l1000(tmp_path):
         assert f"V05261B/{expected}" in inner_keys, (
             f"Expected dataset 'V05261B/{expected}' in LH5, found: {inner_keys}"
         )
+
+    # the SSD-modeling provenance scalars are stored in the sidecar, not the LH5
+    for scalar in (
+        "impurity_scaling_factor",
+        "measured_depletion_voltage_in_V",
+        "simulated_depletion_voltage_raw_in_V",
+        "simulated_depletion_voltage_in_V",
+    ):
+        assert f"V05261B/{scalar}" not in inner_keys, (
+            f"Scalar '{scalar}' should not be stored in the LH5 map"
+        )
+
+    assert info_file.exists(), "SSD-modeling info sidecar was not created"
+    info = dbetto.utils.load_dict(info_file)
+    assert set(info) == {
+        "impurity_scaling_factor",
+        "measured_depletion_voltage_in_V",
+        "simulated_depletion_voltage_raw_in_V",
+        "simulated_depletion_voltage_in_V",
+    }

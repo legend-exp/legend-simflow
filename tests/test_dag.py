@@ -61,6 +61,7 @@ STD_PSD_RULES = {
     "build_hpge_drift_time_map",
     "merge_hpge_drift_time_maps",
     "plot_hpge_drift_time_maps",
+    "aggregate_hpge_ssd_modeling_info",
     "extract_current_pulse_model",
     "merge_current_pulse_model_pars",
 }

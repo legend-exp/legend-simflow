@@ -79,10 +79,13 @@ end
     @test sim.detector.semiconductor.charge_drift_model.temperaturemodel.reference_temperature == T(87)
 
     @test info isa Dict
-    @test haskey(info, :impurity_scale)
-    @test haskey(info, :vdep_raw)
-    @test haskey(info, :vdep_corr)
-    @test haskey(info, :vdep_meas)
+    @test haskey(info, :impurity_scaling_factor)
+    @test haskey(info, :simulated_depletion_voltage_raw_in_V)
+    @test haskey(info, :simulated_depletion_voltage_in_V)
+    @test haskey(info, :measured_depletion_voltage_in_V)
+    # depletion voltages are serialization-ready plain numbers (Unitful stripped)
+    @test info[:simulated_depletion_voltage_in_V] isa Real
+    @test info[:simulated_depletion_voltage_raw_in_V] isa Real
 
     # test valid spawn pos
     # Candidate positions include one valid and one invalid

@@ -65,6 +65,11 @@ function main()
         required = true
     end
     @add_arg_table s begin
+        "--info-file"
+        help = "Path to output YAML file with the SSD-modeling provenance scalars (optional)"
+        default = nothing
+    end
+    @add_arg_table s begin
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
     end
@@ -80,6 +85,7 @@ function main()
     meta_path = parsed_args["metadata"]
     opv = parsed_args["opv"]
     output_file = parsed_args["output-file"]
+    info_file = parsed_args["info-file"]
 
     isfile(output_file) && error("Output file already exists")
 
@@ -108,10 +114,6 @@ function main()
         key = Symbol("drift_time_$(lpad(string(angle), 3, '0'))_deg")
         if output === nothing
             output = Dict{Symbol,Any}(pairs(result))
-
-            for (name, value) in info
-                output[name] = value
-            end
         else
             output[key] = result[key]
         end
@@ -120,6 +122,14 @@ function main()
     @info "Saving to disk..."
     lh5open(output_file, "cw") do f
         return f[det] = (; output...)
+    end
+
+    # the SSD-modeling provenance scalars (impurity scaling, measured and
+    # simulated depletion voltages) are stored separately as metadata, not as
+    # LH5 scalars; they are aggregated into a `detinfo` file downstream
+    if !isnothing(info_file)
+        @info "Saving SSD-modeling info to $info_file..."
+        writeprops(info_file, PropDict(info))
     end
 end
 
