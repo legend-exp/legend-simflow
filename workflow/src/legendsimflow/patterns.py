@@ -287,13 +287,7 @@ def output_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
 
 
 def output_dtmap_info_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the HPGe SSD-modeling info sidecar for a detector and voltage.
-
-    A small YAML file written next to each drift-time map holding the SSD
-    simulation provenance scalars (impurity scaling, measured and simulated
-    depletion voltages), aggregated downstream into the ``hpge_ssd_modeling``
-    :func:`detinfo_filename`.
-    """
+    """The path to the HPGe SSD-modeling info sidecar for a detector and voltage."""
     return _expand(
         config.paths.dtmaps
         / "singles/{hpge_detector}-{hpge_voltage}V-hpge-ssd-modeling.yaml",
