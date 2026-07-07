@@ -549,7 +549,12 @@ def main() -> None:
                         np.asarray(energy, dtype=np.float32), attrs={"units": "keV"}
                     ),
                 )
-                # save psd fields
+                # save psd fields: method-specific fields go into dedicated
+                # subtables under a common psd parent, one per simulation method
+                if simulate_psd or simulate_psd_with_psl:
+                    psd_table = Table(size=len(out_table))
+
+                # single-template A/E
                 if simulate_psd:
                     psd_sub_table = Table(size=len(out_table))
                     psd_sub_table.add_field(
@@ -576,9 +581,9 @@ def main() -> None:
                         "is_single_site", lgdo.Array(psd_fields.is_single_site)
                     )
 
-                    out_table.add_field("psd", psd_sub_table)
+                    psd_table.add_field("single_temp", psd_sub_table)
 
-                # detailed psd fields
+                # pulse-shape-library (PSL) based
                 if simulate_psd_with_psl:
                     psd_sub_table_psl = Table(size=len(out_table))
 
@@ -619,7 +624,10 @@ def main() -> None:
                         "is_single_site",
                         lgdo.Array(psd_fields_detailed.is_single_site),
                     )
-                    out_table.add_field("psd_psl", psd_sub_table_psl)
+                    psd_table.add_field("pulse_lib", psd_sub_table_psl)
+
+                if simulate_psd or simulate_psd_with_psl:
+                    out_table.add_field("psd", psd_table)
 
                 _, period, run, _ = mutils.parse_runid(runid)
                 field_vals = [period, run, mutils.encode_usability(usability)]

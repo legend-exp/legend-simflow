@@ -443,19 +443,21 @@ def main() -> None:
                         "geds/psd/single_temp", Table(size=len(unified_tcm))
                     )
 
-                    aoe = _read_hits(tcm, "hit", "psd/aoe")
+                    aoe = _read_hits(tcm, "hit", "psd/single_temp/aoe")
                     out_table.add_field(
                         "geds/psd/single_temp/aoe",
                         VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
                     )
-                    drift_time = _read_hits(tcm, "hit", "psd/drift_time_amax")
+                    drift_time = _read_hits(
+                        tcm, "hit", "psd/single_temp/drift_time_amax"
+                    )
                     out_table.add_field(
                         "geds/psd/single_temp/drift_time_amax",
                         VectorOfVectors(
                             ak.values_astype(drift_time[hitsel], np.float32)
                         ),
                     )
-                    aoe_corr = _read_hits(tcm, "hit", "psd/aoe_corr")
+                    aoe_corr = _read_hits(tcm, "hit", "psd/single_temp/aoe_corr")
                     out_table.add_field(
                         "geds/psd/single_temp/aoe_corr",
                         VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
@@ -465,7 +467,7 @@ def main() -> None:
                         VectorOfVectors(~np.isnan(aoe[hitsel])),
                     )
 
-                    is_ss = _read_hits(tcm, "hit", "psd/is_single_site")
+                    is_ss = _read_hits(tcm, "hit", "psd/single_temp/is_single_site")
                     out_table.add_field(
                         "geds/psd/single_temp/is_single_site",
                         VectorOfVectors(is_ss[hitsel]),
@@ -477,13 +479,13 @@ def main() -> None:
                         "geds/psd/pulse_lib", Table(size=len(unified_tcm))
                     )
 
-                    aoe_corr = _read_hits(tcm, "hit", "psd_psl/aoe_corr")
+                    aoe_corr = _read_hits(tcm, "hit", "psd/pulse_lib/aoe_corr")
                     out_table.add_field(
                         "geds/psd/pulse_lib/aoe_corr",
                         VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
                     )
 
-                    aoe = _read_hits(tcm, "hit", "psd_psl/aoe")
+                    aoe = _read_hits(tcm, "hit", "psd/pulse_lib/aoe")
 
                     out_table.add_field(
                         "geds/psd/pulse_lib/aoe",
@@ -493,24 +495,24 @@ def main() -> None:
                         "geds/psd/pulse_lib/has_aoe",
                         VectorOfVectors(~np.isnan(aoe[hitsel])),
                     )
-                    drift_time = _read_hits(tcm, "hit", "psd_psl/drift_time_amax")
+                    drift_time = _read_hits(tcm, "hit", "psd/pulse_lib/drift_time_amax")
                     out_table.add_field(
                         "geds/psd/pulse_lib/drift_time_amax",
                         VectorOfVectors(
                             ak.values_astype(drift_time[hitsel], np.float32)
                         ),
                     )
-                    is_ss = _read_hits(tcm, "hit", "psd_psl/is_single_site")
+                    is_ss = _read_hits(tcm, "hit", "psd/pulse_lib/is_single_site")
                     out_table.add_field(
                         "geds/psd/pulse_lib/is_single_site",
                         VectorOfVectors(is_ss[hitsel]),
                     )
-                    is_bb_like = _read_hits(tcm, "hit", "psd_psl/is_bb_like")
+                    is_bb_like = _read_hits(tcm, "hit", "psd/pulse_lib/is_bb_like")
                     out_table.add_field(
                         "geds/psd/pulse_lib/is_bb_like",
                         VectorOfVectors(is_bb_like[hitsel]),
                     )
-                    is_high_aoe = _read_hits(tcm, "hit", "psd_psl/is_high_aoe")
+                    is_high_aoe = _read_hits(tcm, "hit", "psd/pulse_lib/is_high_aoe")
                     out_table.add_field(
                         "geds/psd/pulse_lib/is_high_aoe",
                         VectorOfVectors(is_high_aoe[hitsel]),

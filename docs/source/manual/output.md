@@ -102,33 +102,33 @@ These fields are carried over from the
 | `psd_usability` | `Array` | —     | Encoded PSD usability flag (e.g. `valid`). Indicates whether PSD parameters are valid in LEGEND-200 data for this detector and run. Decode with {func}`legendsimflow.metadata.decode_psd_usability`.                                                                                            |
 | `is_valid_sim`  | `Array` | —     | Boolean. `True` when the crystal metadata needed to model this detector is usable (`crystal_metadata_usability` is `valid`, see {ref}`par-detinfo`), so the simulated detector response can be trusted. `False` otherwise. Reshaped into `geds/psd/is_valid_sim` by the [`evt` tier](evt-tier). |
 
-The `hit` tier can add HPGe pulse-shape-discrimination (PSD) fields in two
-optional subtables, selected by the metadata settings in
-{ref}`hit-tier-settings`:
+The `hit` tier can add HPGe pulse-shape-discrimination (PSD) fields in the `psd`
+subtable, which groups one method-specific subtable per simulation method,
+selected by the metadata settings in {ref}`hit-tier-settings`:
 
-- `psd` — single-template A/E simulation, present only when `simulate_psd: True`
-  (the default).
-- `psd_psl` — pulse-shape-library (PSL) based simulation, present only when
-  `simulate_psd_with_psl: True` (see {ref}`hpge-psl-overview`).
+- `psd/single_temp` — single-template A/E simulation, present only when
+  `simulate_psd: True` (the default).
+- `psd/pulse_lib` — pulse-shape-library (PSL) based simulation, present only
+  when `simulate_psd_with_psl: True` (see {ref}`hpge-psl-overview`).
 
 :::{note}
 
 The two subtables hold the same-named A/E fields, but their **meaning differs**:
-the `psd` values come from a single per-detector current-pulse template, while
-the `psd_psl` values come from the per-pixel pulse-shape library (see
+the `single_temp` values come from a single per-detector current-pulse template,
+while the `pulse_lib` values come from the per-pixel pulse-shape library (see
 {ref}`hpge-psl-overview`).
 
 :::
 
-| Field             | Type    | Units | Subtable         | Description                                                                                                                                                                                                                                                                                            |
-| ----------------- | ------- | ----- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `drift_time_amax` | `Array` | ns    | `psd`, `psd_psl` | Drift time at the maximum-current (A) position of the simulated current pulse. Set to `NaN` when no drift-time map or current-pulse model is available for the detector.                                                                                                                               |
-| `aoe_raw`         | `Array` |       | `psd`, `psd_psl` | Raw A/E value: maximum current amplitude divided by energy. The maximum current (A) is obtained from the simulated current pulse and includes electronic noise effects.                                                                                                                                |
-| `aoe_corr`        | `Array` |       | `psd`, `psd_psl` | Energy-corrected A/E value, obtained by correcting `aoe_raw` for the observed energy dependence.                                                                                                                                                                                                       |
-| `aoe`             | `Array` |       | `psd`, `psd_psl` | A/E classifier value: `(aoe_corr - 1) / aoe_resolution`. Used for pulse-shape discrimination (PSD). Set to `NaN` when PSD simulation is not available (i.e., when the drift-time map or current-pulse model is missing). This is distinct from the usability flags that track LEGEND-200 data quality. |
-| `is_single_site`  | `Array` |       | `psd`, `psd_psl` | Boolean PSD flag. `True` when the A/E classifier `aoe` exceeds the lower single-site cut `psdcuts.aoe.low_side` (extracted from LEGEND-200 data).                                                                                                                                                      |
-| `is_bb_like`      | `Array` |       | `psd_psl`        | Boolean PSD flag. `True` for $0\nu\beta\beta$-like single-site events: `aoe` above `psdcuts.aoe.low_side` and not above the upper cut `psdcuts.aoe.high_side`.                                                                                                                                         |
-| `is_high_aoe`     | `Array` |       | `psd_psl`        | Boolean PSD flag. `True` when `aoe` exceeds the upper cut `psdcuts.aoe.high_side` (high-A/E events, e.g. surface or $\alpha$).                                                                                                                                                                         |
+| Field             | Type    | Units | Subtable                   | Description                                                                                                                                                                                                                                                                                            |
+| ----------------- | ------- | ----- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `drift_time_amax` | `Array` | ns    | `single_temp`, `pulse_lib` | Drift time at the maximum-current (A) position of the simulated current pulse. Set to `NaN` when no drift-time map or current-pulse model is available for the detector.                                                                                                                               |
+| `aoe_raw`         | `Array` |       | `single_temp`, `pulse_lib` | Raw A/E value: maximum current amplitude divided by energy. The maximum current (A) is obtained from the simulated current pulse and includes electronic noise effects.                                                                                                                                |
+| `aoe_corr`        | `Array` |       | `single_temp`, `pulse_lib` | Energy-corrected A/E value, obtained by correcting `aoe_raw` for the observed energy dependence.                                                                                                                                                                                                       |
+| `aoe`             | `Array` |       | `single_temp`, `pulse_lib` | A/E classifier value: `(aoe_corr - 1) / aoe_resolution`. Used for pulse-shape discrimination (PSD). Set to `NaN` when PSD simulation is not available (i.e., when the drift-time map or current-pulse model is missing). This is distinct from the usability flags that track LEGEND-200 data quality. |
+| `is_single_site`  | `Array` |       | `single_temp`, `pulse_lib` | Boolean PSD flag. `True` when the A/E classifier `aoe` exceeds the lower single-site cut `psdcuts.aoe.low_side` (extracted from LEGEND-200 data).                                                                                                                                                      |
+| `is_bb_like`      | `Array` |       | `pulse_lib`                | Boolean PSD flag. `True` for $0\nu\beta\beta$-like single-site events: `aoe` above `psdcuts.aoe.low_side` and not above the upper cut `psdcuts.aoe.high_side`.                                                                                                                                         |
+| `is_high_aoe`     | `Array` |       | `pulse_lib`                | Boolean PSD flag. `True` when `aoe` exceeds the upper cut `psdcuts.aoe.high_side` (high-A/E events, e.g. surface or $\alpha$).                                                                                                                                                                         |
 
 ## `opt` tier — optical (SiPM) post-processing
 

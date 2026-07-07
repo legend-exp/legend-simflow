@@ -118,10 +118,19 @@ def test_hit_script_cli(
     def _field(det: str, name: str) -> np.ndarray:
         return lh5.read_as(f"{det}/{name}", hit_file, library="np")
 
+    # method-specific PSD fields live under the psd/single_temp subtable
+    psd_fields = {
+        f.removeprefix(first_det + "/psd/")
+        for f in lh5.ls(hit_file, first_det + "/psd/")
+    }
+    assert "single_temp" in psd_fields, (
+        f"'psd/single_temp' missing from {first_det}; got {psd_fields}"
+    )
+
     # r000 has a dtmap for V05261B → finite PSD; r001 has none → NaN
     # both partitions land in the same hit/V05261B table, distinguishable by run
     assert "hit/V05261B" in det_tables, "V05261B not found in hit output"
-    v_drift = _field("hit/V05261B/psd", "drift_time_amax")
+    v_drift = _field("hit/V05261B/psd/single_temp", "drift_time_amax")
     v_run = _field("hit/V05261B", "run")
     assert not np.all(np.isnan(v_drift[v_run == 0])), (
         "r000 V05261B drift_time_amax is all NaN despite having a dtmap"

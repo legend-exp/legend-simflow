@@ -328,10 +328,10 @@ Document the optical hit building step.
 
 HPGe PSD simulation runs in two independent, optional modes selected in
 {ref}`hit-tier-settings`: set `simulate_psd: True` (default) for the
-single-template A/E estimate (`geds/psd` output) and
+single-template A/E estimate (`geds/psd/single_temp` output) and
 `simulate_psd_with_psl: True` for the pulse-shape-library based estimate
-(`geds/psd_psl` output, see {ref}`hpge-psl-overview`). Either, both, or neither
-can be enabled; with both `False` no PSD columns are written.
+(`geds/psd/pulse_lib` output, see {ref}`hpge-psl-overview`). Either, both, or
+neither can be enabled; with both `False` no PSD columns are written.
 
 :::
 
