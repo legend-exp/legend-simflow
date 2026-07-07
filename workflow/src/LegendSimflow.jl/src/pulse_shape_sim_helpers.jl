@@ -467,6 +467,16 @@ Set up and run the full SSD simulation for an HPGe detector: builds the simulati
 applies the ADL charge drift model, calculates electric potential, electric field,
 checks depletion voltage, and calculates weighting potential.
 
+When a measured depletion voltage is available in the metadata
+(`characterization.l200_site.depletion_voltage_in_V`) and `recompute_corrections`
+is set, the crystal impurity profile is tuned so the *simulated* depletion
+voltage reproduces the *measured* one: any pre-existing impurity-curve
+corrections (`impurity_curve.corrections.scale`/`offset`) are reset to identity,
+the raw (uncorrected) depletion voltage is estimated, and the impurity density is
+then rescaled to match the measurement. The run aborts if the simulated and
+measured depletion voltages still differ by more than `threshold`. The resulting
+scaling factor and the raw/corrected depletion voltages are returned in `info`.
+
 # Arguments
 - `meta_path`: Path to legend-metadata
 - `meta`: Detector metadata (PropDict)
@@ -477,7 +487,9 @@ checks depletion voltage, and calculates weighting potential.
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
 - `medium`: Detector environment medium (default: "LAr")
 - `temperature`: Detector environment temperature in K (default: 87 K)
-- `recompute_corrections`: flag to recompute impurity corrections to match depletion.
+- `recompute_corrections`: when `true` (default), rescale the crystal impurity
+  profile so the simulated depletion voltage matches the measured one (see
+  above); when `false`, keep the impurity corrections as stored in the metadata.
 # Returns
 - `sim`: Fully configured SolidStateDetectors Simulation object
 - `info`: dictionary of provenance on the SSD simulation, serialization-ready
