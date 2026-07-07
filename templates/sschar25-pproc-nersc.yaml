@@ -1,0 +1,55 @@
+experiment: l200cfg09
+
+runlist: []
+
+simlist:
+  - pdf.sis1_z8230_slot2_Pb212_to_Pb208
+  - pdf.sis1_z8430_slot2_Pb212_to_Pb208
+  - pdf.sis1_z8580_slot2_Pb214_to_Po214
+  - pdf.sis1_z8630_slot2_Pb212_to_Pb208
+  - pdf.sis1_z8640_slot3_Pb214_to_Po214
+  - pdf.sis1_z8830_slot2_Pb212_to_Pb208
+  - pdf.sis2_z8300_slot2_Pb212_to_Pb208
+  - pdf.sis2_z8700_slot2_Pb212_to_Pb208
+  - pdf.sis3_z8450_slot2_Pb212_to_Pb208
+  - pdf.sis3_z8650_slot2_Pb212_to_Pb208
+  - pdf.sis4_z8230_slot2_Pb212_to_Pb208
+  - pdf.sis4_z8430_slot2_Pb212_to_Pb208
+  - pdf.sis4_z8630_slot2_Pb212_to_Pb208
+
+make_steps:
+  - par
+  - opt
+  - hit
+  - evt
+  - cvt
+  - pdf
+
+legend_metadata_version: v1.6.0
+
+paths:
+  generated: $_/generated
+  l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/v3.3.0
+  benchmarks: $_/generated/benchmarks
+  log: $_/generated/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    lar: /dvs_ro/cfs/cdirs/m2676/sims/optmap/l200cfg09/l200cfg09-optmap-v5.lh5
+
+  pars: $_/generated/pars
+  macros: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v3.0.0/generated/macros
+  geom: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v3.0.0/generated/pars/geom
+  tier:
+    vtx: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v3.0.0/generated/tier/vtx
+    stp: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v3.0.0/generated/tier/stp
+    opt: $_/generated/tier/opt
+    hit: $_/generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
+
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow
