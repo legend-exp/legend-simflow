@@ -151,7 +151,9 @@ def main() -> None:
     # events without a valid or simulated A/E are classified as background (cut).
     def _psd_mask(d: ak.Array) -> ak.Array:
         return ak.all(
-            d.geds.psd.is_good & d.geds.psd.has_aoe & d.geds.psd.is_single_site,
+            d.geds.psd.is_good
+            & d.geds.psd.single_temp.has_aoe
+            & d.geds.psd.single_temp.is_single_site,
             axis=-1,
         )
 
@@ -213,7 +215,10 @@ def main() -> None:
                 )
 
             psd_fail_mask = (
-                ak.all(data_m1.geds.psd.is_good & data_m1.geds.psd.has_aoe, axis=-1)
+                ak.all(
+                    data_m1.geds.psd.is_good & data_m1.geds.psd.single_temp.has_aoe,
+                    axis=-1,
+                )
                 & ~psd_pass_m1
             )
             data_m1_psd_fail = data_m1[psd_fail_mask]

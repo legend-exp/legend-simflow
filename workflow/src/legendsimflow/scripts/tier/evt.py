@@ -422,8 +422,9 @@ def main() -> None:
                     "geds/hit_idx", VectorOfVectors(tcm["hit"].row_in_table[hitsel])
                 )
 
-                # PSD subtable
-                if simulate_psd:
+                # PSD subtable: common flags live directly under psd, while
+                # method-specific fields go into dedicated subtables
+                if simulate_psd or simulate_psd_with_psl:
                     out_table.add_field("geds/psd", Table(size=len(unified_tcm)))
                     out_table.add_field(
                         "geds/psd/is_good",
@@ -436,69 +437,83 @@ def main() -> None:
                         VectorOfVectors(is_valid_sim[hitsel]),
                     )
 
+                # single-template A/E PSD
+                if simulate_psd:
+                    out_table.add_field(
+                        "geds/psd/single_temp", Table(size=len(unified_tcm))
+                    )
+
                     aoe = _read_hits(tcm, "hit", "psd/aoe")
                     out_table.add_field(
-                        "geds/psd/aoe",
+                        "geds/psd/single_temp/aoe",
                         VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
                     )
                     drift_time = _read_hits(tcm, "hit", "psd/drift_time_amax")
                     out_table.add_field(
-                        "geds/psd/drift_time_amax",
+                        "geds/psd/single_temp/drift_time_amax",
                         VectorOfVectors(
                             ak.values_astype(drift_time[hitsel], np.float32)
                         ),
                     )
                     aoe_corr = _read_hits(tcm, "hit", "psd/aoe_corr")
                     out_table.add_field(
-                        "geds/psd/aoe_corr",
+                        "geds/psd/single_temp/aoe_corr",
                         VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
                     )
                     out_table.add_field(
-                        "geds/psd/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                        "geds/psd/single_temp/has_aoe",
+                        VectorOfVectors(~np.isnan(aoe[hitsel])),
                     )
 
                     is_ss = _read_hits(tcm, "hit", "psd/is_single_site")
                     out_table.add_field(
-                        "geds/psd/is_single_site", VectorOfVectors(is_ss[hitsel])
+                        "geds/psd/single_temp/is_single_site",
+                        VectorOfVectors(is_ss[hitsel]),
                     )
 
-                # PSL based PSD
+                # pulse-shape-library (PSL) based PSD
                 if simulate_psd_with_psl:
-                    out_table.add_field("geds/psd_psl", Table(size=len(unified_tcm)))
+                    out_table.add_field(
+                        "geds/psd/pulse_lib", Table(size=len(unified_tcm))
+                    )
 
                     aoe_corr = _read_hits(tcm, "hit", "psd_psl/aoe_corr")
                     out_table.add_field(
-                        "geds/psd_psl/aoe_corr",
+                        "geds/psd/pulse_lib/aoe_corr",
                         VectorOfVectors(ak.values_astype(aoe_corr[hitsel], np.float32)),
                     )
 
                     aoe = _read_hits(tcm, "hit", "psd_psl/aoe")
 
                     out_table.add_field(
-                        "geds/psd_psl/aoe",
+                        "geds/psd/pulse_lib/aoe",
                         VectorOfVectors(ak.values_astype(aoe[hitsel], np.float32)),
                     )
                     out_table.add_field(
-                        "geds/psd_psl/has_aoe", VectorOfVectors(~np.isnan(aoe[hitsel]))
+                        "geds/psd/pulse_lib/has_aoe",
+                        VectorOfVectors(~np.isnan(aoe[hitsel])),
                     )
                     drift_time = _read_hits(tcm, "hit", "psd_psl/drift_time_amax")
                     out_table.add_field(
-                        "geds/psd_psl/drift_time_amax",
+                        "geds/psd/pulse_lib/drift_time_amax",
                         VectorOfVectors(
                             ak.values_astype(drift_time[hitsel], np.float32)
                         ),
                     )
                     is_ss = _read_hits(tcm, "hit", "psd_psl/is_single_site")
                     out_table.add_field(
-                        "geds/psd_psl/is_single_site", VectorOfVectors(is_ss[hitsel])
+                        "geds/psd/pulse_lib/is_single_site",
+                        VectorOfVectors(is_ss[hitsel]),
                     )
                     is_bb_like = _read_hits(tcm, "hit", "psd_psl/is_bb_like")
                     out_table.add_field(
-                        "geds/psd_psl/is_bb_like", VectorOfVectors(is_bb_like[hitsel])
+                        "geds/psd/pulse_lib/is_bb_like",
+                        VectorOfVectors(is_bb_like[hitsel]),
                     )
                     is_high_aoe = _read_hits(tcm, "hit", "psd_psl/is_high_aoe")
                     out_table.add_field(
-                        "geds/psd_psl/is_high_aoe", VectorOfVectors(is_high_aoe[hitsel])
+                        "geds/psd/pulse_lib/is_high_aoe",
+                        VectorOfVectors(is_high_aoe[hitsel]),
                     )
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)

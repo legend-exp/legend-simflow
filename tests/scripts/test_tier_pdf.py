@@ -110,11 +110,16 @@ def _make_cvt_file(path: Path) -> None:
     )
     spms = Array(np.array([False, False, False, True, False, False]))
 
+    single_temp = Table(
+        col_dict={
+            "has_aoe": has_aoe,
+            "is_single_site": is_single_site,
+        }
+    )
     psd = Table(
         col_dict={
             "is_good": is_good,
-            "has_aoe": has_aoe,
-            "is_single_site": is_single_site,
+            "single_temp": single_temp,
         }
     )
     geds = Table(
@@ -208,11 +213,16 @@ def _make_cvt_file_no_spms(path: Path) -> None:
     is_single_site = VectorOfVectors(
         data=[[True], [False], [False], [True], [True, True], [False]]
     )
+    single_temp = Table(
+        col_dict={
+            "has_aoe": has_aoe,
+            "is_single_site": is_single_site,
+        }
+    )
     psd = Table(
         col_dict={
             "is_good": is_good,
-            "has_aoe": has_aoe,
-            "is_single_site": is_single_site,
+            "single_temp": single_temp,
         }
     )
     geds = Table(
