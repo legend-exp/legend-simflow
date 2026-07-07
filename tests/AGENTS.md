@@ -85,8 +85,9 @@ The remage-driven workflow tests form a progression:
    hit settings enable the `simulate_psd_with_psl` tier setting (the live name
    of what used to be the unread `has_detailed_psd` key), so this test also
    exercises the PSL-based "detailed" PSD path: the realistic pulse-shape
-   library is built in the par tier, consumed by the hit tier into a `psd_psl`
-   sub-table, and read back by the evt tier into `geds/psd_psl`.
+   library is built in the par tier, consumed by the hit tier into a
+   `psd/pulse_lib` sub-table, and read back by the evt tier into
+   `geds/psd/pulse_lib`.
 2. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
    pipeline, experiment `l200cfg01`, requires `l200data`, NERSC-only. Run with:
    `pixi run -e test test-l200-workflow`

@@ -36,7 +36,7 @@ _EVT_PSD_PSL_FIELDS = {
 def _assert_psd_psl_in_hit(generated: Path) -> None:
     """Check the PSL-based detailed PSD output in the hit tier.
 
-    A ``psd_psl`` sub-table must be produced for the modelable detector
+    A ``psd/pulse_lib`` sub-table must be produced for the modelable detector
     ``V05261B`` (it has a realistic pulse-shape library and drift-time map), and
     its A/E values must be at least partly finite, proving the detailed path
     actually ran rather than falling back to the all-NaN default.
@@ -49,28 +49,28 @@ def _assert_psd_psl_in_hit(generated: Path) -> None:
     for f in hit_files:
         if "hit/V05261B" not in lh5.ls(f, "hit/"):
             continue
-        if "hit/V05261B/psd_psl" not in lh5.ls(f, "hit/V05261B/"):
+        if "hit/V05261B/psd/pulse_lib" not in lh5.ls(f, "hit/V05261B/psd/"):
             continue
         saw_psd_psl = True
         fields = {
-            x.removeprefix("hit/V05261B/psd_psl/")
-            for x in lh5.ls(f, "hit/V05261B/psd_psl/")
+            x.removeprefix("hit/V05261B/psd/pulse_lib/")
+            for x in lh5.ls(f, "hit/V05261B/psd/pulse_lib/")
         }
         missing = _HIT_PSD_PSL_FIELDS - fields
         assert not missing, f"hit psd_psl fields {missing} missing in {f}; got {fields}"
-        aoe = lh5.read_as("hit/V05261B/psd_psl/aoe", str(f), library="np")
+        aoe = lh5.read_as("hit/V05261B/psd/pulse_lib/aoe", str(f), library="np")
         if np.any(np.isfinite(aoe)):
             saw_finite_aoe = True
 
-    assert saw_psd_psl, "no hit file contains a hit/V05261B/psd_psl sub-table"
+    assert saw_psd_psl, "no hit file contains a hit/V05261B/psd/pulse_lib sub-table"
     assert saw_finite_aoe, (
-        "hit/V05261B/psd_psl/aoe is all-NaN across all hit files; the PSL-based "
-        "detailed PSD path did not compute real A/E values"
+        "hit/V05261B/psd/pulse_lib/aoe is all-NaN across all hit files; the "
+        "PSL-based detailed PSD path did not compute real A/E values"
     )
 
 
 def _assert_psd_psl_in_evt(generated: Path) -> None:
-    """Check that the evt tier reads the detailed PSD back into geds/psd_psl."""
+    """Check that the evt tier reads the detailed PSD into geds/psd/pulse_lib."""
     evt_files = sorted((generated / "tier/evt").rglob("*.lh5"))
     assert evt_files, f"no evt output files found under {generated}/tier/evt"
 
@@ -78,16 +78,17 @@ def _assert_psd_psl_in_evt(generated: Path) -> None:
     for f in evt_files:
         if "evt/geds" not in lh5.ls(f, "evt/"):
             continue
-        if "evt/geds/psd_psl" not in lh5.ls(f, "evt/geds/"):
+        if "evt/geds/psd/pulse_lib" not in lh5.ls(f, "evt/geds/psd/"):
             continue
         saw_psd_psl = True
         fields = {
-            x.removeprefix("evt/geds/psd_psl/") for x in lh5.ls(f, "evt/geds/psd_psl/")
+            x.removeprefix("evt/geds/psd/pulse_lib/")
+            for x in lh5.ls(f, "evt/geds/psd/pulse_lib/")
         }
         missing = _EVT_PSD_PSL_FIELDS - fields
         assert not missing, f"evt psd_psl fields {missing} missing in {f}; got {fields}"
 
-    assert saw_psd_psl, "no evt file contains an evt/geds/psd_psl sub-table"
+    assert saw_psd_psl, "no evt file contains an evt/geds/psd/pulse_lib sub-table"
 
 
 # NOTE: the dry-run DAG-structure tests (DAG resolution, simlist scheduling,
