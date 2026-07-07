@@ -434,11 +434,11 @@ psdcuts_default:
   per-detector entry. See {ref}`build-tier-hit-hpge` for when this fallback is
   triggered.
 - `simulate_psd` (bool, default `True`): enable the single-template A/E PSD
-  simulation, written to the `geds/psd/single_temp` subtable of the `hit` tier.
+  simulation, written to the `psd/single_temp` subtable of the `hit` tier.
 - `simulate_psd_with_psl` (bool, default `False`): enable the
   pulse-shape-library based PSD simulation (see {ref}`hpge-psl-overview`),
-  written to the `geds/psd/pulse_lib` subtable. The two flags are independent:
-  enable either, both, or neither. Setting both to `False` disables the HPGe PSD
+  written to the `psd/pulse_lib` subtable. The two flags are independent: enable
+  either, both, or neither. Setting both to `False` disables the HPGe PSD
   simulation entirely.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
