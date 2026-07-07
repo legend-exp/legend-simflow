@@ -88,6 +88,7 @@ function main()
     info_file = parsed_args["info-file"]
 
     isfile(output_file) && error("Output file already exists")
+    !isnothing(info_file) && isfile(info_file) && error("Info file already exists")
 
     raw_opv = parsed_args["opv"]
     opv_val = isnothing(raw_opv) ? nothing : parse(Float32, raw_opv)

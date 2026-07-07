@@ -518,12 +518,7 @@ def gen_list_of_dtmap_info_files(
     config: SimflowConfig,
     cache: Mapping[str, Mapping[str, Mapping[str, int]]],
 ) -> list[Path]:
-    """Deduplicated list of HPGe SSD-modeling info sidecars for the modeling `cache`.
-
-    One sidecar exists per ``(detector, voltage)`` pair, so the same file is
-    shared across every runid operating a detector at the same voltage; the
-    returned list is deduplicated.
-    """
+    """Deduplicated list of HPGe SSD-modeling info sidecars for the modeling `cache`."""
     seen: dict[str, Path] = {}
     for dets in cache.values():
         for hpge, entry in dets.items():
@@ -540,13 +535,10 @@ def collect_hpge_ssd_modeling_info(
     config: SimflowConfig,
     cache: Mapping[str, Mapping[str, Mapping[str, int]]],
 ) -> dict[str, dict[str, dict[str, object]]]:
-    """Aggregate the HPGe SSD-modeling sidecars into a ``runid -> detector`` mapping.
-
-    Reads the per-``(detector, voltage)`` YAML sidecars written next to the
-    drift-time maps (see :func:`legendsimflow.patterns.output_dtmap_info_filename`)
-    and lays them out as ``runid -> detector -> {scalars}`` following the
-    ``detinfo`` convention. Expects every referenced sidecar to exist on disk.
-    """
+    """Aggregate the HPGe SSD-modeling sidecars into a ``runid -> detector -> {scalars}`` mapping."""
+    # a single sidecar is shared by every runid operating a detector at the same
+    # voltage, so cache each file's contents to read it from disk only once
+    loaded: dict[str, dict[str, object]] = {}
     out: dict[str, dict[str, dict[str, object]]] = {}
     for runid, dets in cache.items():
         for hpge, entry in dets.items():
@@ -555,7 +547,10 @@ def collect_hpge_ssd_modeling_info(
                 hpge_detector=hpge,
                 hpge_voltage=entry["operational_voltage_in_V"],
             )
-            out.setdefault(runid, {})[hpge] = dict(dbetto.utils.load_dict(path))
+            key = str(path)
+            if key not in loaded:
+                loaded[key] = dict(dbetto.utils.load_dict(path))
+            out.setdefault(runid, {})[hpge] = dict(loaded[key])
     return out
 
 
