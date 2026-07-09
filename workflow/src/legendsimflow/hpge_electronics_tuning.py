@@ -482,6 +482,7 @@ def plot_best_fit(
     comparison_window: tuple[float, float] | None = None,
     plot_window: tuple[float, float] | None = None,
     plot_charge: bool = False,
+    detector_name: str | None = None,
 ) -> tuple:
     """Overlay data and best-fit simulated superpulses (current or charge).
 
@@ -505,6 +506,8 @@ def plot_best_fit(
         Defaults to ``comparison_window`` if set, otherwise auto-scaled.
     plot_charge
         Plot the charge (instead of the current), waveforms.
+    detector_name
+        Optional detector name to include in the figure title.
 
     Returns
     -------
@@ -528,7 +531,7 @@ def plot_best_fit(
     sorted_slices = sorted(ideal_wfs_slice.keys(), key=lambda s: s.drift_time_center)
     n_slices = len(sorted_slices)
 
-    ncols = min(4, n_slices)
+    ncols = min(5, n_slices)
     nrows = int(np.ceil(n_slices / ncols))
     fig, axes = plt.subplots(
         nrows,
@@ -617,10 +620,11 @@ def plot_best_fit(
     for ax in axes_flat[n_slices:]:
         ax.set_visible(False)
 
+    det = f"{detector_name}" if detector_name else ""
     fig.suptitle(
-        rf"Best fit: $\sigma$ = {sigma:.2f} ns, $\tau$ = {tau:.2f} ns"
+        rf"{det} | Best fit: $\sigma$ = {sigma:.2f} ns, $\tau$ = {tau:.2f} ns"
         f"  |  mean RMS = {result['best_rms']:.5f}",
-        fontsize=12,
+        fontsize=14,
     )
 
     return fig, axes, data_amax, mc_amax

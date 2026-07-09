@@ -57,6 +57,7 @@ DEFAULT_SETTINGS = {
     "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
+    "plot_window": (-600.0, 600.0),
     # data-amplitude weight exponent p for the fit cost (w = |data|**p): biases
     # the fit toward the current peak and its flanks; 0.0 reproduces the plain
     # equal-weight RMS
@@ -226,6 +227,7 @@ def main() -> None:
     )
 
     comparison_window = tuple(settings.comparison_window)
+    plot_window = tuple(settings.plot_window)
 
     # Prepare ideal waveforms
     log.info("... selecting ideal waveforms per slice ...")
@@ -301,7 +303,8 @@ def main() -> None:
                 result,
                 data_superpulses,
                 comparison_window=comparison_window,
-                plot_window=None,
+                plot_window=plot_window,
+                detector_name=args.hpge_detector,
             )
             output["aoe_data"] = data_amax
             output["aoe_mc"] = mc_amax
@@ -313,8 +316,9 @@ def main() -> None:
                 result,
                 data_superpulses,
                 comparison_window=comparison_window,
-                plot_window=None,
+                plot_window=plot_window,
                 plot_charge=True,
+                detector_name=args.hpge_detector,
             )
             decorate(fig)
             pdf.savefig(fig)
