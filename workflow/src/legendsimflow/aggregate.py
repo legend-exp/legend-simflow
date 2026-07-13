@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import logging
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -138,6 +139,42 @@ def gen_list_of_all_plots_outputs(config: SimflowConfig, tier: str) -> list[Path
         mlist += gen_list_of_plots_outputs(config, tier, simid)
 
     return mlist
+
+
+def gen_list_of_all_simids_matching(config: SimflowConfig, pattern: str) -> list[str]:
+    r"""Filter :func:`gen_list_of_all_simids` by a glob-style `pattern`.
+
+    Uses :func:`fnmatch.fnmatch` semantics. Raises if nothing matches: a
+    silently-empty match set would make the A/E correction input list empty,
+    which severs the DAG edge that pulls the pre-correction hit build into
+    existence at all, and the feature would silently no-op.
+    """
+    matches = [s for s in gen_list_of_all_simids(config) if fnmatch.fnmatch(s, pattern)]
+    if not matches:
+        msg = (
+            f"no simid matches pattern {pattern!r}; "
+            "cannot compute the A/E energy correction"
+        )
+        raise SimflowConfigError(msg, "pars.aoemeancorr.settings.simid_regex")
+    return matches
+
+
+def gen_list_of_simid_precorr_hit_outputs(
+    config: SimflowConfig, simid: str
+) -> list[Path]:
+    """Generate the list of temporary pre-correction hit output files for a `simid`."""
+    n_jobs = get_simid_njobs(config, simid)
+    return patterns.output_simid_precorr_hit_filenames(config, n_jobs, simid=simid)
+
+
+def gen_list_of_precorr_hit_outputs_matching(
+    config: SimflowConfig, pattern: str
+) -> list[Path]:
+    """All temp pre-correction hit output files across simids matching `pattern`."""
+    files: list[Path] = []
+    for simid in gen_list_of_all_simids_matching(config, pattern):
+        files += gen_list_of_simid_precorr_hit_outputs(config, simid)
+    return files
 
 
 def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
@@ -673,6 +710,31 @@ def gen_list_of_dtmap_plots_outputs(
                     )
                 )
     return list(files)
+
+
+def gen_list_of_all_modelable_hpges(
+    cache: Mapping[str, Mapping[str, Mapping[str, int]]],
+) -> list[str]:
+    """Union, across all cached runids, of modelable HPGe detector names.
+
+    The A/E energy correction is run-independent, so (unlike currmod/elecmod)
+    it is computed once per detector across the whole Simflow rather than per
+    `runid`.
+    """
+    dets: set[str] = set()
+    for runid_dets in cache.values():
+        dets.update(runid_dets.keys())
+    return sorted(dets)
+
+
+def gen_list_of_aoemeancorrs(
+    config: SimflowConfig, cache: Mapping[str, Mapping[str, Mapping[str, int]]]
+) -> list[Path]:
+    """Generate the list of per-detector A/E energy-correction files for the merge rule."""
+    return [
+        patterns.output_aoemeancorr_filename(config, hpge_detector=hpge)
+        for hpge in gen_list_of_all_modelable_hpges(cache)
+    ]
 
 
 def gen_list_of_currmods(

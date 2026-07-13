@@ -61,6 +61,7 @@ from legendsimflow.tcm import build_tcm
         "usability_file": "input.usability",
         "psd_usability_file": "input.psd_usability",
         "crystal_metadata_usability_file": "input.crystal_metadata_usability",
+        "aoemean_file": "input.aoemean_file",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -99,6 +100,18 @@ def main() -> None:
         "--crystal-metadata-usability-file",
         required=True,
         help="crystal metadata usability YAML file",
+    )
+    parser.add_argument(
+        "--aoemean-file",
+        dest="aoemean_file",
+        default=None,
+        required=False,
+        help=(
+            "merged, per-detector A/E energy-dependence correction YAML "
+            "(optional; only present when two_pass_aoe_correction is enabled). "
+            "When absent, the per-detector correction falls back to "
+            "aoemeanmod_default from the hit-tier settings."
+        ),
     )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -143,6 +156,25 @@ def main() -> None:
         tier_hit_settings.aoeresmod_default
     )
     psdcuts_default = tier_hit_settings.psdcuts_default.to_dict()
+
+    # A/E mean energy-dependence correction: an explicit default from the hit
+    # tier settings (like the resolution/cut defaults above), optionally
+    # overridden per detector by the two-pass correction file (--aoemean-file)
+    aoemean_default = hpge_pars.build_aoe_mean_func_from_entry(
+        tier_hit_settings.aoemeanmod_default, sim_type="single_template"
+    )
+    aoemean_default_psl = hpge_pars.build_aoe_mean_func_from_entry(
+        tier_hit_settings.aoemeanmod_default, sim_type="psl"
+    )
+    aoemean_mod = (
+        AttrsDict(load_dict(nersc.dvs_ro(config, args.aoemean_file)))
+        if args.aoemean_file is not None
+        else AttrsDict({})
+    )
+    aoemean_func = hpge_pars.build_aoe_mean_func_dict(
+        aoemean_mod, sim_type="single_template"
+    )
+    aoemean_func_psl = hpge_pars.build_aoe_mean_func_dict(aoemean_mod, sim_type="psl")
 
     hit_file, move2cfs = nersc.make_on_scratch(config, hit_file)
 
@@ -199,42 +231,6 @@ def main() -> None:
             runid,
             energy_res_pars=eresmod_pars_all,
         )  # FWHM
-
-        log.debug("loading A/E energydep model")
-        aoemean_mod = mutils.simpars(
-            metadata, "geds.aoemeanmod", runid, config.experiment, default=None
-        )
-        # unlike eresmod/aoeresmod/psdcuts, the A/E mean model cannot be
-        # extracted from l200data, so this metadata is the only source and is
-        # mandatory
-        if aoemean_mod is None:
-            msg = (
-                f"no A/E mean energy-dependence model (geds.aoemeanmod) found "
-                f"for {runid}: this metadata is mandatory"
-            )
-            raise RuntimeError(msg)
-
-        # expand the "default" entry across all geds detectors in the channel
-        # map, applying per-detector overrides where present (mirrors the
-        # aoeresmod collection in extract_hpge_observables_models)
-        aoemean_default = aoemean_mod.get("default", None)
-        if aoemean_default is not None:
-            tstamp = mutils.runinfo(metadata, runid).start_key
-            chmap = metadata.channelmap(tstamp, skip_version_check=True)
-            aoemean_mod = AttrsDict(
-                {
-                    name: aoemean_mod.get(name, aoemean_default)
-                    for name, info in chmap.items()
-                    if getattr(info, "system", None) == "geds"
-                }
-            )
-
-        aoemean_func_psl = hpge_pars.build_aoe_mean_func_dict(
-            aoemean_mod, sim_type="psl"
-        )
-        aoemean_func = hpge_pars.build_aoe_mean_func_dict(
-            aoemean_mod, sim_type="single_template"
-        )
 
         log.debug("loading A/E resolution parameters")
         aoeresmod_pars_file = patterns.output_aoeresmod_filename(config, runid=runid)
@@ -307,8 +303,8 @@ def main() -> None:
 
             if usability == "on" and det_name not in aoemean_func:
                 log.warning(
-                    "%s is ON but has no A/E mean energy-dependence model "
-                    "(geds.aoemeanmod); falling back to a flat A/E mean of 1",
+                    "%s is ON but has no per-detector A/E mean energy-dependence "
+                    "correction; falling back to aoemeanmod_default",
                     det_name,
                 )
 
@@ -448,16 +444,17 @@ def main() -> None:
                     )
                     aoe_res = aoeresmod_default(energy_true)
 
-                # get the mean A/E
+                # get the mean A/E: per-detector correction if available,
+                # otherwise the explicit default from the hit tier settings
                 if det_name in aoemean_func:
                     aoe_mean = aoemean_func[det_name](energy_true)
                 else:
-                    aoe_mean = np.full_like(energy_true, 1)
+                    aoe_mean = aoemean_default(energy_true)
 
                 if det_name in aoemean_func_psl:
                     aoe_mean_psl = aoemean_func_psl[det_name](energy_true)
                 else:
-                    aoe_mean_psl = np.full_like(energy_true, 1)
+                    aoe_mean_psl = aoemean_default_psl(energy_true)
 
                 if det_name in psdcuts_all:
                     psdcuts = AttrsDict(

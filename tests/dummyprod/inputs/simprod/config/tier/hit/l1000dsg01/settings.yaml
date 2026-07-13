@@ -19,3 +19,15 @@ psdcuts_default:
   aoe:
     low_side: -1.5
     high_side: 3
+
+aoemeanmod_default:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: 0
+      b: 1
+  psl:
+    expression: a * x + b
+    pars:
+      a: 0
+      b: 1

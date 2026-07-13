@@ -402,6 +402,7 @@ dead_layer_fraction: 0.5
 buffer_len: "500*MB"
 simulate_psd: True
 simulate_psd_with_psl: False
+two_pass_aoe_correction: False
 
 eresmod_default:
   expression: FWHMLinear
@@ -420,6 +421,18 @@ psdcuts_default:
   aoe:
     low_side: -1.5
     high_side: 3
+
+aoemeanmod_default:
+  single_template:
+    expression: a * x + b
+    pars:
+      a: 0
+      b: 1
+  psl:
+    expression: a * x + b
+    pars:
+      a: 0
+      b: 1
 ```
 
 - `dead_layer_fraction` (float) — fraction of the dead layer thickness at which
@@ -442,6 +455,18 @@ psdcuts_default:
   simulation entirely.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
+- `aoemeanmod_default` — A/E mean energy-dependence correction applied to
+  detectors without a per-detector entry. Each of the `single_template` and
+  `psl` sub-blocks carries an `expression` in the energy `x` (keV) with
+  parameters `a`, `b`. The identity model (`a: 0, b: 1`) applies no correction.
+  See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
+- `two_pass_aoe_correction` (bool, default `False`): when `True`, the `hit` tier
+  is built twice. A temporary pre-correction pass computes the raw A/E for the
+  simulation IDs matching `simid_regex` (see the `aoemeancorr` par settings, by
+  default `*Pb212*`), from which a per-detector A/E energy-dependence correction
+  is fit and applied in the final pass, overriding `aoemeanmod_default` where
+  available. The selected experiment (or `simlist`) must contain at least one
+  matching `simid`, otherwise the workflow fails at DAG-build time.
 
 (evt-tier-settings-meta)=
 
@@ -649,56 +674,10 @@ used at runtime.
 
 ### A/E mean energy-dependence model
 
-A **mandatory** validity-based metadata directory providing the HPGe A/E mean as
-a function of energy. Unlike {ref}`eresmod-metadata-dir`,
-{ref}`aoeresmod-metadata-dir` and {ref}`psdcuts-metadata-dir`, this model cannot
-be extracted from `l200data`, so the metadata is the only source and must be
-present for every simulated run. It is read directly when building the `hit`
-tier.
-
-```{code-block} yaml
-:caption: simprod/config/pars/{experiment}/geds/aoemeanmod/l200-p03-r%-T%-all-aoemeanmod.yaml
-
-default:
-  single_template:
-    expression: a * x + b
-    pars:
-      a: -0.000001
-      b: 1.0
-  psl:
-    expression: a * x + b
-    pars:
-      a: -0.000002
-      b: 1.0
-
-# optional per-detector override
-V02160A:
-  single_template:
-    expression: a * x + b
-    pars:
-      a: -0.000003
-      b: 1.0
-  psl:
-    expression: a * x + b
-    pars:
-      a: -0.000004
-      b: 1.0
-```
-
-- `default` _(optional)_: model applied to all HPGe detectors not listed
-  explicitly. When present it is expanded across all `geds` detectors in the
-  channel map, mirroring {ref}`aoeresmod-metadata-dir`.
-- `<detector>` _(optional)_: per-detector override.
-
-Each entry must provide a `single_template` and a `psl` block (one per PSD
-simulation type), and each block must contain:
-
-- `expression`: a Python expression for the A/E mean as a function of the energy
-  `x` (in keV), using the parameters `a` and `b`
-- `pars`: mapping of the parameters `a` and `b` to their values
-
-A detector with neither an explicit entry nor a `default` falls back to a flat
-A/E mean of 1 (a warning is logged for `on` detectors).
+The HPGe A/E mean energy-dependence correction is configured through the
+`aoemeanmod_default` key of the {ref}`hit-tier-settings` (applied to every
+detector) and, optionally, computed per detector by the Simflow itself when the
+`two_pass_aoe_correction` hit-tier setting is enabled.
 
 (psdcuts-metadata-dir)=
 
