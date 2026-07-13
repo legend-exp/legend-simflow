@@ -99,6 +99,17 @@ rule gen_remage_macro:
         "Generating remage macro for stp.{wildcards.simid}"
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
+        # for simids whose generator is `~vertices:` the macro content depends on
+        # the vtx file schema (make_remage_macro inspects vtx/kin to decide
+        # IncludePosition), so depend on its job-0 file. Return [] otherwise.
+        vtx=lambda wc: (
+            patterns.vtx_filename_for_stp(config, wc.simid, jobid="0000")
+            if mutils.get_simconfig(config, "stp", simid=wc.simid)
+            .get("generator", "")
+            .strip()
+            .startswith("~vertices:")
+            else []
+        ),
     params:
         # make this rule dependent on the actual simconfig block it is very
         # important here to ignore the simconfig fields that, if updated,

@@ -81,23 +81,14 @@ def test_make_macro(config):
     ]
     assert set(confine).issubset(text.split("\n"))
 
-    text, fmac = commands.make_remage_macro(config, "exotic_physics_process", "stp")
-    confine = [
-        "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/Confinement/FromFile/FileName "
-        + str(
-            patterns.vtx_filename_for_stp(
-                config, "exotic_physics_process", jobid="{JOBID}"
-            )
-        ),
-    ]
-    assert set(confine).issubset(text.split("\n"))
-    assert "/RMG/Generator/Select" not in text
+    # is expected to fail since it does not specify position and has no confinement to supply them
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
 
     text, fmac = commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
     confine = [
-        "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/Confinement/FromFile/FileName "
+        "/RMG/Generator/Select FromFile",
+        "/RMG/Generator/FromFile/FileName "
         + str(
             patterns.vtx_filename_for_stp(
                 config, "exotic_physics_hpge", jobid="{JOBID}"
@@ -168,6 +159,17 @@ def test_make_macro_errors_vertices(fresh_config):
     metadata.simprod.config.tier.stp.legend.simconfig.exotic_physics_process.pop(
         "generator"
     )
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+
+def test_make_macro_errors_vertices_no_positions(fresh_config, write_vtx_kin):
+    config = fresh_config
+
+    # a `~vertices:` generator whose vtx/kin table carries no positions and
+    # which has no confinement to supply them cannot determine the primary
+    # positions and must fail fast
+    write_vtx_kin(config, "exotic_physics_process", with_positions=False)
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "exotic_physics_process", "stp")
 
