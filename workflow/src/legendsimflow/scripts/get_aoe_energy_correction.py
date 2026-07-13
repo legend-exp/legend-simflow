@@ -33,11 +33,29 @@ from matplotlib.backends.backend_pdf import PdfPages
 from pygama.pargen.AoE_cal import CalAoE
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import utils
+from legendsimflow import nersc, utils
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 
-DEFAULT_SETTINGS = {"simid_regex": "*Pb212*"}
+# A/E raw fields written by the hit tier, one per PSD simulation method; only
+# those present in the input files are fit (e.g. `pulse_lib` exists only when
+# the `simulate_psd_with_psl` hit-tier setting is enabled)
+_SIM_TYPES = {
+    "single_template": "psd_single_temp_aoe_raw",
+    "psl": "psd_pulse_lib_aoe_raw",
+}
+_SIM_TYPE_STYLE = {
+    "single_template": {
+        "point_color": "#0077BB",
+        "fit_color": "#1A2A5B",
+        "label": "single-temp",
+    },
+    "psl": {
+        "point_color": "darkorange",
+        "fit_color": "#CC3311",
+        "label": "pulse lib",
+    },
+}
 
 
 def get_aoe_reso(m: Minuit, x: float = 2040) -> tuple[float, float]:
@@ -115,7 +133,7 @@ def get_aoe_reso(m: Minuit, x: float = 2040) -> tuple[float, float]:
     return 100 * y, 100 * sigma
 
 
-def get_mean_err(m: Minuit, x=2040):
+def get_mean_err(m: Minuit, x: float = 2040) -> tuple[float, float]:
     """Get the A/E mean and its uncertainty at a given energy x from a Minuit fit object m.
 
     Based on simple propagation of errors.
@@ -213,16 +231,15 @@ def get_mc_reso_entry(cal: CalAoE, log: logging.Logger) -> dict[str, float | Non
 
 @snakemake_compatible(
     mapping={
-        "runid": "wildcards.runid",
         "hpge_detector": "wildcards.hpge_detector",
+        "hit_files": "input.hit_files",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
-        "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
 )
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compute A/E energy-dependence correction parameters for an HPGe detector."
     )
@@ -234,16 +251,16 @@ def main():
         help="HPGe detector name",
     )
     parser.add_argument(
+        "--hit-files",
+        dest="hit_files",
+        nargs="*",
+        required=True,
+        help="pre-correction MC hit-tier files to fit the A/E energy dependence from",
+    )
+    parser.add_argument(
         "--pars-file",
         required=True,
         help="output YAML file for A/E energy-correction parameters (and validation results)",
-    )
-    parser.add_argument(
-        "--settings",
-        type=str,
-        required=False,
-        default=None,
-        help="Path to YAML file with settings for the fitting ",
     )
     parser.add_argument(
         "--plot-file",
@@ -268,12 +285,6 @@ def main():
     log_script_invocation(log, "get-aoe-energy-correction", parser, args)
 
     det = args.hpge_detector
-
-    settings = (
-        dbetto.AttrsDict(dbetto.utils.load_dict(args.settings))
-        if args.settings is not None
-        else dbetto.AttrsDict(DEFAULT_SETTINGS)
-    )
 
     # only if we find ssc data
     fit_data = False
@@ -323,56 +334,49 @@ def main():
 
     log.info(" ... load MC")
 
-    path_mc = config.paths.tier_hit
-
-    files_mc = list(
-        Path(path_mc).glob(f"generated/tier/hit/{settings.simid_regex}/*.lh5")
-    )
+    files_mc = [nersc.dvs_ro(config, Path(f)) for f in args.hit_files]
+    if not files_mc:
+        msg = f"no MC hit files given for detector {det}"
+        raise RuntimeError(msg)
 
     mc = lh5.read(
         f"hit/{det}",
         files_mc,
-        field_mask=[
-            "psd/single_temp/aoe_raw",
-            "psd/pulse_lib/aoe_raw",
-            "energy",
-        ],
+        field_mask=[f"psd/{st}/aoe_raw" for st in ("single_temp", "pulse_lib")]
+        + ["energy"],
     ).view_as("pd")
 
-    log.info("... fitting mc")
-    aoe_cal_mc = CalAoE(compt_bands_width=50, cal_energy_param="energy")
-    with suppress_fit_warnings():
-        aoe_cal_mc.energy_correction(
-            mc,
-            aoe_param="psd_single_temp_aoe_raw",
-            corrected_param="AoE_reCorrected",
-            display=0,
+    # a PSD method's A/E field is only on disk when the corresponding hit-tier
+    # simulation is enabled; fit whichever ones are present
+    present_sim_types = {
+        sim_type: col for sim_type, col in _SIM_TYPES.items() if col in mc.columns
+    }
+    if not present_sim_types:
+        msg = (
+            f"none of the expected A/E fields {list(_SIM_TYPES.values())} are "
+            f"present in the MC hit files for detector {det}"
         )
+        raise RuntimeError(msg)
 
-    aoe_cal_mc_d = CalAoE(compt_bands_width=50, cal_energy_param="energy")
-    with suppress_fit_warnings():
-        aoe_cal_mc_d.energy_correction(
-            mc,
-            aoe_param="psd_pulse_lib_aoe_raw",
-            corrected_param="AoE_reCorrected",
-            display=0,
-        )
+    log.info("... fitting mc")
+    cals = {}
+    for sim_type, col in present_sim_types.items():
+        cal = CalAoE(compt_bands_width=50, cal_energy_param="energy")
+        with suppress_fit_warnings():
+            cal.energy_correction(
+                mc, aoe_param=col, corrected_param="AoE_reCorrected", display=0
+            )
+        cals[sim_type] = cal
 
     log.info("... saving pars")
-    mfs = aoe_cal_mc.energy_corr_res_dict["mean_fits"]
-    mfs_d = aoe_cal_mc_d.energy_corr_res_dict["mean_fits"]
-
     out = {
-        "single_template": {
-            "expression": mfs["expression"],
-            "pars": mfs["pars"],
-        },
-        "psl": {"expression": mfs_d["expression"], "pars": mfs_d["pars"]},
+        sim_type: {
+            "expression": cal.energy_corr_res_dict["mean_fits"]["expression"],
+            "pars": cal.energy_corr_res_dict["mean_fits"]["pars"],
+        }
+        for sim_type, cal in cals.items()
     }
-    mc_reso = {
-        "single_template": get_mc_reso_entry(aoe_cal_mc, log),
-        "psl": get_mc_reso_entry(aoe_cal_mc_d, log),
-    }
+    mc_reso = {sim_type: get_mc_reso_entry(cal, log) for sim_type, cal in cals.items()}
 
     data_out = None
     if fit_data:
@@ -391,125 +395,86 @@ def main():
 
     plot_file = Path(args.plot_file)
     plot_file.parent.mkdir(parents=True, exist_ok=True)
+    e = np.linspace(900, 2400, 1000)
     with PdfPages(str(plot_file)) as pdf:
         log.info("... plotting")
 
-        x = aoe_cal_mc.energy_corr_fits["mean"].index
-        y = aoe_cal_mc.energy_corr_fits["mean"].to_numpy()
-        yerr = aoe_cal_mc.energy_corr_fits["mean_err"].to_numpy()
-
+        # A/E mean vs energy: one series and best-fit curve per simulation type
         fig, ax = plt.subplots(figsize=(12, 3.5))
-
-        ax.errorbar(
-            x,
-            y,
-            yerr=yerr,
-            capsize=1,
-            marker=".",
-            color="#0077BB",
-            label="MC (single-temp)",
-            linestyle="none",
-            markersize=10,
-        )
-
-        ax.plot(
-            np.linspace(900, 2400, 1000),
-            aoe_cal_mc.mean_func.func(
-                np.linspace(900, 2400, 1000),
-                **aoe_cal_mc.energy_corr_res_dict["mean_fits"]["pars"],
-            ),
-            color="#1A2A5B",
-            label=f"Best fit (st) {mfs['pars']['a'] * 10**5:.2f} %/MeV",
-        )
-
-        x = aoe_cal_mc_d.energy_corr_fits["mean"].index
-        y = aoe_cal_mc_d.energy_corr_fits["mean"].to_numpy()
-        yerr = aoe_cal_mc_d.energy_corr_fits["mean_err"].to_numpy()
-
-        ax.errorbar(
-            x,
-            y,
-            yerr=yerr,
-            capsize=1,
-            marker=".",
-            linestyle="none",
-            color="darkorange",
-            label="MC (pulse lib)",
-            markersize=10,
-        )
-
-        ax.plot(
-            np.linspace(900, 2400, 1000),
-            aoe_cal_mc_d.mean_func.func(
-                np.linspace(900, 2400, 1000),
-                **aoe_cal_mc_d.energy_corr_res_dict["mean_fits"]["pars"],
-            ),
-            color="#CC3311",
-            label=f"Best fit (psl) {mfs_d['pars']['a'] * 10**5:.2f} %/MeV",
-        )
-
-        ax.set_xlabel("energy [keV]")
-        ax.set_ylabel("A/E Corrected")
-        ax.legend()
-
-        ax.set_title(f"Energy dependence in SSC MC {det}")
-
-        decorate(fig)
-        pdf.savefig()
-        plt.close(fig)
-
-        x = aoe_cal_mc.energy_corr_fits["sigma"].index
-        y = 100 * aoe_cal_mc.energy_corr_fits["sigma"].to_numpy()
-        yerr = 100 * aoe_cal_mc.energy_corr_fits["sigma_err"].to_numpy()
-
-        fig, ax = plt.subplots(figsize=(12, 3.5))
-        ax.errorbar(
-            x,
-            y,
-            yerr=yerr,
-            capsize=1,
-            marker=".",
-            color="#0077BB",
-            linestyle="none",
-            markersize=10,
-            label="MC",
-        )
-
-        e = np.linspace(900, 2400, 1000)
-        ax.plot(
-            e,
-            100
-            * aoe_cal_mc.sigma_func.func(
-                e, **aoe_cal_mc.energy_corr_res_dict["SigmaFits"]["pars"]
-            ),
-            color="#1A2A5B",
-            label="Best fit (MC)",
-        )
-
-        if fit_data:
-            x = aoe_cal.energy_corr_fits["sigma"].index
-            y = 100 * aoe_cal.energy_corr_fits["sigma"].to_numpy()
-            yerr = 100 * aoe_cal.energy_corr_fits["sigma_err"].to_numpy()
-
+        for sim_type, cal in cals.items():
+            style = _SIM_TYPE_STYLE[sim_type]
+            fits = cal.energy_corr_fits
+            pars = cal.energy_corr_res_dict["mean_fits"]["pars"]
             ax.errorbar(
-                x,
-                y,
-                yerr=yerr,
+                fits["mean"].index,
+                fits["mean"].to_numpy(),
+                yerr=fits["mean_err"].to_numpy(),
                 capsize=1,
                 marker=".",
                 linestyle="none",
                 markersize=10,
-                color="darkorange",
-                label="Data",
+                color=style["point_color"],
+                label=f"MC ({style['label']})",
+            )
+            ax.plot(
+                e,
+                cal.mean_func.func(e, **pars),
+                color=style["fit_color"],
+                label=f"Best fit ({style['label']}) {pars['a'] * 10**5:.2f} %/MeV",
+            )
+        ax.set_xlabel("energy [keV]")
+        ax.set_ylabel("A/E Corrected")
+        ax.legend()
+        ax.set_title(f"Energy dependence in SSC MC {det}")
+        decorate(fig)
+        pdf.savefig()
+        plt.close(fig)
+
+        # A/E resolution vs energy: MC series/fit per type, plus data if available
+        fig, ax = plt.subplots(figsize=(12, 3.5))
+        for sim_type, cal in cals.items():
+            style = _SIM_TYPE_STYLE[sim_type]
+            fits = cal.energy_corr_fits
+            ax.errorbar(
+                fits["sigma"].index,
+                100 * fits["sigma"].to_numpy(),
+                yerr=100 * fits["sigma_err"].to_numpy(),
+                capsize=1,
+                marker=".",
+                linestyle="none",
+                markersize=10,
+                color=style["point_color"],
+                label=f"MC ({style['label']})",
+            )
+            ax.plot(
+                e,
+                100
+                * cal.sigma_func.func(
+                    e, **cal.energy_corr_res_dict["SigmaFits"]["pars"]
+                ),
+                color=style["fit_color"],
+                label=f"Best fit ({style['label']})",
             )
 
+        if fit_data:
+            ax.errorbar(
+                aoe_cal.energy_corr_fits["sigma"].index,
+                100 * aoe_cal.energy_corr_fits["sigma"].to_numpy(),
+                yerr=100 * aoe_cal.energy_corr_fits["sigma_err"].to_numpy(),
+                capsize=1,
+                marker=".",
+                linestyle="none",
+                markersize=10,
+                color="black",
+                label="Data",
+            )
             ax.plot(
                 e,
                 100
                 * aoe_cal.sigma_func.func(
                     e, **aoe_cal.energy_corr_res_dict["SigmaFits"]["pars"]
                 ),
-                color="#CC3311",
+                color="gray",
                 label="Best fit (data)",
             )
 
@@ -517,11 +482,8 @@ def main():
         ax.set_ylabel("A/E resolution [%]")
         ax.legend(ncol=2)
         ax.set_title(f"Energy dependence in SSC data {det}")
-
         ax.set_ylim(0.2, 1.5)
-
         decorate(fig)
-
         pdf.savefig()
         plt.close(fig)
 

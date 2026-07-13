@@ -1207,6 +1207,10 @@ def build_aoe_mean_func_dict(
 
     aoe_mean_func = {}
     for hpge, meta in aoe_mean_pars.items():
+        # a detector may lack this simulation type (e.g. only single_template
+        # was fit); such detectors fall back to the default at the call site
+        if sim_type not in meta:
+            continue
         expr = meta[sim_type].expression
 
         def _func_full(x, a, b, expr):
@@ -1230,6 +1234,37 @@ def build_aoe_mean_func_dict(
         aoe_mean_func[hpge] = _aoemean
 
     return aoe_mean_func
+
+
+def build_aoe_mean_func_from_entry(
+    meta: dict | AttrsDict, sim_type: str = "single_template"
+) -> Callable:
+    """Build a bound A/E mean callable from a single detector's correction entry.
+
+    Parameters
+    ----------
+    meta
+        A single detector's A/E energy-dependence entry, with ``single_template``
+        and ``psl`` sub-blocks, each carrying ``expression`` and ``pars`` (``a``,
+        ``b``).
+    sim_type
+        Type of PSD simulation (`single_template` or `psl`).
+
+    Returns
+    -------
+    Callable that takes energy in keV and returns the mean A/E.
+    """
+    if not isinstance(meta, AttrsDict):
+        meta = AttrsDict(meta)
+
+    entry = meta[sim_type]
+    expr = entry.expression
+
+    def _func_full(x, a, b, expr):
+        return eval(expr, {"__builtins__": {}}, {"x": x, "a": a, "b": b})
+
+    base = functools.partial(_func_full, a=entry.pars.a, b=entry.pars.b, expr=expr)
+    return lambda E, base=base: base(E)
 
 
 def lookup_psd_cut_values(
