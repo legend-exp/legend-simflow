@@ -13,10 +13,11 @@ from pathlib import Path
 
 import awkward as ak
 import dbetto
+import lh5
 import numpy as np
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
-from lgdo import Array, Scalar, Struct, lh5
+from lgdo import Array, Scalar, Struct
 from matplotlib import colormaps
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
