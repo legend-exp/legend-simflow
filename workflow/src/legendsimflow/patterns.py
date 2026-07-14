@@ -598,33 +598,33 @@ def output_psdcuts_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
-def output_aoemeancorr_filename(config: SimflowConfig, **kwargs) -> Path:
+def output_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the per-detector A/E energy-dependence correction file."""
     return _expand(
-        config.paths.pars / "hpge/aoemeancorr/{hpge_detector}-model.yaml",
+        config.paths.pars / "hpge/aoemeanmod/{hpge_detector}-model.yaml",
         **kwargs,
     )
 
 
-def output_aoemeancorr_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+def output_aoemeanmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the single, merged, run-independent A/E energy-dependence correction file."""
     return _expand(
-        config.paths.pars / "hpge/aoemeancorr/aoe-energy-correction.yaml",
+        config.paths.pars / "hpge/aoemeanmod/aoe-energy-correction.yaml",
         **kwargs,
     )
 
 
-def plot_aoemeancorr_filename(config: SimflowConfig, **kwargs) -> Path:
+def plot_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the A/E energy-correction fit validation plot for a detector."""
     return _expand(
-        config.paths.pars / "hpge/aoemeancorr/plots/{hpge_detector}-fit-result.pdf",
+        config.paths.pars / "hpge/aoemeanmod/plots/{hpge_detector}-fit-result.pdf",
         **kwargs,
     )
 
 
-def log_aoemeancorr_filename(config: SimflowConfig, **kwargs) -> Path:
+def log_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for A/E energy-correction extraction for a detector."""
-    pat = log_dirname(config) / "hpge/aoemeancorr/{hpge_detector}-model.log"
+    pat = log_dirname(config) / "hpge/aoemeanmod/{hpge_detector}-model.log"
     return _expand(pat, **kwargs)
 
 

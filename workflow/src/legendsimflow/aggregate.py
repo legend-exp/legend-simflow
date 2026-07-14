@@ -155,7 +155,7 @@ def gen_list_of_all_simids_matching(config: SimflowConfig, pattern: str) -> list
             f"no simid matches pattern {pattern!r}; "
             "cannot compute the A/E energy correction"
         )
-        raise SimflowConfigError(msg, "pars.aoemeancorr.settings.simid_regex")
+        raise SimflowConfigError(msg, "pars.aoemeanmod.settings.simid_regex")
     return matches
 
 
@@ -727,12 +727,12 @@ def gen_list_of_all_modelable_hpges(
     return sorted(dets)
 
 
-def gen_list_of_aoemeancorrs(
+def gen_list_of_aoemeanmods(
     config: SimflowConfig, cache: Mapping[str, Mapping[str, Mapping[str, int]]]
 ) -> list[Path]:
     """Generate the list of per-detector A/E energy-correction files for the merge rule."""
     return [
-        patterns.output_aoemeancorr_filename(config, hpge_detector=hpge)
+        patterns.output_aoemeanmod_filename(config, hpge_detector=hpge)
         for hpge in gen_list_of_all_modelable_hpges(cache)
     ]
 
