@@ -327,18 +327,30 @@ def main() -> None:
 
         log.info("... read data")
 
-        aoe_cal = CalAoE(compt_bands_width=50)
-        with suppress_fit_warnings():
-            aoe_cal.energy_correction(
-                data,
-                aoe_param="AoE_Corrected",
-                corrected_param="AoE_reCorrected",
-                display=0,
-            )
-        log.info("... fitted data")
+        # the data fit is only a validation cross-check for the MC correction
+        # (the primary product): if it fails to converge, warn and skip it
+        # rather than aborting the whole job
+        try:
+            aoe_cal = CalAoE(compt_bands_width=50)
+            with suppress_fit_warnings():
+                aoe_cal.energy_correction(
+                    data,
+                    aoe_param="AoE_Corrected",
+                    corrected_param="AoE_reCorrected",
+                    display=0,
+                )
+            log.info("... fitted data")
 
-        data_mu, data_mu_err = get_mean_err(aoe_cal.mean_fit_obj)
-        data_sig, data_sig_err = get_aoe_reso(aoe_cal.SigmaFit_obj)
+            data_mu, data_mu_err = get_mean_err(aoe_cal.mean_fit_obj)
+            data_sig, data_sig_err = get_aoe_reso(aoe_cal.SigmaFit_obj)
+        except (RuntimeError, ValueError) as e:
+            log.warning(
+                "L200-data A/E validation fit for detector %s failed, "
+                "skipping data validation: %s",
+                det,
+                e,
+            )
+            fit_data = False
 
     log.info(" ... load MC")
 
