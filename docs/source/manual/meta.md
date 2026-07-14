@@ -463,10 +463,11 @@ aoemeanmod_default:
 - `two_pass_aoe_correction` (bool, default `False`): when `True`, the `hit` tier
   is built twice. A temporary pre-correction pass computes the raw A/E for the
   simulation IDs matching `simid_regex` (see the `aoemeancorr` par settings, by
-  default `*Pb212*`), from which a per-detector A/E energy-dependence correction
-  is fit and applied in the final pass, overriding `aoemeanmod_default` where
-  available. The selected experiment (or `simlist`) must contain at least one
-  matching `simid`, otherwise the workflow fails at DAG-build time.
+  default `sis*_z*_slot*_Pb212_to_Pb208`), from which a per-detector A/E
+  energy-dependence correction is fit and applied in the final pass, overriding
+  `aoemeanmod_default` where available. The selected experiment (or `simlist`)
+  must contain at least one matching `simid`, otherwise the workflow fails at
+  DAG-build time.
 
 (evt-tier-settings-meta)=
 

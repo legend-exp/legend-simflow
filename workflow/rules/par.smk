@@ -471,7 +471,7 @@ rule merge_current_pulse_model_pars:
 
 
 # default set of simulation IDs to fit the A/E energy-dependence correction from
-_AOE_CORR_DEFAULT_SIMID_REGEX = "*Pb212*"
+_AOE_CORR_DEFAULT_SIMID_REGEX = "sis*_z*_slot*_Pb212_to_Pb208"
 
 
 def smk_get_aoe_energy_correction_inputs(wildcards):
@@ -493,7 +493,7 @@ rule get_aoe_energy_correction:
 
     Reads raw (uncorrected) A/E vs. energy from the temporary pre-correction
     `hit` files (`build_tier_hit_precorr`) for simulation IDs matching
-    `simid_regex` (default ``*Pb212*``, overridable via the `aoemeancorr` par
+    `simid_regex` (default ``sis*_z*_slot*_Pb212_to_Pb208``, overridable via the `aoemeancorr` par
     settings) and fits the energy dependence with `pygama.pargen.AoE_cal.CalAoE`,
     mirroring the LEGEND-200 data calibration procedure. Only built when the
     `two_pass_aoe_correction` hit-tier setting is enabled.
