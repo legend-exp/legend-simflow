@@ -480,7 +480,7 @@ def smk_extract_hpge_aoemean_energy_dependence_inputs(wildcards):
     ``simid_regex`` is resolved here (at DAG-build time) so the dependency edge
     to the pre-correction hit files actually exists in the graph.
     """
-    regex = get_par_settings(config, "aoemeancorr").get(
+    regex = get_par_settings(config, "aoemeanmod").get(
         "simid_regex", _AOE_CORR_DEFAULT_SIMID_REGEX
     )
     return {
@@ -493,7 +493,7 @@ rule extract_hpge_aoemean_energy_dependence:
 
     Reads raw (uncorrected) A/E vs. energy from the temporary pre-correction
     `hit` files (`build_tier_hit_precorr`) for simulation IDs matching
-    `simid_regex` (default ``sis*_z*_slot*_Pb212_to_Pb208``, overridable via the `aoemeancorr` par
+    `simid_regex` (default ``sis*_z*_slot*_Pb212_to_Pb208``, overridable via the `aoemeanmod` par
     settings) and fits the energy dependence with `pygama.pargen.AoE_cal.CalAoE`,
     mirroring the LEGEND-200 data calibration procedure. Only built when the
     `two_pass_aoe_correction` hit-tier setting is enabled.
@@ -509,10 +509,10 @@ rule extract_hpge_aoemean_energy_dependence:
         # validation fit discovers files dynamically and isn't listed above
         _l200data=config.paths.get("l200data", None),
     output:
-        pars_file=temp(patterns.output_aoemeancorr_filename(config)),
-        plot_file=patterns.plot_aoemeancorr_filename(config),
+        pars_file=temp(patterns.output_aoemeanmod_filename(config)),
+        plot_file=patterns.plot_aoemeanmod_filename(config),
     log:
-        patterns.log_aoemeancorr_filename(config),
+        patterns.log_aoemeanmod_filename(config),
     script:
         "../src/legendsimflow/scripts/extract_hpge_aoemean_energy_dependence.py"
 
@@ -530,7 +530,7 @@ rule merge_aoe_energy_corrections:
     message:
         "Merging A/E energy-dependence corrections"
     input:
-        lambda wc: aggregate.gen_list_of_aoemeancorrs(
+        lambda wc: aggregate.gen_list_of_aoemeanmods(
             config, cache=smk_load_hpge_cache()
         ),
     params:
@@ -540,7 +540,7 @@ rule merge_aoe_energy_corrections:
             smk_load_hpge_cache()
         ),
     output:
-        patterns.output_aoemeancorr_merged_filename(config),
+        patterns.output_aoemeanmod_merged_filename(config),
     run:
         import dbetto
 

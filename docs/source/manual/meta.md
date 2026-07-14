@@ -462,7 +462,7 @@ aoemeanmod_default:
   See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 - `two_pass_aoe_correction` (bool, default `False`): when `True`, the `hit` tier
   is built twice. A temporary pre-correction pass computes the raw A/E for the
-  simulation IDs matching `simid_regex` (see the `aoemeancorr` par settings, by
+  simulation IDs matching `simid_regex` (see the `aoemeanmod` par settings, by
   default `sis*_z*_slot*_Pb212_to_Pb208`), from which a per-detector A/E
   energy-dependence correction is fit and applied in the final pass, overriding
   `aoemeanmod_default` where available. The selected experiment (or `simlist`)

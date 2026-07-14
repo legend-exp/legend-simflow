@@ -63,7 +63,7 @@ def smk_build_tier_hit_extra_input(wc):
     whereas an empty-list value would stringify to the literal ``"[]"``.
     """
     if _two_pass_aoe_corr:
-        return {"aoemean_file": patterns.output_aoemeancorr_merged_filename(config)}
+        return {"aoemean_file": patterns.output_aoemeanmod_merged_filename(config)}
     return {}
 
 
