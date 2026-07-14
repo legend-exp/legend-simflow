@@ -312,7 +312,7 @@ def simpars(
     datatype = re.split(r"\W+", runid)[-1]
     try:
         directory = metadata["simprod/config/pars"][experiment][par]
-        return directory.on(runinfo(metadata, runid).start_key, system=datatype)
+        return directory.on(runinfo(metadata, runid).start_key, category=datatype)
     except (KeyError, LookupError, FileNotFoundError):
         if default is _MISSING:
             raise
@@ -347,6 +347,175 @@ def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
         raise NotImplementedError()
 
     return get_simconfig(config, "vtx", vtx_key.pop())
+
+
+# mapping of `custom_G4NDL` option keys to `custom-g4ndl` CLI flags that take a
+# value, and to boolean (value-less) flags
+_CUSTOM_G4NDL_VALUE_FLAGS = {
+    "scale": "--scale",
+    "substitution": "--substitution",
+    "base_library": "--base-library",
+    "cache_dir": "--cache-dir",
+}
+_CUSTOM_G4NDL_BOOL_FLAGS = {
+    "no_substitution": "--no-substitution",
+    "legacy_energy_shift": "--legacy-energy-shift",
+    "allow_incomplete": "--allow-incomplete",
+}
+# keys that do not map to a generator CLI flag
+_CUSTOM_G4NDL_META_KEYS = {"source", "name", "rename"}
+# options that only control *where* data is fetched from, not the resulting
+# library content, and so must not influence the auto-derived library name
+_CUSTOM_G4NDL_NAME_NEUTRAL = {"cache_dir", "base_library"}
+# content-affecting options that can be encoded as a readable name token
+_CUSTOM_G4NDL_NAME_READABLE = {
+    "scale",
+    "no_substitution",
+    "legacy_energy_shift",
+    "allow_incomplete",
+}
+
+
+def resolve_custom_g4ndl_spec(raw: str | Mapping) -> AttrsDict:
+    """Normalize a ``custom_G4NDL`` simconfig field into a canonical spec.
+
+    The field may be either:
+
+    - a plain string, interpreted as the ``--source`` of the ``custom-g4ndl``
+      generator (all other options left at their package defaults);
+    - a mapping with a mandatory ``source`` key plus optional generator options
+      (``scale``, ``substitution``, ``no_substitution``, ``base_library``,
+      ``cache_dir``, ``legacy_energy_shift``, ``allow_incomplete``) and an
+      optional explicit ``name`` (alias ``rename``).
+
+    Returns an :class:`~dbetto.AttrsDict` with keys ``name`` (the library
+    directory name), ``source`` and ``args`` (the extra ``custom-g4ndl`` CLI
+    arguments as a list of strings).
+
+    When no explicit ``name`` is given, one is derived from ``source`` plus
+    readable tokens for the requested content-affecting options (e.g.
+    ``-scale2.0``, ``-nosubst``), so that two simulations asking for the same
+    source but different physics options never share a library directory. The
+    tokens reflect the options actually specified (not a comparison against the
+    package's internal defaults), so simflow does not hardcode those defaults.
+    Location-only options (``base_library``, ``cache_dir``) never affect the
+    name; any content-affecting option that cannot be encoded readably (a custom
+    ``substitution`` file) requires an explicit ``name``.
+    """
+    if isinstance(raw, str):
+        raw = {"source": raw}
+
+    if not isinstance(raw, Mapping):
+        msg = "custom_G4NDL must be a string or a mapping"
+        raise SimflowConfigError(msg)
+
+    raw = dict(raw)
+    if "source" not in raw:
+        msg = "custom_G4NDL mapping must contain a 'source' key"
+        raise SimflowConfigError(msg)
+    source = str(raw["source"]).strip()
+
+    if not source:
+        msg = "custom_G4NDL source must be a non-empty string"
+        raise SimflowConfigError(msg)
+
+    # translate options into CLI arguments
+    args: list[str] = []
+    unknown = []
+    for key, val in raw.items():
+        if key in _CUSTOM_G4NDL_META_KEYS:
+            continue
+        if key in _CUSTOM_G4NDL_VALUE_FLAGS:
+            args += [_CUSTOM_G4NDL_VALUE_FLAGS[key], str(val)]
+        elif key in _CUSTOM_G4NDL_BOOL_FLAGS:
+            if val:
+                args += [_CUSTOM_G4NDL_BOOL_FLAGS[key]]
+        else:
+            unknown.append(key)
+    if unknown:
+        msg = f"unknown custom_G4NDL option(s): {', '.join(sorted(unknown))}"
+        raise SimflowConfigError(msg)
+
+    # derive the library directory name
+    explicit_name = raw.get("name", raw.get("rename"))
+    if explicit_name is not None:
+        name = str(explicit_name)
+    else:
+        if "/" in source or "://" in source:
+            msg = (
+                "custom_G4NDL 'source' looks like a path or URL; please also set "
+                "an explicit 'name' (or 'rename') for the generated library"
+            )
+            raise SimflowConfigError(msg)
+
+        # content-affecting options that cannot be encoded readably (e.g. a
+        # custom substitution file) must be named explicitly to avoid two
+        # different libraries silently sharing a directory
+        needs_name = [
+            k
+            for k in raw
+            if k not in _CUSTOM_G4NDL_META_KEYS
+            and k not in _CUSTOM_G4NDL_NAME_NEUTRAL
+            and k not in _CUSTOM_G4NDL_NAME_READABLE
+        ]
+        if needs_name:
+            msg = (
+                f"custom_G4NDL option(s) {', '.join(sorted(needs_name))} change the "
+                "library but cannot be encoded in an automatic name; please set an "
+                "explicit 'name' (or 'rename')"
+            )
+            raise SimflowConfigError(msg)
+
+        tokens = ""
+        if "scale" in raw:
+            tokens += f"-scale{raw['scale']}"
+        if raw.get("no_substitution"):
+            tokens += "-nosubst"
+        if raw.get("legacy_energy_shift"):
+            tokens += "-legacy"
+        if raw.get("allow_incomplete"):
+            tokens += "-allowinc"
+        name = source + tokens
+
+    if not re.fullmatch(r"[\w.+-]+", name):
+        msg = (
+            f"custom_G4NDL library name '{name}' is not a valid directory segment "
+            r"(allowed characters: [\w.+-])"
+        )
+        raise SimflowConfigError(msg)
+
+    return AttrsDict({"name": name, "source": source, "args": args})
+
+
+def get_custom_g4ndl_spec(config: SimflowConfig, name: str) -> AttrsDict:
+    """Return the ``custom_G4NDL`` spec for the library directory `name`.
+
+    Scans every ``stp``-tier simulation for a ``custom_G4NDL`` field resolving
+    (via :func:`resolve_custom_g4ndl_spec`) to the given library `name`. Raises
+    if no simulation requests it, or if two simulations map the same `name` to
+    conflicting options (only possible when an explicit ``name`` is reused).
+    """
+    matches: list[tuple[str, AttrsDict]] = []
+    for simid, sim_cfg in get_simconfig(config, "stp").items():
+        if "custom_G4NDL" in sim_cfg:
+            spec = resolve_custom_g4ndl_spec(sim_cfg["custom_G4NDL"])
+            if spec["name"] == name:
+                matches.append((simid, spec))
+
+    if not matches:
+        msg = f"no stp simulation requests a custom G4NDL library named '{name}'"
+        raise SimflowConfigError(msg)
+
+    first_simid, first = matches[0]
+    for simid, spec in matches[1:]:
+        if spec["source"] != first["source"] or spec["args"] != first["args"]:
+            msg = (
+                f"custom G4NDL library name '{name}' maps to conflicting options "
+                f"({first_simid} vs {simid}); please use distinct 'name' keys"
+            )
+            raise SimflowConfigError(msg)
+
+    return first
 
 
 def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
