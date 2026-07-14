@@ -609,7 +609,7 @@ def output_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
 def output_aoemeanmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the single, merged, run-independent A/E energy-dependence correction file."""
     return _expand(
-        config.paths.pars / "hpge/aoemeanmod/aoe-energy-correction.yaml",
+        config.paths.pars / "hpge/aoemeanmod/model.yaml",
         **kwargs,
     )
 

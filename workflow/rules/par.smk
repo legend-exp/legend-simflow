@@ -517,7 +517,7 @@ rule extract_hpge_aoemean_energy_dependence:
         "../src/legendsimflow/scripts/extract_hpge_aoemean_energy_dependence.py"
 
 
-rule merge_aoe_energy_corrections:
+rule merge_hpge_aoemean_energy_dependence_pars:
     """Merge the per-detector A/E energy-dependence corrections into one file.
 
     Collect each detector's `energy_corrections` block into a single
