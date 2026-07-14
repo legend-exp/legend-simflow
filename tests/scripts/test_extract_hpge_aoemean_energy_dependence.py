@@ -59,9 +59,9 @@ def _build_argv(tmp_path: Path, hit_files: list[Path]) -> list[str]:
         "--hit-files",
         *[str(f) for f in hit_files],
         "--pars-file",
-        str(tmp_path / "outputs" / "aoe-energy-correction.yaml"),
+        str(tmp_path / "outputs" / "V05261A-model.yaml"),
         "--plot-file",
-        str(tmp_path / "plots" / "aoe-energy-correction.pdf"),
+        str(tmp_path / "plots" / "V05261A-fit-result.pdf"),
         "--simflow-config",
         str(config_path),
     ]
@@ -87,8 +87,8 @@ def test_extract_hpge_aoemean_energy_dependence_mc_only(
 
     extract_hpge_aoemean_energy_dependence.main()
 
-    pars_file = tmp_path / "outputs" / "aoe-energy-correction.yaml"
-    plot_file = tmp_path / "plots" / "aoe-energy-correction.pdf"
+    pars_file = tmp_path / "outputs" / "V05261A-model.yaml"
+    plot_file = tmp_path / "plots" / "V05261A-fit-result.pdf"
     assert pars_file.exists()
     assert plot_file.exists()
 

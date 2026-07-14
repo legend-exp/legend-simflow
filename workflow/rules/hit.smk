@@ -107,7 +107,7 @@ rule build_tier_hit:
 
     When the `two_pass_aoe_correction` hit-tier setting is enabled, this final
     build additionally consumes the merged A/E energy-dependence correction
-    (`merge_aoe_energy_corrections`), computed from a pre-correction pass (see
+    (`merge_hpge_aoemean_energy_dependence_pars`), computed from a pre-correction pass (see
     `build_tier_hit_precorr`).
 
     Uses wildcards `simid` and `jobid`.
