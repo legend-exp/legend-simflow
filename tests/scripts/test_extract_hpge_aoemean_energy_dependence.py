@@ -10,7 +10,7 @@ import pytest
 import yaml
 from lgdo import Array, Table
 
-from legendsimflow.scripts import get_aoe_energy_correction
+from legendsimflow.scripts import extract_hpge_aoemean_energy_dependence
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
 
@@ -53,7 +53,7 @@ def _build_argv(tmp_path: Path, hit_files: list[Path]) -> list[str]:
     config_path.write_text(yaml.safe_dump(raw))
 
     return [
-        "get-aoe-energy-correction",
+        "extract-hpge-aoemean-energy-dependence",
         "--hpge-detector",
         "V05261A",
         "--hit-files",
@@ -77,13 +77,15 @@ def _build_argv(tmp_path: Path, hit_files: list[Path]) -> list[str]:
         (("single_temp",), {"single_template"}),
     ],
 )
-def test_get_aoe_energy_correction_mc_only(tmp_path, monkeypatch, sim_types, expected):
+def test_extract_hpge_aoemean_energy_dependence_mc_only(
+    tmp_path, monkeypatch, sim_types, expected
+):
     hit_file = tmp_path / "test-Pb212-hit.lh5"
     _write_fake_mc_hit(hit_file, sim_types=sim_types)
 
     monkeypatch.setattr(sys, "argv", _build_argv(tmp_path, [hit_file]))
 
-    get_aoe_energy_correction.main()
+    extract_hpge_aoemean_energy_dependence.main()
 
     pars_file = tmp_path / "outputs" / "aoe-energy-correction.yaml"
     plot_file = tmp_path / "plots" / "aoe-energy-correction.pdf"

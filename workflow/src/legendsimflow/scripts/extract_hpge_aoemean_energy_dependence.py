@@ -282,7 +282,7 @@ def main() -> None:
     metadata = config.metadata
 
     log = ldfs.utils.build_log(metadata.simprod.config.logging, args.log_file)
-    log_script_invocation(log, "get-aoe-energy-correction", parser, args)
+    log_script_invocation(log, "extract-hpge-aoemean-energy-dependence", parser, args)
 
     det = args.hpge_detector
 

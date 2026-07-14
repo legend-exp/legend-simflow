@@ -474,7 +474,7 @@ rule merge_current_pulse_model_pars:
 _AOE_CORR_DEFAULT_SIMID_REGEX = "sis*_z*_slot*_Pb212_to_Pb208"
 
 
-def smk_get_aoe_energy_correction_inputs(wildcards):
+def smk_extract_hpge_aoemean_energy_dependence_inputs(wildcards):
     """Inputs for the per-detector A/E energy-correction fit.
 
     ``simid_regex`` is resolved here (at DAG-build time) so the dependency edge
@@ -488,7 +488,7 @@ def smk_get_aoe_energy_correction_inputs(wildcards):
     }
 
 
-rule get_aoe_energy_correction:
+rule extract_hpge_aoemean_energy_dependence:
     """Fit the A/E energy-dependence correction for one HPGe detector.
 
     Reads raw (uncorrected) A/E vs. energy from the temporary pre-correction
@@ -503,7 +503,7 @@ rule get_aoe_energy_correction:
     message:
         "Extracting A/E energy-dependence correction for detector {wildcards.hpge_detector}"
     input:
-        unpack(smk_get_aoe_energy_correction_inputs),
+        unpack(smk_extract_hpge_aoemean_energy_dependence_inputs),
     params:
         # track l200data so the rule reruns when it changes: the data-side
         # validation fit discovers files dynamically and isn't listed above
@@ -514,7 +514,7 @@ rule get_aoe_energy_correction:
     log:
         patterns.log_aoemeancorr_filename(config),
     script:
-        "../src/legendsimflow/scripts/get_aoe_energy_correction.py"
+        "../src/legendsimflow/scripts/extract_hpge_aoemean_energy_dependence.py"
 
 
 rule merge_aoe_energy_corrections:

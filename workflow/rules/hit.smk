@@ -133,7 +133,7 @@ rule build_tier_hit:
 # build_tier_hit but with no correction applied (input overridden to drop the
 # aoemean_file, which also breaks the would-be dependency cycle) and a temporary
 # output. Only enters the DAG when two_pass_aoe_correction is enabled, i.e. when
-# get_aoe_energy_correction requests these files.
+# extract_hpge_aoemean_energy_dependence requests these files.
 use rule build_tier_hit as build_tier_hit_precorr with:
     message:
         "Producing pre-correction hit output for job hit.{wildcards.simid}.{wildcards.jobid}"
