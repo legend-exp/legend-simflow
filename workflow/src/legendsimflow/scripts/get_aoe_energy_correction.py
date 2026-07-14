@@ -310,7 +310,15 @@ def main() -> None:
         is_pulser = (
             lh5.read(
                 "ch1027201/dsp/trapTmax",
-                [Path(str(p).replace("/pht/", "/psp/")) for p in data_files],
+                [
+                    # swap the tier in both the directory and the file name
+                    Path(
+                        str(p)
+                        .replace("/pht/", "/psp/")
+                        .replace("-tier_pht.", "-tier_psp.")
+                    )
+                    for p in data_files
+                ],
             ).view_as("pd")
             > 200
         )
