@@ -312,7 +312,7 @@ def simpars(
     datatype = re.split(r"\W+", runid)[-1]
     try:
         directory = metadata["simprod/config/pars"][experiment][par]
-        return directory.on(runinfo(metadata, runid).start_key, system=datatype)
+        return directory.on(runinfo(metadata, runid).start_key, category=datatype)
     except (KeyError, LookupError, FileNotFoundError):
         if default is _MISSING:
             raise
