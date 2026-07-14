@@ -4,10 +4,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import lh5
 import numpy as np
 import pytest
 import yaml
-from lgdo import Array, Table, lh5
+from lgdo import Array, Table
 
 from legendsimflow.scripts import get_aoe_energy_correction
 

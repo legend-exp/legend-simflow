@@ -25,9 +25,9 @@ from pathlib import Path
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
+import lh5
 import numpy as np
 from iminuit import Minuit
-from lgdo import lh5
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from pygama.pargen.AoE_cal import CalAoE

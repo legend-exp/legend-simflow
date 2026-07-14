@@ -6,13 +6,14 @@ from pathlib import Path
 
 import awkward as ak
 import legenddataflowscripts
+import lh5
 import numpy as np
 import pytest
 import yaml
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from legendtestdata import LegendTestData
-from lgdo import Array, Table, WaveformTable, lh5
+from lgdo import Array, Table, WaveformTable
 from pygeoml200 import core
 from reboost.hpge.psd import _current_pulse_model as currmod
 from scipy.stats import norm
