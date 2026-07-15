@@ -17,7 +17,6 @@ from pygeoml200 import core
 from reboost.hpge.psd import _current_pulse_model as currmod
 from scipy.stats import norm
 
-from legendsimflow import patterns
 from legendsimflow.utils import apply_path_defaults
 
 l200data = Path(__file__).parent / "l200data" / "v3.0.0"
@@ -91,45 +90,6 @@ def config():
 @pytest.fixture
 def fresh_config():
     return make_config()
-
-
-@pytest.fixture
-def write_vtx_kin():
-    """Write a minimal job-0 ``vtx/kin`` LH5 file for a `~vertices:` simid.
-
-    Returns a callable ``(config, simid, *, with_positions)`` that writes the
-    file to the canonical vtx path inspected by ``make_remage_macro`` and
-    returns it. With ``with_positions=True`` the ``vtx/kin`` table also carries
-    the ``xloc``/``yloc``/``zloc`` columns (so remage's ``IncludePosition`` is
-    requested); otherwise it holds kinematics only.
-    """
-
-    def _write(config, simid, *, with_positions):
-        path = patterns.output_simjob_filename(
-            config, tier="vtx", simid=simid, jobid="0000"
-        )
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        n = 10
-        cols = {
-            "px": Array(np.zeros(n)),
-            "py": Array(np.zeros(n)),
-            "pz": Array(np.ones(n)),
-            "ekin": Array(np.ones(n)),
-            "time": Array(np.zeros(n)),
-            "g4_pid": Array(np.full(n, 22, dtype=np.int64)),
-        }
-        if with_positions:
-            cols |= {
-                "xloc": Array(np.zeros(n)),
-                "yloc": Array(np.zeros(n)),
-                "zloc": Array(np.zeros(n)),
-            }
-
-        lh5.write(Table(cols), "vtx/kin", str(path), wo_mode="of")
-        return path
-
-    return _write
 
 
 class mock_workflow_class:

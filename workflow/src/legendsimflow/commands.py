@@ -21,12 +21,11 @@ from copy import copy
 from pathlib import Path
 
 import legenddataflowscripts as lds
-import lh5
 import pyg4ometry
 
 from . import SimflowConfig, nersc, patterns, utils
 from .exceptions import SimflowConfigError
-from .metadata import get_simconfig
+from .metadata import get_simconfig, get_vtx_product
 
 
 def remage_run(
@@ -201,23 +200,6 @@ def remage_run(
     return joined_cmd
 
 
-def _vtx_kin_has_positions(vtx_file: str | Path) -> bool:
-    """Whether the ``vtx/kin`` table carries primary positions.
-
-    Returns ``True`` if the ``vtx/kin`` table of `vtx_file` contains the
-    ``xloc``/``yloc``/``zloc`` columns (remage reads them as the primary vertex
-    position when ``/RMG/Generator/FromFile/IncludePosition`` is enabled). A
-    missing file or ``vtx/kin`` table yields ``False``; the caller decides
-    whether that is an error. In the workflow the ``gen_remage_macro`` rule
-    depends on the (job-0) vtx file, so it is guaranteed to exist here.
-    """
-    try:
-        cols = {name.rsplit("/", 1)[-1] for name in lh5.ls(str(vtx_file), "vtx/kin/")}
-    except (FileNotFoundError, KeyError):
-        return False
-    return {"xloc", "yloc", "zloc"}.issubset(cols)
-
-
 def _confine_by_volume(
     is_surface: bool, volume: str, surface_max_intersections: int = 100
 ) -> list[str]:
@@ -379,34 +361,48 @@ def make_remage_macro(
                 raise SimflowConfigError(msg, block) from e
 
         elif gen_query.startswith("~vertices:"):
-            vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
             # primary kinematics are read from the vtx/kin table (remage's
             # RMGGeneratorFromFile). the FileName line keeps the {JOBID}
             # placeholder (all jobs of a simid share one schema).
+            vtx_name = gen_query.removeprefix("~vertices:").strip()
+            vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
+            # whether the vertex position is also taken from the vtx/kin table
+            # (IncludePosition) or supplied by a separate confinement is decided
+            # from the generator's declared `product`, not by inspecting the
+            # produced file.
+            product = get_vtx_product(config, vtx_name)
             generator_lines = [
                 "/RMG/Generator/Select FromFile",
                 f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
             ]
-            # whether the vertex position is also taken from the vtx/kin table
-            # (IncludePosition) or supplied by a separate confinement is decided
-            # by inspecting the actual vtx file (job 0, representative of all
-            # jobs) rather than hard-coded in the macro template.
-            vtx_probe = patterns.vtx_filename_for_stp(config, simid, jobid="0000")
-            if _vtx_kin_has_positions(vtx_probe):
+            if product == "positions":
+                msg = (
+                    f"vtx generator {vtx_name!r} produces positions only "
+                    "(product=positions) and has no kinematics; it cannot be "
+                    "used as a generator (use it as a confinement instead)",
+                    f"{block}.generator",
+                )
+                raise SimflowConfigError(*msg)
+            if product == "kinematics_and_positions":
+                # positions are stored alongside kinematics in vtx/kin: read them
+                # from the same table. IncludePosition must precede FileName.
                 generator_lines = [
                     "/RMG/Generator/Select FromFile",
                     "/RMG/Generator/FromFile/IncludePosition true",
                     f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
                 ]
+                # positions come from the file, no confinement allowed
+                mac_subs["CONFINEMENT"] = ""
             elif "confinement" not in sim_cfg:
+                # product == "kinematics": vtx/kin has no positions, so a separate
+                # confinement must supply them
                 msg = (
-                    "the vtx/kin table has no position columns and no confinement "
-                    "is configured; primary positions cannot be determined",
+                    f"vtx generator {vtx_name!r} produces kinematics only "
+                    "(product=kinematics) and has no positions; a confinement "
+                    "must be configured to supply them",
                     f"{block}.generator",
                 )
                 raise SimflowConfigError(*msg)
-            # when no confinement is configured, positions come from the file
-            mac_subs["CONFINEMENT"] = ""
         else:
             msg = (
                 "the field must be prefixed with ~vertices: or ~defines:",
@@ -426,6 +422,18 @@ def make_remage_macro(
                 if sim_cfg.get("generator", "").strip().startswith("~vertices:"):
                     msg = (
                         "no vertices in confinement field allowed if vertices are already specified as the generator",
+                        f"{block}.confinement",
+                    )
+                    raise SimflowConfigError(*msg)
+
+                # positions are read from the vtx/pos table (remage's
+                # Confine FromFile); the generator must declare it produces them.
+                vtx_name = conf_query.removeprefix("~vertices:").strip()
+                product = get_vtx_product(config, vtx_name)
+                if product != "positions":
+                    msg = (
+                        f"vtx generator {vtx_name!r} (product={product}) produces "
+                        "no vtx/pos positions and cannot be used as a confinement",
                         f"{block}.confinement",
                     )
                     raise SimflowConfigError(*msg)

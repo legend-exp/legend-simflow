@@ -73,6 +73,12 @@ exotic_physics_hpge:
   primaries_per_job: 10_000
   number_of_jobs: 4
 
+muon_physics:
+  template: $_/template.mac
+  generator: ~vertices:musun_hall_c
+  primaries_per_job: 10_000
+  number_of_jobs: 4
+
 lar_inside:
   template: $_/template.mac
   generator: ~defines:K42

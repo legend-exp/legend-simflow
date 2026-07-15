@@ -96,7 +96,21 @@ def test_make_macro(config):
         ),
     ]
     assert set(confine).issubset(text.split("\n"))
+    assert "/RMG/Generator/FromFile/IncludePosition" not in text
     assert "/RMG/Generator/Confine Volume" in text
+
+    # `~vertices:` generator whose product is kinematics_and_positions:
+    # remage reads kinematics AND positions from the vtx/kin table
+    # (IncludePosition true), no confinement needed
+    text, fmac = commands.make_remage_macro(config, "muon_physics", "stp")
+    generator = [
+        "/RMG/Generator/Select FromFile",
+        "/RMG/Generator/FromFile/IncludePosition true",
+        "/RMG/Generator/FromFile/FileName "
+        + str(patterns.vtx_filename_for_stp(config, "muon_physics", jobid="{JOBID}")),
+    ]
+    assert set(generator).issubset(text.split("\n"))
+    assert "/RMG/Generator/Confine" not in text
 
 
 def test_make_macro_errors_1(fresh_config):
@@ -163,15 +177,40 @@ def test_make_macro_errors_vertices(fresh_config):
         commands.make_remage_macro(config, "exotic_physics_process", "stp")
 
 
-def test_make_macro_errors_vertices_no_positions(fresh_config, write_vtx_kin):
+def test_make_macro_errors_product(fresh_config):
     config = fresh_config
+    vtx = fresh_config.metadata.simprod.config.tier.vtx.legend.simconfig
 
-    # a `~vertices:` generator whose vtx/kin table carries no positions and
-    # which has no confinement to supply them cannot determine the primary
-    # positions and must fail fast
-    write_vtx_kin(config, "exotic_physics_process", with_positions=False)
+    # a kinematics-only generator with no confinement to supply positions
+    # (exotic_process is declared `kinematics`) must fail fast
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+    # a positions-only generator cannot be used as a generator (no kinematics)
+    vtx["exotic_process"]["product"] = "positions"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+    # a kinematics generator cannot be used as a confinement (no vtx/pos)
+    vtx["hpge_surface"]["product"] = "kinematics"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")
+
+    # a kinematics_and_positions generator cannot be used as a confinement
+    # (positions live in vtx/kin, not vtx/pos)
+    vtx["hpge_surface"]["product"] = "kinematics_and_positions"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")
+
+    # unknown product value
+    vtx["exotic_process"]["product"] = "not_a_product_kind"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
+
+    # the mandatory product field is missing
+    del vtx["exotic_process"]["product"]
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
 
 
 def test_remage_cli(fresh_config):
