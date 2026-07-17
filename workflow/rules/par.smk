@@ -470,6 +470,90 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
+# default set of simulation IDs to fit the A/E energy-dependence correction from
+_AOE_CORR_DEFAULT_SIMID_REGEX = "sis*_z*_slot*_Pb212_to_Pb208"
+
+
+def smk_extract_hpge_aoemean_energy_dependence_inputs(wildcards):
+    """Inputs for the per-detector A/E energy-correction fit.
+
+    ``simid_regex`` is resolved here (at DAG-build time) so the dependency edge
+    to the pre-correction hit files actually exists in the graph.
+    """
+    regex = get_par_settings(config, "aoemeanmod").get(
+        "simid_regex", _AOE_CORR_DEFAULT_SIMID_REGEX
+    )
+    return {
+        "hit_files": aggregate.gen_list_of_precorr_hit_outputs_matching(config, regex)
+    }
+
+
+rule extract_hpge_aoemean_energy_dependence:
+    """Fit the A/E energy-dependence correction for one HPGe detector.
+
+    Reads raw (uncorrected) A/E vs. energy from the temporary pre-correction
+    `hit` files (`build_tier_hit_precorr`) for simulation IDs matching
+    `simid_regex` (default ``sis*_z*_slot*_Pb212_to_Pb208``, overridable via the `aoemeanmod` par
+    settings) and fits the energy dependence with `pygama.pargen.AoE_cal.CalAoE`,
+    mirroring the LEGEND-200 data calibration procedure. Only built when the
+    `two_pass_aoe_correction` hit-tier setting is enabled.
+
+    Uses wildcard `hpge_detector`.
+    """
+    message:
+        "Extracting A/E energy-dependence correction for detector {wildcards.hpge_detector}"
+    input:
+        unpack(smk_extract_hpge_aoemean_energy_dependence_inputs),
+    params:
+        # track l200data so the rule reruns when it changes: the data-side
+        # validation fit discovers files dynamically and isn't listed above
+        _l200data=config.paths.get("l200data", None),
+    output:
+        pars_file=temp(patterns.output_aoemeanmod_filename(config)),
+        plot_file=patterns.plot_aoemeanmod_filename(config),
+    log:
+        patterns.log_aoemeanmod_filename(config),
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_aoemean_energy_dependence.py"
+
+
+rule merge_hpge_aoemean_energy_dependence_pars:
+    """Merge the per-detector A/E energy-dependence corrections into one file.
+
+    Collect each detector's `energy_corrections` block into a single
+    detector-keyed YAML matching the schema consumed by the `hit` tier (no
+    `default` entry). Global and run-independent, unlike the currmod/elecmod
+    merges.
+
+    No wildcards are used.
+    """
+    message:
+        "Merging A/E energy-dependence corrections"
+    input:
+        lambda wc: aggregate.gen_list_of_aoemeanmods(
+            config, cache=smk_load_hpge_cache()
+        ),
+    params:
+        # materialize the HPGe list here so the run: block can map file indices
+        # back to detector names
+        hpges=lambda wc: aggregate.gen_list_of_all_modelable_hpges(
+            smk_load_hpge_cache()
+        ),
+    output:
+        patterns.output_aoemeanmod_merged_filename(config),
+    run:
+        import dbetto
+
+        # NOTE: this is guaranteed to be sorted as in the input file list
+        hpges = params.hpges
+
+        out_dict = {}
+        for i, f in enumerate(input):
+            out_dict[hpges[i]] = dbetto.utils.load_dict(f)["energy_corrections"]
+
+        dbetto.utils.write_dict(out_dict, output[0])
+
+
 # whether superpulses are built one file per (run, detector) instead of a single
 # file per detector accumulating all runs; drives both the producer rule below
 # and the consumer `extract_electronics_model_pars`

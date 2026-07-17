@@ -212,6 +212,21 @@ def output_simid_filenames(config: SimflowConfig, n_macros, **kwargs):
     return _expand(pat, jobid=jobids, keep_list=True, **kwargs)
 
 
+def output_simjob_precorr_hit_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to a temporary, pre-correction `hit` output file for a `simid`/`jobid`."""
+    fname = simjob_base_segment(config) + "-tier_hit-precorr.lh5"
+    return _expand(config.paths.tier.hit / "precorr" / fname, **kwargs)
+
+
+def output_simid_precorr_hit_filenames(
+    config: SimflowConfig, n_macros, **kwargs
+) -> list[Path]:
+    """Returns the full path to `n_macros` temp pre-correction hit files for a `simid`."""
+    pat = output_simjob_precorr_hit_filename(config, **kwargs)
+    jobids = expand("{id:>04d}", id=list(range(n_macros)))
+    return _expand(pat, jobid=jobids, keep_list=True, **kwargs)
+
+
 def vtx_filename_for_stp(config: SimflowConfig, simid: str, **kwargs) -> Path | list:
     """Returns the vertices file needed for the 'stp' tier job, if needed.
 
@@ -581,6 +596,36 @@ def output_psdcuts_filename(config: SimflowConfig, **kwargs) -> Path:
         config.paths.pars / "hpge/psdcuts/{runid}-psd-cuts.yaml",
         **kwargs,
     )
+
+
+def output_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the per-detector A/E energy-dependence correction file."""
+    return _expand(
+        config.paths.pars / "hpge/aoemeanmod/{hpge_detector}-model.yaml",
+        **kwargs,
+    )
+
+
+def output_aoemeanmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the single, merged, run-independent A/E energy-dependence correction file."""
+    return _expand(
+        config.paths.pars / "hpge/aoemeanmod/model.yaml",
+        **kwargs,
+    )
+
+
+def plot_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the A/E energy-correction fit validation plot for a detector."""
+    return _expand(
+        config.paths.pars / "hpge/aoemeanmod/plots/{hpge_detector}-fit-result.pdf",
+        **kwargs,
+    )
+
+
+def log_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for A/E energy-correction extraction for a detector."""
+    pat = log_dirname(config) / "hpge/aoemeanmod/{hpge_detector}-model.log"
+    return _expand(pat, **kwargs)
 
 
 # hit tier

@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 RULE_PATTERN = re.compile(r"^\s*rule(?:\s+([A-Za-z0-9_]+))?\s*:")
+USE_RULE_PATTERN = re.compile(
+    r"^\s*use rule\s+([A-Za-z0-9_]+)\s+as\s+([A-Za-z0-9_]+)\s+with\s*:"
+)
 DOCSTRING_STARTS = ('"""', "'''")
 
 
@@ -20,6 +23,7 @@ class RuleDocumentation:
     dynamic_template: str | None
     source_path: Path
     line_number: int
+    derived_from: str | None = None
 
     @property
     def display_name(self) -> str:
@@ -113,6 +117,25 @@ def extract_rules_from_lines(lines: list[str], path: Path) -> list[RuleDocumenta
     idx = 0
     while idx < len(lines):
         line = lines[idx]
+
+        use_match = USE_RULE_PATTERN.match(line)
+        if use_match:
+            # `use rule <base> as <alias> with:`: the derived rule inherits the
+            # base's docstring at runtime, but the source has none here, so just
+            # record it and point back to the base
+            rules.append(
+                RuleDocumentation(
+                    name=use_match.group(2),
+                    docstring=None,
+                    dynamic_template=None,
+                    source_path=path,
+                    line_number=idx + 1,
+                    derived_from=use_match.group(1),
+                )
+            )
+            idx += 1
+            continue
+
         match = RULE_PATTERN.match(line)
         if not match:
             idx += 1
@@ -205,6 +228,16 @@ def generate_markdown(
                 body_lines += [
                     ":::{note}",
                     "This rule is dynamically generated and expands in a series of rules depending on the simflow runtime configuration.",
+                    ":::",
+                ]
+
+            if rule.derived_from:
+                if body_lines:
+                    body_lines.append("")
+                body_lines += [
+                    ":::{note}",
+                    f"Derived from `{rule.derived_from}` via ``use rule ... with:``; "
+                    "see that rule for the shared behavior.",
                     ":::",
                 ]
 
