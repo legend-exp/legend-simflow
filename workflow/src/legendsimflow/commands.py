@@ -23,7 +23,7 @@ from pathlib import Path
 import legenddataflowscripts as lds
 import pyg4ometry
 
-from . import SimflowConfig, nersc, patterns, utils
+from . import SimflowConfig, gamma_cascades, nersc, patterns, utils
 from .exceptions import SimflowConfigError
 from .metadata import get_simconfig
 
@@ -324,8 +324,8 @@ def make_remage_macro(
     Notes
     -----
     - The macro template path is taken from the simconfig `template` field.
-    - Supported substitutions currently include: ``GENERATOR`` and
-      ``CONFINEMENT``.
+    - Supported substitutions currently include: ``GENERATOR``, ``CONFINEMENT``
+      and ``MAURINA_GAMMA_CASCADES`` (see :mod:`legendsimflow.gamma_cascades`).
     - The user can provide arbitrary macro substitutions with the
       optional `macro_substitutions` field.
     - The macro is written to the canonical path returned by
@@ -453,6 +453,10 @@ def make_remage_macro(
             confinement = "\n".join(confinement)
 
         mac_subs["CONFINEMENT"] = confinement
+
+    # register the MAURINA gamma cascades, if requested
+    macro_block = gamma_cascades.maurina_macro_block(config, sim_cfg, block)
+    mac_subs[gamma_cascades.MACRO_VARIABLE] = macro_block
 
     # the user might want to substitute some other variables
     mac_subs |= sim_cfg.get("macro_substitutions", {})

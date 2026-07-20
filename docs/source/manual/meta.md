@@ -155,6 +155,10 @@ Supported fields per `simid`:
   for this `simid`. This configuration block is injected unmodified to the
   geometry tooling (currently
   [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io)).
+- `maurina_gamma_cascades`: Optional boolean (default `false`). If `true`,
+  register the tabulated MAURINA gamma cascades with _remage_. Every isotope
+  directory in the cascade data repository is registered, see
+  {ref}`gamma-cascade-data`.
 
 Example:
 
@@ -236,6 +240,11 @@ variable placeholders that the workflow substitutes:
 
 - `$GENERATOR`: Replaced with the generator block content.
 - `$CONFINEMENT`: Replaced with the confinement block content.
+- `$MAURINA_GAMMA_CASCADES`: Replaced with the commands registering the MAURINA
+  gamma cascades, requested via the {ref}`simconfig.yaml`
+  `maurina_gamma_cascades` field, or with nothing if it is not set. **Must be
+  placed before `/run/initialize`**: the settings are read when _remage_ builds
+  the high-precision hadronic models, which happens at initialization.
 - `{SEED}`: A 32-bit random integer generated per job.
 - `{N_EVENTS}`: The number of events to simulate for the job, taken from
   `primaries_per_job`.
@@ -246,6 +255,10 @@ Example template snippets:
 
 ```
 /RMG/Manager/Randomization/Seed {SEED}
+...
+$MAURINA_GAMMA_CASCADES
+
+/run/initialize
 ...
 $GENERATOR
 $CONFINEMENT

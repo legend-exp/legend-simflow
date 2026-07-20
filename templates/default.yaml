@@ -26,6 +26,7 @@ make_steps:
   - pdf
 
 # legend_metadata_version: main
+# maurina_output_version: main
 
 benchmark:
   enabled: false
@@ -42,6 +43,7 @@ paths:
   config: $_/inputs/simprod/config
   optical_maps:
     lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
+  maurina_gamma_cascades: $_/inputs/generated-maurina-output
 
   pars: $_/generated/pars
   macros: $_/generated/macros
