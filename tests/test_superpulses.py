@@ -4,10 +4,11 @@ import copy
 from pathlib import Path
 
 import awkward as ak
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from lgdo import Array, Scalar, Struct, lh5
+from lgdo import Array, Scalar, Struct
 
 from legendsimflow.superpulses import (
     Slice,

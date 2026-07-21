@@ -116,7 +116,7 @@ legend-simflow = { path = ".", editable = true }
 [tool.pixi.dependencies]
 # legend-simflow core dependencies
 awkward = "*"
-dbetto = ">=1.4"
+dbetto = ">=1.4,<1.5"
 # legend-dataflow-scripts = "..."  # not on conda-forge
 legend-lh5io = ">=0.2,<0.3"
 legend-pydataobj = ">=2,<2.1"
