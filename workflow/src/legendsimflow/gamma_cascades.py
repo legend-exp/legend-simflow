@@ -14,10 +14,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Build the _remage_ macro block registering the MAURINA gamma cascades.
 
-The ``maurina_gamma_cascades`` boolean of the `stp` tier simconfig enables the
+The ``maurina_gamma_cascades`` field of the `stp` tier simconfig enables the
 tabulated MAURINA gamma cascades: they change how the compound nucleus
-de-excites after a neutron capture. Every isotope directory in the cascade data
-repository is registered with _remage_.
+de-excites after a neutron capture. It can be either ``true`` (register all
+isotopes) or a list of ``(Z, A)`` pairs selecting a subset.
 
 The commands must be issued **before** ``/run/initialize``, since they are read
 when ``RMGPhysics::ConstructProcess()`` builds the high-precision hadronic
@@ -42,7 +42,9 @@ MACRO_VARIABLE = "MAURINA_GAMMA_CASCADES"
 
 
 def maurina_macro_commands(
-    config: SimflowConfig, block: str | None = None
+    config: SimflowConfig,
+    block: str | None = None,
+    subset: set[tuple[int, int]] | None = None,
 ) -> list[str]:
     """Return the commands registering all MAURINA gamma cascades.
 
@@ -91,6 +93,10 @@ def maurina_macro_commands(
             )
             raise SimflowConfigError(msg, block) from e
 
+        # ignore isotopes when a subset is defined and the isotope is not contained in it
+        if subset is not None and isotope not in subset:
+            continue
+
         # remage resets previously registered cascades for an isotope, so a
         # second filelist would silently shadow the first
         if isotope in seen:
@@ -119,7 +125,39 @@ def maurina_macro_block(
     Renders :func:`maurina_macro_commands` if the optional
     ``maurina_gamma_cascades`` field of `sim_cfg` is set.
     """
-    if not sim_cfg.get("maurina_gamma_cascades", False):
+    if "maurina_gamma_cascades" not in sim_cfg:
         return ""
 
-    return "\n".join(maurina_macro_commands(config, block))
+    if isinstance(  # test for bool
+        sim_cfg["maurina_gamma_cascades"], bool
+    ):
+        if not sim_cfg.get("maurina_gamma_cascades", False):
+            return ""
+        return "\n".join(maurina_macro_commands(config, block))
+
+    if isinstance(  # test for list
+        sim_cfg["maurina_gamma_cascades"], list
+    ):
+        subset = set()
+        for pair in sim_cfg["maurina_gamma_cascades"]:
+            if (
+                not isinstance(pair, (list, tuple))
+                or len(pair) != 2
+                or not all(isinstance(x, int) for x in pair)
+            ):
+                msg = (
+                    "the 'maurina_gamma_cascades' list must contain pairs of integers (Z, A), "
+                    f"got {pair!r}"
+                )
+                raise SimflowConfigError(msg, block)
+
+            z, a = pair
+            subset.add((z, a))
+        return "\n".join(maurina_macro_commands(config, block, subset=subset))
+
+    # neither bool nor list
+    msg = (
+        "the 'maurina_gamma_cascades' field must be either a boolean or a "
+        f"list of (Z, A) pairs, got {sim_cfg['maurina_gamma_cascades']}"
+    )
+    raise SimflowConfigError(msg, block)

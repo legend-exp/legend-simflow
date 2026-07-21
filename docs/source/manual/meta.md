@@ -155,10 +155,10 @@ Supported fields per `simid`:
   for this `simid`. This configuration block is injected unmodified to the
   geometry tooling (currently
   [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io)).
-- `maurina_gamma_cascades`: Optional boolean (default `false`). If `true`,
-  register the tabulated MAURINA gamma cascades with _remage_. Every isotope
-  directory in the cascade data repository is registered, see
-  {ref}`gamma-cascade-data`.
+- `maurina_gamma_cascades`: Optional boolean (default `false`) or list of tuples
+  `(Z, A)` of isotopes. If boolean and `true`, register all tabulated MAURINA
+  gamma cascades with _remage_. If a list of tuples is provided, only the
+  specified isotopes are registered.
 
 Example:
 

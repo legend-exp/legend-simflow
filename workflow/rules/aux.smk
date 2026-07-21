@@ -96,8 +96,9 @@ rule _init_julia_env:
         "> {log} 2>&1 && touch {output}"
 
 
-# the MAURINA gamma cascade data lives in a separate (currently private, ~1 GB) repository,
-# Only simulations that opt in via the`maurina_gamma_cascades` simconfig field depend on this rule.
+# The MAURINA gamma cascade data lives in a separate (currently private, ~1 GB)
+# repository. Only simulations that opt in via the `maurina_gamma_cascades`
+# simconfig field depend on this rule.
 rule fetch_maurina_gamma_cascades:
     """Make the MAURINA gamma cascade data available on disk.
 

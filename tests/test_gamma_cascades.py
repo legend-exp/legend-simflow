@@ -39,6 +39,18 @@ def test_maurina_macro_commands(cascade_config, cascade_repo):
         f"{cascade_repo / '64' / '155' / 'gd155_ncapture_filelist.txt'}",
     ]
 
+    lines = gamma_cascades.maurina_macro_commands(cascade_config, subset={(32, 76)})
+
+    assert lines[0] == "/RMG/Processes/UseGrabmayrsGammaCascades true"
+    assert lines[-1] == (
+        "/RMG/GrabmayrGammaCascades/SetGammaCascadeRandomStartLocation 1"
+    )
+
+    assert lines[1:-1] == [
+        "/RMG/GrabmayrGammaCascades/SetGammaCascadeFilelist 32 76 "
+        f"{cascade_repo / '32' / '76' / 'ge76_ncapture_filelist.txt'}",
+    ]
+
 
 def test_macro_block_empty_when_unconfigured(cascade_config):
     assert gamma_cascades.maurina_macro_block(cascade_config, {}) == ""
