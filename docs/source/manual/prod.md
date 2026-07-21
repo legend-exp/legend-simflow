@@ -6,7 +6,7 @@ Run a production by using one of the provided site-specific profiles
 (recommended):
 
 ```console
-> pixi run prod --profile <profile-name>
+> pixi run prod <profile-name>
 ```
 
 This is equivalent to calling Snakemake directly:
