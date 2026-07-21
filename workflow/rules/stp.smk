@@ -15,6 +15,8 @@
 
 """Rules to build the `stp` tier."""
 
+from pathlib import Path
+
 from legendsimflow import aggregate, commands, utils, patterns
 from legendsimflow import metadata as mutils
 
@@ -86,6 +88,58 @@ rule build_geom_gdml:
         "legend-pygeom-l200 --verbose --config {input} -- {output} &> {log}"
 
 
+def smk_build_custom_g4ndl_cmd(wildcards, output):
+    """Build the `custom-g4ndl` command line for the `build_custom_g4ndl` rule."""
+    import shlex
+
+    spec = mutils.get_custom_g4ndl_spec(config, wildcards.library)
+    outdir = Path(output[0]).parent
+    cmd = [
+        "custom-g4ndl",
+        "--source",
+        spec["source"],
+        "--output",
+        str(outdir),
+        "--rename",
+        wildcards.library,
+        "--no-tarball",
+        "--force",
+        *spec["args"],
+    ]
+    return shlex.join(cmd)
+
+
+rule build_custom_g4ndl:
+    """Generate a custom G4NDL neutron-data library with `custom-g4ndl-generator`.
+
+    Triggered on demand by `stp` simulations that set the `custom_G4NDL`
+    simconfig field. The generated library directory is what remage points at
+    via the ``G4NEUTRONHPDATA``/``G4PARTICLEHPDATA`` environment variables (see
+    {func}`legendsimflow.commands.remage_run`).
+
+    :::{note}
+    This is a `localrule`: generation downloads the source library (and, for
+    IAEA-translated libraries, a base G4NDL to complete it), so it needs network
+    access.
+    :::
+
+    Uses wildcard `library`.
+    """
+    localrule: True
+    message:
+        "Generating custom G4NDL library {wildcards.library}"
+    params:
+        # NOTE: a change in the resolved generator options is detected by
+        # Snakemake through the embedded command line
+        cmd=smk_build_custom_g4ndl_cmd,
+    output:
+        directory(patterns.custom_g4ndl_dirname(config, "{library}")),
+    log:
+        patterns.log_dirname(config) / "g4ndl" / "{library}.log",
+    shell:
+        "{params.cmd} &> {log}"
+
+
 rule gen_remage_macro:
     """Write the remage macro file for a `stp` tier simulation to disk.
 
@@ -106,16 +160,32 @@ rule gen_remage_macro:
         # `number_of_jobs` and `primaries_per_job`. Bonus: we ignore
         # `geom_config_extra` because that dependency is already tracked by
         # `input.geom`.
+        # `custom_G4NDL` only affects the runtime environment of the remage call
+        #  not the macro content
         _simconfig_hash=lambda wc: mutils.smk_hash_simconfig(
             config,
             wc,
             tier="stp",
-            ignore=["geom_config_extra", "number_of_jobs", "primaries_per_job"],
+            ignore=[
+                "geom_config_extra",
+                "number_of_jobs",
+                "primaries_per_job",
+                "custom_G4NDL",
+            ],
         ),
     output:
         patterns.input_simjob_filename(config, tier="stp"),
     run:
         commands.make_remage_macro(config, wildcards.simid, tier="stp", geom=input.geom)
+
+
+def smk_custom_g4ndl_dep(wildcards):
+    """Return the custom G4NDL library dir a `stp` simid depends on, if any."""
+    sim_cfg = mutils.get_simconfig(config, "stp", wildcards.simid)
+    if "custom_G4NDL" in sim_cfg:
+        spec = mutils.resolve_custom_g4ndl_spec(sim_cfg.custom_G4NDL)
+        return patterns.custom_g4ndl_dirname(config, spec["name"])
+    return []
 
 
 def smk_remage_run(wildcards, input, output, threads):
@@ -151,6 +221,8 @@ rule build_tier_stp:
         verfile=lambda wc: patterns.vtx_filename_for_stp(config, wc.simid),
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         macro=rules.gen_remage_macro.output,
+        # only present for simids that opt into a custom G4NDL library
+        g4ndl=smk_custom_g4ndl_dep,
     params:
         # cmd already embeds N_EVENTS=<value> literally (accounting for the
         # benchmark override), so Snakemake detects reruns from both
