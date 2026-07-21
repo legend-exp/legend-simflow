@@ -86,6 +86,14 @@ rule build_geom_gdml:
         "legend-pygeom-l200 --verbose --config {input} -- {output} &> {log}"
 
 
+def smk_maurina_gamma_cascades(wildcards):
+    """Depend on the MAURINA cascade data only for `simid`s that opted in."""
+    sim_cfg = mutils.get_simconfig(config, "stp", simid=wildcards.simid)
+    if not sim_cfg.get("maurina_gamma_cascades", False):
+        return []
+    return rules.fetch_maurina_gamma_cascades.output
+
+
 rule gen_remage_macro:
     """Write the remage macro file for a `stp` tier simulation to disk.
 
@@ -99,6 +107,8 @@ rule gen_remage_macro:
         "Generating remage macro for stp.{wildcards.simid}"
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
+        # only simulations that opted in need the cascade data on disk
+        cascades=smk_maurina_gamma_cascades,
     params:
         # make this rule dependent on the actual simconfig block it is very
         # important here to ignore the simconfig fields that, if updated,
