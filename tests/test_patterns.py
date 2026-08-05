@@ -60,6 +60,11 @@ def test_plots_dirname(config):
 
 
 def test_geom_filenames(config):
+    result = p.geom_template_config_filename(config)
+    assert isinstance(result, Path)
+    assert result.name == config.experiment + "-geom-config.yaml"
+    assert result.parent == Path(config.paths.config) / "geom"
+
     result = p.geom_config_filename(config)
     assert isinstance(result, Path)
     assert config.experiment in str(result)
