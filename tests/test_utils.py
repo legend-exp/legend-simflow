@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import shutil
+import tarfile
 import tempfile
 from pathlib import Path
 
@@ -8,11 +10,14 @@ import dbetto
 import lh5
 import numpy as np
 import pytest
+import yaml
 from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from lgdo import Array, Table
 
 from legendsimflow import hpge_pars, utils
+from legendsimflow import metadata as mutils
+from legendsimflow.exceptions import SimflowConfigError
 
 _REPO_TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
 
@@ -176,6 +181,213 @@ def test_init_simflow_context_loads_from_path(tmp_path, legend_testdata):
     assert config.paths.geom == pars_path / "geom"
     assert config.paths.dtmaps == pars_path / "hpge/dtmaps"
     assert config._proctime
+
+
+_GENERATED_START_KEY = "20000102T000000Z"
+_GENERATED_CONFIG_FILE = "l1000-p01-r%-T%-all-config.yaml"
+
+
+def _generated_metadata_tree():
+    """The smallest tree that reads back as a real `legend-metadata` database.
+
+    Mirrors the layout `legend-pygeom-l1000 --write-metadata` produces: one
+    channel map, one statuses file, one diode and its crystal, with a channel
+    split over the three files the way
+    :meth:`~legendmeta.legendmetadata.LegendMetadata.channelmap` merges them
+    back together. Holds one ged and one sipm, since the two take different
+    branches of that merge.
+    """
+    validity = [{"valid_from": "20000101T000000Z", "apply": [_GENERATED_CONFIG_FILE]}]
+
+    return {
+        "datasets/runinfo.yaml": {
+            "p01": {
+                "r000": {
+                    "cal": {"start_key": "20000101T000000Z"},
+                    "phy": {
+                        "start_key": _GENERATED_START_KEY,
+                        "livetime_in_s": 315576000.0,
+                    },
+                }
+            }
+        },
+        "datasets/runlists.yaml": {"valid": {"phy": {"p01": ["r000..r000"]}}},
+        "datasets/statuses/validity.yaml": validity,
+        f"datasets/statuses/{_GENERATED_CONFIG_FILE}": {
+            "V00101A": {
+                "usability": "on",
+                "processable": True,
+                "psd": {"status": {"low_aoe": "valid"}},
+            },
+            "S0101T": {"usability": "on", "processable": True},
+        },
+        "hardware/configuration/channelmaps/validity.yaml": validity,
+        f"hardware/configuration/channelmaps/{_GENERATED_CONFIG_FILE}": {
+            "V00101A": {
+                "name": "V00101A",
+                "system": "geds",
+                "location": {"string": 1, "position": 1},
+                "daq": {"rawid": 101},
+            },
+            "S0101T": {
+                "name": "S0101T",
+                "system": "spms",
+                "location": {"fiber": "S01", "position": "top"},
+                "daq": {"rawid": 1001},
+            },
+        },
+        "hardware/detectors/germanium/diodes/V00101A.yaml": {
+            "name": "V00101A",
+            "type": "icpc",
+            "production": {"order": 1, "crystal": "1", "slice": "A"},
+            "characterization": {
+                "l200_site": {"depletion_voltage_in_V": 3026},
+                "combined_0vbb_analysis": {"fccd_in_mm": {"value": 1.0}},
+            },
+        },
+        "hardware/detectors/germanium/crystals/V011.yaml": {
+            "name": "1",
+            "impurity_curve": {
+                "model": "parabolic_exponential_boule",
+                "parameters": {"a": 5.0, "b": 0.047},
+            },
+            "slices": {"A": {"status": "valid"}},
+        },
+        "special_metadata.yaml": {"detail": {}},
+    }
+
+
+def _make_metadata_archive(path, extra=None):
+    """Write a rootless generated-metadata archive at `path`."""
+    tree = _generated_metadata_tree() | (extra or {})
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(path, "w:gz") as tar:
+        for name, contents in tree.items():
+            data = yaml.safe_dump(contents).encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+
+
+def _make_generated_prod(tmp_path, experiment="l1000dsg01", with_metadata=True):
+    """Lay out a production directory running on generated metadata."""
+    geom_dir = tmp_path / "inputs/simprod/config/geom"
+    geom_dir.mkdir(parents=True)
+
+    archive = geom_dir / f"{experiment}-geom-metadata.tar.gz"
+    _make_metadata_archive(archive)
+
+    geom_config = {"executable": "legend-pygeom-l1000"}
+    if with_metadata:
+        geom_config["metadata"] = archive.name
+
+    dbetto.utils.write_dict(
+        geom_config, str(geom_dir / f"{experiment}-geom-config.yaml")
+    )
+
+    return AttrsDict(
+        {
+            "experiment": experiment,
+            "paths": {
+                "metadata": tmp_path / "inputs",
+                "config": tmp_path / "inputs/simprod/config",
+            },
+        }
+    )
+
+
+def test_bootstrap_generated_metadata(tmp_path):
+    config = _make_generated_prod(tmp_path)
+
+    utils.bootstrap_generated_metadata(config)
+
+    metadata = config.paths.metadata
+    assert (metadata / "datasets/runinfo.yaml").is_file()
+    assert (metadata / "special_metadata.yaml").is_file()
+    assert (metadata / utils.GENERATED_METADATA_STAMP).is_file()
+
+    assert any(metadata.iterdir())
+
+
+def test_bootstrap_generated_metadata_is_idempotent(tmp_path):
+    """A second call must not touch the files: they are Snakemake rule inputs."""
+    config = _make_generated_prod(tmp_path)
+
+    utils.bootstrap_generated_metadata(config)
+    runinfo = config.paths.metadata / "datasets/runinfo.yaml"
+    mtime = runinfo.stat().st_mtime_ns
+
+    utils.bootstrap_generated_metadata(config)
+    assert runinfo.stat().st_mtime_ns == mtime
+
+
+def test_bootstrap_generated_metadata_reextracts_on_change(tmp_path):
+    config = _make_generated_prod(tmp_path)
+    utils.bootstrap_generated_metadata(config)
+
+    archive = config.paths.config / "geom/l1000dsg01-geom-metadata.tar.gz"
+    _make_metadata_archive(archive, extra={"datasets/extra.yaml": {"marker": True}})
+
+    utils.bootstrap_generated_metadata(config)
+    assert (config.paths.metadata / "datasets/extra.yaml").is_file()
+
+
+def test_bootstrap_generated_metadata_refuses_git_tree(tmp_path):
+    config = _make_generated_prod(tmp_path)
+    (config.paths.metadata / ".gitmodules").touch()
+
+    with pytest.raises(SimflowConfigError, match="legend-metadata clone"):
+        utils.bootstrap_generated_metadata(config)
+
+
+def test_bootstrap_generated_metadata_without_metadata_field(tmp_path):
+    config = _make_generated_prod(tmp_path, with_metadata=False)
+
+    with pytest.raises(SimflowConfigError, match="no 'metadata' field"):
+        utils.bootstrap_generated_metadata(config)
+
+
+def test_unpack_metadata_archive_missing(tmp_path):
+    with pytest.raises(SimflowConfigError, match="not found"):
+        utils.unpack_metadata_archive(tmp_path / "nope.tar.gz", tmp_path / "out")
+
+
+def test_legendmetadata_reads_the_unpacked_tree(tmp_path):
+    """The unpacked archive must read back like a real legend-metadata clone.
+
+    Covers everything the DAG reads unguarded from the generated tree, so that a
+    change in the archive layout fails here and not deep inside a rule.
+    """
+    config = _make_generated_prod(tmp_path)
+    utils.bootstrap_generated_metadata(config)
+
+    metadata = LegendMetadata(config.paths.metadata)
+
+    runid = "l1000-p01-r000-phy"
+    rinfo = mutils.runinfo(metadata, runid)
+    assert rinfo.start_key == _GENERATED_START_KEY
+    assert rinfo.livetime_in_s > 0
+
+    assert mutils.query_runlist_db(metadata, "valid.phy.p01", "l1000") == [runid]
+
+    chmap = metadata.channelmap(rinfo.start_key, skip_version_check=True)
+    assert set(chmap.group("system").keys()) == {"geds", "spms"}
+
+    det = chmap.V00101A
+    assert det.analysis.usability == "on"
+    assert det.analysis.psd.status.low_aoe == "valid"
+    assert det.daq.rawid == 101
+    assert det.location.string == 1
+    assert det.type == "icpc"
+    assert det.characterization.l200_site.depletion_voltage_in_V == 3026
+    assert mutils.get_sanitized_fccd(metadata, "V00101A") == 1.0
+
+    crystal_name = mutils.get_crystal_name(det)
+    crystals = metadata.hardware.detectors.germanium.crystals
+    assert crystal_name in crystals
+    assert crystals[crystal_name].impurity_curve.parameters.a == 5.0
+    assert crystals[crystal_name].slices[det.production.slice].status == "valid"
 
 
 def test_hash_dict():

@@ -13,6 +13,8 @@ folder name (e.g. `path/to/productions/v1.0.0`).
 Before a simulation production can be run, the user must configure the run with
 a dedicated file and install the required software dependencies.
 
+(simflow-config)=
+
 ## The configuration file
 
 The `simflow-config.yaml` file resides in the production directory (the root of
@@ -49,7 +51,13 @@ Here's a basic description of its fields:
 
 - `legend_metadata_version`: optionally specify a revision (anything that
   `git checkout` accepts) for the _legend-metadata_ instance used by the
-  simflow. If you are _developing_ metadata, comment this option.
+  simflow. If you are _developing_ metadata, comment this option. The simflow
+  ignores this option when you set `generated_metadata`.
+- `generated_metadata`: boolean flag, `false` by default. Other experiments
+  require a generated _legend-metadata_ like database. LEGEND-1000 is one of
+  them (see {ref}`meta-generated`). Set this flag for such an experiment. The
+  simflow then fills `paths.metadata` from a pre-generated tarball and never
+  clones _legend-metadata_.
 - `benchmark`: section used to configure a benchmarking run:
   - `enabled`: boolean flag to enable/disable the feature
   - `n_primaries`: number of primary events to be simulated in the lower tiers
@@ -61,12 +69,17 @@ Here's a basic description of its fields:
     parameters (e.g. energy resolution)
   - `benchmarks` (output): Snakemake rule benchmark files
   - `log` (output): Snakemake rule log files
-  - `metadata` (input): Simflow input metadata. This is a clone of the
+  - `metadata` (input): simflow input metadata. This is a clone of the
     [legend-metadata](https://github.com/legend-exp/legend-metadata) repository.
-    If not present at runtime, the Simflow will attempt a fresh clone.
+    If not present at runtime, the simflow will attempt a fresh clone. With
+    `generated_metadata`, this is a plain directory instead. The simflow unpacks
+    the generated metadata archive into it (see {ref}`meta-generated`).
   - `config` (input): clone of
     [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
-    This is distributed as a submodule of legend-metadata.
+    This is distributed as a submodule of legend-metadata. With
+    `generated_metadata` there is no such submodule. The simflow then clones the
+    repository itself, if the directory is missing or empty. This is a
+    prerequesit, since it contains the tarball of the generated metadata.
   - `optical_maps` (dict, input): photoelectron detection probability maps for
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.

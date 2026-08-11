@@ -108,6 +108,55 @@ def test_run_stuff(config):
     )
 
 
+def test_get_simconfig_empty_file():
+    """An empty simconfig.yaml is valid: YAML loads it as None, not as {}.
+
+    The hit tier of an experiment that takes its runlist from ``config.runlist``
+    has nothing to put in the file.
+    """
+    config = AttrsDict(
+        {
+            "experiment": "l1000dsg01",
+            "runlist": ["l1000-p01-r000-phy"],
+            "metadata": {
+                "simprod": {
+                    "config": {"tier": {"hit": {"l1000dsg01": {"simconfig": None}}}}
+                }
+            },
+        }
+    )
+
+    assert metadata.get_simconfig(config, "hit") == {}
+
+    with pytest.raises(SimflowConfigError, match="not found"):
+        metadata.get_simconfig(config, "hit", "some_simid")
+
+    assert metadata.get_runlist(config, "some_simid") == config.runlist
+
+
+def test_experiment_prefix():
+    assert metadata.experiment_prefix("l200cfg09") == "l200"
+    assert metadata.experiment_prefix("l1000dsg01") == "l1000"
+    assert metadata.experiment_prefix("legend") == metadata.DEFAULT_RUNID_PREFIX
+
+
+def test_query_runlist_db_prefix(config):
+    assert metadata.query_runlist_db(config.metadata, "valid.phy.p03", "l1000") == [
+        f"l1000-p03-r00{r}-phy" for r in range(6)
+    ]
+
+
+def test_get_crystal_name(config):
+    diodes = config.metadata.hardware.detectors.germanium.diodes
+    assert metadata.get_crystal_name(diodes.V05261B) == "V05261"
+    assert metadata.get_crystal_name(diodes.B00000A) == "B99000"
+
+    assert (
+        metadata.get_crystal_name(diodes.V05261B)
+        in config.metadata.hardware.detectors.germanium.crystals
+    )
+
+
 def test_is_simid():
     # valid simids
     assert metadata.is_simid("hpge_bulk_Rn222_to_Po214")

@@ -45,6 +45,9 @@ PSD_USABILITY_CODE = {
     "missing": 2,
 }
 
+DEFAULT_RUNID_PREFIX = "l200"
+CRYSTAL_TYPE_IDS = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
+
 
 def get_simconfig(
     config: SimflowConfig,
@@ -76,14 +79,17 @@ def get_simconfig(
 
     block = f"simprod.config.tier.{tier}.{config.experiment}.simconfig"
     try:
+        # an empty simconfig.yaml is a valid configuration (e.g. a hit tier that
+        # takes its runlist from config.runlist), but YAML loads it as None
+        simcfg = _m.tier[tier][config.experiment].simconfig or AttrsDict({})
+
         if simid is None:
             block = f"simprod.config.tier.{tier}.{config.experiment}"
-            simcfg = _m.tier[tier][config.experiment].simconfig
             validate_simconfig_keys(simcfg, block + ".simconfig")
             return simcfg
         if field is None:
-            return _m.tier[tier][config.experiment].simconfig[simid]
-        return _m.tier[tier][config.experiment].simconfig[simid][field]
+            return simcfg[simid]
+        return simcfg[simid][field]
 
     except KeyError as e:
         msg = f"key {e} not found!"
@@ -430,14 +436,40 @@ def validate_simconfig_keys(simconfig: Mapping, block: str | None = None) -> Non
         raise SimflowConfigError(msg, block)
 
 
-def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
+def experiment_prefix(experiment: str) -> str:
+    """Get the runid prefix of an experiment.
+
+    The prefix is the leading letters-then-digits part of the experiment
+    identifier, i.e. the name of the setup itself, stripped of the
+    configuration tag: ``l200cfg09`` and ``l1000dsg01`` give ``l200`` and
+    ``l1000``. Falls back to :data:`DEFAULT_RUNID_PREFIX` for identifiers that
+    do not follow the convention.
+
+    Parameters
+    ----------
+    experiment
+        Experiment identifier (e.g. ``l200cfg09``, ``l1000dsg01``).
+
+    """
+    match = re.match(r"^[A-Za-z]+\d+", experiment)
+    if match is None:
+        msg = f"cannot determine the runid prefix of experiment {experiment}, assuming {DEFAULT_RUNID_PREFIX}"
+        log.warning(msg)
+        return DEFAULT_RUNID_PREFIX
+
+    return match.group(0)
+
+
+def query_runlist_db(
+    metadata: LegendMetadata, query: str, prefix: str = DEFAULT_RUNID_PREFIX
+) -> list[str]:
     """Query the runlist DB stored in legend-datasets.
 
     Run expressions of the form ``r00n..r00m`` are automatically expanded into
     full run lists. If for example ``metadata.datasets.runlists.valid.phy.p02
     == "r000..r002"``:
 
-    >>> query_runlist_db(metadata, "valid.phy.p02")
+    >>> query_runlist_db(metadata, "valid.phy.p02", "l200")
     ["l200-p02-r000-phy", "l200-p02-r001-phy", "l200-p02-r002-phy"]
 
     Parameters
@@ -447,6 +479,8 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
     query
         expression in the form `<tag>.<datatype>.<period>` (see contents of
         ``runlists.yaml`` in legend-datasets.
+    prefix
+        Runid prefix, see :func:`experiment_prefix`.
 
     """
     group, dtype, period = re.split(r"\W+", query)
@@ -462,7 +496,10 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
         if m is not None:
             r1, r2 = m.groups()
             runs.extend(
-                [f"l200-{period}-r{r:03d}-{dtype}" for r in range(int(r1), int(r2) + 1)]
+                [
+                    f"{prefix}-{period}-r{r:03d}-{dtype}"
+                    for r in range(int(r1), int(r2) + 1)
+                ]
             )
         else:
             runs.append(item)
@@ -470,7 +507,11 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
     return sorted(runs)
 
 
-def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> list[str]:
+def expand_runlist(
+    metadata: LegendMetadata,
+    runlist: str | Iterable[str],
+    prefix: str = DEFAULT_RUNID_PREFIX,
+) -> list[str]:
     """Expands a runlist as passed to the Simflow configuration.
 
     A runlist is a list of:
@@ -478,6 +519,16 @@ def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> li
     - runids in the form accepted by :func:`is_runid`;
     - runlist DB queries in the form ``<tag>.<datatype>.<period>`` (see
       :func:`query_runlist_db`).
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata instance.
+    runlist
+        The runlist to expand.
+    prefix
+        Runid prefix, see :func:`experiment_prefix`.
+
     """
     if not isinstance(runlist, list | tuple):
         runlist = [runlist]
@@ -485,7 +536,9 @@ def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> li
     runs = []
     for item in runlist:
         if item.startswith("~runlists:"):
-            runs.extend(query_runlist_db(metadata, item.partition("~runlists:")[2]))
+            runs.extend(
+                query_runlist_db(metadata, item.partition("~runlists:")[2], prefix)
+            )
         else:
             if not is_runid(item):
                 msg = f"{item} is not a valid runid"
@@ -519,7 +572,9 @@ def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
             msg = f"'{key}' key not found and config.runlist fallback undefined"
             raise SimflowConfigError(msg, path) from e
 
-    return expand_runlist(config.metadata, runlist)
+    return expand_runlist(
+        config.metadata, runlist, prefix=experiment_prefix(config.experiment)
+    )
 
 
 # FIXME: this should be removed once the PRL25 data is reprocessed
@@ -546,3 +601,24 @@ def _get_lh5_table(
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"
+
+
+def get_crystal_name(diode_meta: AttrsDict) -> str:
+    """Get the name of the crystal an HPGe detector was cut from.
+
+    Assembled from the detector type and the crystal production information: the
+    detector ``V05261B`` (an ICPC, order 5, crystal 261) was cut from crystal
+    ``V05261``.
+
+    Parameters
+    ----------
+    diode_meta
+        Diode metadata, i.e. an entry of
+        ``hardware.detectors.germanium.diodes``.
+
+    """
+    return (
+        CRYSTAL_TYPE_IDS[diode_meta.type]
+        + format(diode_meta.production.order, "02d")
+        + diode_meta.production.crystal
+    )

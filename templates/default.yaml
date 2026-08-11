@@ -26,6 +26,7 @@ make_steps:
   - pdf
 
 # legend_metadata_version: main
+# generated_metadata: false
 
 benchmark:
   enabled: false

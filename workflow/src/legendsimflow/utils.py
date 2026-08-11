@@ -20,6 +20,7 @@ import inspect
 import json
 import logging
 import os
+import tarfile
 from collections.abc import Sequence
 from datetime import datetime
 from numbers import Real
@@ -34,14 +35,19 @@ import lgdo
 import numpy as np
 import yaml
 from dbetto import AttrsDict, TextDB
+from git import Repo
 from git.exc import GitCommandError
 from legendmeta import LegendMetadata
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import SimflowConfig, nersc
+from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
+
+SIMPROD_CONFIG_URL = "git@github.com:legend-exp/legend-simflow-config"
+GENERATED_METADATA_STAMP = ".generated-metadata"
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
@@ -231,6 +237,143 @@ def link_external_paths(
         default.symlink_to(rel, target_is_directory=True)
 
 
+def clone_simprod_config(
+    path: str | Path, *, logger: logging.Logger | None = None
+) -> None:
+    """Clone :data:`SIMPROD_CONFIG_URL` into `path`, if `path` is missing or empty.
+
+    Parameters
+    ----------
+    path
+        Destination directory, i.e. ``paths.config``.
+    logger
+        Logger to use for status messages (e.g. the Snakemake logger when called
+        from a Snakefile). Defaults to the module logger.
+
+    """
+    log_ = logger if logger is not None else log
+    path = Path(path)
+
+    if path.is_dir() and any(path.iterdir()):
+        return
+
+    msg = f"cloning {SIMPROD_CONFIG_URL} in {path}"
+    log_.info(msg)
+
+    path.mkdir(parents=True, exist_ok=True)
+    Repo.clone_from(SIMPROD_CONFIG_URL, path)
+
+
+def unpack_metadata_archive(
+    archive: str | Path, dest: str | Path, *, logger: logging.Logger | None = None
+) -> None:
+    """Unpack a generated metadata archive into `dest`.
+
+    LegendMetadata` reads them like a real
+    metadata checkout. The digest of the unpacked archive is recorded in
+    :data:`GENERATED_METADATA_STAMP` and the extraction is skipped when it is
+    unchanged.
+
+    Parameters
+    ----------
+    archive
+        Path to the ``.tar.gz`` archive.
+    dest
+        Destination directory, i.e. ``paths.metadata``.
+    logger
+        Logger to use for status messages (e.g. the Snakemake logger when called
+        from a Snakefile). Defaults to the module logger.
+
+    """
+    log_ = logger if logger is not None else log
+    archive = Path(archive)
+    dest = Path(dest)
+
+    if not archive.is_file():
+        msg = f"generated metadata archive {archive} not found"
+        raise SimflowConfigError(msg, "paths.config")
+
+    for marker in (".git", ".gitmodules"):
+        if (dest / marker).exists():
+            msg = (
+                f"refusing to unpack {archive.name} into {dest}: it contains "
+                f"'{marker}' and looks like a real legend-metadata clone. Point "
+                "paths.metadata at a directory dedicated to this production"
+            )
+            raise SimflowConfigError(msg, "paths.metadata")
+
+    with archive.open("rb") as f:
+        checksum = hashlib.file_digest(f, "sha256").hexdigest()
+
+    stamp = dest / GENERATED_METADATA_STAMP
+
+    if stamp.is_file() and stamp.read_text().strip() == checksum:
+        msg = f"{archive.name} already unpacked in {dest}"
+        log_.debug(msg)
+        return
+
+    msg = f"unpacking generated metadata archive {archive} in {dest}"
+    log_.info(msg)
+
+    dest.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive, "r:*") as tar:
+        tar.extractall(dest, filter="data")
+
+    stamp.write_text(checksum + "\n")
+
+
+def bootstrap_generated_metadata(
+    config: SimflowConfig, *, logger: logging.Logger | None = None
+) -> None:
+    """Make ``paths.metadata`` hold the generated metadata of the experiment.
+
+    LEGEND-1000 has no `legend-metadata` database: `legend-pygeom-l1000`
+    generates a stand-in one from the geometry and ships it as an archive
+    committed next to the geometry configuration file, which points at it
+    through its ``metadata`` field. This function clones
+    `legend-simflow-config` (:func:`clone_simprod_config`), reads that field and
+    unpacks the archive (:func:`unpack_metadata_archive`), so that the metadata
+    is in place before :class:`~legendmeta.legendmetadata.LegendMetadata` is
+    constructed.
+
+    Enabled by the ``generated_metadata`` Simflow configuration field.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object, before the metadata is attached to it.
+    logger
+        Logger to use for status messages (e.g. the Snakemake logger when called
+        from a Snakefile). Defaults to the module logger.
+
+    """
+    log_ = logger if logger is not None else log
+
+    from . import patterns  # noqa: PLC0415
+
+    clone_simprod_config(config.paths.config, logger=log_)
+
+    geom_config_file = patterns.geom_template_config_filename(config)
+    if not geom_config_file.is_file():
+        msg = f"geometry configuration file {geom_config_file} not found"
+        raise SimflowConfigError(msg, "paths.config")
+
+    geom_config = dbetto.utils.load_dict(geom_config_file)
+    if "metadata" not in geom_config:
+        msg = (
+            f"{geom_config_file} has no 'metadata' field, so the geometry of "
+            f"experiment {config.experiment} is not described by a generated "
+            "metadata archive. Unset 'generated_metadata'"
+        )
+        raise SimflowConfigError(msg, "generated_metadata")
+
+    archive = Path(geom_config["metadata"])
+    if not archive.is_absolute():
+        archive = geom_config_file.parent / archive
+
+    unpack_metadata_archive(archive, config.paths.metadata, logger=log_)
+
+
 def init_simflow_context(
     raw_config: dict | AttrsDict | str | Path,
     workflow=None,
@@ -313,18 +456,28 @@ def init_simflow_context(
         if "l200data" in config.paths:
             config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)
 
+        generated_metadata = config.get("generated_metadata", False)
+        if generated_metadata:
+            bootstrap_generated_metadata(config, logger=log_)
+
         # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
         metadata = LegendMetadata(config.paths.metadata, lazy=True)
 
         if "legend_metadata_version" in config:
-            log_.info(
-                "checking out legend-metadata version %s",
-                config.legend_metadata_version,
-            )
-            try:
-                metadata.checkout(config.legend_metadata_version)
-            except GitCommandError as e:
-                log_.warning("could not checkout legend-metadata version: %s", e)
+            if generated_metadata:
+                log_.warning(
+                    "ignoring legend_metadata_version: the generated metadata "
+                    "is not a Git repository"
+                )
+            else:
+                msg = f"checking out legend-metadata version {config.legend_metadata_version}"
+                log_.info(msg)
+
+                try:
+                    metadata.checkout(config.legend_metadata_version)
+                except GitCommandError as e:
+                    msg = f"could not checkout legend-metadata version: {e}"
+                    log_.warning(msg)
 
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB

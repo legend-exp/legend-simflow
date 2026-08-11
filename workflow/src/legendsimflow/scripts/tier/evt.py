@@ -31,6 +31,7 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import nersc, spms_pars, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
     encode_psd_usability,
     encode_usability,
@@ -139,6 +140,9 @@ def main() -> None:
     tier_evt_settings = get_tier_settings(config, "evt")
     geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
     spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
+    # the LEGEND-200 LAr veto definition, kept as the default
+    lar_veto_multiplicity_thr = tier_evt_settings.get("lar_veto_multiplicity_thr", 4)
+    lar_veto_energy_sum_pe_thr = tier_evt_settings.get("lar_veto_energy_sum_pe_thr", 4)
     buffer_len = tier_evt_settings.buffer_len
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
@@ -166,13 +170,27 @@ def main() -> None:
                 lh5.write(chunk, "tcm", str(evt_file), wo_mode=wo)
                 wo = "append"
         else:
+            scintillator_volume_name = get_tier_settings(
+                config, "opt"
+            ).scintillator_volume_name
+
+            stp_uids = reboost_utils.get_remage_detector_uids(stp_file)
             scintillator_uid = next(
-                uid
-                for uid, name in reboost_utils.get_remage_detector_uids(
-                    stp_file
-                ).items()
-                if name == "liquid_argon"
+                (
+                    uid
+                    for uid, name in stp_uids.items()
+                    if name == scintillator_volume_name
+                ),
+                None,
             )
+            if scintillator_uid is None:
+                msg = (
+                    f"scintillator volume {scintillator_volume_name} not found in "
+                    f"{stp_file}. tables in the file: {sorted(stp_uids.values())}"
+                )
+                raise SimflowConfigError(
+                    msg, f"simprod.config.tier.opt.{config.experiment}.settings"
+                )
 
             merge_stp_n_opt_tcms_to_lh5(
                 stp_file,
@@ -646,7 +664,9 @@ def main() -> None:
 
             # is there a signal in the LAr instrumentation?
             if not skip_opt:
-                lar_veto = (spms_multiplicity >= 4) | (energy_sum >= 4)
+                lar_veto = (spms_multiplicity >= lar_veto_multiplicity_thr) | (
+                    energy_sum >= lar_veto_energy_sum_pe_thr
+                )
                 out_table.add_field("coincident/spms", Array(lar_veto))
 
             # now write down

@@ -77,6 +77,41 @@ DEFAULT_VIS_SCENE_L1000: dict = {
 }
 
 
+GEOM_CONFIG_PATH_FIELDS = ("metadata", "raw_config", "channelmap", "special_metadata")
+
+
+def resolve_geom_config_paths(geom_config: Mapping, source: str | Path) -> dict:
+    """Resolve the filesystem paths of a geometry configuration file.
+
+    Substitutes ``$_`` with the directory of `source` and makes the remaining relative paths in
+    :data:`GEOM_CONFIG_PATH_FIELDS` absolute with respect to it.
+
+    Needed because the per-`simid` geometry configuration file is written to
+    ``paths.geom``, a different directory than the experiment template it is
+    copied from, while the geometry generators resolve relative paths against
+    their own working directory.
+
+    Parameters
+    ----------
+    geom_config
+        Contents of the template geometry configuration file.
+    source
+        Path of the file `geom_config` was read from.
+
+    """
+    root = Path(source).parent.resolve()
+
+    resolved = dict(geom_config)
+    dbetto.Props.subst_vars(resolved, var_values={"_": str(root)})
+
+    for field in GEOM_CONFIG_PATH_FIELDS:
+        value = resolved.get(field)
+        if isinstance(value, str) and not Path(value).is_absolute():
+            resolved[field] = str(root / value)
+
+    return resolved
+
+
 def geom_executable(config: SimflowConfig) -> str:
     """Return the geometry generator command to run for the current experiment.
 

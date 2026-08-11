@@ -35,7 +35,9 @@ rule gen_geom_config:
 
     Start from the template/default geometry configuration file and eventually
     add extra configuration options in case requested in `simconfig.yaml`
-    through the `geom_config_extra` field.
+    through the `geom_config_extra` field. Filesystem paths are resolved with
+    {func}`legendsimflow.geometry.resolve_geom_config_paths`, since the written
+    file does not live next to the template it is copied from.
 
     Uses wildcards `tier` and `simid`.
     """
@@ -52,7 +54,6 @@ rule gen_geom_config:
         patterns.geom_config_filename(config),
     run:
         from dbetto import utils as dbetto_utils
-        from legendsimflow import utils
 
         gconfig = dbetto_utils.load_dict(input[0])
         sconfig = mutils.get_simconfig(
@@ -61,6 +62,8 @@ rule gen_geom_config:
 
         if "geom_config_extra" in sconfig:
             gconfig |= sconfig.geom_config_extra.to_dict()
+
+        gconfig = geometry.resolve_geom_config_paths(gconfig, input[0])
 
         dbetto_utils.write_dict(gconfig, output[0])
 

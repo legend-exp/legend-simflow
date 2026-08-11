@@ -28,6 +28,7 @@ from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
     encode_psd_usability,
+    get_crystal_name,
     get_par_settings,
     get_runlist,
     get_simconfig,
@@ -191,12 +192,7 @@ def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
 
 def crystal_meta(config: SimflowConfig, diode_meta: AttrsDict) -> AttrsDict:
     """Get the crystal metadata starting from the diode metadata."""
-    ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
-    crystal_name = (
-        ids[diode_meta.type]
-        + format(diode_meta.production.order, "02d")
-        + diode_meta.production.crystal
-    )
+    crystal_name = get_crystal_name(diode_meta)
     crystal_db = config.metadata.hardware.detectors.germanium.crystals
     if crystal_name in crystal_db:
         return crystal_db[crystal_name]
@@ -494,16 +490,28 @@ def gen_list_of_all_runids(config) -> set[str]:
 def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
     """Get the operational voltage for an HPGe in a given run.
 
+    Read from ``simprod/config/pars/{experiment}/geds/opv/``. A ``default``
+    entry, if present, applies to every detector without one of its own; this
+    spares experiments operating all detectors at the same voltage (e.g.
+    LEGEND-1000) from listing hundreds of identical entries.
+
+    Raises ``KeyError`` if neither the detector nor a ``default`` entry is
+    found. Callers use this to detect detectors that are not biased (e.g. off
+    ones), so do not turn it into a silent fallback.
+
     Returns the voltage as an integer.
     """
-    try:
-        opv = simpars(config.metadata, "geds.opv", runid, config.experiment)[
-            hpge
-        ].operational_voltage_in_V
-    except KeyError as e:
-        msg = f"operational voltage for hpge {hpge} not found in run {runid}"
-        raise KeyError(msg) from e
-    return int(opv)
+    opv = simpars(config.metadata, "geds.opv", runid, config.experiment)
+
+    entry = opv.get(hpge, opv.get("default"))
+    if entry is None:
+        msg = (
+            f"operational voltage for hpge {hpge} not found in run {runid} "
+            "(and no 'default' entry)"
+        )
+        raise KeyError(msg)
+
+    return int(entry.operational_voltage_in_V)
 
 
 def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str | None:

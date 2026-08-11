@@ -2,6 +2,7 @@
 *.swo
 workflow/src/legendsimflow/_version.py
 .snakemake
+/tmp
 /inputs
 /simflow-config.yaml
 /generated

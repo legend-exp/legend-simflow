@@ -18,7 +18,7 @@
 from pathlib import Path
 
 from legendsimflow import aggregate, hpge_pars, patterns
-from legendsimflow.metadata import get_par_settings
+from legendsimflow.metadata import get_crystal_name, get_par_settings
 
 
 rule gen_all_tier_par:
@@ -77,10 +77,7 @@ rule make_simstat_partition_file:
 def smk_hpge_psd_simulation_inputs(wildcards):
     """Prepare inputs for the HPGe PSD simulation (SSD) rules."""
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
-    ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
-    crystal_name = (
-        ids[meta.type] + format(meta.production.order, "02d") + meta.production.crystal
-    )
+    crystal_name = get_crystal_name(meta)
 
     _m = Path(config.paths.metadata)
 

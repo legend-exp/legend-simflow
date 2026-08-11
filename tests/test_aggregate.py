@@ -256,13 +256,26 @@ def test_par_plots_psd_gate(fresh_config):
     assert agg.gen_list_of_plots_outputs(config, "par", simid) == []
 
 
-def test_hpge_voltage_functions(config):
+def test_hpge_voltage_functions(config, monkeypatch):
     runid = "l200-p02-r000-phy"
 
     # test get_hpge_voltage
     voltage = agg.get_hpge_voltage(config, "V99000A", runid)
     assert voltage == 4200
     assert isinstance(voltage, int)
+
+    with pytest.raises(KeyError):
+        agg.get_hpge_voltage(config, "V00000A", runid)
+
+    opv = AttrsDict(
+        {
+            "default": {"operational_voltage_in_V": 3500.0},
+            "V99000A": {"operational_voltage_in_V": 4200.0},
+        }
+    )
+    monkeypatch.setattr(agg_mod, "simpars", lambda *_args, **_kwargs: opv)
+    assert agg.get_hpge_voltage(config, "V00000A", runid) == 3500
+    assert agg.get_hpge_voltage(config, "V99000A", runid) == 4200
 
 
 def test_currmod_stuff(config):
