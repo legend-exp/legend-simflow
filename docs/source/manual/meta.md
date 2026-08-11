@@ -44,51 +44,78 @@ In this section, the specification of the metadata format is documented.
 
 An experiment that does not exist yet requires a generated database in the style
 of the [legend-metadata](https://github.com/legend-exp/legend-metadata)
-database. For LEGEND-1000, `legend-pygeom-l1000` therefore compiles the geometry
-configuration into a stand-in metadata tree. The generator writes it as one
-archive:
-
-```console
-> legend-pygeom-l1000 --config geom-config.yaml --write-metadata l1000dsg01-geom-metadata.tar.gz
-```
-
-The archive lives in
-[legend-simflow-config](https://github.com/legend-exp/legend-simflow-config),
-next to the geometry configuration file of the experiment. That file points at
-the archive:
-
-```{code-block} yaml
-:caption: simprod/config/geom/l1000dsg01-geom-config.yaml
-
-executable: legend-pygeom-l1000
-metadata: l1000dsg01-geom-metadata.tar.gz
-```
-
-These two files describe a full production. The archive also carries the
-compiled geometry, and the generator rebuilds the identical geometry from it.
+database. For LEGEND-1000, the simflow builds a stand-in metadata tree from the
+geometry configuration file of the experiment. That file lives in
+[legend-simflow-config](https://github.com/legend-exp/legend-simflow-config) and
+describes the whole production on its own.
 
 Set `generated_metadata` in the simflow configuration file (see
-{ref}`simflow-config`). The simflow then prepares the metadata itself. First it
-clones _legend-simflow-config_ into `paths.config`, if that directory is missing
-or empty. Then it reads the `metadata` field of the geometry configuration file.
-Last it unpacks the archive into `paths.metadata`.
+{ref}`simflow-config`). The simflow then prepares the metadata itself:
+
+1. It clones _legend-simflow-config_ into `paths.config`, if that directory is
+   missing or empty.
+2. It reads `geom/{experiment}-geom-config.yaml`.
+3. It writes the metadata tree into `paths.metadata`.
 
 All of this happens before the simflow builds
 {class}`~legendmeta.legendmetadata.LegendMetadata`. The steps downstream read
 the metadata in the same way as for LEGEND-200.
 
-The archive holds three parts:
+The tree holds three parts:
 
 - `datasets/`: run information, run lists and channel statuses.
 - `hardware/`: channel maps, diodes and crystals.
-- `special_metadata.yaml`: the compiled geometry. Only the generator reads this
-  file.
+- `special_metadata.yaml`: the compiled geometry. Only the geometry generator
+  reads this file.
 
-:::{note}
+### The compiled geometry configuration
 
-The generator sets `usability: "on"` for every channel. There is no
-configuration field to switch a channel off. To change a status, edit the
-generated statuses file and commit the new archive.
+`legend-pygeom-l1000` accepts three ways to describe a geometry: a raw
+configuration, a compiled one, and a generated metadata tree. The simflow
+accepts all three, because it hands the file to the generator unchanged.
+
+A compiled configuration gives the channel map and the spatial layout detector
+by detector. Write one with `--write-config`, then edit it:
+
+```console
+> legend-pygeom-l1000 --config raw-config.yaml --write-config l1000dsg01-geom-config.yaml
+```
+
+The result is plain YAML, and it is itself a valid geometry configuration file.
+Use it to remove one detector, to move one string, or to change one channel
+status. The metadata follows the edit at the next simflow invocation. There is
+no need to run the generator again.
+
+```{code-block} yaml
+:caption: simprod/config/geom/l1000dsg01-geom-config.yaml
+
+executable: legend-pygeom-l1000
+special_metadata: l1000dsg01-special-metadata.yaml
+channelmap:
+  V00101A:
+    name: V00101A
+    system: geds
+    location: { string: 1, position: 1 }
+    daq: { rawid: 101 }
+  # ...
+```
+
+Each of `raw_config`, `channelmap` and `special_metadata` takes a mapping, or a
+path to a file that holds one. A path keeps the geometry configuration file
+short.
+
+### When the simflow builds the tree again
+
+The simflow records a digest of the geometry configuration in
+`paths.metadata/.generated-metadata`. It builds the tree again only when that
+digest changes. The digest covers the geometry configuration file and every file
+it points to, so a hand-edit of `special_metadata.yaml` also counts.
+
+:::{important}
+
+The simflow removes the `datasets/` and `hardware/` directories of
+`paths.metadata` before it writes the tree again. A detector that leaves the
+configuration thus also leaves the metadata.
 
 :::
 

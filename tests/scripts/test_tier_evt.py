@@ -1,47 +1,19 @@
 from __future__ import annotations
 
-import shutil
 import sys
-from pathlib import Path
 
 import lh5
 import numpy as np
 import pytest
-import yaml
 
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.scripts.tier import evt
-
-dummyprod = Path(__file__).parent.parent / "dummyprod"
-
-
-def _config_with_tier_settings(tmp_path, experiment, settings_by_tier):
-    """Write a config pointing at a copy of the dummyprod metadata with edited settings.
-
-    ``settings_by_tier`` maps a tier name to the settings keys to overwrite for
-    *experiment*. Editing a copy keeps the committed metadata untouched.
-    """
-    meta = tmp_path / "inputs"
-    shutil.copytree(dummyprod / "inputs", meta)
-
-    for tier, overlay in settings_by_tier.items():
-        f = meta / "simprod/config/tier" / tier / experiment / "settings.yaml"
-        data = yaml.safe_load(f.read_text())
-        data.update(overlay)
-        f.write_text(yaml.safe_dump(data))
-
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(meta)
-    raw["paths"]["config"] = str(meta / "simprod/config")
-
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
-    return config_path
 
 
 @pytest.mark.needs_remage
 def test_evt_script_cli(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -49,10 +21,7 @@ def test_evt_script_cli(
     legend_simstat_part_path,
     legend_detector_usabilities_path,
 ):
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
+    config_path = l1000_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -195,6 +164,7 @@ def test_evt_script_cli(
 @pytest.mark.needs_remage
 def test_evt_script_cli_skip_opt(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_hit_path,
@@ -202,10 +172,7 @@ def test_evt_script_cli_skip_opt(
     legend_detector_usabilities_path,
 ):
     """--skip-opt: no opt file passed; geds table present, spms table absent."""
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
+    config_path = l1000_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -262,6 +229,7 @@ def test_evt_script_cli_skip_opt(
 @pytest.mark.needs_remage
 def test_evt_script_cli_skip_hit(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -273,10 +241,7 @@ def test_evt_script_cli_skip_hit(
     The trigger fields must be sourced from the opt tier, so trigger/period
     should still be 3 (p03 runs).
     """
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
+    config_path = l1000_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -340,6 +305,7 @@ def test_evt_script_cli_skip_hit(
 @pytest.mark.needs_remage
 def test_evt_script_cli_unknown_scintillator_volume(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -348,8 +314,8 @@ def test_evt_script_cli_unknown_scintillator_volume(
     legend_detector_usabilities_path,
 ):
     """The scintillator volume comes from the opt-tier settings, not from a constant."""
-    config_path = _config_with_tier_settings(
-        tmp_path, "l1000dsg01", {"opt": {"scintillator_volume_name": "not_a_volume"}}
+    config_path = l1000_config_factory(
+        tmp_path, {"opt": {"scintillator_volume_name": "not_a_volume"}}
     )
 
     monkeypatch.setattr(
@@ -391,6 +357,7 @@ def test_evt_script_cli_lar_veto_thresholds(
     thresholds,
     expect_veto,
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -400,9 +367,8 @@ def test_evt_script_cli_lar_veto_thresholds(
 ):
     """The LAr veto thresholds come from the evt-tier settings, not from constants."""
     mult_thr, esum_thr = thresholds
-    config_path = _config_with_tier_settings(
+    config_path = l1000_config_factory(
         tmp_path,
-        "l1000dsg01",
         {
             "evt": {
                 "lar_veto_multiplicity_thr": mult_thr,

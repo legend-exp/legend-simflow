@@ -56,8 +56,8 @@ Here's a basic description of its fields:
 - `generated_metadata`: boolean flag, `false` by default. Other experiments
   require a generated _legend-metadata_ like database. LEGEND-1000 is one of
   them (see {ref}`meta-generated`). Set this flag for such an experiment. The
-  simflow then fills `paths.metadata` from a pre-generated tarball and never
-  clones _legend-metadata_.
+  simflow then builds `paths.metadata` from the geometry configuration file of
+  the experiment and never clones _legend-metadata_.
 - `benchmark`: section used to configure a benchmarking run:
   - `enabled`: boolean flag to enable/disable the feature
   - `n_primaries`: number of primary events to be simulated in the lower tiers
@@ -72,14 +72,16 @@ Here's a basic description of its fields:
   - `metadata` (input): simflow input metadata. This is a clone of the
     [legend-metadata](https://github.com/legend-exp/legend-metadata) repository.
     If not present at runtime, the simflow will attempt a fresh clone. With
-    `generated_metadata`, this is a plain directory instead. The simflow unpacks
-    the generated metadata archive into it (see {ref}`meta-generated`).
+    `generated_metadata`, this is a plain directory instead. The simflow writes
+    the generated metadata into it, and removes the previous one first (see
+    {ref}`meta-generated`). Give this experiment a directory of its own.
   - `config` (input): clone of
     [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
     This is distributed as a submodule of legend-metadata. With
     `generated_metadata` there is no such submodule. The simflow then clones the
     repository itself, if the directory is missing or empty. This is a
-    prerequesit, since it contains the tarball of the generated metadata.
+    prerequisite, since it holds the geometry configuration file that the
+    generated metadata comes from.
   - `optical_maps` (dict, input): photoelectron detection probability maps for
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.
