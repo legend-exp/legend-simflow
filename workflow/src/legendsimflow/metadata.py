@@ -45,7 +45,12 @@ PSD_USABILITY_CODE = {
     "missing": 2,
 }
 
+#: runid prefix assumed for an experiment whose identifier does not carry one.
+#: See :func:`experiment_prefix`.
 DEFAULT_RUNID_PREFIX = "l200"
+
+#: first letter of a detector name, by detector type. See
+#: :func:`get_crystal_name`.
 CRYSTAL_TYPE_IDS = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
 
 

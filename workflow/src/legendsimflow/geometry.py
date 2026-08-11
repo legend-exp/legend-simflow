@@ -77,6 +77,8 @@ DEFAULT_VIS_SCENE_L1000: dict = {
 }
 
 
+#: geometry configuration fields that can hold a filesystem path.
+#: :func:`resolve_geom_config_paths` makes these fields absolute.
 GEOM_CONFIG_PATH_FIELDS = ("metadata", "raw_config", "channelmap", "special_metadata")
 
 

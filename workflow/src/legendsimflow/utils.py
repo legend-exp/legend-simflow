@@ -46,7 +46,13 @@ from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
 
+#: repository cloned into ``paths.config`` by
+#: :func:`bootstrap_generated_metadata`. A standard LEGEND-200 setup instead
+#: gets it as a submodule of `legend-metadata`.
 SIMPROD_CONFIG_URL = "git@github.com:legend-exp/legend-simflow-config"
+
+#: file that records, in ``paths.metadata``, which metadata archive the Simflow
+#: unpacked there. See :func:`unpack_metadata_archive`.
 GENERATED_METADATA_STAMP = ".generated-metadata"
 
 
