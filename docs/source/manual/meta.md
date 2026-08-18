@@ -371,9 +371,25 @@ buffer_len: "10*MB"
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.
-- `optmap_scaling_factor` (float) — factor multiplied to every map value,
-  globally scaling the photoelectron detection probability. Maps produced with
-  SiPM PDE set to 1 should use a value equal to the true SiPM PDE.
+- `optmap_scaling_factor` (float or dict) — factor multiplied to every map
+  value, scaling the photoelectron detection probability. Maps produced with
+  SiPM PDE set to 1 should use a value equal to the true SiPM PDE. A scalar is
+  applied to every channel. A mapping `<sipm name> -> <factor>` applies a
+  per-channel efficiency instead, with a reserved `default` key used for
+  channels absent from it:
+
+  ```{code-block} yaml
+  optmap_scaling_factor:
+    default: 0.3
+    S002: 0.384
+    S003: 0.461
+  ```
+
+  Per-channel values are equivalent to the `sipm_efficiencies` option of
+  [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io), which only
+  takes effect while photons are tracked and so cannot be used with a pre-built
+  optical map.
+
 - `photoelectron_resolution_sigma` (float) — single-photoelectron amplitude
   resolution (σ, relative). Applied as Gaussian smearing to each detected
   photoelectron.
