@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
@@ -44,6 +45,42 @@ from legendsimflow.metadata import get_tier_settings
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.tcm import build_tcm
+
+
+def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> float:
+    """Return the optical-map scaling factor to apply to one SiPM.
+
+    ``optmap_scaling_factor`` is either a scalar applied to every channel, or a
+    mapping ``<sipm name> -> <scaling factor>`` for per-channel photon detection
+    efficiencies. In the latter case channels missing from the mapping fall back
+    to the reserved ``default`` key; without it, a missing channel is an error
+    rather than a silent guess.
+
+    Parameters
+    ----------
+    setting
+        The ``optmap_scaling_factor`` value from the ``opt`` tier settings.
+    sipm
+        Name of the SiPM being processed, or ``"all"`` for the combined map.
+
+    Returns
+    -------
+    float
+    """
+    if not isinstance(setting, Mapping):
+        return float(setting)
+
+    if sipm in setting:
+        return float(setting[sipm])
+
+    if "default" in setting:
+        return float(setting["default"])
+
+    msg = (
+        f"no optmap_scaling_factor entry for {sipm} and no 'default' key in the "
+        "opt tier settings"
+    )
+    raise KeyError(msg)
 
 
 @snakemake_compatible(
@@ -164,7 +201,7 @@ def main() -> None:
                     scint_ph,
                     optmap_lar,
                     sipm,
-                    map_scaling=optmap_scaling_factor,
+                    map_scaling=resolve_map_scaling(optmap_scaling_factor, sipm),
                     max_pes_per_hit=max_pes_per_hit,
                 )
             if max_pes_per_hit > 0:
