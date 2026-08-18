@@ -302,8 +302,6 @@ def main() -> None:
         )
 
         if add_random_coincidences:
-            msg = "looking up forced trigger files for random coincidences"
-            log.debug(msg)
             with perf_block("lookup_l200data_evts_for_rc()"):
                 evt_tier_name = utils.get_evt_tier_name(l200data)
                 # Random coincidences are by default drawn from the run being
@@ -316,6 +314,11 @@ def main() -> None:
                 rc_mode = tier_evt_settings.get(
                     "random_coincidence_mode", "forced_trigger"
                 )
+                msg = (
+                    f"looking up {rc_mode} files for random coincidences "
+                    f"from {rc_runid or runid}"
+                )
+                log.debug(msg)
                 rc_evt_files = sorted(
                     spms_pars.lookup_evt_files(
                         l200data, rc_runid or runid, evt_tier_name
