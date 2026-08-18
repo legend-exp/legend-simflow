@@ -116,6 +116,7 @@ def _next_rc_evt_file(
 
 def build_rc_evt_index_lookup(
     rc_evt_files: Sequence[str | Path],
+    mode: str = "forced_trigger",
 ) -> dict[str, dict[str, np.ndarray]]:
     """Build per-file trigger index lookup for RC extraction.
 
@@ -123,17 +124,36 @@ def build_rc_evt_index_lookup(
     ----------
     rc_evt_files
         Evt-tier files to index.
+    mode
+        ``"forced_trigger"`` selects the forced/pulser and HPGe-triggered events
+        of a physics stream. ``"noise_trigger"`` marks the files as dedicated
+        noise-trigger streams, whose every event is already a random
+        coincidence, so no trigger flags are read.
 
     Returns
     -------
     dict
-        Dictionary keyed by file path (as string) with entries:
+        Dictionary keyed by file path (as string). In ``"forced_trigger"`` mode
+        each entry holds:
 
         - ``forced_pulser``: row indices of forced/pulser, non-muon events
         - ``geds``: row indices of HPGe-triggered, non-muon events
+
+        In ``"noise_trigger"`` mode each entry holds ``noise_trigger: True``.
     """
     lookup: dict[str, dict[str, np.ndarray]] = {}
     for evt_file in rc_evt_files:
+        if mode == "noise_trigger":
+            lookup[str(evt_file)] = {"noise_trigger": True}
+            continue
+        if not has_trigger_flags(evt_file):
+            msg = (
+                f"{evt_file} has no trigger/is_forced field, so forced-trigger "
+                "random coincidences cannot be built from it. If this is a "
+                "dedicated noise-trigger stream, set the evt tier setting "
+                "random_coincidence_mode: noise_trigger."
+            )
+            raise RuntimeError(msg)
         mask_fp, mask_getrg = get_rc_evt_mask(evt_file)
         lookup[str(evt_file)] = {
             "forced_pulser": ak.where(mask_fp)[0].to_numpy(),
@@ -349,6 +369,71 @@ def _process_spms_windows(
     return ak.concatenate(npe_list), ak.concatenate(t0_list)
 
 
+def has_trigger_flags(evt_file: str | Path) -> bool:
+    """Whether `evt_file` carries the flags the forced-trigger selection needs.
+
+    :func:`get_rc_evt_mask` requires ``trigger/is_forced`` and the
+    ``coincident/*`` fields. An experiment without HPGe detectors has neither,
+    in any of its streams.
+
+    Intended for validation only. It must not be used to decide that a file is a
+    noise-trigger stream, since the physics stream of an HPGe-less configuration
+    also lacks these flags. Which stream supplies the random coincidences is an
+    explicit configuration choice, see ``random_coincidence_mode``.
+
+    Parameters
+    ----------
+    evt_file
+        Evt-tier file to inspect.
+    """
+    return "evt/trigger/is_forced" in lh5.ls(str(evt_file), "evt/trigger/*")
+
+
+def get_noise_trigger_library(evt_file: str | Path) -> ak.Array:
+    """Build a random-coincidence library from a noise-trigger file.
+
+    Every event of a dedicated noise-trigger stream is already a random
+    coincidence, so unlike :func:`get_rc_library` there is no trigger selection
+    and no window tiling: the pulses kept by ``is_trig_coin_pulse`` already span
+    the analysis coincidence window used by the data-level observables.
+
+    Pulses are selected exactly as the data-level SiPM observables are, with
+    ``is_trig_coin_pulse & quality/is_physical``. The latter is per *channel*
+    while the former is per *pulse*; awkward broadcasts the channel flag over
+    the pulse axis, so the channel axis keeps a fixed length.
+
+    Parameters
+    ----------
+    evt_file
+        Noise-trigger evt-tier file.
+
+    Returns
+    -------
+    ak.Array
+        Record array with fields ``rawid`` (shape ``(n_events, n_channels)``),
+        ``npe`` and ``t0`` (both ``(n_events, n_channels, n_pe)``), matching the
+        layout returned by :func:`get_rc_library`.
+    """
+    evt = lh5.read(
+        "evt",
+        evt_file,
+        field_mask=[
+            "spms/energy",
+            "spms/t0",
+            "spms/rawid",
+            "spms/is_trig_coin_pulse",
+            "spms/quality/is_physical",
+        ],
+    ).view_as("ak")
+    spms = evt.spms
+
+    mask = spms.is_trig_coin_pulse & spms.quality.is_physical
+
+    return ak.Array(
+        {"rawid": spms.rawid, "npe": spms.energy[mask], "t0": spms.t0[mask]}
+    )
+
+
 def get_rc_evt_mask(evt_file: str | Path) -> tuple[ak.Array, ak.Array]:
     """Compute boolean event masks for random-coincidence extraction.
 
@@ -456,6 +541,10 @@ def get_rc_library(
     perf_block, _, _ = make_profiler()
 
     evt_file_key = str(evt_file)
+    if rc_index_lookup.get(evt_file_key, {}).get("noise_trigger"):
+        with perf_block("noise_trigger_library()"):
+            return get_noise_trigger_library(evt_file)
+
     idx_fp = rc_index_lookup[evt_file_key]["forced_pulser"]
     idx_getrg = rc_index_lookup[evt_file_key]["geds"]
 
