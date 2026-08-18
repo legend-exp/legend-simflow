@@ -141,6 +141,10 @@ def build_rc_evt_index_lookup(
 
         In ``"noise_trigger"`` mode each entry holds ``noise_trigger: True``.
     """
+    if mode not in {"forced_trigger", "noise_trigger"}:
+        msg = f"mode must be 'forced_trigger' or 'noise_trigger', got {mode!r}"
+        raise ValueError(msg)
+
     lookup: dict[str, dict[str, np.ndarray]] = {}
     for evt_file in rc_evt_files:
         if mode == "noise_trigger":

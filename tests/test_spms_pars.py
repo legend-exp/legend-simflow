@@ -299,3 +299,10 @@ def test_get_rc_library_dispatches_to_noise_trigger(tmp_path):
 
     assert set(lib.fields) == {"rawid", "npe", "t0"}
     assert len(lib) == 2
+
+
+def test_build_rc_evt_index_lookup_rejects_unknown_mode(tmp_path):
+    """An unrecognised mode fails loudly instead of silently meaning forced."""
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    with pytest.raises(ValueError, match="mode must be"):
+        spms_pars.build_rc_evt_index_lookup([evt_file], mode="noise")
