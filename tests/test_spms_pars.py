@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import awkward as ak
+import lgdo
+import lh5
 import numpy as np
 import pytest
 
@@ -191,3 +193,109 @@ def test_get_chunk_rc_data_carryover(legend_testdata):
 
     chunk2 = spms_pars.get_chunk_rc_data(rc_evt_files, state, 10, lookup)
     assert len(chunk2) == 10
+
+
+def _write_noise_trigger_evt(path):
+    """Write a minimal noise-trigger evt file.
+
+    Mimics a dedicated noise-trigger stream of an experiment without HPGe
+    detectors: an ``spms`` table and a ``trigger`` table carrying no
+    ``is_forced`` field, and no ``coincident`` group at all.
+
+    Two events, three channels. Each channel holds two pulses, of which the
+    second is outside the trigger-coincidence window. Channel 2 of event 0 is
+    flagged non-physical.
+    """
+    n_evt, n_ch = 2, 3
+
+    energy = ak.Array([[[1.0, 9.0]] * n_ch] * n_evt)
+    t0 = ak.Array([[[100.0, 9000.0]] * n_ch] * n_evt)
+    trig = ak.Array([[[True, False]] * n_ch] * n_evt)
+    rawid = ak.Array([[1, 2, 3]] * n_evt)
+
+    physical = ak.Array([[True, True, False], [True, True, True]])
+
+    table = lgdo.Table(
+        {
+            "spms": lgdo.Table(
+                {
+                    "energy": lgdo.VectorOfVectors(energy),
+                    "t0": lgdo.VectorOfVectors(t0),
+                    "is_trig_coin_pulse": lgdo.VectorOfVectors(trig),
+                    "rawid": lgdo.VectorOfVectors(rawid),
+                    "quality": lgdo.Table(
+                        {"is_physical": lgdo.VectorOfVectors(physical)}
+                    ),
+                }
+            ),
+            "trigger": lgdo.Table(
+                {"timestamp": lgdo.Array(np.zeros(n_evt, dtype=np.float64))}
+            ),
+        }
+    )
+    lh5.write(table, "evt", str(path), wo_mode="overwrite_file")
+    return path
+
+
+def test_has_trigger_flags_true_for_physics_stream(legend_testdata):
+    """A physics stream with HPGe detectors carries trigger/is_forced."""
+    assert spms_pars.has_trigger_flags(legend_testdata[EVT_FILE])
+
+
+def test_has_trigger_flags_false_without_hpge(tmp_path):
+    """A stream of an HPGe-less experiment carries no trigger flags."""
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    assert not spms_pars.has_trigger_flags(evt_file)
+
+
+def test_get_noise_trigger_library_filters_pulses(tmp_path):
+    """Only physical pulses inside the coincidence window are kept."""
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    lib = spms_pars.get_noise_trigger_library(evt_file)
+
+    assert set(lib.fields) == {"rawid", "npe", "t0"}
+    assert len(lib) == 2
+    # the out-of-window pulse (t0 = 9000) is dropped everywhere
+    assert ak.all(ak.flatten(ak.flatten(lib.t0)) == 100.0)
+    # event 0 channel 2 is non-physical, so it keeps no pulse at all
+    assert ak.to_list(ak.num(lib.npe, axis=-1)) == [[1, 1, 0], [1, 1, 1]]
+
+
+def test_get_noise_trigger_library_keeps_channel_axis(tmp_path):
+    """The per-channel is_physical must not be used to index the channel axis.
+
+    ``is_physical`` is per channel (2D) while ``is_trig_coin_pulse`` is per
+    pulse (3D). Indexing the energies with the 2D flag rather than broadcasting
+    it over pulses would drop channels, leaving a channel count that varies per
+    event.
+    """
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    lib = spms_pars.get_noise_trigger_library(evt_file)
+
+    assert ak.to_list(ak.num(lib.rawid, axis=-1)) == [3, 3]
+    assert ak.to_list(ak.num(lib.npe, axis=1)) == [3, 3]
+
+
+def test_build_rc_evt_index_lookup_noise_trigger_mode(tmp_path):
+    """Noise-trigger mode marks files without reading any trigger flag."""
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    lookup = spms_pars.build_rc_evt_index_lookup([evt_file], mode="noise_trigger")
+
+    assert lookup[str(evt_file)] == {"noise_trigger": True}
+
+
+def test_build_rc_evt_index_lookup_forced_trigger_needs_flags(tmp_path):
+    """Forced-trigger mode on a flagless file fails with an actionable error."""
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    with pytest.raises(RuntimeError, match="random_coincidence_mode"):
+        spms_pars.build_rc_evt_index_lookup([evt_file])
+
+
+def test_get_rc_library_dispatches_to_noise_trigger(tmp_path):
+    """get_rc_library routes noise-trigger files to the dedicated builder."""
+    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
+    lookup = spms_pars.build_rc_evt_index_lookup([evt_file], mode="noise_trigger")
+    lib = spms_pars.get_rc_library(evt_file, lookup)
+
+    assert set(lib.fields) == {"rawid", "npe", "t0"}
+    assert len(lib) == 2

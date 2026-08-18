@@ -306,14 +306,28 @@ def main() -> None:
             log.debug(msg)
             with perf_block("lookup_l200data_evts_for_rc()"):
                 evt_tier_name = utils.get_evt_tier_name(l200data)
+                # Random coincidences are by default drawn from the run being
+                # modelled, selecting its forced/pulser triggers. Where a
+                # dedicated noise-trigger stream exists it is a better source,
+                # and it may live under a different runid entirely, so let the
+                # evt tier settings override both the source run and the
+                # selection mode.
+                rc_runid = tier_evt_settings.get("random_coincidence_runid", None)
+                rc_mode = tier_evt_settings.get(
+                    "random_coincidence_mode", "forced_trigger"
+                )
                 rc_evt_files = sorted(
-                    spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+                    spms_pars.lookup_evt_files(
+                        l200data, rc_runid or runid, evt_tier_name
+                    )
                 )
                 if not rc_evt_files:
                     msg = "no RC evt files found for random coincidences"
                     raise RuntimeError(msg)
 
-                rc_index_lookup = spms_pars.build_rc_evt_index_lookup(rc_evt_files)
+                rc_index_lookup = spms_pars.build_rc_evt_index_lookup(
+                    rc_evt_files, mode=rc_mode
+                )
             # state is reset per partition so RC events are drawn independently
             # for each run slice
             rc_file_state: dict = {}

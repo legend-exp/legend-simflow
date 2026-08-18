@@ -480,6 +480,8 @@ events from the hit-level data.
 :caption: simprod/config/tier/evt/{experiment}/settings.yaml
 
 add_random_coincidences: false
+random_coincidence_mode: forced_trigger
+random_coincidence_runid: null
 geds_energy_thr_kev: 25
 spms_energy_thr_pe: 0
 buffer_len: "50*MB"
@@ -489,6 +491,16 @@ skip_hit: false
 
 - `add_random_coincidences` (bool) — when `true`, random-coincidence (RC) SiPM
   data (taken from `l200data` evt/pet tiers) is mixed in during event building.
+- `random_coincidence_mode` (str) — how RC events are selected. With
+  `forced_trigger` (the default) the forced/pulser and HPGe-triggered events of
+  a physics stream are used. With `noise_trigger` the source is a dedicated
+  noise-trigger stream, in which every event is already a random coincidence; no
+  trigger flags are read, which is required for configurations without HPGe
+  detectors since those carry neither `trigger/is_forced` nor `coincident/*`.
+- `random_coincidence_runid` (str) — runid to draw RC data from, when it differs
+  from the run being modelled. Defaults to the modelled run. Set it when the
+  noise-trigger stream is recorded under its own runid, e.g. `l200-p13-r003-anp`
+  alongside the physics stream `l200-p13-r003-aph`.
 - `geds_energy_thr_kev` (int) — HPGe hit energy threshold in keV; hits below
   this value are discarded.
 - `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
