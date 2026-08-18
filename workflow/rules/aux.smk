@@ -205,10 +205,14 @@ rule cache_detector_usabilities:
         detinfo = aggregate.pivot_detinfo(
             aggregate.gen_list_of_all_usabilities(config).to_dict()
         )
-        dbetto.utils.write_dict(detinfo["usability"], output.usability)
-        dbetto.utils.write_dict(detinfo["psd_usability"], output.psd_usability)
+        # `pivot_detinfo` only creates a key for a flag that at least one
+        # detector carries, and psd/crystal usability are set for HPGes only.
+        # An experiment without HPGe detectors therefore yields neither, so
+        # index defensively and write those files empty instead of raising.
+        dbetto.utils.write_dict(detinfo.get("usability", {}), output.usability)
+        dbetto.utils.write_dict(detinfo.get("psd_usability", {}), output.psd_usability)
         dbetto.utils.write_dict(
-            detinfo["crystal_metadata_usability"],
+            detinfo.get("crystal_metadata_usability", {}),
             output.crystal_metadata_usability,
         )
 
