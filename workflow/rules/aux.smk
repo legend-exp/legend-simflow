@@ -96,6 +96,44 @@ rule _init_julia_env:
         "> {log} 2>&1 && touch {output}"
 
 
+# The MAURINA gamma cascade data lives in a separate (currently private, ~1 GB)
+# repository. Only simulations that opt in via the `maurina_gamma_cascades`
+# simconfig field depend on this rule.
+rule fetch_maurina_gamma_cascades:
+    """Make the MAURINA gamma cascade data available on disk.
+
+    Clones the `legend-exp/generated-maurina-output` repository into
+    the writable, per-production ``paths.maurina_gamma_cascades`` directory. If the
+    directory is already a git checkout, that revision is fetched and checked
+    out.
+    """
+    localrule: True
+    message:
+        "Fetching MAURINA gamma cascade data"
+    params:
+        dest=config.paths.get("maurina_gamma_cascades", ""),
+        rev=config.get("maurina_output_version", "main"),
+        url="https://github.com/legend-exp/generated-maurina-output",
+    output:
+        touch(config.paths.generated / ".maurina-gamma-cascades-fetched"),
+    log:
+        patterns.log_dirname(config) / "fetch-maurina-gamma-cascades.log",
+    shell:
+        "{{ "
+        "if [ -z '{params.dest}' ]; then "
+        "  echo 'paths.maurina_gamma_cascades is not set in the Simflow config'; "
+        "  exit 1; "
+        "fi; "
+        "if [ -d '{params.dest}/.git' ]; then "
+        "  git -C '{params.dest}' fetch --depth 1 origin '{params.rev}' && "
+        "  git -C '{params.dest}' checkout --detach FETCH_HEAD; "
+        "else "
+        "  git clone --depth 1 --single-branch --branch '{params.rev}' "
+        "    '{params.url}' '{params.dest}'; "
+        "fi; "
+        "}} > {log} 2>&1"
+
+
 # Memoize the on-demand fallback result to avoid re-running the expensive
 # gen_list_of_all_hpges_valid_for_modeling() more than once per Snakemake
 # invocation (touch executor / no YAML on disk).

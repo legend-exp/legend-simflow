@@ -79,6 +79,13 @@ Here's a basic description of its fields:
     `{paths.pars}/geom` if not set.
   - `dtmaps` (optional output): generated HPGe drift-time maps. Defaults to
     `{paths.pars}/hpge/dtmaps` if not set.
+  - `maurina_gamma_cascades` (optional, writable): per-production checkout of
+    the MAURINA gamma cascade data. Only needed by simulations enabling the
+    `maurina_gamma_cascades` field in {ref}`simconfig.yaml`. The data lives in
+    the currently legend-exp private
+    [generated-maurina-output](https://github.com/legend-exp/generated-maurina-output)
+    repository, organized as `<Z>/<A>/`, with one `*_ncapture_filelist.txt` per
+    isotope mapping neutron kinetic-energy ranges to cascade files.
   - `tier` (dict, output): generated outputs for each tier, keyed by tier name
     (e.g. `tier.stp`, `tier.hit`, ...). Validation plots for each tier are
     stored in a `plots/` subdirectory (e.g. `tier.stp/plots/`).
