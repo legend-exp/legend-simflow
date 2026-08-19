@@ -185,6 +185,11 @@ def main() -> None:
             if not isinstance(optmap_lar, OptmapForConvolve):
                 optmap_lar = reboost.spms.pe.load_optmap(optmap_lar, sipm)
 
+        # constant for this SiPM, so resolve it once instead of per chunk
+        map_scaling = resolve_map_scaling(optmap_scaling_factor, sipm)
+        msg = f"using optical map scaling factor {map_scaling} for {sipm}"
+        log.debug(msg)
+
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak")
 
@@ -201,7 +206,7 @@ def main() -> None:
                     scint_ph,
                     optmap_lar,
                     sipm,
-                    map_scaling=resolve_map_scaling(optmap_scaling_factor, sipm),
+                    map_scaling=map_scaling,
                     max_pes_per_hit=max_pes_per_hit,
                 )
             if max_pes_per_hit > 0:

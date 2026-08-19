@@ -385,6 +385,10 @@ buffer_len: "10*MB"
     S003: 0.461
   ```
 
+  Channels absent from the mapping fall back to `default`; if neither the
+  channel nor `default` is present, processing fails with a `KeyError` naming
+  the missing channel.
+
   Per-channel values are equivalent to the `sipm_efficiencies` option of
   [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io), which only
   takes effect while photons are tracked and so cannot be used with a pre-built
