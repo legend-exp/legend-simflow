@@ -896,6 +896,57 @@ Each entry must contain:
 See {ref}`hpge-elecmod-extraction` for a description of how these files are used
 at runtime.
 
+(elecmod-fit-settings-meta)=
+
+### Electronics-response fit settings
+
+:::{note}
+
+These settings apply only when the pulse-shape-library (PSL) PSD simulation is
+enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
+`False`), and only when the fit actually runs, i.e. when the
+{ref}`elecmod-metadata-dir` has no `default` key. When a `default` key is
+present the fit is bypassed and these settings are ignored. See
+{ref}`hpge-psl-overview`.
+
+:::
+
+Tuning parameters for the data-driven fit in `extract_electronics_model_pars`,
+which minimises the mean RMS between simulated and measured current superpulses
+(across drift-time slices, via Minuit/MIGRAD) to extract the per-detector
+`sigma` and `tau`. The `extract_hpge_elec_response_model.py` script reads them
+from an optional YAML supplied through its `--settings` flag; the workflow rule
+does not currently wire such a file, so the built-in defaults below are used in
+production.
+
+```{code-block} yaml
+:caption: optional settings YAML for extract_electronics_model_pars (--settings); values shown are the built-in defaults
+
+angle: "000"
+sigma_start: 10.0
+tau_start: 50.0
+sigma_limits: [0.0, 200.0]
+tau_limits: [0.0, 200.0]
+comparison_window: [-500.0, 500.0]
+weight_power: 2.0
+max_calls: 1000
+dt_range_tuning: [600.0, 3000.0]
+max_num_superpulses: 5
+```
+
+| Key                   | Type           | Default           | Description                                                                                                                                                                                                   |
+| --------------------- | -------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `angle`               | str            | `"000"`           | Crystal-axis angle tag selecting which PSL waveform set (`waveform_{angle}_deg`) is used from the ideal pulse-shape library.                                                                                  |
+| `sigma_start`         | float          | `10.0`            | Initial value (ns) for the Gaussian digitizer-bandwidth `sigma`.                                                                                                                                              |
+| `tau_start`           | float          | `50.0`            | Initial value (ns) for the preamplifier exponential decay `tau`.                                                                                                                                              |
+| `sigma_limits`        | [float, float] | `[0.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `sigma` during the fit.                                                                                                                                                       |
+| `tau_limits`          | [float, float] | `[0.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `tau` during the fit.                                                                                                                                                         |
+| `comparison_window`   | [float, float] | `[-500.0, 500.0]` | `(t_min, t_max)` window (ns) relative to the current peak over which the simulation/data RMS is computed; `null` uses the full waveform overlap.                                                              |
+| `weight_power`        | float          | `2.0`             | Data-amplitude weight exponent `p` (`w = \|data\|**p`) applied to the squared residuals before the RMS; `0` is the plain equal-weight RMS, larger values bias the fit toward the current peak and its flanks. |
+| `max_calls`           | int            | `1000`            | Maximum number of Minuit (MIGRAD) function evaluations.                                                                                                                                                       |
+| `dt_range_tuning`     | [float, float] | `[600.0, 3000.0]` | Drift-time range (ns); only superpulse slices whose centre falls in this range are used in the fit.                                                                                                           |
+| `max_num_superpulses` | int            | `5`               | Maximum number of drift-time slices used in the fit.                                                                                                                                                          |
+
 (modeling-settings-meta)=
 
 ### HPGe modeling settings
