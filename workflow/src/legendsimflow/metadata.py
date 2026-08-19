@@ -33,6 +33,12 @@ _MISSING = object()
 
 log = logging.getLogger(__name__)
 
+VTX_PRODUCTS = (
+    "positions",  # vtx/pos only
+    "kinematics",  # vtx/kin without positions
+    "kinematics_and_positions",  # vtx/kin with positions
+)
+
 USABILITY_CODE = {
     "on": 0,
     "ac": 1,
@@ -347,6 +353,44 @@ def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
         raise NotImplementedError()
 
     return get_simconfig(config, "vtx", vtx_key.pop())
+
+
+def get_vtx_product(config: SimflowConfig, vtxname: str) -> str:
+    """Return the declared product of a `vtx`-tier generator.
+
+    Reads the mandatory ``product`` field of the vtx simconfig entry `vtxname`,
+    describing what kind of output the generator produces (one of `VTX_PRODUCTS`). Consumed by
+    :func:`legendsimflow.commands.make_remage_macro` to pick the remage macro
+    commands for ``~vertices:`` generators/confinements.
+
+    Parameters
+    ----------
+    config
+        Snakemake config.
+    vtxname
+        vtx-tier generator identifier (the ``NAME`` in ``~vertices:NAME``).
+
+    """
+    block = f"simprod.config.tier.vtx.{config.experiment}.simconfig.{vtxname}"
+
+    vtx_cfg = get_simconfig(config, "vtx", vtxname)
+    if "product" not in vtx_cfg:
+        msg = (
+            "the mandatory 'product' field is missing; declare it as one of "
+            f"{', '.join(VTX_PRODUCTS)}",
+            f"{block}.product",
+        )
+        raise SimflowConfigError(*msg)
+
+    product = vtx_cfg.product
+    if product not in VTX_PRODUCTS:
+        msg = (
+            f"invalid product {product!r}; must be one of {', '.join(VTX_PRODUCTS)}",
+            f"{block}.product",
+        )
+        raise SimflowConfigError(*msg)
+
+    return product
 
 
 def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
