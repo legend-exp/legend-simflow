@@ -427,3 +427,39 @@ def test_skip_list_all_hpges_reflects_exclusion(config):
         "l200-p02-r007-phy",
     ):
         assert hpges[runid]["V99000A"]["is_modelable"] is False
+
+
+def test_pivot_detinfo_omits_flags_no_detector_carries():
+    """Flags absent from every entry must not appear in the pivoted mapping.
+
+    ``psd_usability`` and ``crystal_metadata_usability`` are only set for HPGe
+    detectors, so an experiment without any (a LAr-only configuration) produces
+    a mapping holding ``usability`` alone.  ``cache_detector_usabilities`` must
+    therefore not index those keys unconditionally.
+    """
+    spms_only = {
+        "l200-p13-r003-aph": {
+            "S002": {"usability": "on"},
+            "S003": {"usability": "off"},
+        }
+    }
+
+    out = agg.pivot_detinfo(spms_only)
+
+    assert set(out) == {"usability"}
+    assert out["usability"]["l200-p13-r003-aph"] == {"S002": "on", "S003": "off"}
+
+
+def test_pivot_detinfo_keeps_flags_carried_by_some_detectors():
+    """A flag set by only part of the detectors still pivots for those."""
+    mixed = {
+        "l200-p03-r000-phy": {
+            "S002": {"usability": "on"},
+            "V02160A": {"usability": "on", "psd_usability": "valid"},
+        }
+    }
+
+    out = agg.pivot_detinfo(mixed)
+
+    assert set(out) == {"usability", "psd_usability"}
+    assert out["psd_usability"]["l200-p03-r000-phy"] == {"V02160A": "valid"}
