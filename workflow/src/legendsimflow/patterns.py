@@ -154,6 +154,18 @@ def geom_log_filename(config: SimflowConfig, **kwargs) -> str:
     return _expand(pat, **kwargs)
 
 
+# custom G4NDL neutron-data libraries
+
+
+def custom_g4ndl_dirname(config: SimflowConfig, name: str) -> Path:
+    """Path to the generated custom G4NDL library directory called `name`.
+
+    This is the directory that ``G4NEUTRONHPDATA``/``G4PARTICLEHPDATA`` must
+    point at (the one containing ``Capture/``).
+    """
+    return config.paths.generated / "g4ndl" / name
+
+
 # vtx, stp, opt, hit tiers
 
 

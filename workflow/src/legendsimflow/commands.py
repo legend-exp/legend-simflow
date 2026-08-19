@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import logging
 import shlex
 from copy import copy
 from pathlib import Path
@@ -25,7 +26,49 @@ import pyg4ometry
 
 from . import SimflowConfig, nersc, patterns, utils
 from .exceptions import SimflowConfigError
-from .metadata import get_simconfig
+from .metadata import get_simconfig, resolve_custom_g4ndl_spec
+
+log = logging.getLogger(__name__)
+
+
+def _g4ndl_env_prefix(remage_exe: list[str], libdir: str | Path) -> list[str]:
+    """Build the ``env`` prefix that points Geant4 at a custom G4NDL library.
+
+    Sets ``G4NEUTRONHPDATA`` (neutron-HP) and ``G4PARTICLEHPDATA`` (particle-HP,
+    Geant4 >= 11) to `libdir`. The plain (host) variables are always exported,
+    which is what a bare ``remage`` binary (and most non-container wrappers)
+    read. When remage is launched inside a container (apptainer/singularity),
+    the container-specific ``*ENV_`` forwarding variables are additionally set
+    so the values survive ``--cleanenv``.
+    """
+    libdir = str(libdir)
+    exe = " ".join(remage_exe).lower()
+    is_apptainer = "apptainer" in exe
+    is_singularity = "singularity" in exe
+
+    prefixes = [""]  # plain host variables
+    if is_apptainer:
+        prefixes.append("APPTAINERENV_")
+    if is_singularity:
+        prefixes.append("SINGULARITYENV_")
+
+    if is_apptainer or is_singularity:
+        log.warning(
+            "custom G4NDL library requested (%s) but remage runs in a container "
+            "(%s); ensure the library directory is bind-mounted into the container "
+            "(e.g. via --bind in config.runcmd.remage), otherwise Geant4 will "
+            "silently fall back to the default neutron data",
+            libdir,
+            " ".join(remage_exe),
+        )
+
+    env = ["env"]
+    for prefix in prefixes:
+        env += [
+            f"{prefix}G4NEUTRONHPDATA={libdir}",
+            f"{prefix}G4PARTICLEHPDATA={libdir}",
+        ]
+    return env
 
 
 def remage_run(
@@ -152,11 +195,21 @@ def remage_run(
     else:
         remage_exe = ["remage"]
 
+    # optionally point Geant4 at a custom G4NDL neutron-data library. This must
+    # be scoped to *this* remage invocation only (via `env`), so that other
+    # simulations without a custom library are unaffected.
+    g4ndl_prefix: list[str] = []
+    if "custom_G4NDL" in sim_cfg:
+        spec = resolve_custom_g4ndl_spec(sim_cfg.custom_G4NDL)
+        libdir = patterns.custom_g4ndl_dirname(config, spec["name"]).resolve()
+        g4ndl_prefix = _g4ndl_env_prefix(remage_exe, libdir)
+
     output_final = copy(output)
     if nersc.is_scratch_enabled(config):
         output = nersc.on_scratch(config, output)
 
     cmd = [
+        *g4ndl_prefix,
         *remage_exe,
         "--ignore-warnings",
         "--merge-output-files",
