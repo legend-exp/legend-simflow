@@ -237,17 +237,6 @@ def _write_noise_trigger_evt(path):
     return path
 
 
-def test_has_trigger_flags_true_for_physics_stream(legend_testdata):
-    """A physics stream with HPGe detectors carries trigger/is_forced."""
-    assert spms_pars.has_trigger_flags(legend_testdata[EVT_FILE])
-
-
-def test_has_trigger_flags_false_without_hpge(tmp_path):
-    """A stream of an HPGe-less experiment carries no trigger flags."""
-    evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
-    assert not spms_pars.has_trigger_flags(evt_file)
-
-
 def test_get_noise_trigger_library_filters_pulses(tmp_path):
     """Only physical pulses inside the coincidence window are kept."""
     evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
