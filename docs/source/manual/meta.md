@@ -499,8 +499,8 @@ skip_hit: false
   detectors since those carry neither `trigger/is_forced` nor `coincident/*`.
 - `random_coincidence_runid` (str | null) — runid to draw RC data from, when it
   differs from the run being modelled. Defaults to the modelled run. Set it when
-  the noise-trigger stream is recorded under its own runid, e.g.
-  `l200-p13-r003-anp` alongside the physics stream `l200-p13-r003-aph`.
+  the noise-trigger stream is recorded under its own runid, in the format
+  l200-<period>-<run>-<datatype>, e.g. `l200-p13-r003-anp`.
 - `geds_energy_thr_kev` (int) — HPGe hit energy threshold in keV; hits below
   this value are discarded.
 - `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below

@@ -150,7 +150,7 @@ def build_rc_evt_index_lookup(
         if mode == "noise_trigger":
             lookup[str(evt_file)] = {"noise_trigger": True}
             continue
-        if not has_trigger_flags(evt_file):
+        if "evt/trigger/is_forced" not in lh5.ls(str(evt_file), "evt/trigger/*"):
             msg = (
                 f"{evt_file} has no trigger/is_forced field, so forced-trigger "
                 "random coincidences cannot be built from it. If this is a "
@@ -373,26 +373,6 @@ def _process_spms_windows(
     return ak.concatenate(npe_list), ak.concatenate(t0_list)
 
 
-def has_trigger_flags(evt_file: str | Path) -> bool:
-    """Whether `evt_file` carries the flags the forced-trigger selection needs.
-
-    :func:`get_rc_evt_mask` requires ``trigger/is_forced`` and the
-    ``coincident/*`` fields. An experiment without HPGe detectors has neither,
-    in any of its streams.
-
-    Intended for validation only. It must not be used to decide that a file is a
-    noise-trigger stream, since the physics stream of an HPGe-less configuration
-    also lacks these flags. Which stream supplies the random coincidences is an
-    explicit configuration choice, see ``random_coincidence_mode``.
-
-    Parameters
-    ----------
-    evt_file
-        Evt-tier file to inspect.
-    """
-    return "evt/trigger/is_forced" in lh5.ls(str(evt_file), "evt/trigger/*")
-
-
 def get_noise_trigger_library(evt_file: str | Path) -> ak.Array:
     """Build a random-coincidence library from a noise-trigger file.
 
@@ -400,11 +380,6 @@ def get_noise_trigger_library(evt_file: str | Path) -> ak.Array:
     coincidence, so unlike :func:`get_rc_library` there is no trigger selection
     and no window tiling: the pulses kept by ``is_trig_coin_pulse`` already span
     the analysis coincidence window used by the data-level observables.
-
-    Pulses are selected exactly as the data-level SiPM observables are, with
-    ``is_trig_coin_pulse & quality/is_physical``. The latter is per *channel*
-    while the former is per *pulse*; awkward broadcasts the channel flag over
-    the pulse axis, so the channel axis keeps a fixed length.
 
     Parameters
     ----------
@@ -516,8 +491,11 @@ def get_rc_library(
     evt_file
         Event tier data file.
     rc_index_lookup
-        Precomputed mapping from evt file to trigger-event indices,
-        built with ``build_rc_evt_index_lookup``.
+        Precomputed mapping from evt file to trigger-event indices, built with
+        ``build_rc_evt_index_lookup``. Its entry for ``evt_file`` also selects
+        how the library is built: a ``noise_trigger`` entry takes every event of
+        a dedicated noise-trigger stream, while ``forced_pulser``/``geds``
+        entries select the trigger events of a physics stream.
     time_domain_ns
         Target time range (start, end) for output times in nanoseconds.  E.g.,
         ``(-1000, 5000)`` means output times will be in ``[-1000, 5000]``.
@@ -548,60 +526,62 @@ def get_rc_library(
     if rc_index_lookup.get(evt_file_key, {}).get("noise_trigger"):
         with perf_block("noise_trigger_library()"):
             return get_noise_trigger_library(evt_file)
+    else:
+        idx_fp = rc_index_lookup[evt_file_key]["forced_pulser"]
+        idx_getrg = rc_index_lookup[evt_file_key]["geds"]
 
-    idx_fp = rc_index_lookup[evt_file_key]["forced_pulser"]
-    idx_getrg = rc_index_lookup[evt_file_key]["geds"]
+        n_forced_pulser = len(idx_fp)
+        n_geds = len(idx_getrg)
 
-    n_forced_pulser = len(idx_fp)
-    n_geds = len(idx_getrg)
-
-    if n_forced_pulser == 0 and n_geds == 0:
-        log.debug("no forced/pulser or geds events found in %s", Path(evt_file).name)
-        return ak.Array(
-            {"rawid": ak.Array([]), "npe": ak.Array([]), "t0": ak.Array([])}
-        )
-
-    with perf_block("ftlib_read_evt_spms()"):
-        evt = lh5.read(
-            "evt",
-            evt_file,
-            field_mask=["spms/energy", "spms/t0", "spms/rawid"],
-        ).view_as("ak")
-
-    results: list[ak.Array] = []
-    n_collected_events = 0
-
-    for idx, win_ranges in [
-        (idx_fp, ext_trig_range_ns),
-        (idx_getrg, ge_trig_range_ns),
-    ]:
-        if len(idx) == 0 or not win_ranges:
-            continue
-        spms = evt.spms[idx]
-        with perf_block("ftlib_process_windows()"):
-            npe, t0 = _process_spms_windows(
-                spms.t0, spms.energy, win_ranges, time_domain_ns, min_sep_ns
+        if n_forced_pulser == 0 and n_geds == 0:
+            log.debug(
+                "no forced/pulser or geds events found in %s", Path(evt_file).name
             )
-        if len(npe) > 0:
-            # each window produced one RC event per source event; repeat rawid
-            # accordingly so it aligns with the (n_windows*n_src, n_ch, n_pe) output
-            n_windows = len(npe) // len(idx)
-            rawid = ak.concatenate([spms.rawid] * n_windows)
-            results.append(ak.Array({"rawid": rawid, "npe": npe, "t0": t0}))
-            n_collected_events += len(npe)
+            return ak.Array(
+                {"rawid": ak.Array([]), "npe": ak.Array([]), "t0": ak.Array([])}
+            )
 
-    log.debug(
-        "forced-trigger library file %s: forced_or_pulser_events=%d "
-        "geds_events=%d cumulative_events=%d",
-        Path(evt_file).name,
-        n_forced_pulser,
-        n_geds,
-        n_collected_events,
-    )
+        with perf_block("ftlib_read_evt_spms()"):
+            evt = lh5.read(
+                "evt",
+                evt_file,
+                field_mask=["spms/energy", "spms/t0", "spms/rawid"],
+            ).view_as("ak")
 
-    if not results:
-        return ak.Array(
-            {"rawid": ak.Array([]), "npe": ak.Array([]), "t0": ak.Array([])}
+        results: list[ak.Array] = []
+        n_collected_events = 0
+
+        for idx, win_ranges in [
+            (idx_fp, ext_trig_range_ns),
+            (idx_getrg, ge_trig_range_ns),
+        ]:
+            if len(idx) == 0 or not win_ranges:
+                continue
+            spms = evt.spms[idx]
+            with perf_block("ftlib_process_windows()"):
+                npe, t0 = _process_spms_windows(
+                    spms.t0, spms.energy, win_ranges, time_domain_ns, min_sep_ns
+                )
+            if len(npe) > 0:
+                # each window produced one RC event per source event; repeat rawid
+                # accordingly so it aligns with the (n_windows*n_src, n_ch, n_pe) output
+                n_windows = len(npe) // len(idx)
+                rawid = ak.concatenate([spms.rawid] * n_windows)
+                results.append(ak.Array({"rawid": rawid, "npe": npe, "t0": t0}))
+                n_collected_events += len(npe)
+
+        log.debug(
+            "forced-trigger library file %s: forced_or_pulser_events=%d "
+            "geds_events=%d cumulative_events=%d",
+            Path(evt_file).name,
+            n_forced_pulser,
+            n_geds,
+            n_collected_events,
         )
 
-    return ak.concatenate(results) if len(results) > 1 else results[0]
+        if not results:
+            return ak.Array(
+                {"rawid": ak.Array([]), "npe": ak.Array([]), "t0": ak.Array([])}
+            )
+
+        return ak.concatenate(results) if len(results) > 1 else results[0]
