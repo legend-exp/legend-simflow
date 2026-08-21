@@ -72,6 +72,11 @@ rule build_tier_evt:
         add_random_coincidences=_tier_setting("evt", "add_random_coincidences"),
         geds_energy_thr_kev=_tier_setting("evt", "geds_energy_thr_kev"),
         spms_energy_thr_pe=_tier_setting("evt", "spms_energy_thr_pe"),
+        lar_veto_multiplicity_thr=_evt_settings.get("lar_veto_multiplicity_thr", 4),
+        lar_veto_energy_sum_pe_thr=_evt_settings.get("lar_veto_energy_sum_pe_thr", 4),
+        scintillator_volume_name=(
+            None if _skip_opt else _tier_setting("opt", "scintillator_volume_name")
+        ),
         skip_opt=_skip_opt,
         skip_hit=_skip_hit,
         # with add_random_coincidences, this rule reads forced-trigger evt

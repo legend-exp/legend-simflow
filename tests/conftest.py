@@ -18,7 +18,7 @@ from pygeoml200 import core
 from reboost.hpge.psd import _current_pulse_model as currmod
 from scipy.stats import norm
 
-from legendsimflow.utils import apply_path_defaults
+from legendsimflow.utils import apply_path_defaults, init_simflow_context
 
 l200data = Path(__file__).parent / "l200data" / "v3.0.0"
 dummyprod = Path(__file__).parent / "dummyprod"
@@ -91,6 +91,19 @@ def config():
 @pytest.fixture
 def fresh_config():
     return make_config()
+
+
+@pytest.fixture(scope="session")
+def l1000_config():
+    """The dummy LEGEND-1000 production, which runs on a metadata overlay.
+
+    Built through :func:`legendsimflow.utils.init_simflow_context`, unlike
+    :func:`make_config`, so that the overlay is attached the same way the
+    Snakefiles get it.
+    """
+    return init_simflow_context(
+        dummyprod / "simflow-config-l1000.yaml", workflow=None
+    ).config
 
 
 class mock_workflow_class:

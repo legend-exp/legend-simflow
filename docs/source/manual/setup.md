@@ -13,6 +13,8 @@ folder name (e.g. `path/to/productions/v1.0.0`).
 Before a simulation production can be run, the user must configure the run with
 a dedicated file and install the required software dependencies.
 
+(simflow-config)=
+
 ## The configuration file
 
 The `simflow-config.yaml` file resides in the production directory (the root of
@@ -61,9 +63,12 @@ Here's a basic description of its fields:
     parameters (e.g. energy resolution)
   - `benchmarks` (output): Snakemake rule benchmark files
   - `log` (output): Snakemake rule log files
-  - `metadata` (input): Simflow input metadata. This is a clone of the
+  - `metadata` (input): simflow input metadata. This is a clone of the
     [legend-metadata](https://github.com/legend-exp/legend-metadata) repository.
-    If not present at runtime, the Simflow will attempt a fresh clone.
+    If not present at runtime, the simflow will attempt a fresh clone. The
+    simflow only reads this directory. An experiment that _legend-metadata_ does
+    not describe brings its own metadata in `paths.config` instead (see
+    {ref}`meta-overlay`).
   - `config` (input): clone of
     [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
     This is distributed as a submodule of legend-metadata.

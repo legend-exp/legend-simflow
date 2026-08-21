@@ -15,7 +15,7 @@
 
 """Rules to build the `stp` tier."""
 
-from legendsimflow import aggregate, commands, utils, patterns
+from legendsimflow import aggregate, commands, geometry, utils, patterns
 from legendsimflow import metadata as mutils
 
 
@@ -31,18 +31,20 @@ rule gen_all_tier_stp:
 # production — upper tiers (vtx, hit, opt, ...) are required to take the
 # geometry from an existing stp production and must never build their own.
 rule gen_geom_config:
-    """Write a geometry configuration file for legend-pygeom-l200.
+    """Write a geometry configuration file for the experiment's geometry generator.
 
     Start from the template/default geometry configuration file and eventually
     add extra configuration options in case requested in `simconfig.yaml`
-    through the `geom_config_extra` field.
+    through the `geom_config_extra` field. Filesystem paths are resolved with
+    {func}`legendsimflow.geometry.resolve_geom_config_paths`, since the written
+    file does not live next to the template it is copied from.
 
     Uses wildcards `tier` and `simid`.
     """
     message:
         "Generating geometry configuration for {wildcards.tier}.{wildcards.simid}"
     input:
-        Path(config.paths.config) / "geom" / (config.experiment + "-geom-config.yaml"),
+        patterns.geom_template_config_filename(config),
     params:
         # make this rule dependent on the actual simconfig block
         _simconfig_hash=lambda wc: mutils.smk_hash_simconfig(
@@ -52,7 +54,6 @@ rule gen_geom_config:
         patterns.geom_config_filename(config),
     run:
         from dbetto import utils as dbetto_utils
-        from legendsimflow import utils
 
         gconfig = dbetto_utils.load_dict(input[0])
         sconfig = mutils.get_simconfig(
@@ -62,14 +63,17 @@ rule gen_geom_config:
         if "geom_config_extra" in sconfig:
             gconfig |= sconfig.geom_config_extra.to_dict()
 
+        gconfig = geometry.resolve_geom_config_paths(gconfig, input[0])
+
         dbetto_utils.write_dict(gconfig, output[0])
 
 
 rule build_geom_gdml:
-    """Build a concrete geometry GDML file with {mod}`pygeoml200`.
+    """Build a concrete geometry GDML file with the experiment's geometry generator.
 
-    Run `legend-pygeom-l200` to convert the geometry configuration file into a
-    GDML file.
+    Run the command returned by {func}`legendsimflow.geometry.geom_executable`
+    (`legend-pygeom-l200` or `legend-pygeom-l1000`) to convert the geometry
+    configuration file into a GDML file.
 
     Uses wildcards `tier` and `simid`.
     """
@@ -77,13 +81,15 @@ rule build_geom_gdml:
         "Building GDML geometry for {wildcards.tier}.{wildcards.simid}"
     input:
         rules.gen_geom_config.output,
+    params:
+        executable=lambda wc: geometry.geom_executable(config),
     output:
         patterns.geom_gdml_filename(config),
     log:
         patterns.geom_log_filename(config),
     shell:
         "LEGEND_METADATA={config.paths.metadata} "
-        "legend-pygeom-l200 --verbose --config {input} -- {output} &> {log}"
+        "{params.executable} --verbose --config {input} -- {output} &> {log}"
 
 
 rule gen_remage_macro:
@@ -204,9 +210,13 @@ rule plot_geom:
         rendering=patterns.plot_geom_rendering_filename(config),
     run:
         from dbetto import utils as dbetto_utils
+        from pathlib import Path
 
         from legendsimflow import geometry
 
         geom_config = dbetto_utils.load_dict(input[0])
-        geometry.make_hpge_mass_plot(config, geom_config, output.mass)
+        if geom_config.get("executable") == "legend-pygeom-l200":
+            geometry.make_hpge_mass_plot(config, geom_config, output.mass)
+        else:
+            Path(output.mass).touch()
         geometry.render_geometry(config, geom_config, output.rendering)

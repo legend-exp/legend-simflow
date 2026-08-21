@@ -23,6 +23,7 @@ import pygeomhpges
 import pygeomhpges.draw
 from matplotlib.backends.backend_pdf import PdfPages
 
+from legendsimflow import metadata as mutils
 from legendsimflow import nersc
 from legendsimflow.plot import decorate
 from legendsimflow.psl import symmetrize
@@ -46,7 +47,7 @@ def save_page(pdf, make_fig):
 def fig(hpge):
     # HPGe profile
     pyobj = pygeomhpges.make_hpge(
-        args.config.metadata.hardware.detectors.germanium.diodes[hpge],
+        mutils.get_diode(args.config, hpge),
         registry=reg,
         material=natge,
         allow_cylindrical_asymmetry=False,

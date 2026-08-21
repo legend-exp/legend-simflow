@@ -38,6 +38,76 @@ experimental configuration are supported) can be found in the `README.md`.
 
 In this section, the specification of the metadata format is documented.
 
+(meta-overlay)=
+
+## Metadata overlay
+
+An experiment that does not exist yet is absent from the
+[legend-metadata](https://github.com/legend-exp/legend-metadata) database.
+LEGEND-1000 is such an experiment. Its metadata lives here instead, under
+`metadata/{experiment}/`. The tree uses the layout of _legend-metadata_ itself:
+
+```
+metadata/l1000dsg01/datasets/runinfo.yaml
+metadata/l1000dsg01/datasets/runlists.yaml
+metadata/l1000dsg01/datasets/statuses/{validity.yaml,*.yaml}
+metadata/l1000dsg01/hardware/configuration/channelmaps/{validity.yaml,*.yaml}
+metadata/l1000dsg01/hardware/detectors/germanium/diodes/<DET>.yaml
+metadata/l1000dsg01/hardware/detectors/germanium/crystals/<XTAL>.yaml
+metadata/l1000dsg01/special_metadata.yaml
+```
+
+The simflow clones _legend-metadata_ as always, and only reads it. It loads this
+directory as a second database. It queries the second database when
+_legend-metadata_ does not hold the item
+({func}`legendsimflow.metadata.lookup`). There is no configuration flag. An
+experiment without such a directory never reaches the second database. The
+simflow generates nothing at run time, and writes into neither clone.
+
+### How to produce the overlay
+
+`legend-pygeom-l1000` writes the whole tree from a geometry configuration:
+
+```console
+> legend-pygeom-l1000 --config raw-config.yaml --write-metadata metadata/l1000dsg01
+```
+
+Commit the result. The geometry configuration of the experiment then points back
+at the tree. The tree becomes the single description of the setup, because the
+generator rebuilds the same geometry from it:
+
+```{code-block} yaml
+:caption: simprod/config/geom/l1000dsg01-geom-config.yaml
+
+executable: legend-pygeom-l1000
+metadata: ../metadata/l1000dsg01
+```
+
+Edit the tree by hand to remove one detector, to move one string, or to change
+one channel status. Both the geometry and the simflow follow the edit at the
+next invocation.
+
+### Run identifiers
+
+:::{important}
+
+The runs in `datasets/runinfo.yaml` must stay clear of the _legend-metadata_
+runs. The simflow queries _legend-metadata_ first, so a run that it also defines
+wins. Two rules keep the runs apart:
+
+- **Number the periods outside the range of the real experiment**, for example
+  `p99`. The simflow looks a run up by period and run number alone.
+- **Keep the start keys before the _legend-metadata_ era**, for example the
+  year 2000. The simflow looks a channel map up by timestamp, so the period
+  number alone does not cover it. A timestamp that precedes every validity entry
+  raises. This is what sends the lookup to the overlay.
+
+The simflow applies the first rule at startup. It refuses an overlay whose
+periods collide. The parameter directories of the experiment (see
+{ref}`opv-metadata-dir`) need a validity entry that covers these start keys.
+
+:::
+
 ## `tier/` static tier configuration
 
 Metadata is organized in this directory by tier (first level) and experimental
@@ -366,8 +436,8 @@ buffer_len: "10*MB"
 ```
 
 - `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
-  geometry used to identify liquid argon energy depositions (e.g.
-  `liquid_argon`).
+  geometry used to identify liquid argon energy depositions (e.g. `liquid_argon`
+  for LEGEND-200, `undergroundlar` for LEGEND-1000).
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.
@@ -502,6 +572,8 @@ events from the hit-level data.
 add_random_coincidences: false
 geds_energy_thr_kev: 25
 spms_energy_thr_pe: 0
+lar_veto_multiplicity_thr: 4
+lar_veto_energy_sum_pe_thr: 4
 buffer_len: "50*MB"
 skip_opt: false
 skip_hit: false
@@ -513,6 +585,12 @@ skip_hit: false
   this value are discarded.
 - `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
   this value are discarded.
+- `lar_veto_multiplicity_thr` (int, default `4`) — number of SiPM channels above
+  threshold that make an event fail the LAr veto (`coincident/spms`).
+- `lar_veto_energy_sum_pe_thr` (float, default `4`) — summed SiPM energy in
+  photoelectrons that makes an event fail the LAr veto. An event fails the veto
+  when it passes either of the two thresholds. The defaults are the LEGEND-200
+  values.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
 - `skip_opt` (bool, default `false`) — when `true`, the `opt` (SiPM/LAr) tier is
@@ -578,6 +656,40 @@ detector_groups:
 Metadata is organized in this directory by experimental configuration (first
 level) and detector type (second level), mirroring the `tier/` structure.
 
+(opv-metadata-dir)=
+
+### HPGe operational voltages
+
+A validity-based metadata directory. It gives the bias voltage of each HPGe
+detector, for each run. The other `geds/` parameter directories use this same
+layout.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/opv/l200-p03-r%-T%-all-opvs.yaml
+
+V02160A:
+  operational_voltage_in_V: 4200.0
+V05261B:
+  operational_voltage_in_V: 4200.0
+```
+
+The optional `default` entry applies to every detector without an entry of its
+own. It is unlikely that any real experiments operate all detectors at the same
+voltage. But for simple background simulation of LEGEND-1000, this is a
+reasonable approximation. Such a setup uses one `default` entry:
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/opv/l1000-p01-r%-T%-all-opvs.yaml
+
+default:
+  operational_voltage_in_V: 3500.0
+```
+
+The simflow treats a detector with no entry and no `default` as not biased. Such
+a detector gets no drift-time map and no current-pulse model. This is how the
+simflow excludes the detectors that are off. Do not add a `default` to an
+experiment that depends on this behavior.
+
 (ssd-settings-meta)=
 
 ### Pulse shape simulation settings
@@ -620,7 +732,7 @@ resolution parameters. When present, it can supplement or fully replace
 `l200data` as the source of energy resolution parameters — enabling simulations
 for experiments that have not yet collected data (e.g. LEGEND-1000). The
 structure follows the same validity-based format as
-`pars/{experiment}/geds/opv/`.
+`pars/{experiment}/geds/opv/` (see {ref}`opv-metadata-dir`).
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/eresmod/l200-p03-r%-T%-all-eresmod.yaml

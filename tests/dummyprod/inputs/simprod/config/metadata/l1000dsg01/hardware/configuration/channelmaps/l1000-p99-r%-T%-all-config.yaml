@@ -1,0 +1,44 @@
+# V02160A and V05261B are also in the legend-metadata clone, V99900A only here:
+# the diode and crystal lookups must reach both databases.
+V02160A:
+  name: V02160A
+  system: geds
+  daq:
+    rawid: 1104000
+  location:
+    string: 1
+    position: 1
+V05261B:
+  name: V05261B
+  system: geds
+  daq:
+    rawid: 1104002
+  location:
+    string: 1
+    position: 3
+V99900A:
+  name: V99900A
+  system: geds
+  daq:
+    rawid: 1104003
+  location:
+    string: 1
+    position: 4
+S002:
+  name: S002
+  system: spms
+  daq:
+    rawid: 1057604
+  location:
+    barrel: IB
+    fiber: IB007008
+    position: top
+S003:
+  name: S003
+  system: spms
+  daq:
+    rawid: 1057605
+  location:
+    barrel: IB
+    fiber: IB007008
+    position: bottom

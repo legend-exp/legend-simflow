@@ -1,0 +1,17 @@
+# LEGEND-1000 does not exist yet: these runs are invented. The period number is
+# outside the range legend-metadata uses, and the start keys precede every
+# validity entry there, so that a lookup misses in legend-metadata and falls
+# through to this database. See legendsimflow.metadata.lookup.
+p99:
+  r000:
+    cal:
+      start_key: 20000101T000000Z
+    phy:
+      start_key: 20000102T000000Z
+      livetime_in_s: 10000
+  r001:
+    cal:
+      start_key: 20000201T000000Z
+    phy:
+      start_key: 20000202T000000Z
+      livetime_in_s: 10000

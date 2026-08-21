@@ -1,3 +1,8 @@
+- valid_from: 20000101T000000Z
+  apply:
+    - l1000-p99-r%-T%-all-skip.yaml
+
 - valid_from: 20200101T000000Z
+  mode: reset
   apply:
     - l200-p%-r%-T%-all-skip.yaml

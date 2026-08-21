@@ -330,6 +330,14 @@ def init_simflow_context(
         # NOTE: don't use lazy=True, we need a fully functional TextDB
         config["metadata"] = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
 
+        # metadata of an experiment that legend-metadata does not describe.
+        # See legendsimflow.metadata.load_metadata_overlay
+        from . import metadata as metautils  # noqa: PLC0415
+
+        config["metadata_overlay"] = metautils.load_metadata_overlay(
+            config, logger=log_
+        )
+
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)
     mpl_config_dir = (
