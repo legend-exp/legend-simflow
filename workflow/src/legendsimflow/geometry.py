@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Helpers producing the `stp` geometry validation plots."""
+"""Helpers producing the `stp` geometry and its validation plots."""
 
 from __future__ import annotations
 
@@ -31,6 +31,9 @@ from . import SimflowConfig, patterns
 # pygeomtools, pygeoml200) are imported lazily inside the two functions below,
 # not at module level, so the module stays light for `load_vis_scene` and tests.
 
+# geometry generator invoked when the experiment's template geometry
+# configuration file does not name one explicitly; see `geom_executable`.
+DEFAULT_GEOM_EXECUTABLE = "legend-pygeom-l200"
 # default scene passed to :func:`pygeomtools.viewer.visualize`. It hides the large
 # opaque enclosures and the outer fiber barrel to expose the detector array,
 # makes the inner fiber barrel translucent, and uses a fixed 3/4 view of the
@@ -56,6 +59,74 @@ DEFAULT_VIS_SCENE: dict = {
     },
 }
 
+DEFAULT_VIS_SCENE_L1000: dict = {
+    "window_size": [1600, 2600],
+    "fine_mesh": True,
+    "light": {"pos": [-10000, 0, 10000], "shadow": True},
+    "default": {
+        "focus": [0, 0, 0],
+        "up": [0, 0, 1.0],
+        "camera": [-6000, -2100, 2700],
+        "parallel": False,
+    },
+    "color_overrides": {
+        "cryostat_steel": False,
+        "liquid_argon": False,
+        "gaseous_argon": False,
+    },
+}
+
+
+#: geometry configuration fields that can hold a filesystem path.
+#: :func:`resolve_geom_config_paths` makes these fields absolute.
+GEOM_CONFIG_PATH_FIELDS = ("metadata", "raw_config", "channelmap", "special_metadata")
+
+
+def resolve_geom_config_paths(geom_config: Mapping, source: str | Path) -> dict:
+    """Resolve the filesystem paths of a geometry configuration file.
+
+    Substitutes ``$_`` with the directory of `source` and makes the remaining relative paths in
+    :data:`GEOM_CONFIG_PATH_FIELDS` absolute with respect to it.
+
+    Needed because the per-`simid` geometry configuration file is written to
+    ``paths.geom``, a different directory than the experiment template it is
+    copied from, while the geometry generators resolve relative paths against
+    their own working directory.
+
+    Parameters
+    ----------
+    geom_config
+        Contents of the template geometry configuration file.
+    source
+        Path of the file `geom_config` was read from.
+
+    """
+    root = Path(source).parent.resolve()
+
+    resolved = dict(geom_config)
+    dbetto.Props.subst_vars(resolved, var_values={"_": str(root)})
+
+    for field in GEOM_CONFIG_PATH_FIELDS:
+        value = resolved.get(field)
+        if isinstance(value, str) and not Path(value).is_absolute():
+            resolved[field] = str(root / value)
+
+    return resolved
+
+
+def geom_executable(config: SimflowConfig) -> str:
+    """Return the geometry generator command to run for the current experiment.
+
+    The generator is a property of the experiment: `legend-pygeom-l200` for
+    LEGEND-200 setups, `legend-pygeom-l1000` for LEGEND-1000 ones. It is
+    read from the `executable` field of the experiment-level template geometry
+    configuration file, falling back to ``DEFAULT_GEOM_EXECUTABLE``. Both
+    generators accept (and ignore) the field itself, so it can be left in the
+    per-`simid` configuration file handed to them.
+    """
+    template = patterns.geom_template_config_filename(config)
+    return dbetto.utils.load_dict(template).get("executable", DEFAULT_GEOM_EXECUTABLE)
+
 
 def load_vis_scene(config: SimflowConfig) -> dict:
     """Return the geometry rendering scene for the current experiment.
@@ -64,7 +135,17 @@ def load_vis_scene(config: SimflowConfig) -> dict:
     optional per-experiment override read from
     `<paths.config>/geom/<experiment>-vis-config.yaml` in the metadata.
     """
-    scene = copy.deepcopy(DEFAULT_VIS_SCENE)
+    executable = geom_executable(config)
+    if executable == "legend-pygeom-l200":
+        default_scene = DEFAULT_VIS_SCENE
+    elif executable == "legend-pygeom-l1000":
+        default_scene = DEFAULT_VIS_SCENE_L1000
+    else:
+        msg = f"load_vis_scene: unknown geometry executable {executable}, using default scene for LEGEND-200"
+        logging.getLogger(__name__).warning(msg)
+        default_scene = DEFAULT_VIS_SCENE
+
+    scene = copy.deepcopy(default_scene)
     override = patterns.geom_vis_config_filename(config)
     if override.exists():
         scene |= dbetto.utils.load_dict(override)
@@ -109,7 +190,6 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     goes through the software OSMesa backend, so no GPU or X server is needed.
     """
     from pyg4ometry import config as meshconfig  # noqa: PLC0415
-    from pygeoml200 import cli, core  # noqa: PLC0415
     from pygeomtools import viewer  # noqa: PLC0415
 
     # software OSMesa off-screen rendering; must be set before the render window
@@ -117,20 +197,32 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     os.environ["VTK_DEFAULT_OPENGL_WINDOW"] = "vtkOSOpenGLRenderWindow"
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
 
-    # silence pygeoml200's expected noise (per-detector dummy-enrichment
-    # warnings, public-geometry notice) that would otherwise spam the log
-    logging.getLogger("pygeoml200").setLevel(logging.ERROR)
-
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry
         meshconfig.setGlobalMeshSliceAndStack(100)
 
-    registry = core.construct(
-        assemblies=cli._parse_assemblies(geom_config.get("assemblies")),
-        use_detailed_fiber_model=False,
-        config=geom_config,
-        public_geometry=geom_config.get("public_geom", False),
-    )
+    executable = geom_executable(config)
+
+    if executable == "legend-pygeom-l200":
+        from pygeoml200 import cli, core  # noqa: PLC0415
+
+        # silence pygeoml200's expected noise (per-detector dummy-enrichment
+        # warnings, public-geometry notice) that would otherwise spam the log
+        logging.getLogger("pygeoml200").setLevel(logging.ERROR)
+
+        registry = core.construct(
+            assemblies=cli._parse_assemblies(geom_config.get("assemblies")),
+            use_detailed_fiber_model=False,
+            config=geom_config,
+            public_geometry=geom_config.get("public_geom", False),
+        )
+
+    elif executable == "legend-pygeom-l1000":
+        from pygeoml1000 import cli, core  # noqa: PLC0415
+
+        logging.getLogger("pygeoml1000").setLevel(logging.ERROR)
+
+        registry = core.construct(config=geom_config)
 
     # `viewer._export_png` refuses to overwrite, so clear a stale target first
     Path(output).unlink(missing_ok=True)
