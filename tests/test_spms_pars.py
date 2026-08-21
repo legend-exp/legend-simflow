@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import awkward as ak
 import lgdo
 import lh5
@@ -295,3 +297,30 @@ def test_build_rc_evt_index_lookup_rejects_unknown_mode(tmp_path):
     evt_file = _write_noise_trigger_evt(tmp_path / "anp.lh5")
     with pytest.raises(ValueError, match="mode must be"):
         spms_pars.build_rc_evt_index_lookup([evt_file], mode="noise")
+
+
+def test_select_sis_position_file():
+    """The file recorded at one SIS position is picked out of a whole run."""
+    files = [
+        Path(f"l200-p13-r006-anc-{ts}-tier_evt.lh5")
+        for ts in ("20241221T160025Z", "20241221T162812Z")
+    ]
+    entry = {
+        "sis_setups": {
+            1: {
+                8570: {"start_key": "20241221T160025Z"},
+                8420: {"start_key": "20241221T162812Z"},
+            }
+        }
+    }
+
+    assert spms_pars.select_sis_position_file(files, entry, 1, 8420) == [files[1]]
+    assert spms_pars.select_sis_position_file(files, entry, 1, 8570) == [files[0]]
+
+    # a position the run never visited
+    with pytest.raises(KeyError, match="no sis_setups entry"):
+        spms_pars.select_sis_position_file(files, entry, 1, 9999)
+
+    # runinfo knows the position but the file is not there
+    with pytest.raises(RuntimeError, match="no evt file with timestamp"):
+        spms_pars.select_sis_position_file(files[:1], entry, 1, 8420)

@@ -67,6 +67,50 @@ def lookup_evt_files(
     return list((evt_path / data_type / period / run).glob("*"))
 
 
+def select_sis_position_file(
+    evt_files: Sequence[Path],
+    runinfo_entry,
+    sis: int,
+    position: int,
+) -> list[Path]:
+    """Keep only the file recorded while `sis` held its source at `position`.
+
+    A run that visits several SIS positions writes one noise-trigger file per
+    position, so the runid alone does not identify the right one. The timestamp
+    of each is recorded in ``datasets.runinfo`` under ``sis_setups``.
+
+    Parameters
+    ----------
+    evt_files
+        All evt files of the run, as returned by :func:`lookup_evt_files`.
+    runinfo_entry
+        The ``datasets.runinfo`` entry of that run, see
+        :func:`legendsimflow.metadata.runinfo`.
+    sis
+        Number of the source insertion system, 1 to 4.
+    position
+        SIS position, in the units used by ``runinfo`` (e.g. ``8420``).
+    """
+    setups = runinfo_entry.get("sis_setups", {})
+    if sis not in setups or position not in setups[sis]:
+        msg = (
+            f"runinfo has no sis_setups entry for SIS{sis} at position {position}, "
+            "so the file recorded there cannot be identified"
+        )
+        raise KeyError(msg)
+
+    start_key = setups[sis][position]["start_key"]
+    matching = [f for f in evt_files if start_key in Path(f).name]
+    if not matching:
+        msg = (
+            f"no evt file with timestamp {start_key} (SIS{sis} at {position}) "
+            "among the files of this run"
+        )
+        raise RuntimeError(msg)
+
+    return matching
+
+
 def _next_rc_evt_file(
     evt_files: Sequence[str | Path], rc_file_state: dict[str, Any]
 ) -> str | Path:
