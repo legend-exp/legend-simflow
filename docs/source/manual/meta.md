@@ -366,8 +366,8 @@ buffer_len: "10*MB"
 ```
 
 - `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
-  geometry used to identify liquid argon energy depositions (e.g.
-  `liquid_argon`).
+  geometry used to identify liquid argon energy depositions (e.g. `liquid_argon`
+  for LEGEND-200, `undergroundlar` for LEGEND-1000).
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.
@@ -502,6 +502,8 @@ events from the hit-level data.
 add_random_coincidences: false
 geds_energy_thr_kev: 25
 spms_energy_thr_pe: 0
+lar_veto_multiplicity_thr: 4
+lar_veto_energy_sum_pe_thr: 4
 buffer_len: "50*MB"
 skip_opt: false
 skip_hit: false
@@ -513,6 +515,12 @@ skip_hit: false
   this value are discarded.
 - `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
   this value are discarded.
+- `lar_veto_multiplicity_thr` (int, default `4`) — number of SiPM channels above
+  threshold that make an event fail the LAr veto (`coincident/spms`).
+- `lar_veto_energy_sum_pe_thr` (float, default `4`) — summed SiPM energy in
+  photoelectrons that makes an event fail the LAr veto. An event fails the veto
+  when it passes either of the two thresholds. The defaults are the LEGEND-200
+  values.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
 - `skip_opt` (bool, default `false`) — when `true`, the `opt` (SiPM/LAr) tier is
