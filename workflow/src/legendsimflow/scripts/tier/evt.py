@@ -17,6 +17,7 @@
 
 
 import argparse
+from collections.abc import Mapping
 
 import awkward as ak
 import legenddataflowscripts as ldfs
@@ -304,13 +305,15 @@ def main() -> None:
         if add_random_coincidences:
             with perf_block("lookup_l200data_evts_for_rc()"):
                 evt_tier_name = utils.get_evt_tier_name(l200data)
-                # Random coincidences are by default drawn from the run being
-                # modelled, selecting its forced/pulser triggers. Where a
-                # dedicated noise-trigger stream exists it is a better source,
-                # and it may live under a different runid entirely, so let the
-                # evt tier settings override both the source run and the
-                # selection mode.
                 rc_runid = tier_evt_settings.get("random_coincidence_runid", None)
+                if isinstance(rc_runid, Mapping):
+                    if runid not in rc_runid:
+                        msg = (
+                            f"no random_coincidence_runid entry for {runid} in the "
+                            "evt tier settings"
+                        )
+                        raise KeyError(msg)
+                    rc_runid = rc_runid[runid]
                 rc_mode = tier_evt_settings.get(
                     "random_coincidence_mode", "forced_trigger"
                 )
