@@ -1,5 +1,5 @@
 optmap_per_sipm: true
-scintillator_volume_name: liquid_argon
+scintillator_volume_name: undergroundlar
 optmap_scaling_factor: 1
 photoelectron_resolution_sigma: 0.3
 time_resolution_in_ns: 16

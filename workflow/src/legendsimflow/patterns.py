@@ -124,6 +124,13 @@ def pdf_tarball_filename(config: SimflowConfig) -> Path:
 # geometry
 
 
+def geom_template_config_filename(config: SimflowConfig) -> Path:
+    """The path to the template geometry configuration file for the experiment."""
+    return (
+        Path(config.paths.config) / "geom" / (config.experiment + "-geom-config.yaml")
+    )
+
+
 def geom_config_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the geometry configuration YAML file for a `tier` and `simid`."""
     pat = config.paths.geom / (

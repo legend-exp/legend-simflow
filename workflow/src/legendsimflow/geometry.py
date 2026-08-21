@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Helpers producing the `stp` geometry validation plots."""
+"""Helpers producing the `stp` geometry and its validation plots."""
 
 from __future__ import annotations
 
@@ -64,7 +64,9 @@ def load_vis_scene(config: SimflowConfig) -> dict:
     optional per-experiment override read from
     `<paths.config>/geom/<experiment>-vis-config.yaml` in the metadata.
     """
-    scene = copy.deepcopy(DEFAULT_VIS_SCENE)
+    default_scene = DEFAULT_VIS_SCENE
+
+    scene = copy.deepcopy(default_scene)
     override = patterns.geom_vis_config_filename(config)
     if override.exists():
         scene |= dbetto.utils.load_dict(override)
@@ -109,7 +111,6 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     goes through the software OSMesa backend, so no GPU or X server is needed.
     """
     from pyg4ometry import config as meshconfig  # noqa: PLC0415
-    from pygeoml200 import cli, core  # noqa: PLC0415
     from pygeomtools import viewer  # noqa: PLC0415
 
     # software OSMesa off-screen rendering; must be set before the render window
@@ -117,20 +118,37 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     os.environ["VTK_DEFAULT_OPENGL_WINDOW"] = "vtkOSOpenGLRenderWindow"
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
 
-    # silence pygeoml200's expected noise (per-detector dummy-enrichment
-    # warnings, public-geometry notice) that would otherwise spam the log
-    logging.getLogger("pygeoml200").setLevel(logging.ERROR)
-
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry
         meshconfig.setGlobalMeshSliceAndStack(100)
 
-    registry = core.construct(
-        assemblies=cli._parse_assemblies(geom_config.get("assemblies")),
-        use_detailed_fiber_model=False,
-        config=geom_config,
-        public_geometry=geom_config.get("public_geom", False),
-    )
+    template = patterns.geom_template_config_filename(config)
+    executable = dbetto.utils.load_dict(template).get("executable", None)
+
+    if executable == "legend-pygeom-l200":
+        from pygeoml200 import cli, core  # noqa: PLC0415
+
+        # silence pygeoml200's expected noise (per-detector dummy-enrichment
+        # warnings, public-geometry notice) that would otherwise spam the log
+        logging.getLogger("pygeoml200").setLevel(logging.ERROR)
+
+        registry = core.construct(
+            assemblies=cli._parse_assemblies(geom_config.get("assemblies")),
+            use_detailed_fiber_model=False,
+            config=geom_config,
+            public_geometry=geom_config.get("public_geom", False),
+        )
+
+    elif executable == "legend-pygeom-l1000":
+        from pygeoml1000 import cli, core  # noqa: PLC0415
+
+        logging.getLogger("pygeoml1000").setLevel(logging.ERROR)
+
+        registry = core.construct(config=geom_config)
+
+    else:
+        msg = f"Unknown geometry executable {executable!r} in {template}"
+        raise ValueError(msg)
 
     # `viewer._export_png` refuses to overwrite, so clear a stale target first
     Path(output).unlink(missing_ok=True)

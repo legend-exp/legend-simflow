@@ -129,17 +129,48 @@ def legend_dtmap_path():
     return testprod / "inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5"
 
 
-def _l1000_config(tmp_dir: Path) -> Path:
+#: opt tier settings the fixtures below need on top of the committed ones.
+#: `legend_gdml_path` builds the geometry with legend-pygeom-l200, whose
+#: scintillator volume is `liquid_argon`. The committed settings name the
+#: LEGEND-1000 volume instead, which only `test_l1000_workflow` produces.
+_L1000_SETTINGS_OVERRIDE = {"opt": {"scintillator_volume_name": "liquid_argon"}}
+
+
+def _l1000_config(tmp_dir: Path, settings_by_tier: dict | None = None) -> Path:
     """Write a minimal simflow-config-l1000.yaml to *tmp_dir* and return its path.
 
-    Only ``paths.metadata`` is overridden to point at the dummyprod inputs;
-    all other path entries use ``$_`` substitution resolved to *tmp_dir*.
+    The dummyprod metadata is copied under *tmp_dir* so the tier settings can be
+    edited without a change to the committed tree. ``settings_by_tier`` maps a
+    tier name to the settings keys to overwrite, on top of
+    :data:`_L1000_SETTINGS_OVERRIDE`. All path entries other than
+    ``paths.metadata`` and ``paths.config`` use ``$_`` substitution resolved to
+    *tmp_dir*.
     """
+    meta = tmp_dir / "inputs"
+    shutil.copytree(testprod / "inputs", meta)
+
+    overrides = {tier: dict(o) for tier, o in _L1000_SETTINGS_OVERRIDE.items()}
+    for tier, overlay in (settings_by_tier or {}).items():
+        overrides.setdefault(tier, {}).update(overlay)
+
+    for tier, overlay in overrides.items():
+        f = meta / "simprod/config/tier" / tier / "l1000dsg01/settings.yaml"
+        data = yaml.safe_load(f.read_text())
+        data.update(overlay)
+        f.write_text(yaml.safe_dump(data))
+
     raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(testprod / "inputs")
+    raw["paths"]["metadata"] = str(meta)
+    raw["paths"]["config"] = str(meta / "simprod/config")
     config_path = tmp_dir / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))
     return config_path
+
+
+@pytest.fixture(scope="session")
+def l1000_config_factory():
+    """Expose :func:`_l1000_config` to the test modules in this directory."""
+    return _l1000_config
 
 
 @pytest.fixture(scope="session")

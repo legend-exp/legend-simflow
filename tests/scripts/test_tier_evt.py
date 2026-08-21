@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import lh5
 import numpy as np
 import pytest
-import yaml
 
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.scripts.tier import evt
-
-dummyprod = Path(__file__).parent.parent / "dummyprod"
 
 
 @pytest.mark.needs_remage
 def test_evt_script_cli(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -23,10 +21,7 @@ def test_evt_script_cli(
     legend_simstat_part_path,
     legend_detector_usabilities_path,
 ):
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
+    config_path = l1000_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -169,6 +164,7 @@ def test_evt_script_cli(
 @pytest.mark.needs_remage
 def test_evt_script_cli_skip_opt(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_hit_path,
@@ -176,10 +172,7 @@ def test_evt_script_cli_skip_opt(
     legend_detector_usabilities_path,
 ):
     """--skip-opt: no opt file passed; geds table present, spms table absent."""
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
+    config_path = l1000_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -236,6 +229,7 @@ def test_evt_script_cli_skip_opt(
 @pytest.mark.needs_remage
 def test_evt_script_cli_skip_hit(
     tmp_path,
+    l1000_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -247,10 +241,7 @@ def test_evt_script_cli_skip_hit(
     The trigger fields must be sourced from the opt tier, so trigger/period
     should still be 3 (p03 runs).
     """
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    config_path.write_text(yaml.safe_dump(raw))
+    config_path = l1000_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -308,6 +299,115 @@ def test_evt_script_cli_skip_hit(
     period_vals = lh5.read_as("evt/trigger/period", str(evt_file), library="np")
     assert np.all(period_vals == 3), (
         f"expected period=3 (p03, from opt tier), got unique={np.unique(period_vals)}"
+    )
+
+
+@pytest.mark.needs_remage
+def test_evt_script_cli_unknown_scintillator_volume(
+    tmp_path,
+    l1000_config_factory,
+    monkeypatch,
+    legend_stp_path,
+    legend_opt_path,
+    legend_hit_path,
+    legend_simstat_part_path,
+    legend_detector_usabilities_path,
+):
+    """The scintillator volume comes from the opt-tier settings, not from a constant."""
+    config_path = l1000_config_factory(
+        tmp_path, {"opt": {"scintillator_volume_name": "not_a_volume"}}
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evt",
+            "--stp-file",
+            str(legend_stp_path),
+            "--opt-file",
+            str(legend_opt_path),
+            "--hit-file",
+            str(legend_hit_path),
+            "--simstat-part-file",
+            str(legend_simstat_part_path),
+            "--usability-file",
+            str(legend_detector_usabilities_path / "usability.yaml"),
+            "--jobid",
+            "0000",
+            "--evt-file",
+            str(tmp_path / "evt.lh5"),
+            "--simflow-config",
+            str(config_path),
+        ],
+    )
+    with pytest.raises(SimflowConfigError, match="not_a_volume"):
+        evt.main()
+
+
+@pytest.mark.needs_remage
+@pytest.mark.parametrize(
+    ("thresholds", "expect_veto"),
+    [
+        ((1_000_000, 1e9), False),  # unreachable: no event fails the veto
+        ((0, 0), True),  # multiplicity is never negative: every event fails
+    ],
+)
+def test_evt_script_cli_lar_veto_thresholds(
+    thresholds,
+    expect_veto,
+    tmp_path,
+    l1000_config_factory,
+    monkeypatch,
+    legend_stp_path,
+    legend_opt_path,
+    legend_hit_path,
+    legend_simstat_part_path,
+    legend_detector_usabilities_path,
+):
+    """The LAr veto thresholds come from the evt-tier settings, not from constants."""
+    mult_thr, esum_thr = thresholds
+    config_path = l1000_config_factory(
+        tmp_path,
+        {
+            "evt": {
+                "lar_veto_multiplicity_thr": mult_thr,
+                "lar_veto_energy_sum_pe_thr": esum_thr,
+            }
+        },
+    )
+
+    evt_file = tmp_path / "evt.lh5"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evt",
+            "--stp-file",
+            str(legend_stp_path),
+            "--opt-file",
+            str(legend_opt_path),
+            "--hit-file",
+            str(legend_hit_path),
+            "--simstat-part-file",
+            str(legend_simstat_part_path),
+            "--usability-file",
+            str(legend_detector_usabilities_path / "usability.yaml"),
+            "--jobid",
+            "0000",
+            "--evt-file",
+            str(evt_file),
+            "--simflow-config",
+            str(config_path),
+        ],
+    )
+    evt.main()
+
+    veto = lh5.read_as("evt/coincident/spms", str(evt_file), library="np")
+    assert len(veto) > 0, "the evt fixture produced no events"
+    assert np.all(veto == expect_veto), (
+        f"with thresholds {thresholds} every coincident/spms must be {expect_veto}, "
+        f"got unique={np.unique(veto)}"
     )
 
 
