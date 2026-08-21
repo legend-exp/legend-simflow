@@ -121,6 +121,65 @@ def pdf_tarball_filename(config: SimflowConfig) -> Path:
     return config.paths.generated / "tarballs" / (cycle_dir.name + "-pdfs.tar.xz")
 
 
+# metadata
+
+#: location of the HPGe diode and crystal files in a metadata database.
+DIODE_SEGMENT = "hardware/detectors/germanium/diodes"
+CRYSTAL_SEGMENT = "hardware/detectors/germanium/crystals"
+
+
+def metadata_dirnames(config: SimflowConfig) -> list[Path]:
+    """The metadata database directories, in lookup order.
+
+    The list starts with the `legend-metadata` clone. It ends with the metadata
+    overlay of the experiment, if there is one. This is the order
+    :func:`legendsimflow.metadata.lookup` uses. Rules that need a file on disk,
+    and not its contents, use this function.
+    """
+    dirnames = [Path(config.paths.metadata)]
+
+    overlay = metautils.metadata_overlay_dirname(config)
+    if overlay.is_dir():
+        dirnames.append(overlay)
+
+    return dirnames
+
+
+def _metadata_filename(config: SimflowConfig, segment: str, name: str) -> Path:
+    """The first metadata database that holds ``{segment}/{name}.yaml``."""
+    dirnames = metadata_dirnames(config)
+
+    for dirname in dirnames:
+        filename = dirname / segment / f"{name}.yaml"
+        if filename.is_file():
+            return filename
+
+    msg = f"{segment}/{name}.yaml not found in any of {[str(d) for d in dirnames]}"
+    raise FileNotFoundError(msg)
+
+
+def diode_filename(config: SimflowConfig, det_name: str) -> Path:
+    """The path to the diode metadata file of the HPGe detector `det_name`."""
+    return _metadata_filename(config, DIODE_SEGMENT, det_name)
+
+
+def crystal_filename(config: SimflowConfig, crystal_name: str) -> Path:
+    """The path to the crystal metadata file of `crystal_name`."""
+    return _metadata_filename(config, CRYSTAL_SEGMENT, crystal_name)
+
+
+def detector_metadata_dirname(config: SimflowConfig, det_name: str) -> Path:
+    """The metadata database that holds the HPGe detector `det_name`.
+
+    Some rules hand a whole metadata database to an external tool. The Julia
+    pulse-shape simulation scripts are one example. They build the diode path
+    and the crystal path themselves. Such a rule must pass this directory, and
+    not ``paths.metadata``. A detector and its crystal always come from the same
+    database.
+    """
+    return diode_filename(config, det_name).parents[4]
+
+
 # geometry
 
 
@@ -467,7 +526,7 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
 def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
     """Flag to compute the superpulses."""
     raw_elecmod = metautils.simpars(
-        config.metadata,
+        config,
         "geds.elecmod",
         kwargs["runid"],
         config.experiment,

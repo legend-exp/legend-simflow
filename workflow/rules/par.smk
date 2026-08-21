@@ -18,7 +18,12 @@
 from pathlib import Path
 
 from legendsimflow import aggregate, hpge_pars, patterns
-from legendsimflow.metadata import get_crystal_name, get_par_settings
+from legendsimflow.metadata import (
+    get_crystal_name,
+    get_diode,
+    get_par_settings,
+    get_runinfo,
+)
 
 
 rule gen_all_tier_par:
@@ -64,7 +69,10 @@ rule make_simstat_partition_file:
         # NOTE: these are not strictly needed here, but in this way Snakemake
         # can track these dependencies. these variables *do get used* in the
         # script.
-        runinfo=config.metadata.datasets.runinfo,
+        runinfo=lambda wc: {
+            runid: dict(get_runinfo(config, runid))
+            for runid in aggregate.get_runlist(config, wc.simid)
+        },
         runlist=lambda wc: aggregate.get_runlist(config, wc.simid),
     output:
         patterns.simstat_part_filename(config),
@@ -76,19 +84,14 @@ rule make_simstat_partition_file:
 
 def smk_hpge_psd_simulation_inputs(wildcards):
     """Prepare inputs for the HPGe PSD simulation (SSD) rules."""
-    meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
+    meta = get_diode(config, wildcards.hpge_detector)
     crystal_name = get_crystal_name(meta)
 
-    _m = Path(config.paths.metadata)
-
-    diode = _m / f"hardware/detectors/germanium/diodes/{wildcards.hpge_detector}.yaml"
-    crystal = _m / f"hardware/detectors/germanium/crystals/{crystal_name}.yaml"
-
     return {
-        "detdb_file": diode,
-        "crydb_file": crystal,
-        "ssd_settings": _m
-        / f"simprod/config/pars/{config.experiment}/geds/ssd/settings.yaml",
+        "detdb_file": patterns.diode_filename(config, wildcards.hpge_detector),
+        "crydb_file": patterns.crystal_filename(config, crystal_name),
+        "ssd_settings": Path(config.paths.config)
+        / f"pars/{config.experiment}/geds/ssd/settings.yaml",
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -122,7 +125,9 @@ rule build_hpge_drift_time_map:
     input:
         unpack(smk_hpge_psd_simulation_inputs),
     params:
-        metadata_path=config.paths.metadata,
+        metadata_path=lambda wc: patterns.detector_metadata_dirname(
+            config, wc.hpge_detector
+        ),
     output:
         dtmap_file=patterns.output_dtmap_filename(config),
         info_file=patterns.output_dtmap_info_filename(config),
@@ -136,7 +141,7 @@ rule build_hpge_drift_time_map:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
         "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
         "    --detector {wildcards.hpge_detector}"
-        f"   --metadata {config.paths.metadata}"
+        "    --metadata {params.metadata_path}"
         "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output.dtmap_file}"
@@ -263,7 +268,9 @@ rule build_hpge_pulse_shape_library:
     input:
         unpack(smk_hpge_psd_simulation_inputs),
     params:
-        metadata_path=config.paths.metadata,
+        metadata_path=lambda wc: patterns.detector_metadata_dirname(
+            config, wc.hpge_detector
+        ),
     output:
         patterns.output_ideal_psl_filename(config),
     log:
@@ -276,7 +283,7 @@ rule build_hpge_pulse_shape_library:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
         "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
         "    --detector {wildcards.hpge_detector}"
-        f"   --metadata {config.paths.metadata}"
+        "    --metadata {params.metadata_path}"
         "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"

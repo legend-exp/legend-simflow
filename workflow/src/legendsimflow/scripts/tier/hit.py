@@ -339,7 +339,7 @@ def main() -> None:
                 geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
             )
 
-            fccd = mutils.get_sanitized_fccd(metadata, det_name)
+            fccd = mutils.get_sanitized_fccd(config, det_name)
 
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
 

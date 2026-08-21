@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from dbetto import AttrsDict
+from legendmeta import LegendMetadata
 
 from legendsimflow import metadata
 from legendsimflow.exceptions import SimflowConfigError
@@ -22,19 +23,19 @@ def test_all(config):
         str,
     )
 
-    assert "livetime_in_s" in metadata.runinfo(config.metadata, "l200-p02-r000-phy")
+    assert "livetime_in_s" in metadata.get_runinfo(config, "l200-p02-r000-phy")
 
     assert (
         "operational_voltage_in_V"
         in metadata.simpars(
-            config.metadata, "geds.opv", "l200-p02-r002-phy", config.experiment
+            config, "geds.opv", "l200-p02-r002-phy", config.experiment
         ).V99000A
     )
 
     # default= returns the default when the par directory does not exist
     assert (
         metadata.simpars(
-            config.metadata,
+            config,
             "geds.nonexistent",
             "l200-p02-r002-phy",
             config.experiment,
@@ -44,7 +45,7 @@ def test_all(config):
     )
     assert (
         metadata.simpars(
-            config.metadata,
+            config,
             "geds.nonexistent",
             "l200-p02-r002-phy",
             config.experiment,
@@ -56,7 +57,7 @@ def test_all(config):
     # without default=, a missing par raises
     with pytest.raises((KeyError, LookupError, FileNotFoundError)):
         metadata.simpars(
-            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", config.experiment
+            config, "geds.nonexistent", "l200-p02-r002-phy", config.experiment
         )
 
     assert isinstance(
@@ -95,16 +96,13 @@ def test_run_stuff(config):
     ]
 
     assert (
-        metadata.reference_cal_run(config.metadata, "l200-p16-r006-phy")
-        == "l200-p16-r006-cal"
+        metadata.reference_cal_run(config, "l200-p16-r006-phy") == "l200-p16-r006-cal"
     )
     assert (
-        metadata.reference_cal_run(config.metadata, "l200-p16-r008-ssc")
-        == "l200-p16-r006-cal"
+        metadata.reference_cal_run(config, "l200-p16-r008-ssc") == "l200-p16-r006-cal"
     )
     assert (
-        metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
-        == "l200-p16-r006-cal"
+        metadata.reference_cal_run(config, "l200-p16-r009-ssc") == "l200-p16-r006-cal"
     )
 
 
@@ -155,6 +153,73 @@ def test_get_crystal_name(config):
         metadata.get_crystal_name(diodes.V05261B)
         in config.metadata.hardware.detectors.germanium.crystals
     )
+
+
+def test_metadata_overlay(l1000_config, config):
+    """The experiment metadata lives in ``paths.config``, and not in the clone."""
+    overlay = l1000_config.metadata_overlay
+    assert overlay is not None
+    assert (
+        Path(overlay.__path__)
+        == metadata.metadata_overlay_dirname(l1000_config).resolve()
+    )
+
+    # legend-metadata describes no LEGEND-1000 experiment
+    assert config.get("metadata_overlay") is None
+
+
+def test_lookup_falls_back_to_the_overlay(l1000_config):
+    """The runs, the run lists and the channel map come from the overlay."""
+    assert "p99" not in l1000_config.metadata.datasets.runinfo
+
+    rinfo = metadata.get_runinfo(l1000_config, "l1000-p99-r000-phy")
+    assert rinfo.start_key == "20000102T000000Z"
+    assert rinfo.livetime_in_s > 0
+
+    assert metadata.get_runlist(l1000_config, "some_simid") == [
+        "l1000-p99-r000-phy",
+        "l1000-p99-r001-phy",
+    ]
+
+    chmap = metadata.get_channelmap(l1000_config, rinfo.start_key)
+    assert set(chmap.group("system")) == {"geds", "spms"}
+    assert chmap.V99900A.analysis.usability == "on"
+    # the diode file merged into the channel map comes from the overlay too
+    assert chmap.V99900A.production.crystal == "900"
+
+
+def test_lookup_prefers_legend_metadata(l1000_config):
+    """A detector in both databases resolves to the legend-metadata entry."""
+    diodes = l1000_config.metadata.hardware.detectors.germanium.diodes
+    assert "V05261B" in diodes
+    assert metadata.get_diode(l1000_config, "V05261B") == diodes.V05261B
+
+    # V99900A exists only in the overlay
+    assert "V99900A" not in diodes
+    assert metadata.get_diode(l1000_config, "V99900A").production.crystal == "900"
+    assert metadata.get_crystal(l1000_config, "V99900").slices.A.status == "valid"
+
+    with pytest.raises(FileNotFoundError):
+        metadata.get_diode(l1000_config, "V00000Z")
+
+    assert metadata.get_diode(l1000_config, "V00000Z", default=None) is None
+
+
+def test_validate_metadata_overlay_rejects_run_collision(tmp_path, config):
+    """Refuse an overlay period that legend-metadata also defines.
+
+    The Simflow looks a run up by period and run number alone. Such a period
+    therefore resolves to the legend-metadata run instead.
+    """
+    overlay_dir = tmp_path / "metadata/l1000dsg01"
+    (overlay_dir / "datasets").mkdir(parents=True)
+    (overlay_dir / "datasets/runinfo.yaml").write_text(
+        "p02:\n  r000:\n    phy:\n      start_key: 20000102T000000Z\n"
+    )
+    overlay = LegendMetadata(overlay_dir)
+
+    with pytest.raises(SimflowConfigError, match="p02"):
+        metadata.validate_metadata_overlay(config.metadata, overlay, overlay_dir)
 
 
 def test_is_simid():
@@ -217,7 +282,7 @@ def test_encode_usability():
 
 
 def test_fccd(config):
-    assert metadata.get_sanitized_fccd(config.metadata, "B99000A") == 0.75
+    assert metadata.get_sanitized_fccd(config, "B99000A") == 0.75
 
 
 def test_extract_integer():

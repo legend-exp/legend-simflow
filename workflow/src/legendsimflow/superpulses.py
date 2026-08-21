@@ -16,14 +16,13 @@ import dbetto
 import lh5
 import numpy as np
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata
 from lgdo import Array, Scalar, Struct
 from matplotlib import colormaps
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
+from legendsimflow import SimflowConfig, utils
 from legendsimflow import metadata as mutils
-from legendsimflow import utils
 
 log = logging.getLogger(__name__)
 
@@ -227,7 +226,7 @@ class Superpulse:
 
 def lookup_superpulse_inputs(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     runid: str,
     hpge: str,
     max_files: int | None = None,
@@ -240,8 +239,8 @@ def lookup_superpulse_inputs(
     ----------
     l200data
         Path to the L200 data production directory.
-    metadata
-        The metadata instance.
+    config
+        Simflow configuration object.
     runid
         LEGEND run identifier, e.g. ``"l200-p16-r008-ssc"``.
     hpge
@@ -272,7 +271,7 @@ def lookup_superpulse_inputs(
     # its raw/evt data and channel map are what we actually read below
     data_runid = runid
     if data_type == "phy":
-        data_runid = mutils.reference_cal_run(metadata, runid)
+        data_runid = mutils.reference_cal_run(config, runid)
         _, period_int, run_int, data_type = mutils.parse_runid(data_runid)
 
         msg = f"inferred reference calibration run: {data_runid}"
@@ -295,8 +294,8 @@ def lookup_superpulse_inputs(
 
     dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
-    tstamp = mutils.runinfo(metadata, data_runid).start_key
-    chmap = metadata.channelmap(tstamp, skip_version_check=True)
+    tstamp = mutils.get_runinfo(config, data_runid).start_key
+    chmap = mutils.get_channelmap(config, tstamp)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
     return raw_files, evt_files, dsp_cfg_file, tab_map, data_runid

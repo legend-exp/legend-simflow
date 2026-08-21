@@ -20,8 +20,7 @@ import inspect
 import json
 import logging
 import os
-import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from numbers import Real
 from pathlib import Path
@@ -35,30 +34,14 @@ import lgdo
 import numpy as np
 import yaml
 from dbetto import AttrsDict, TextDB
-from git import Repo
 from git.exc import GitCommandError
 from legendmeta import LegendMetadata
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import SimflowConfig, nersc
-from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
-
-#: repository cloned into ``paths.config`` by
-#: :func:`bootstrap_generated_metadata`. A standard LEGEND-200 setup instead
-#: gets it as a submodule of `legend-metadata`.
-SIMPROD_CONFIG_URL = "git@github.com:legend-exp/legend-simflow-config"
-
-#: file that records, in ``paths.metadata``, the digest of the geometry
-#: configuration the Simflow generated the metadata from. See
-#: :func:`bootstrap_generated_metadata`.
-GENERATED_METADATA_STAMP = ".generated-metadata"
-
-#: the only geometry generator that also writes a metadata tree. See
-#: :func:`bootstrap_generated_metadata`.
-GENERATED_METADATA_EXECUTABLE = "legend-pygeom-l1000"
 
 
 def _merge_defaults(user: dict, default: dict) -> dict:
@@ -248,219 +231,6 @@ def link_external_paths(
         default.symlink_to(rel, target_is_directory=True)
 
 
-def clone_simprod_config(
-    path: str | Path, *, logger: logging.Logger | None = None
-) -> None:
-    """Clone :data:`SIMPROD_CONFIG_URL` into `path`, if `path` is missing or empty.
-
-    Parameters
-    ----------
-    path
-        Destination directory, i.e. ``paths.config``.
-    logger
-        Logger to use for status messages (e.g. the Snakemake logger when called
-        from a Snakefile). Defaults to the module logger.
-
-    """
-    log_ = logger if logger is not None else log
-    path = Path(path)
-
-    if path.is_dir() and any(path.iterdir()):
-        return
-
-    msg = f"cloning {SIMPROD_CONFIG_URL} in {path}"
-    log_.info(msg)
-
-    path.mkdir(parents=True, exist_ok=True)
-    Repo.clone_from(SIMPROD_CONFIG_URL, path)
-
-
-def geom_config_digest(geom_config: Mapping, source: str | Path) -> str:
-    """Hex SHA-256 digest of a geometry configuration and the files it references.
-
-    Covers the configuration file itself and every existing file named by one of
-    :data:`~legendsimflow.geometry.GEOM_CONFIG_PATH_FIELDS`, so that a hand-edit
-    of a referenced ``special_metadata.yaml`` is seen too.
-
-    The `legend-pygeom-l1000` version is deliberately not part of the digest.
-    The metadata tree follows from the channel map, so the version of the
-    generator governs the GDML file and not the metadata. A version bump would
-    rewrite every diode and crystal file, and the ``par`` tier declares those as
-    rule inputs, so it would re-trigger every drift-time-map job. Delete the
-    stamp file to force a rebuild after a generator upgrade that changes the
-    packaged metadata template.
-
-    Parameters
-    ----------
-    geom_config
-        Contents of the geometry configuration file, with its paths already
-        resolved by
-        :func:`~legendsimflow.geometry.resolve_geom_config_paths`.
-    source
-        Path of the file `geom_config` was read from.
-
-    """
-    from .geometry import GEOM_CONFIG_PATH_FIELDS  # noqa: PLC0415
-
-    digest = hashlib.sha256()
-
-    def _feed_file(path: Path) -> None:
-        with path.open("rb") as f:
-            for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                digest.update(chunk)
-        digest.update(b"\0")
-
-    _feed_file(Path(source))
-
-    for field in GEOM_CONFIG_PATH_FIELDS:
-        value = geom_config.get(field)
-        if isinstance(value, str) and Path(value).is_file():
-            digest.update(field.encode())
-            _feed_file(Path(value))
-
-    return digest.hexdigest()
-
-
-def generate_metadata_tree(
-    geom_config: Mapping, dest: str | Path, *, logger: logging.Logger | None = None
-) -> None:
-    """Write the generated metadata tree of a geometry configuration into `dest`.
-
-    Compiles `geom_config` with ``pygeoml1000.config.resolve_config``, which
-    accepts every input scheme the generator supports (a raw configuration, an
-    explicit ``channelmap`` plus ``special_metadata``, or a ``metadata`` archive)
-    and always returns the compiled objects. Builds the tree from those and
-    writes it as plain files, so that
-    :class:`~legendmeta.legendmetadata.LegendMetadata` reads `dest` like a real
-    metadata checkout.
-
-    The subdirectories the tree occupies are removed first, so that a detector
-    dropped from the configuration also disappears from `dest`. Nothing else in
-    `dest` is touched, in particular not the ``simprod`` configuration clone.
-
-    Parameters
-    ----------
-    geom_config
-        Contents of the geometry configuration file, with its paths already
-        resolved by
-        :func:`~legendsimflow.geometry.resolve_geom_config_paths`.
-    dest
-        Destination directory, i.e. ``paths.metadata``.
-    logger
-        Logger to use for status messages (e.g. the Snakemake logger when called
-        from a Snakefile). Defaults to the module logger.
-
-    """
-    log_ = logger if logger is not None else log
-    dest = Path(dest)
-
-    # NOTE: importing pygeoml1000 executes its __init__, which pulls in
-    # pyg4ometry. Keep it here, so that the callers that find an up-to-date
-    # tree never pay for it
-    from pygeoml1000 import config as pygeom_config  # noqa: PLC0415
-    from pygeoml1000 import metadata as pygeom_metadata  # noqa: PLC0415
-
-    logging.getLogger("pygeoml1000").setLevel(logging.ERROR)
-
-    resolved = pygeom_config.resolve_config(dict(geom_config))
-    tree = pygeom_metadata.build_metadata_tree(resolved)
-
-    msg = f"writing {len(tree)} generated metadata files in {dest}"
-    log_.info(msg)
-
-    dest.mkdir(parents=True, exist_ok=True)
-    for name in {Path(name).parts[0] for name in tree}:
-        stale = dest / name
-        if stale.is_dir():
-            shutil.rmtree(stale)
-        else:
-            stale.unlink(missing_ok=True)
-
-    pygeom_metadata.write_metadata(tree, dest)
-
-
-def bootstrap_generated_metadata(
-    config: SimflowConfig, *, logger: logging.Logger | None = None
-) -> None:
-    """Make ``paths.metadata`` hold the generated metadata of the experiment.
-
-    LEGEND-1000 has no `legend-metadata` database. `legend-pygeom-l1000` derives
-    a stand-in one from the geometry configuration file of the experiment, which
-    is committed in `legend-simflow-config`. This function clones that
-    repository (:func:`clone_simprod_config`) and builds the metadata tree
-    (:func:`generate_metadata_tree`), so that the metadata is in place before
-    :class:`~legendmeta.legendmetadata.LegendMetadata` is constructed.
-
-    The tree is rebuilt only when the geometry configuration, or a file it
-    references, changed. :func:`geom_config_digest` gives the digest, and
-    :data:`GENERATED_METADATA_STAMP` records it in ``paths.metadata``. This
-    keeps the cost away from the callers that only read the metadata, and it
-    keeps the modification times of the generated files stable. The `par` tier
-    declares the diode and crystal files as rule inputs, so a needless rewrite
-    would re-trigger every drift-time-map job.
-
-    Enabled by the ``generated_metadata`` Simflow configuration field.
-
-    Parameters
-    ----------
-    config
-        Simflow configuration object, before the metadata is attached to it.
-    logger
-        Logger to use for status messages (e.g. the Snakemake logger when called
-        from a Snakefile). Defaults to the module logger.
-
-    """
-    log_ = logger if logger is not None else log
-
-    from . import geometry, patterns  # noqa: PLC0415
-
-    clone_simprod_config(config.paths.config, logger=log_)
-
-    geom_config_file = patterns.geom_template_config_filename(config)
-    if not geom_config_file.is_file():
-        msg = f"geometry configuration file {geom_config_file} not found"
-        raise SimflowConfigError(msg, "paths.config")
-
-    executable = geometry.geom_executable(config)
-    if executable != GENERATED_METADATA_EXECUTABLE:
-        msg = (
-            f"experiment {config.experiment} builds its geometry with "
-            f"{executable}, which generates no metadata. Only "
-            f"{GENERATED_METADATA_EXECUTABLE} does. Unset 'generated_metadata'"
-        )
-        raise SimflowConfigError(msg, "generated_metadata")
-
-    geom_config = geometry.resolve_geom_config_paths(
-        dbetto.utils.load_dict(geom_config_file), geom_config_file
-    )
-
-    dest = Path(config.paths.metadata)
-
-    for marker in (".git", ".gitmodules"):
-        if (dest / marker).exists():
-            msg = (
-                f"refusing to generate metadata in {dest}: it contains "
-                f"'{marker}' and looks like a real legend-metadata clone. Point "
-                "paths.metadata at a directory dedicated to this production"
-            )
-            raise SimflowConfigError(msg, "paths.metadata")
-
-    digest = geom_config_digest(geom_config, geom_config_file)
-    stamp = dest / GENERATED_METADATA_STAMP
-
-    if stamp.is_file() and stamp.read_text().strip() == digest:
-        msg = f"generated metadata in {dest} is up to date"
-        log_.debug(msg)
-        return
-
-    msg = f"generating the metadata of {config.experiment} from {geom_config_file}"
-    log_.info(msg)
-
-    generate_metadata_tree(geom_config, dest, logger=log_)
-
-    stamp.write_text(digest + "\n")
-
-
 def init_simflow_context(
     raw_config: dict | AttrsDict | str | Path,
     workflow=None,
@@ -543,32 +313,30 @@ def init_simflow_context(
         if "l200data" in config.paths:
             config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)
 
-        generated_metadata = config.get("generated_metadata", False)
-        if generated_metadata:
-            bootstrap_generated_metadata(config, logger=log_)
-
         # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
         metadata = LegendMetadata(config.paths.metadata, lazy=True)
 
         if "legend_metadata_version" in config:
-            if generated_metadata:
-                log_.warning(
-                    "ignoring legend_metadata_version: the generated metadata "
-                    "is not a Git repository"
-                )
-            else:
-                msg = f"checking out legend-metadata version {config.legend_metadata_version}"
-                log_.info(msg)
-
-                try:
-                    metadata.checkout(config.legend_metadata_version)
-                except GitCommandError as e:
-                    msg = f"could not checkout legend-metadata version: {e}"
-                    log_.warning(msg)
+            log_.info(
+                "checking out legend-metadata version %s",
+                config.legend_metadata_version,
+            )
+            try:
+                metadata.checkout(config.legend_metadata_version)
+            except GitCommandError as e:
+                log_.warning("could not checkout legend-metadata version: %s", e)
 
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB
         config["metadata"] = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
+
+        # metadata of an experiment that legend-metadata does not describe.
+        # See legendsimflow.metadata.load_metadata_overlay
+        from . import metadata as metautils  # noqa: PLC0415
+
+        config["metadata_overlay"] = metautils.load_metadata_overlay(
+            config, logger=log_
+        )
 
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)

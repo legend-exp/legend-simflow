@@ -1,8 +1,8 @@
 experiment: l1000dsg01
 
 runlist:
-  - l200-p03-r000-phy
-  - l200-p03-r001-phy
+  - l1000-p99-r000-phy
+  - l1000-p99-r001-phy
 
 benchmark:
   enabled: true

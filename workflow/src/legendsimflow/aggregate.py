@@ -28,12 +28,15 @@ from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
     encode_psd_usability,
+    get_channelmap,
+    get_crystal,
     get_crystal_name,
+    get_diode,
     get_par_settings,
+    get_runinfo,
     get_runlist,
     get_simconfig,
     get_tier_settings,
-    runinfo,
     simpars,
 )
 
@@ -193,16 +196,7 @@ def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
 def crystal_meta(config: SimflowConfig, diode_meta: AttrsDict) -> AttrsDict:
     """Get the crystal metadata starting from the diode metadata."""
     crystal_name = get_crystal_name(diode_meta)
-    crystal_db = config.metadata.hardware.detectors.germanium.crystals
-    if crystal_name in crystal_db:
-        return crystal_db[crystal_name]
-    return None
-
-
-def start_key(config: SimflowConfig, runid: str) -> str:
-    """Get the start key for a runid."""
-    _, period, run, datatype = runid.split("-")
-    return config.metadata.datasets.runinfo[period][run][datatype].start_key
+    return get_crystal(config, crystal_name, default=None)
 
 
 def pivot_detinfo(
@@ -251,7 +245,7 @@ def _hpge_is_modelable(
 
     # detectors without a depletion voltage in the metadata are not modeled
     try:
-        diode = config.metadata.hardware.detectors.germanium.diodes[name]
+        diode = get_diode(config, name)
         depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
     except (KeyError, AttributeError, FileNotFoundError):
         return False
@@ -311,11 +305,9 @@ def gen_hpge_modeling_status(
     This function is expensive in terms of filesystem I/O! Do not call it
     multiple times or in hot loops.
     """
-    timestamp = start_key(config, runid)
-    metadata = config.metadata
-    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+    chmap = get_channelmap(config, get_runinfo(config, runid).start_key)
 
-    skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
+    skip = simpars(config, "geds.skip", runid, config.experiment, default={})
 
     # minimum operational-voltage margin above depletion required to consider an
     # HPGe modelable; overridable per experiment via the modeling par settings
@@ -449,8 +441,8 @@ def gen_list_of_all_usabilities(
     out_dict = {}
     for runid in all_runids:
         out_dict[runid] = {}
-        rinfo = runinfo(config.metadata, runid)
-        chmap = config.metadata.channelmap(rinfo.start_key, skip_version_check=True)
+        rinfo = get_runinfo(config, runid)
+        chmap = get_channelmap(config, rinfo.start_key)
         for chname in chmap:
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability
@@ -501,7 +493,7 @@ def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
 
     Returns the voltage as an integer.
     """
-    opv = simpars(config.metadata, "geds.opv", runid, config.experiment)
+    opv = simpars(config, "geds.opv", runid, config.experiment)
 
     entry = opv.get(hpge, opv.get("default"))
     if entry is None:
@@ -522,7 +514,7 @@ def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str
     not available in the metadata.
     """
     try:
-        diode = config.metadata.hardware.detectors.germanium.diodes[hpge]
+        diode = get_diode(config, hpge)
         crystal = crystal_meta(config, diode)
         if crystal is None:
             return None

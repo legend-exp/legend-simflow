@@ -9,6 +9,7 @@ from dbetto import AttrsDict
 
 import legendsimflow.aggregate as agg_mod
 from legendsimflow import aggregate as agg
+from legendsimflow import metadata as mutils
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings
 
@@ -114,7 +115,9 @@ def test_hpge_harvesting(config):
     assert cry.name == "000"
     assert cry.order == "99"
 
-    assert agg.start_key(config, "l200-p02-r005-phy") == "20220602T000000Z"
+    assert (
+        mutils.get_runinfo(config, "l200-p02-r005-phy").start_key == "20220602T000000Z"
+    )
 
     # r000-r002 have an empty skip list, so V99000A is present; r003+ have V99000A skip-listed
     assert agg.gen_list_of_hpges_valid_for_modeling(config, "l200-p02-r001-phy") == [

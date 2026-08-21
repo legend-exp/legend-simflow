@@ -145,11 +145,9 @@ def main() -> int:
     settings = DEFAULT_SETTINGS | get_par_settings(simflow_config, "superpulses")
     settings = dbetto.AttrsDict(settings)
 
-    meta = (
-        Path(args.meta)
-        if args.meta is not None
-        else Path(simflow_config.paths.metadata)
-    )
+    # --meta replaces the database named by the configuration
+    if args.meta is not None:
+        simflow_config["metadata"] = LegendMetadata(str(Path(args.meta)))
 
     l200data = (
         Path(args.l200data)
@@ -171,7 +169,6 @@ def main() -> int:
         len(runids),
     )
 
-    lmeta = LegendMetadata(str(meta))
     raw_files = []
     evt_files = []
     dsp_config = None
@@ -182,7 +179,7 @@ def main() -> int:
         raw_run_files, evt_run_files, dsp_cfg_file, tab_map_run, data_runid = (
             lookup_superpulse_inputs(
                 l200data=l200data,
-                metadata=lmeta,
+                config=simflow_config,
                 runid=runid,
                 hpge=args.detector,
                 max_files=settings.max_files,

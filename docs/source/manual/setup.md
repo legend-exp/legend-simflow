@@ -51,13 +51,7 @@ Here's a basic description of its fields:
 
 - `legend_metadata_version`: optionally specify a revision (anything that
   `git checkout` accepts) for the _legend-metadata_ instance used by the
-  simflow. If you are _developing_ metadata, comment this option. The simflow
-  ignores this option when you set `generated_metadata`.
-- `generated_metadata`: boolean flag, `false` by default. Other experiments
-  require a generated _legend-metadata_ like database. LEGEND-1000 is one of
-  them (see {ref}`meta-generated`). Set this flag for such an experiment. The
-  simflow then builds `paths.metadata` from the geometry configuration file of
-  the experiment and never clones _legend-metadata_.
+  simflow. If you are _developing_ metadata, comment this option.
 - `benchmark`: section used to configure a benchmarking run:
   - `enabled`: boolean flag to enable/disable the feature
   - `n_primaries`: number of primary events to be simulated in the lower tiers
@@ -71,17 +65,13 @@ Here's a basic description of its fields:
   - `log` (output): Snakemake rule log files
   - `metadata` (input): simflow input metadata. This is a clone of the
     [legend-metadata](https://github.com/legend-exp/legend-metadata) repository.
-    If not present at runtime, the simflow will attempt a fresh clone. With
-    `generated_metadata`, this is a plain directory instead. The simflow writes
-    the generated metadata into it, and removes the previous one first (see
-    {ref}`meta-generated`). Give this experiment a directory of its own.
+    If not present at runtime, the simflow will attempt a fresh clone. The
+    simflow only reads this directory. An experiment that _legend-metadata_ does
+    not describe brings its own metadata in `paths.config` instead (see
+    {ref}`meta-overlay`).
   - `config` (input): clone of
     [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
-    This is distributed as a submodule of legend-metadata. With
-    `generated_metadata` there is no such submodule. The simflow then clones the
-    repository itself, if the directory is missing or empty. This is a
-    prerequisite, since it holds the geometry configuration file that the
-    generated metadata comes from.
+    This is distributed as a submodule of legend-metadata.
   - `optical_maps` (dict, input): photoelectron detection probability maps for
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.

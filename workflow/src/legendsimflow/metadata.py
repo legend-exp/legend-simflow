@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
 import lh5
@@ -52,6 +52,149 @@ DEFAULT_RUNID_PREFIX = "l200"
 #: first letter of a detector name, by detector type. See
 #: :func:`get_crystal_name`.
 CRYSTAL_TYPE_IDS = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
+
+#: subdirectory of ``paths.config`` that holds the metadata overlay of each
+#: experiment. See :func:`load_metadata_overlay`.
+METADATA_OVERLAY_DIR = "metadata"
+
+#: errors a metadata database raises when it does not hold the queried item.
+#: :meth:`dbetto.catalog.Catalog.valid_for` raises ``RuntimeError`` for a
+#: timestamp that precedes every validity entry of a directory. This is how a
+#: channel map lookup misses. See :func:`lookup`.
+LOOKUP_ERRORS = (LookupError, FileNotFoundError, RuntimeError)
+
+
+def metadata_overlay_dirname(config: SimflowConfig) -> Path:
+    """The metadata overlay directory of the current experiment."""
+    return Path(config.paths.config) / METADATA_OVERLAY_DIR / config.experiment
+
+
+def load_metadata_overlay(
+    config: SimflowConfig, *, logger: logging.Logger | None = None
+) -> LegendMetadata | None:
+    """Load the metadata overlay of the current experiment.
+
+    An experiment that does not exist yet is absent from `legend-metadata`. Its
+    metadata lives in `legend-simflow-config` instead, under
+    ``{paths.config}/metadata/{experiment}/``. The tree uses the
+    `legend-metadata` layout, so the same class reads it.
+
+    The Simflow queries `legend-metadata` first and the overlay second (see
+    :func:`lookup`). An experiment without such a directory never reaches the
+    overlay.
+
+    Returns ``None`` if the directory does not exist.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object, with ``config.metadata`` already attached.
+    logger
+        Logger to use for status messages (e.g. the Snakemake logger when called
+        from a Snakefile). Defaults to the module logger.
+
+    """
+    log_ = logger if logger is not None else log
+
+    if "config" not in config.paths:
+        return None
+
+    path = metadata_overlay_dirname(config)
+    if not path.is_dir():
+        return None
+
+    msg = f"loading the metadata overlay of {config.experiment} from {path}"
+    log_.info(msg)
+
+    overlay = LegendMetadata(path)
+    validate_metadata_overlay(config.metadata, overlay, path)
+    return overlay
+
+
+def validate_metadata_overlay(
+    metadata: LegendMetadata, overlay: LegendMetadata, path: Path
+) -> None:
+    """Refuse an overlay whose runs collide with the `legend-metadata` runs.
+
+    The Simflow looks a run up by period and run number alone. A period that
+    `legend-metadata` also defines therefore resolves there first, and gives the
+    wrong run. :func:`lookup` cannot detect this collision. An overlay must
+    number its periods outside the range of the real experiment.
+
+    Parameters
+    ----------
+    metadata
+        LEGEND metadata database.
+    overlay
+        Metadata overlay of the experiment.
+    path
+        Directory that holds `overlay`. The error message names it.
+
+    """
+    try:
+        periods = set(overlay.datasets.runinfo)
+    except LOOKUP_ERRORS:
+        return
+
+    try:
+        existing = set(metadata.datasets.runinfo)
+    except LOOKUP_ERRORS:
+        return
+
+    clash = sorted(periods & existing)
+    if clash:
+        msg = (
+            f"legend-metadata also defines the period(s) {', '.join(clash)} of "
+            f"the metadata overlay in {path}. A run of such a period resolves "
+            "to the legend-metadata run. Number the overlay periods outside the "
+            "range of the real experiment, for example p99"
+        )
+        raise SimflowConfigError(msg, "paths.config")
+
+
+def lookup(
+    config: SimflowConfig,
+    query: Callable[[LegendMetadata], object],
+    default: object = _MISSING,
+) -> object:
+    """Run `query` against the metadata databases, in order.
+
+    The function queries `legend-metadata` first and the metadata overlay second
+    (see :func:`load_metadata_overlay`). The real database therefore always
+    wins.
+
+    A database that raises one of :data:`LOOKUP_ERRORS` does not hold the item,
+    so the function tries the next one. If no database holds the item, the
+    function raises the error of the last one.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    query
+        Callable that takes a metadata database and returns the queried item.
+    default
+        Value to return when no database holds the item. Without it, the
+        function raises.
+
+    """
+    dbs = [config.metadata]
+
+    overlay = config.get("metadata_overlay")
+    if overlay is not None:
+        dbs.append(overlay)
+
+    error = None
+    for db in dbs:
+        try:
+            return query(db)
+        except LOOKUP_ERRORS as e:
+            error = e
+
+    if default is not _MISSING:
+        return default
+
+    raise error
 
 
 def get_simconfig(
@@ -169,7 +312,7 @@ def extract_integer(file_path: Path) -> int:
 
 
 def usability(
-    metadata: LegendMetadata, det_name: str, runid: str, default: str | None = None
+    config: SimflowConfig, det_name: str, runid: str, default: str | None = None
 ) -> str:
     """Get the usability for analysis of `det_name` in run `runid`.
 
@@ -177,8 +320,8 @@ def usability(
     default, an error is thrown if no information is found. If `default` is set
     to a non-None value, it will be returned.
     """
-    rinfo = runinfo(metadata, runid)
-    chmap = metadata.channelmap(rinfo.start_key, skip_version_check=True)
+    rinfo = get_runinfo(config, runid)
+    chmap = get_channelmap(config, rinfo.start_key)
     if det_name in chmap and "analysis" in chmap[det_name]:
         return chmap[det_name].analysis.usability
 
@@ -229,22 +372,61 @@ def parse_runid(runid: str) -> (str, int, int, str):
     return experiment, int(period[1:]), int(run[1:]), datatype
 
 
-def runinfo(metadata: LegendMetadata, runid: str) -> str:
+def get_runinfo(config: SimflowConfig, runid: str) -> AttrsDict:
     """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 
     Parameters
     ----------
-    metadata
-        LEGEND metadata database.
+    config
+        Simflow configuration object.
     runid
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.
 
     """
     _, period, run, datatype = re.split(r"\W+", runid)
-    return metadata.datasets.runinfo[period][run][datatype]
+    return lookup(config, lambda db: db.datasets.runinfo[period][run][datatype])
 
 
-def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
+def get_channelmap(config: SimflowConfig, timestamp: str) -> AttrsDict:
+    """The channel map of the current experiment, valid at `timestamp`.
+
+    Queries the metadata overlay when `legend-metadata` does not hold the
+    entry. See :func:`lookup`.
+    """
+    return lookup(config, lambda db: db.channelmap(timestamp, skip_version_check=True))
+
+
+def get_diode(
+    config: SimflowConfig, det_name: str, default: object = _MISSING
+) -> AttrsDict:
+    """The `hardware.detectors.germanium.diodes` entry of `det_name`.
+
+    Queries the metadata overlay when `legend-metadata` does not hold the
+    entry. See :func:`lookup`.
+    """
+    return lookup(
+        config,
+        lambda db: db.hardware.detectors.germanium.diodes[det_name],
+        default=default,
+    )
+
+
+def get_crystal(
+    config: SimflowConfig, crystal_name: str, default: object = _MISSING
+) -> AttrsDict:
+    """The `hardware.detectors.germanium.crystals` entry of `crystal_name`.
+
+    Queries the metadata overlay when `legend-metadata` does not hold the
+    entry. See :func:`lookup`.
+    """
+    return lookup(
+        config,
+        lambda db: db.hardware.detectors.germanium.crystals[crystal_name],
+        default=default,
+    )
+
+
+def reference_cal_run(config: SimflowConfig, runid: str) -> str:
     """The reference calibration run for `runid`.
 
     Warning
@@ -267,7 +449,7 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
     if datatype == "cal":
         return runid
 
-    p_runinfo = metadata.datasets.runinfo[period]
+    p_runinfo = lookup(config, lambda db: db.datasets.runinfo[period])
 
     if "cal" in p_runinfo[run]:
         return f"{exp}-{period}-{run}-cal"
@@ -287,7 +469,7 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
 
 
 def simpars(
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     par: str,
     runid: str,
     experiment: str,
@@ -301,8 +483,8 @@ def simpars(
 
     Parameters
     ----------
-    metadata
-        LEGEND metadata database.
+    config
+        Simflow configuration object.
     par
         name of directory under ``metadata.simprod.config.pars.{experiment}``.
         Can be a nested property, as in e.g. ``geds.opv.value``. ``.`` and
@@ -322,8 +504,8 @@ def simpars(
     par = par.replace(".", "/")
     datatype = re.split(r"\W+", runid)[-1]
     try:
-        directory = metadata["simprod/config/pars"][experiment][par]
-        return directory.on(runinfo(metadata, runid).start_key, category=datatype)
+        directory = config.metadata["simprod/config/pars"][experiment][par]
+        return directory.on(get_runinfo(config, runid).start_key, category=datatype)
     except (KeyError, LookupError, FileNotFoundError):
         if default is _MISSING:
             raise
@@ -360,20 +542,19 @@ def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
     return get_simconfig(config, "vtx", vtx_key.pop())
 
 
-def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
+def get_sanitized_fccd(config: SimflowConfig, det_name: str) -> float:
     """Return the FCCD value for `det_name`, falling back to 1 mm if the FCCD field is absent.
 
     Parameters
     ----------
-    metadata
-        LEGEND metadata database.
+    config
+        Simflow configuration object.
     det_name
         Detector name.
 
     """
-    try:
-        det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
-    except (FileNotFoundError, KeyError):
+    det_meta = get_diode(config, det_name, default=None)
+    if det_meta is None:
         msg = f"{det_name} diode metadata not found, setting FCCD to 1 mm"
         log.warning(msg)
         return 1.0
@@ -577,14 +758,13 @@ def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
             msg = f"'{key}' key not found and config.runlist fallback undefined"
             raise SimflowConfigError(msg, path) from e
 
-    return expand_runlist(
-        config.metadata, runlist, prefix=experiment_prefix(config.experiment)
-    )
+    prefix = experiment_prefix(config.experiment)
+    return lookup(config, lambda db: expand_runlist(db, runlist, prefix=prefix))
 
 
 # FIXME: this should be removed once the PRL25 data is reprocessed
 def _get_lh5_table(
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     fname: str | Path,
     hpge: str,
     tier: str,
@@ -600,9 +780,7 @@ def _get_lh5_table(
         return path
 
     # otherwise fall back to the old format
-    timestamp = runinfo(metadata, runid).start_key
-
-    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+    chmap = get_channelmap(config, get_runinfo(config, runid).start_key)
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"

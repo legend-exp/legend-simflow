@@ -38,84 +38,73 @@ experimental configuration are supported) can be found in the `README.md`.
 
 In this section, the specification of the metadata format is documented.
 
-(meta-generated)=
+(meta-overlay)=
 
-## Generated metadata
+## Metadata overlay
 
-An experiment that does not exist yet requires a generated database in the style
-of the [legend-metadata](https://github.com/legend-exp/legend-metadata)
-database. For LEGEND-1000, the simflow builds a stand-in metadata tree from the
-geometry configuration file of the experiment. That file lives in
-[legend-simflow-config](https://github.com/legend-exp/legend-simflow-config) and
-describes the whole production on its own.
+An experiment that does not exist yet is absent from the
+[legend-metadata](https://github.com/legend-exp/legend-metadata) database.
+LEGEND-1000 is such an experiment. Its metadata lives here instead, under
+`metadata/{experiment}/`. The tree uses the layout of _legend-metadata_ itself:
 
-Set `generated_metadata` in the simflow configuration file (see
-{ref}`simflow-config`). The simflow then prepares the metadata itself:
-
-1. It clones _legend-simflow-config_ into `paths.config`, if that directory is
-   missing or empty.
-2. It reads `geom/{experiment}-geom-config.yaml`.
-3. It writes the metadata tree into `paths.metadata`.
-
-All of this happens before the simflow builds
-{class}`~legendmeta.legendmetadata.LegendMetadata`. The steps downstream read
-the metadata in the same way as for LEGEND-200.
-
-The tree holds three parts:
-
-- `datasets/`: run information, run lists and channel statuses.
-- `hardware/`: channel maps, diodes and crystals.
-- `special_metadata.yaml`: the compiled geometry. Only the geometry generator
-  reads this file.
-
-### The compiled geometry configuration
-
-`legend-pygeom-l1000` accepts three ways to describe a geometry: a raw
-configuration, a compiled one, and a generated metadata tree. The simflow
-accepts all three, because it hands the file to the generator unchanged.
-
-A compiled configuration gives the channel map and the spatial layout detector
-by detector. Write one with `--write-config`, then edit it:
-
-```console
-> legend-pygeom-l1000 --config raw-config.yaml --write-config l1000dsg01-geom-config.yaml
+```
+metadata/l1000dsg01/datasets/runinfo.yaml
+metadata/l1000dsg01/datasets/runlists.yaml
+metadata/l1000dsg01/datasets/statuses/{validity.yaml,*.yaml}
+metadata/l1000dsg01/hardware/configuration/channelmaps/{validity.yaml,*.yaml}
+metadata/l1000dsg01/hardware/detectors/germanium/diodes/<DET>.yaml
+metadata/l1000dsg01/hardware/detectors/germanium/crystals/<XTAL>.yaml
+metadata/l1000dsg01/special_metadata.yaml
 ```
 
-The result is plain YAML, and it is itself a valid geometry configuration file.
-Use it to remove one detector, to move one string, or to change one channel
-status. The metadata follows the edit at the next simflow invocation. There is
-no need to run the generator again.
+The simflow clones _legend-metadata_ as always, and only reads it. It loads this
+directory as a second database. It queries the second database when
+_legend-metadata_ does not hold the item
+({func}`legendsimflow.metadata.lookup`). There is no configuration flag. An
+experiment without such a directory never reaches the second database. The
+simflow generates nothing at run time, and writes into neither clone.
+
+### How to produce the overlay
+
+`legend-pygeom-l1000` writes the whole tree from a geometry configuration:
+
+```console
+> legend-pygeom-l1000 --config raw-config.yaml --write-metadata metadata/l1000dsg01
+```
+
+Commit the result. The geometry configuration of the experiment then points back
+at the tree. The tree becomes the single description of the setup, because the
+generator rebuilds the same geometry from it:
 
 ```{code-block} yaml
 :caption: simprod/config/geom/l1000dsg01-geom-config.yaml
 
 executable: legend-pygeom-l1000
-special_metadata: l1000dsg01-special-metadata.yaml
-channelmap:
-  V00101A:
-    name: V00101A
-    system: geds
-    location: { string: 1, position: 1 }
-    daq: { rawid: 101 }
-  # ...
+metadata: ../metadata/l1000dsg01
 ```
 
-Each of `raw_config`, `channelmap` and `special_metadata` takes a mapping, or a
-path to a file that holds one. A path keeps the geometry configuration file
-short.
+Edit the tree by hand to remove one detector, to move one string, or to change
+one channel status. Both the geometry and the simflow follow the edit at the
+next invocation.
 
-### When the simflow builds the tree again
-
-The simflow records a digest of the geometry configuration in
-`paths.metadata/.generated-metadata`. It builds the tree again only when that
-digest changes. The digest covers the geometry configuration file and every file
-it points to, so a hand-edit of `special_metadata.yaml` also counts.
+### Run identifiers
 
 :::{important}
 
-The simflow removes the `datasets/` and `hardware/` directories of
-`paths.metadata` before it writes the tree again. A detector that leaves the
-configuration thus also leaves the metadata.
+The runs in `datasets/runinfo.yaml` must stay clear of the _legend-metadata_
+runs. The simflow queries _legend-metadata_ first, so a run that it also defines
+wins. Two rules keep the runs apart:
+
+- **Number the periods outside the range of the real experiment**, for example
+  `p99`. The simflow looks a run up by period and run number alone.
+- **Keep the start keys before the _legend-metadata_ era**, for example the
+  year 2000. The simflow looks a channel map up by timestamp, so the period
+  number alone does not cover it. A timestamp that precedes every validity entry
+  raises. This is what sends the lookup to the overlay.
+
+The simflow applies the first rule at startup. It refuses an overlay whose
+periods collide. The parameter directories of the experiment (see
+{ref}`opv-metadata-dir`) need a validity entry that covers these start keys.
 
 :::
 

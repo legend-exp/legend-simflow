@@ -23,9 +23,18 @@ The dummy production uses three experiments:
   tests; its runlist contains real p02 run IDs but is not intended to run an
   actual production
 - `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→pdf
-  pipeline; runs in CI without requiring `l200data`. Currently uses l200-p03
-  runs (`l200-p03-r000-phy`, `l200-p03-r001-phy`) because l1000 hardware and
-  crystal metadata are not yet in `dummyprod`
+  pipeline. It runs in CI and does not need `l200data`. Its runs, channel map
+  and detectors come from the metadata overlay in
+  `inputs/simprod/config/metadata/l1000dsg01/`, and not from the
+  `legend-metadata` stand-in in `inputs/`. The overlay uses period `p99` and
+  year-2000 start keys, so every lookup misses in `inputs/` and reaches the
+  overlay (see `legendsimflow.metadata.lookup`). `V02160A` and `V05261B` are in
+  both databases and resolve to `inputs/`. `V99900A` is in the overlay alone.
+  The overlay is small and hand-written, so its detectors do not match the GDML
+  geometry, which `legend-pygeom-l1000` builds from its own packaged
+  configuration. A real production commits the overlay that
+  `legend-pygeom-l1000 --write-metadata` produces, and points its geometry
+  configuration at it
 - `l200cfg01`: used by `test_l200_workflow` (`needs_nersc` marker), which runs
   the full vtx→cvt pipeline requiring access to `l200data` — run manually at
   NERSC with `pixi run -e test test-l200-workflow`

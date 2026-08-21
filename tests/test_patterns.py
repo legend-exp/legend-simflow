@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from legendsimflow import metadata
 from legendsimflow import patterns as p
 
 SIMID = "birds_nest_K40"
@@ -413,3 +414,27 @@ def test_pdf_filenames(config):
     assert result.suffix == ".tsv"
     assert result.parent.name == "pdf"
     assert result.parent.parent.name == "benchmarks"
+
+
+def test_metadata_filenames(l1000_config):
+    """Diode and crystal files resolve to the database that holds them."""
+    clone = Path(l1000_config.paths.metadata)
+    overlay = metadata.metadata_overlay_dirname(l1000_config)
+
+    assert p.metadata_dirnames(l1000_config) == [clone, overlay]
+
+    assert p.diode_filename(l1000_config, "V05261B") == (
+        clone / p.DIODE_SEGMENT / "V05261B.yaml"
+    )
+    assert p.detector_metadata_dirname(l1000_config, "V05261B") == clone
+
+    assert p.diode_filename(l1000_config, "V99900A") == (
+        overlay / p.DIODE_SEGMENT / "V99900A.yaml"
+    )
+    assert p.crystal_filename(l1000_config, "V99900") == (
+        overlay / p.CRYSTAL_SEGMENT / "V99900.yaml"
+    )
+    assert p.detector_metadata_dirname(l1000_config, "V99900A") == overlay
+
+    with pytest.raises(FileNotFoundError):
+        p.diode_filename(l1000_config, "V00000Z")

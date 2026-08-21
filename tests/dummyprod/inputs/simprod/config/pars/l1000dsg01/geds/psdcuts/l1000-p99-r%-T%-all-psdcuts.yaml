@@ -1,0 +1,4 @@
+default:
+  aoe:
+    low_side: -1.5
+    high_side: 3
