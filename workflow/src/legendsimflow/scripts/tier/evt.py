@@ -90,7 +90,11 @@ def main() -> None:
         help="detector usability YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
-    parser.add_argument("--simid", required=True, help="simulation ID wildcard")
+    parser.add_argument(
+        "--simid",
+        default=None,
+        help="simulation ID wildcard, needed only in noise_trigger mode",
+    )
     parser.add_argument("--evt-file", required=True, help="output evt tier file")
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -277,10 +281,19 @@ def main() -> None:
             return ak.with_parameter(data_unflat, "units", units)
         return data_unflat
 
-    # a source run visits several SIS positions and writes one noise-trigger file
-    # per position, so the run alone does not identify the right one. Which SIS
-    # and position this simid models is already declared in its geometry config;
-    # simids without a source (no entry) keep using every file of the run.
+    if (
+        add_random_coincidences
+        and tier_evt_settings.get("random_coincidence_mode", "forced_trigger")
+        == "noise_trigger"
+        and args.simid is None
+    ):
+        msg = (
+            "--simid is required in noise_trigger mode: the noise-trigger file is "
+            "selected by the SIS position declared in the simid's geometry config"
+        )
+        raise ValueError(msg)
+
+    # SIS number and position necessary in noise_trigger mode for noise trigger file selection
     sis_cfg = (
         get_simconfig(config, "stp").get(args.simid, {}).get("geom_config_extra", {})
     ).get("sis", {})
