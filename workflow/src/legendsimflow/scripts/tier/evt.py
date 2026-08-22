@@ -17,6 +17,7 @@
 
 
 import argparse
+from collections.abc import Mapping
 
 import awkward as ak
 import legenddataflowscripts as ldfs
@@ -34,8 +35,10 @@ from legendsimflow.awkward import ak_isin
 from legendsimflow.metadata import (
     encode_psd_usability,
     encode_usability,
+    get_simconfig,
     get_tier_settings,
     parse_runid,
+    runinfo,
 )
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
@@ -58,6 +61,7 @@ VALID_PSD = encode_psd_usability("valid")
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
         "jobid": "wildcards.jobid",
+        "simid": "wildcards.simid",
         "evt_file": "output[0]",
         "log_file": "log[0]",
         "add_random_coincidences": "params.add_random_coincidences",
@@ -86,6 +90,11 @@ def main() -> None:
         help="detector usability YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
+    parser.add_argument(
+        "--simid",
+        default=None,
+        help="simulation ID wildcard, needed only in noise_trigger mode",
+    )
     parser.add_argument("--evt-file", required=True, help="output evt tier file")
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -272,6 +281,26 @@ def main() -> None:
             return ak.with_parameter(data_unflat, "units", units)
         return data_unflat
 
+    if (
+        add_random_coincidences
+        and tier_evt_settings.get("random_coincidence_mode", "forced_trigger")
+        == "noise_trigger"
+        and args.simid is None
+    ):
+        msg = (
+            "--simid is required in noise_trigger mode: the noise-trigger file is "
+            "selected by the SIS position declared in the simid's geometry config"
+        )
+        raise ValueError(msg)
+
+    # SIS number and position necessary in noise_trigger mode for noise trigger file selection
+    sis_cfg = (
+        get_simconfig(config, "stp").get(args.simid, {}).get("geom_config_extra", {})
+    ).get("sis", {})
+    sis_and_position = [
+        (n, c["sis_z"]) for n, c in sis_cfg.items() if c and "sis_z" in c
+    ]
+
     partitions = load_dict(simstat_part_file)[f"job_{args.jobid}"]
 
     # use write_safe on the first chunk to catch stale data from a failed retry
@@ -302,18 +331,46 @@ def main() -> None:
         )
 
         if add_random_coincidences:
-            msg = "looking up forced trigger files for random coincidences"
-            log.debug(msg)
             with perf_block("lookup_l200data_evts_for_rc()"):
                 evt_tier_name = utils.get_evt_tier_name(l200data)
+                rc_runid = tier_evt_settings.get("random_coincidence_runid", None)
+                if isinstance(rc_runid, Mapping):
+                    if runid not in rc_runid:
+                        msg = (
+                            f"no random_coincidence_runid entry for {runid} in the "
+                            "evt tier settings"
+                        )
+                        raise KeyError(msg)
+                    rc_runid = rc_runid[runid]
+                rc_mode = tier_evt_settings.get(
+                    "random_coincidence_mode", "forced_trigger"
+                )
+                msg = (
+                    f"looking up {rc_mode} files for random coincidences "
+                    f"from {rc_runid or runid}"
+                )
+                log.debug(msg)
                 rc_evt_files = sorted(
-                    spms_pars.lookup_evt_files(l200data, runid, evt_tier_name)
+                    spms_pars.lookup_evt_files(
+                        l200data, rc_runid or runid, evt_tier_name
+                    )
                 )
                 if not rc_evt_files:
                     msg = "no RC evt files found for random coincidences"
                     raise RuntimeError(msg)
 
-                rc_index_lookup = spms_pars.build_rc_evt_index_lookup(rc_evt_files)
+                # a noise-trigger run visits several SIS positions and writes one
+                # file per position
+                if rc_mode == "noise_trigger" and len(sis_and_position) == 1:
+                    rc_evt_files = spms_pars.select_sis_position_file(
+                        rc_evt_files,
+                        runinfo(metadata, rc_runid or runid),
+                        *sis_and_position[0],
+                    )
+
+                rc_index_lookup = spms_pars.build_rc_evt_index_lookup(
+                    rc_evt_files, mode=rc_mode
+                )
             # state is reset per partition so RC events are drawn independently
             # for each run slice
             rc_file_state: dict = {}
