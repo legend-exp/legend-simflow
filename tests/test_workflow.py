@@ -98,7 +98,7 @@ def _assert_psd_psl_in_evt(generated: Path) -> None:
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
 def test_l1000_workflow():
-    output = smkapi.OutputSettings(verbose=False)
+    output = smkapi.OutputSettings(verbose=False, show_failed_logs=True)
 
     with smkapi.SnakemakeApi(output) as api:
         wf_api = api.workflow(

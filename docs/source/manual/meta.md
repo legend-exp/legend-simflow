@@ -367,7 +367,7 @@ buffer_len: "10*MB"
 
 - `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
   geometry used to identify liquid argon energy depositions (e.g. `liquid_argon`
-  for LEGEND-200, `undergroundlar` for LEGEND-1000).
+  for LEGEND-200, `liquid_argon_underground` for LEGEND-1000).
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.

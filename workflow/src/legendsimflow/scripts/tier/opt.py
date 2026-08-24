@@ -41,6 +41,7 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, utils
 from legendsimflow import reboost as reboost_utils
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings
 from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
@@ -171,6 +172,23 @@ def main() -> None:
     # load the geometry and retrieve registered sensitive volume tables
     geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
     sens_tables = pygeomtools.detectors.get_all_senstables(geom)
+
+    # fail early and loudly: without a matching volume the loop below would
+    # silently do nothing and the output file would never be created
+    scintillators = [
+        name
+        for name, meta in sens_tables.items()
+        if meta.detector_type == "scintillator"
+    ]
+    if scintillator_volume_name not in scintillators:
+        msg = (
+            f"scintillator volume {scintillator_volume_name} not found in "
+            f"{gdml_file}. scintillator volumes in the geometry: "
+            f"{sorted(scintillators)}"
+        )
+        raise SimflowConfigError(
+            msg, f"simprod.config.tier.opt.{config.experiment}.settings"
+        )
 
     def process_sipm(
         iterator: LH5Iterator,
