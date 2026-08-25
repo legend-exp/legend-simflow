@@ -1,7 +1,5 @@
-# NOTE: the test optical map (l200cfg01-optmap-dummy.lh5) only holds channels
-# with LEGEND-200 SiPM names, so the combined ("all") map must be used here
-optmap_per_sipm: false
-scintillator_volume_name: liquid_argon_underground
+optmap_per_sipm: true
+scintillator_volume_name: liquid_argon
 optmap_scaling_factor: 1
 photoelectron_resolution_sigma: 0.3
 time_resolution_in_ns: 16
