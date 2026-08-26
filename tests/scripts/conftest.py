@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 import dbetto.utils
@@ -129,39 +130,29 @@ def legend_dtmap_path():
     return testprod / "inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5"
 
 
-#: opt tier settings the fixtures below need on top of the committed ones.
-#: `legend_gdml_path` builds the geometry with legend-pygeom-l200, whose
-#: scintillator volume is `liquid_argon`. The committed settings name the
-#: LEGEND-1000 volume instead, which only `test_l1000_workflow` produces.
-_L1000_SETTINGS_OVERRIDE = {"opt": {"scintillator_volume_name": "liquid_argon"}}
-
-
-def _l1000_config(tmp_dir: Path, settings_by_tier: dict | None = None) -> Path:
+def _l1000_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Path:
     """Write a minimal simflow-config-l1000.yaml to *tmp_dir* and return its path.
 
-    The dummyprod metadata is copied under *tmp_dir* so the tier settings can be
-    edited without a change to the committed tree. ``settings_by_tier`` maps a
-    tier name to the settings keys to overwrite, on top of
-    :data:`_L1000_SETTINGS_OVERRIDE`. All path entries other than
-    ``paths.metadata`` and ``paths.config`` use ``$_`` substitution resolved to
-    *tmp_dir*.
+    ``settings_by_tier`` maps a tier name to the settings keys to overwrite. When
+    it is given, the dummyprod metadata is copied to `<tmp_dir>/inputs` first, so
+    the committed tree stays untouched. That copy is where `$_` already points,
+    so no path entry needs an override.
     """
-    meta = tmp_dir / "inputs"
-    shutil.copytree(testprod / "inputs", meta)
-
-    overrides = {tier: dict(o) for tier, o in _L1000_SETTINGS_OVERRIDE.items()}
-    for tier, overlay in (settings_by_tier or {}).items():
-        overrides.setdefault(tier, {}).update(overlay)
-
-    for tier, overlay in overrides.items():
-        f = meta / "simprod/config/tier" / tier / "l1000dsg01/settings.yaml"
-        data = yaml.safe_load(f.read_text())
-        data.update(overlay)
-        f.write_text(yaml.safe_dump(data))
-
     raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
-    raw["paths"]["metadata"] = str(meta)
-    raw["paths"]["config"] = str(meta / "simprod/config")
+
+    if settings_by_tier:
+        shutil.copytree(testprod / "inputs", tmp_dir / "inputs")
+        for tier, overlay in settings_by_tier.items():
+            f = (
+                tmp_dir
+                / "inputs/simprod/config/tier"
+                / tier
+                / "l1000dsg01/settings.yaml"
+            )
+            f.write_text(yaml.safe_dump(yaml.safe_load(f.read_text()) | overlay))
+    else:
+        raw["paths"]["metadata"] = str(testprod / "inputs")
+
     config_path = tmp_dir / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))
     return config_path

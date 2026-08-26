@@ -91,12 +91,19 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
             patterns.plot_tier_opt_observables_filename(config, simid=simid),
         ]
     if tier == "stp":
-        # geometry validation plots, a byproduct of the stp geometry build
-        return [
+        files = [
             patterns.plot_tier_stp_vertices_filename(config, simid=simid),
             patterns.plot_geom_rendering_filename(config, simid=simid),
-            patterns.plot_geom_hpge_mass_filename(config, simid=simid),
         ]
+        # HPGe mass comparison plot is only produced for the L200 geometry
+        if (
+            dbetto.utils.load_dict(patterns.geom_template_config_filename(config))[
+                "executable"
+            ]
+            == "legend-pygeom-l200"
+        ):
+            files.append(patterns.plot_geom_hpge_mass_filename(config, simid=simid))
+        return files
     if tier == "par":
         # HPGe drift-time map plots, a byproduct of the par step; only produced
         # when PSD is simulated in the hit tier

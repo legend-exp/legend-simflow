@@ -64,9 +64,7 @@ def load_vis_scene(config: SimflowConfig) -> dict:
     optional per-experiment override read from
     `<paths.config>/geom/<experiment>-vis-config.yaml` in the metadata.
     """
-    default_scene = DEFAULT_VIS_SCENE
-
-    scene = copy.deepcopy(default_scene)
+    scene = copy.deepcopy(DEFAULT_VIS_SCENE)
     override = patterns.geom_vis_config_filename(config)
     if override.exists():
         scene |= dbetto.utils.load_dict(override)
@@ -121,9 +119,7 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry
         meshconfig.setGlobalMeshSliceAndStack(100)
-
-    template = patterns.geom_template_config_filename(config)
-    executable = dbetto.utils.load_dict(template).get("executable", None)
+    executable = geom_config.get("executable")
 
     if executable == "legend-pygeom-l200":
         from pygeoml200 import cli, core  # noqa: PLC0415
@@ -140,14 +136,14 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
         )
 
     elif executable == "legend-pygeom-l1000":
-        from pygeoml1000 import cli, core  # noqa: PLC0415
+        from pygeoml1000 import core  # noqa: PLC0415
 
         logging.getLogger("pygeoml1000").setLevel(logging.ERROR)
 
         registry = core.construct(config=geom_config)
 
     else:
-        msg = f"Unknown geometry executable {executable!r} in {template}"
+        msg = f"Unknown geometry executable {executable!r}"
         raise ValueError(msg)
 
     # `viewer._export_png` refuses to overwrite, so clear a stale target first

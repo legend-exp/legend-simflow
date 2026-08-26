@@ -93,6 +93,7 @@ The configuration folder must contain the following files:
 - `tier/stp/{experiment}/simconfig.yaml`
 - `tier/stp/{experiment}/generators.yaml`
 - `tier/stp/{experiment}/confinement.yaml`
+- `geom/{experiment}-geom-config.yaml`
 
 (simconfig.yaml)=
 
@@ -153,8 +154,7 @@ Supported fields per `simid`:
   to inject into the template (e.g. `HPGE_ENERGY_THRESHOLD: 450 keV`).
 - `geom_config_extra`: Optional nested structure to tweak geometry configuration
   for this `simid`. This configuration block is injected unmodified to the
-  geometry tooling (currently
-  [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io)).
+  geometry tooling.
 
 Example:
 
@@ -166,6 +166,29 @@ hpge_bulk_Rn222_to_Po214:
   primaries_per_job: 10_000
   number_of_jobs: 4
 ```
+
+(geom-config.yaml)=
+
+#### `{experiment}-geom-config.yaml`
+
+The geometry configuration file for the experiment. It lives in `geom/`, not in
+`tier/stp/`, because the same geometry is used by all tiers. The Simflow copies
+it for each `simid`, merges `geom_config_extra` into the copy, and gives the
+result to the geometry generator.
+
+```yaml
+executable: legend-pygeom-l200
+public_geom: true
+```
+
+- `executable` (str) — the geometry generator to run, either
+  `legend-pygeom-l200` or `legend-pygeom-l1000`. This key is mandatory. The
+  generators ignore it. Only simflow reads it.
+
+All other keys are passed to the generator without a change. See the
+[legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io) and
+[legend-pygeom-l1000](https://legend-pygeom-l1000.readthedocs.io) manuals for
+the keys each one accepts.
 
 (generators.yaml)=
 
@@ -515,12 +538,14 @@ skip_hit: false
   this value are discarded.
 - `spms_energy_thr_pe` (int) — SiPM hit threshold in photoelectrons; hits below
   this value are discarded.
-- `lar_veto_multiplicity_thr` (int, default `4`) — number of SiPM channels above
-  threshold that make an event fail the LAr veto (`coincident/spms`).
-- `lar_veto_energy_sum_pe_thr` (float, default `4`) — summed SiPM energy in
-  photoelectrons that makes an event fail the LAr veto. An event fails the veto
-  when it passes either of the two thresholds. The defaults are the LEGEND-200
-  values.
+- `lar_veto_multiplicity_thr` (int) — SiPM multiplicity that marks an event as
+  coincident with a LAr signal. See `lar_veto_energy_sum_pe_thr`. LEGEND-200
+  uses `4` while LEGEND-1000 uses `1`.
+- `lar_veto_energy_sum_pe_thr` (float) — summed SiPM energy in photoelectrons
+  that marks an event as coincident with a LAr signal. The `coincident/spms`
+  field is `true` when the SiPM multiplicity is `lar_veto_multiplicity_thr` or
+  more, or the summed SiPM energy is `lar_veto_energy_sum_pe_thr` or more. Both
+  keys are mandatory. LEGEND-200 uses `4` while LEGEND-1000 uses `1`.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
 - `skip_opt` (bool, default `false`) — when `true`, the `opt` (SiPM/LAr) tier is

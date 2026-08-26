@@ -110,5 +110,7 @@ set-resources:
   build_tier_opt:
     runtime: 10
 
-  plot_geom:
+  plot_geom_rendering:
+    mem_mb: 2500
+  plot_geom_hpge_mass:
     mem_mb: 2500

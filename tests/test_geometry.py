@@ -11,16 +11,8 @@ def _cfg(config_dir, experiment="legend"):
     return AttrsDict({"paths": {"config": str(config_dir)}, "experiment": experiment})
 
 
-def _write_geom_config(config_dir, contents, experiment="legend"):
-    geom = config_dir / "geom"
-    geom.mkdir(exist_ok=True)
-    (geom / f"{experiment}-geom-config.yaml").write_text(yaml.safe_dump(contents))
-
-
 def test_load_vis_scene_default(tmp_path):
     """Without a metadata override, the built-in default scene is returned."""
-    _write_geom_config(tmp_path, {"public_geom": True})
-
     scene = geometry.load_vis_scene(_cfg(tmp_path))
     assert scene == DEFAULT_VIS_SCENE
     # a deep copy is returned: mutating it must not affect the default
@@ -30,8 +22,9 @@ def test_load_vis_scene_default(tmp_path):
 
 def test_load_vis_scene_override(tmp_path):
     """A per-experiment metadata file overrides the default per top-level key."""
-    _write_geom_config(tmp_path, {"public_geom": True})
-    (tmp_path / "geom" / "legend-vis-config.yaml").write_text(
+    geom = tmp_path / "geom"
+    geom.mkdir()
+    (geom / "legend-vis-config.yaml").write_text(
         yaml.safe_dump({"window_size": [10, 20]})
     )
 

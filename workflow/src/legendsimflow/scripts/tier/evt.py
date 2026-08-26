@@ -140,9 +140,8 @@ def main() -> None:
     tier_evt_settings = get_tier_settings(config, "evt")
     geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
     spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
-    # the LEGEND-200 LAr veto definition, kept as the default
-    lar_veto_multiplicity_thr = tier_evt_settings.get("lar_veto_multiplicity_thr", 4)
-    lar_veto_energy_sum_pe_thr = tier_evt_settings.get("lar_veto_energy_sum_pe_thr", 4)
+    lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
+    lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences

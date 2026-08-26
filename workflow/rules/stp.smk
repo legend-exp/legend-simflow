@@ -17,6 +17,7 @@
 
 from legendsimflow import aggregate, commands, geometry, utils, patterns
 from legendsimflow import metadata as mutils
+import dbetto
 
 
 rule gen_all_tier_stp:
@@ -35,9 +36,7 @@ rule gen_geom_config:
 
     Start from the template/default geometry configuration file and eventually
     add extra configuration options in case requested in `simconfig.yaml`
-    through the `geom_config_extra` field. The template must describe the
-    geometry on its own. The written file does not live next to it, so a
-    relative path in the template does not resolve.
+    through the `geom_config_extra` field.
 
     Uses wildcards `tier` and `simid`.
     """
@@ -79,9 +78,9 @@ rule build_geom_gdml:
     input:
         rules.gen_geom_config.output,
     params:
-        executable=lambda wc: dbetto.utils.load_dict(
+        executable=dbetto.utils.load_dict(
             patterns.geom_template_config_filename(config)
-        ).get("executable", None),
+        )["executable"],
     output:
         patterns.geom_gdml_filename(config),
     log:
@@ -193,29 +192,23 @@ rule plot_tier_stp_vertices:
         "../src/legendsimflow/scripts/plots/tier_stp_vertices.py"
 
 
-rule plot_geom:
-    """Produce the geometry validation plots (HPGe mass comparison and rendering).
-
-    Both are derived from the `stp` geometry config by
-    {func}`legendsimflow.geometry.make_hpge_mass_plot` and
-    {func}`legendsimflow.geometry.render_geometry`.
-
-    Uses wildcard `simid`.
-    """
+rule plot_geom_rendering:
+    """Produce a rendering of the geometry."""
     input:
         patterns.geom_config_filename(config, tier="stp"),
     output:
-        mass=patterns.plot_geom_hpge_mass_filename(config),
-        rendering=patterns.plot_geom_rendering_filename(config),
+        patterns.plot_geom_rendering_filename(config),
     run:
-        from dbetto import utils as dbetto_utils
-        from pathlib import Path
+        geometry.render_geometry(config, dbetto.utils.load_dict(input[0]), output[0])
 
-        from legendsimflow import geometry
 
-        geom_config = dbetto_utils.load_dict(input[0])
-        if geom_config.get("executable") == "legend-pygeom-l200":
-            geometry.make_hpge_mass_plot(config, geom_config, output.mass)
-        else:
-            Path(output.mass).touch()
-        geometry.render_geometry(config, geom_config, output.rendering)
+rule plot_geom_hpge_mass:
+    """Produce a plot of the HPGe mass of the geometry."""
+    input:
+        patterns.geom_config_filename(config, tier="stp"),
+    output:
+        patterns.plot_geom_hpge_mass_filename(config),
+    run:
+        geometry.make_hpge_mass_plot(
+            config, dbetto.utils.load_dict(input[0]), output[0]
+        )
