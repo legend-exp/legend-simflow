@@ -153,10 +153,10 @@ def test_evt_script_cli(
     spms_mult = _read("evt/spms/multiplicity")
     assert np.all(spms_mult >= 0), "spms/multiplicity contains negative values"
 
-    # trigger/period: all p03 → code 3
+    # trigger/period: all p99 → code 99
     period_vals = _read("evt/trigger/period")
-    assert np.all(period_vals == 3), (
-        f"expected period=3 (p03), got unique={np.unique(period_vals)}"
+    assert np.all(period_vals == 99), (
+        f"expected period=99 (p99), got unique={np.unique(period_vals)}"
     )
 
     # trigger/run: values in {0, 1} for r000 and r001
@@ -245,7 +245,7 @@ def test_evt_script_cli_skip_hit(
     """--skip-hit: no hit file passed; spms table present, geds table absent.
 
     The trigger fields must be sourced from the opt tier, so trigger/period
-    should still be 3 (p03 runs).
+    should still be 99 (p99 runs).
     """
     raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
@@ -304,10 +304,10 @@ def test_evt_script_cli_skip_hit(
     )
 
     # with --skip-hit the trigger is sourced from the opt tier; the opt fixture
-    # uses l200-p03 runs so period must always be 3
+    # uses l1000-p99 runs so period must always be 99
     period_vals = lh5.read_as("evt/trigger/period", str(evt_file), library="np")
-    assert np.all(period_vals == 3), (
-        f"expected period=3 (p03, from opt tier), got unique={np.unique(period_vals)}"
+    assert np.all(period_vals == 99), (
+        f"expected period=99 (p99, from opt tier), got unique={np.unique(period_vals)}"
     )
 
 

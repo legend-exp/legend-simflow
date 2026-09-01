@@ -60,6 +60,9 @@ def _run_pdf(
     config_path = tmp_path / config_template
     raw_config = yaml.safe_load((dummyprod / config_template).read_text())
     raw_config["paths"]["metadata"] = str(meta_dir or (dummyprod / "inputs"))
+    raw_config["paths"]["config"] = str(
+        Path(raw_config["paths"]["metadata"]) / "simprod/config"
+    )
     config_path.write_text(yaml.safe_dump(raw_config))
 
     pdf_file = tmp_path / "pdf.lh5"

@@ -87,13 +87,13 @@ def main() -> None:
     #  - present, with "default": expand all channelmap geds detectors;
     #    l200data not consulted
     raw_eresmod = mutils.simpars(
-        metadata, "geds.eresmod", runid, config.experiment, default=None
+        config, "geds.eresmod", runid, config.experiment, default=None
     )
     raw_aoeresmod = mutils.simpars(
-        metadata, "geds.aoeresmod", runid, config.experiment, default=None
+        config, "geds.aoeresmod", runid, config.experiment, default=None
     )
     raw_psdcuts = mutils.simpars(
-        metadata, "geds.psdcuts", runid, config.experiment, default=None
+        config, "geds.psdcuts", runid, config.experiment, default=None
     )
 
     eresmod_default = (
@@ -113,8 +113,9 @@ def main() -> None:
         or aoeresmod_default is not None
         or psdcuts_default is not None
     ):
-        tstamp = mutils.runinfo(metadata, runid).start_key
-        chmap = metadata.channelmap(tstamp, skip_version_check=True)
+        chmap = mutils.get_channelmap(
+            config, mutils.get_runinfo(config, runid).start_key
+        )
 
     # pre-compute l200data helpers once if any observable needs the l200data path
     hit_tier_name = None
@@ -148,7 +149,7 @@ def main() -> None:
         log.info(msg)
         eres_pars_dict = hpge_pars.lookup_energy_res_metadata(
             l200data,
-            metadata,
+            config,
             runid,
             hit_tier_name=hit_tier_name,
             pars_db=pars_db,
@@ -188,7 +189,7 @@ def main() -> None:
         log.info(msg)
         aoeres_pars_dict = hpge_pars.lookup_aoe_res_metadata(
             l200data,
-            metadata,
+            config,
             runid,
             hit_tier_name=hit_tier_name,
             pars_db=pars_db,
@@ -228,7 +229,7 @@ def main() -> None:
         log.info(msg)
         psdcuts_pars_dict = hpge_pars.lookup_psd_cut_values(
             l200data,
-            metadata,
+            config,
             runid,
             hit_tier_name=hit_tier_name,
             pars_db=pars_db,

@@ -16,6 +16,7 @@ def test_simstat_partition_file(tmp_path, legend_stp_path, monkeypatch):
     config_path = tmp_path / "simflow-config-l1000.yaml"
     raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    raw["paths"]["config"] = str(dummyprod / "inputs/simprod/config")
     raw["paths"]["generated"] = str(tmp_path)
     raw["paths"]["pars"] = str(tmp_path / "pars")
     config_path.write_text(yaml.safe_dump(raw))
@@ -27,8 +28,8 @@ def test_simstat_partition_file(tmp_path, legend_stp_path, monkeypatch):
         "--stp-files",
         str(legend_stp_path),
         "--runlist",
-        "l200-p03-r000-phy",
-        "l200-p03-r001-phy",
+        "l1000-p99-r000-phy",
+        "l1000-p99-r001-phy",
         "--output-file",
         str(output_file),
         "--simflow-config",

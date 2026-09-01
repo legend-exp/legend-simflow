@@ -19,7 +19,7 @@ import itertools
 import logging
 import math
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -28,14 +28,13 @@ import lh5
 import numpy as np
 from dbetto import AttrsDict, TextDB
 from iminuit import Minuit, cost
-from legendmeta import LegendMetadata
 from matplotlib import pyplot as plt
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
+from . import SimflowConfig, utils
 from . import metadata as mutils
-from . import utils
 from .utils import get_dict_value as _getpar
 
 log = logging.getLogger(__name__)
@@ -760,7 +759,7 @@ def lookup_file_paths(l200data: str, runid: str, hit_tier_name: str) -> AttrsDic
 
 def lookup_currmod_fit_inputs(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     runid: str,
     hpge: str,
     hit_tier_name: str = "hit",
@@ -772,8 +771,8 @@ def lookup_currmod_fit_inputs(
     ----------
     l200data
         The path to the L200 data production cycle.
-    metadata
-        The metadata instance
+    config
+        Simflow configuration object.
     runid
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hpge
@@ -800,7 +799,7 @@ def lookup_currmod_fit_inputs(
     df_cfg = utils.lookup_dataflow_config(l200data).paths
 
     # get the reference cal run
-    cal_runid = mutils.reference_cal_run(metadata, runid)
+    cal_runid = mutils.reference_cal_run(config, runid)
     _, period, run, _ = re.split(r"\W+", cal_runid)
 
     msg = f"inferred reference calibration run: {cal_runid}"
@@ -818,7 +817,7 @@ def lookup_currmod_fit_inputs(
 
     dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
-    lh5_group = mutils._get_lh5_table(metadata, hit_files[0], hpge, "hit", runid)
+    lh5_group = mutils._get_lh5_table(config, hit_files[0], hpge, "hit", runid)
 
     msg = "looking for best events to fit"
     log.debug(msg)
@@ -844,7 +843,7 @@ def lookup_currmod_fit_inputs(
 
 def _lookup_generated_pars_file(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -864,8 +863,8 @@ def _lookup_generated_pars_file(
     log.debug(msg)
 
     # get the pars file at the correct timestamp
-    tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.channelmap(tstamp, skip_version_check=True)
+    tstamp = mutils.get_runinfo(config, runid).start_key
+    chmap = mutils.get_channelmap(config, tstamp)
     pars_file = pars_db.on(tstamp)
 
     return pars_file, chmap
@@ -873,7 +872,7 @@ def _lookup_generated_pars_file(
 
 def lookup_energy_res_metadata(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -897,8 +896,8 @@ def lookup_energy_res_metadata(
     ----------
     l200data
         The path to the L200 data production cycle.
-    metadata
-        The metadata instance
+    config
+        Simflow configuration object.
     runid
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hit_tier_name
@@ -910,7 +909,7 @@ def lookup_energy_res_metadata(
     """
     pars_file, chmap = _lookup_generated_pars_file(
         l200data,
-        metadata,
+        config,
         runid,
         hit_tier_name=hit_tier_name,
         pars_db=pars_db,
@@ -938,7 +937,7 @@ def lookup_energy_res_metadata(
 
 def lookup_aoe_res_metadata(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -962,8 +961,8 @@ def lookup_aoe_res_metadata(
     ----------
     l200data
         The path to the L200 data production cycle.
-    metadata
-        The metadata instance
+    config
+        Simflow configuration object.
     runid
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hit_tier_name
@@ -975,7 +974,7 @@ def lookup_aoe_res_metadata(
     """
     pars_file, chmap = _lookup_generated_pars_file(
         l200data,
-        metadata,
+        config,
         runid,
         hit_tier_name=hit_tier_name,
         pars_db=pars_db,
@@ -1059,42 +1058,17 @@ def build_aoe_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
 
 
 def build_energy_res_func_dict(
-    l200data: str | Path,
-    metadata: LegendMetadata,
-    runid: str,
-    *,
-    hit_tier_name: str = "hit",
-    energy_res_pars: dict | AttrsDict | None = None,
+    energy_res_pars: Mapping,
 ) -> dict[str, Callable]:
     r"""Build energy resolution functions for each HPGe detector in a LEGEND-200 run.
+
+    `energy_res_pars` comes from :func:`lookup_energy_res_metadata`.
 
     Returns
     -------
     Mapping of HPGe name to energy resolution function (FWHM), where energy is
     expected in units of keV.
-
-    Parameters
-    ----------
-    l200data
-        The path to the L200 data production cycle.
-    metadata
-        The metadata instance
-    runid
-        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
-    hit_tier_name
-        name of the hit tier. This is typically "hit" or "pht".
-    energy_res_pars
-        from :func:`lookup_energy_res_metadata`.
-
     """
-    if energy_res_pars is None:
-        energy_res_pars = lookup_energy_res_metadata(
-            l200data,
-            metadata,
-            runid,
-            hit_tier_name=hit_tier_name,
-        )
-
     if not isinstance(energy_res_pars, AttrsDict):
         energy_res_pars = AttrsDict(energy_res_pars)
 
@@ -1121,42 +1095,17 @@ def build_energy_res_func_dict(
 
 
 def build_aoe_res_func_dict(
-    l200data: str | Path,
-    metadata: LegendMetadata,
-    runid: str,
-    *,
-    hit_tier_name: str = "hit",
-    aoe_res_pars: dict | AttrsDict | None = None,
+    aoe_res_pars: Mapping,
 ) -> dict[str, Callable]:
     r"""Build A/E resolution functions for each HPGe detector in a LEGEND-200 run.
+
+    `aoe_res_pars` comes from :func:`lookup_aoe_res_metadata`.
 
     Returns
     -------
     Mapping of HPGe name to A/E resolution as a function of energy, where
     energy is expected in units of keV.
-
-    Parameters
-    ----------
-    l200data
-        The path to the L200 data production cycle.
-    metadata
-        The metadata instance
-    runid
-        LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
-    hit_tier_name
-        name of the hit tier. This is typically "hit" or "pht".
-    aoe_res_pars
-        from :func:`lookup_aoe_res_metadata`.
-
     """
-    if aoe_res_pars is None:
-        aoe_res_pars = lookup_aoe_res_metadata(
-            l200data,
-            metadata,
-            runid,
-            hit_tier_name=hit_tier_name,
-        )
-
     if not isinstance(aoe_res_pars, AttrsDict):
         aoe_res_pars = AttrsDict(aoe_res_pars)
 
@@ -1269,7 +1218,7 @@ def build_aoe_mean_func_from_entry(
 
 def lookup_psd_cut_values(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    config: SimflowConfig,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -1285,8 +1234,8 @@ def lookup_psd_cut_values(
     ----------
     l200data
         The path to the L200 data production cycle.
-    metadata
-        The metadata instance
+    config
+        Simflow configuration object.
     runid
         LEGEND-200 run identifier, must be of the form `{EXPERIMENT}-{PERIOD}-{RUN}-{TYPE}`.
     hit_tier_name
@@ -1298,7 +1247,7 @@ def lookup_psd_cut_values(
     """
     pars_file, chmap = _lookup_generated_pars_file(
         l200data,
-        metadata,
+        config,
         runid,
         hit_tier_name=hit_tier_name,
         pars_db=pars_db,

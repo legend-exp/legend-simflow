@@ -14,7 +14,7 @@ from legendsimflow.scripts.tier import hit
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
 
-_RUNIDS = ("l200-p03-r000-phy", "l200-p03-r001-phy")
+_RUNIDS = ("l1000-p99-r000-phy", "l1000-p99-r001-phy")
 
 
 @pytest.mark.needs_remage
@@ -53,6 +53,7 @@ def test_hit_script_cli(
 
     raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    raw["paths"]["config"] = str(dummyprod / "inputs/simprod/config")
     raw["paths"]["pars"] = str(pars_dir)
     config_path = tmp_path / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))
@@ -144,10 +145,10 @@ def test_hit_script_cli(
     assert np.all(np.isfinite(energy)), "energy contains non-finite values"
     assert np.all(energy >= 0), "energy contains negative values"
 
-    # both runs are in period p03 → period == 3 throughout
+    # both runs are in period p99 → period == 99 throughout
     period_vals = _field(first_det, "period")
-    assert np.all(period_vals == 3), (
-        f"expected period=3 (p03), got unique={np.unique(period_vals)}"
+    assert np.all(period_vals == 99), (
+        f"expected period=99 (p99), got unique={np.unique(period_vals)}"
     )
 
     # run values must come from the two configured runs (r000=0, r001=1)

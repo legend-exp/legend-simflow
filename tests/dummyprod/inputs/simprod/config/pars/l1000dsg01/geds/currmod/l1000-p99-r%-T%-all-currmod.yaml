@@ -1,0 +1,11 @@
+default:
+  current_pulse_pars:
+    amax: 1250.0
+    mu: 5.0
+    sigma: 45.0
+    tail_fraction: 0.35
+    tau: 150.0
+    high_tail_fraction: 0.10
+    high_tau: 80.0
+  mean_aoe: 0.72
+  current_reso: 4.1

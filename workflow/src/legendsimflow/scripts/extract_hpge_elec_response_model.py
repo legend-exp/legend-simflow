@@ -171,7 +171,7 @@ def main() -> None:
     # l200data)
 
     raw_elecmod = mutils.simpars(
-        metadata, "geds.elecmod", runid, config.experiment, default=None
+        config, "geds.elecmod", runid, config.experiment, default=None
     )
     elecmod_default = (
         raw_elecmod.get("default", None) if raw_elecmod is not None else None

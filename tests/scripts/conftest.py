@@ -21,7 +21,7 @@ from legendsimflow.scripts.tier import cvt, evt, hit, opt
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
 
-_RUNIDS_L1000 = ("l200-p03-r000-phy", "l200-p03-r001-phy")
+_RUNIDS_L1000 = ("l1000-p99-r000-phy", "l1000-p99-r001-phy")
 
 
 @contextlib.contextmanager
@@ -132,11 +132,14 @@ def legend_dtmap_path():
 def _l1000_config(tmp_dir: Path) -> Path:
     """Write a minimal simflow-config-l1000.yaml to *tmp_dir* and return its path.
 
-    Only ``paths.metadata`` is overridden to point at the dummyprod inputs;
-    all other path entries use ``$_`` substitution resolved to *tmp_dir*.
+    ``paths.metadata`` and ``paths.config`` are overridden to point at the
+    dummyprod inputs; all other path entries use ``$_`` substitution resolved to
+    *tmp_dir*. ``paths.config`` must follow ``paths.metadata``, otherwise
+    :func:`legendsimflow.metadata.load_fallback_metadata` finds nothing.
     """
     raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(testprod / "inputs")
+    raw["paths"]["config"] = str(testprod / "inputs/simprod/config")
     config_path = tmp_dir / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))
     return config_path
@@ -367,6 +370,7 @@ def legend_hit_path(
 
     raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(testprod / "inputs")
+    raw["paths"]["config"] = str(testprod / "inputs/simprod/config")
     raw["paths"]["pars"] = str(pars_dir)
     config_path = out_dir / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))

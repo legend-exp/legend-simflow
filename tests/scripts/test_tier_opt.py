@@ -33,6 +33,7 @@ def test_opt_script_cli(
 
     raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    raw["paths"]["config"] = str(dummyprod / "inputs/simprod/config")
     config_path = tmp_path / "simflow-config-l1000.yaml"
     config_path.write_text(yaml.safe_dump(raw))
 
@@ -75,7 +76,7 @@ def test_opt_script_cli(
     def _field(table: str, name: str, f: Path = opt_file) -> np.ndarray:
         return lh5.read_as(f"hit/{table}/{name}", f, library="np")
 
-    assert np.all(_field("spms", "period") == 3)
+    assert np.all(_field("spms", "period") == 99)
     assert np.all(np.isin(_field("spms", "run"), [0, 1]))
     assert np.all(np.isin(_field("spms", "usability"), [0, 1, 2]))
 
@@ -88,7 +89,7 @@ def test_opt_script_cli(
 
     # --- run 2: per-SiPM mode with tiny partition → check usability codes ---
     part_file = tmp_path / "partitions_small.yaml"
-    part_file.write_text(yaml.safe_dump({"job_0000": {"l200-p03-r000-phy": [0, 99]}}))
+    part_file.write_text(yaml.safe_dump({"job_0000": {"l1000-p99-r000-phy": [0, 99]}}))
 
     opt_per_sipm = tmp_path / "opt_per_sipm.lh5"
     monkeypatch.setattr(sys, "argv", [

@@ -30,6 +30,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from reboost import units
 from snakemake_argparse_bridge import snakemake_compatible
 
+from legendsimflow import metadata as mutils
 from legendsimflow import psl, utils
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
@@ -199,7 +200,7 @@ def main():
             reg = pyg4ometry.geant4.Registry()
             natge = pygeomhpges.materials.make_natural_germanium(registry=reg)
             hpge_profile = pygeomhpges.make_hpge(
-                metadata.hardware.detectors.germanium.diodes[args.detector],
+                mutils.get_diode(config, args.detector),
                 registry=reg,
                 material=natge,
                 allow_cylindrical_asymmetry=False,

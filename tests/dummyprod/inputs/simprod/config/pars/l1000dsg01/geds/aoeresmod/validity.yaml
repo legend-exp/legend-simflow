@@ -1,4 +1,9 @@
+- valid_from: 20000101T000000Z
+  apply:
+    - l1000-p99-r%-T%-all-aoeresmod.yaml
+
 - valid_from: 20220102T000000Z
+  mode: reset
   apply:
     - l200-p02-r%-T%-all-aoeresmod.yaml
 

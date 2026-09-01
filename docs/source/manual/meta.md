@@ -38,6 +38,54 @@ experimental configuration are supported) can be found in the `README.md`.
 
 In this section, the specification of the metadata format is documented.
 
+(meta-fallback)=
+
+## Fallback metadata
+
+An experiment that does not exist yet is absent from the
+[legend-metadata](https://github.com/legend-exp/legend-metadata) database.
+LEGEND-1000 is such an experiment. Its metadata lives here instead, under
+`metadata/{experiment}/`. The tree uses the layout of _legend-metadata_ itself:
+
+```
+metadata/l1000dsg01/datasets/runinfo.yaml
+metadata/l1000dsg01/datasets/runlists.yaml
+metadata/l1000dsg01/datasets/statuses/{validity.yaml,*.yaml}
+metadata/l1000dsg01/hardware/configuration/channelmaps/{validity.yaml,*.yaml}
+metadata/l1000dsg01/hardware/detectors/germanium/diodes/<DET>.yaml
+metadata/l1000dsg01/hardware/detectors/germanium/crystals/<XTAL>.yaml
+metadata/l1000dsg01/special_metadata.yaml
+```
+
+The simflow clones _legend-metadata_ as always, and only reads it. It loads this
+directory as the fallback metadata. It queries the fallback metadata when
+_legend-metadata_ does not hold the item
+({func}`legendsimflow.metadata.lookup`).
+
+### Run identifiers
+
+:::{important}
+
+The runs in `datasets/runinfo.yaml` must stay clear of the _legend-metadata_
+runs. The simflow queries _legend-metadata_ first, so a run that it also defines
+wins. Two rules keep the runs apart:
+
+- **Number the periods outside the range of the real experiment**, for example
+  `p99`. The simflow looks a run up by period and run number alone.
+- **Keep the start keys before the _legend-metadata_ era**, for example the
+  year 2000. The simflow looks a channel map up by timestamp, so the period
+  number alone does not cover it. A timestamp that precedes every validity entry
+  raises. This is what sends the lookup to the fallback metadata.
+
+Both rules are requirements, and the simflow applies both at startup
+({func}`legendsimflow.metadata.validate_fallback_metadata`). It refuses fallback
+metadata whose periods collide with those in _legend-metadata_, and fallback
+metadata whose start keys reach a _legend-metadata_ channel map. The parameter
+directories of the experiment (see {ref}`opv-metadata-dir`) need a validity
+entry that covers these start keys.
+
+:::
+
 ## `tier/` static tier configuration
 
 Metadata is organized in this directory by tier (first level) and experimental
@@ -578,6 +626,40 @@ detector_groups:
 Metadata is organized in this directory by experimental configuration (first
 level) and detector type (second level), mirroring the `tier/` structure.
 
+(opv-metadata-dir)=
+
+### HPGe operational voltages
+
+A validity-based metadata directory. It gives the bias voltage of each HPGe
+detector, for each run. The other `geds/` parameter directories use this same
+layout.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/opv/l200-p03-r%-T%-all-opvs.yaml
+
+V02160A:
+  operational_voltage_in_V: 4200.0
+V05261B:
+  operational_voltage_in_V: 4200.0
+```
+
+The optional `default` entry applies to every detector without an entry of its
+own. It is unlikely that any real experiments operate all detectors at the same
+voltage. But for simple background simulation of LEGEND-1000, this is a
+reasonable approximation. Such a setup uses one `default` entry:
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/opv/l1000-p01-r%-T%-all-opvs.yaml
+
+default:
+  operational_voltage_in_V: 3500.0
+```
+
+The simflow treats a detector with no entry and no `default` as not biased. Such
+a detector gets no drift-time map and no current-pulse model. This is how the
+simflow excludes the detectors that are off. Do not add a `default` to an
+experiment that depends on this behavior.
+
 (ssd-settings-meta)=
 
 ### Pulse shape simulation settings
@@ -620,7 +702,7 @@ resolution parameters. When present, it can supplement or fully replace
 `l200data` as the source of energy resolution parameters — enabling simulations
 for experiments that have not yet collected data (e.g. LEGEND-1000). The
 structure follows the same validity-based format as
-`pars/{experiment}/geds/opv/`.
+`pars/{experiment}/geds/opv/` (see {ref}`opv-metadata-dir`).
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/eresmod/l200-p03-r%-T%-all-eresmod.yaml

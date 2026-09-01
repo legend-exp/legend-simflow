@@ -1,0 +1,19 @@
+V02160A:
+  usability: "on"
+  psd:
+    status:
+      low_aoe: valid
+V05261B:
+  usability: "on"
+  psd:
+    status:
+      low_aoe: valid
+V99900A:
+  usability: "on"
+  psd:
+    status:
+      low_aoe: valid
+S002:
+  usability: "on"
+S003:
+  usability: "ac"

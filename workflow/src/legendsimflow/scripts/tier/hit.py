@@ -132,7 +132,6 @@ def main() -> None:
     log_file = args.log_file
     metadata = config.metadata
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
-    l200data = config.paths.get("l200data", None)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
     psd_usability_map = AttrsDict(
         load_dict(nersc.dvs_ro(config, args.psd_usability_file))
@@ -225,22 +224,12 @@ def main() -> None:
         log.debug("loading energy resolution parameters")
         eresmod_pars_file = patterns.output_eresmod_filename(config, runid=runid)
         eresmod_pars_all = load_dict(eresmod_pars_file)
-        energy_res_func = hpge_pars.build_energy_res_func_dict(
-            l200data,
-            metadata,
-            runid,
-            energy_res_pars=eresmod_pars_all,
-        )  # FWHM
+        energy_res_func = hpge_pars.build_energy_res_func_dict(eresmod_pars_all)  # FWHM
 
         log.debug("loading A/E resolution parameters")
         aoeresmod_pars_file = patterns.output_aoeresmod_filename(config, runid=runid)
         aoeresmod_pars_all = load_dict(aoeresmod_pars_file)
-        aoe_res_func = hpge_pars.build_aoe_res_func_dict(
-            l200data,
-            metadata,
-            runid,
-            aoe_res_pars=aoeresmod_pars_all,
-        )
+        aoe_res_func = hpge_pars.build_aoe_res_func_dict(aoeresmod_pars_all)
 
         log.debug("loading current-pulse model parameters")
 
@@ -339,7 +328,7 @@ def main() -> None:
                 geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
             )
 
-            fccd = mutils.get_sanitized_fccd(metadata, det_name)
+            fccd = mutils.get_sanitized_fccd(config, det_name)
 
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
 

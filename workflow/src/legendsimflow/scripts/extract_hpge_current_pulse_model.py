@@ -113,7 +113,7 @@ def main() -> None:
     # waveform fitting entirely (enables LEGEND-1000 simulations without
     # l200data)
     raw_currmod = mutils.simpars(
-        metadata, "geds.currmod", runid, config.experiment, default=None
+        config, "geds.currmod", runid, config.experiment, default=None
     )
     currmod_default = (
         raw_currmod.get("default", None) if raw_currmod is not None else None
@@ -146,7 +146,7 @@ def main() -> None:
     raw_wf_pairs, dsp_cfg_file, all_dts, selected_dts = (
         hpge_pars.lookup_currmod_fit_inputs(
             l200data,
-            metadata,
+            config,
             runid,
             hpge,
             hit_tier_name,
@@ -155,7 +155,7 @@ def main() -> None:
     )
 
     lh5_group = mutils._get_lh5_table(
-        metadata,
+        config,
         raw_wf_pairs[0][0],
         hpge,
         "raw",

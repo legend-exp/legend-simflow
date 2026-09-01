@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from dbetto import AttrsDict
+from legendmeta import LegendMetadata
 
 from legendsimflow import metadata
 from legendsimflow.exceptions import SimflowConfigError
@@ -22,19 +23,19 @@ def test_all(config):
         str,
     )
 
-    assert "livetime_in_s" in metadata.runinfo(config.metadata, "l200-p02-r000-phy")
+    assert "livetime_in_s" in metadata.get_runinfo(config, "l200-p02-r000-phy")
 
     assert (
         "operational_voltage_in_V"
         in metadata.simpars(
-            config.metadata, "geds.opv", "l200-p02-r002-phy", config.experiment
+            config, "geds.opv", "l200-p02-r002-phy", config.experiment
         ).V99000A
     )
 
     # default= returns the default when the par directory does not exist
     assert (
         metadata.simpars(
-            config.metadata,
+            config,
             "geds.nonexistent",
             "l200-p02-r002-phy",
             config.experiment,
@@ -44,7 +45,7 @@ def test_all(config):
     )
     assert (
         metadata.simpars(
-            config.metadata,
+            config,
             "geds.nonexistent",
             "l200-p02-r002-phy",
             config.experiment,
@@ -56,7 +57,7 @@ def test_all(config):
     # without default=, a missing par raises
     with pytest.raises((KeyError, LookupError, FileNotFoundError)):
         metadata.simpars(
-            config.metadata, "geds.nonexistent", "l200-p02-r002-phy", config.experiment
+            config, "geds.nonexistent", "l200-p02-r002-phy", config.experiment
         )
 
     assert isinstance(
@@ -95,17 +96,158 @@ def test_run_stuff(config):
     ]
 
     assert (
-        metadata.reference_cal_run(config.metadata, "l200-p16-r006-phy")
-        == "l200-p16-r006-cal"
+        metadata.reference_cal_run(config, "l200-p16-r006-phy") == "l200-p16-r006-cal"
     )
     assert (
-        metadata.reference_cal_run(config.metadata, "l200-p16-r008-ssc")
-        == "l200-p16-r006-cal"
+        metadata.reference_cal_run(config, "l200-p16-r008-ssc") == "l200-p16-r006-cal"
     )
     assert (
-        metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
-        == "l200-p16-r006-cal"
+        metadata.reference_cal_run(config, "l200-p16-r009-ssc") == "l200-p16-r006-cal"
     )
+
+
+def test_get_simconfig_empty_file():
+    """An empty simconfig.yaml is valid: YAML loads it as None, not as {}.
+
+    The hit tier of an experiment that takes its runlist from ``config.runlist``
+    has nothing to put in the file.
+    """
+    config = AttrsDict(
+        {
+            "experiment": "l1000dsg01",
+            "runlist": ["l1000-p01-r000-phy"],
+            "metadata": {
+                "simprod": {
+                    "config": {"tier": {"hit": {"l1000dsg01": {"simconfig": None}}}}
+                }
+            },
+        }
+    )
+
+    assert metadata.get_simconfig(config, "hit") == {}
+
+    with pytest.raises(SimflowConfigError, match="not found"):
+        metadata.get_simconfig(config, "hit", "some_simid")
+
+    assert metadata.get_runlist(config, "some_simid") == config.runlist
+
+
+def test_experiment_prefix():
+    assert metadata.experiment_prefix("l200cfg09") == "l200"
+    assert metadata.experiment_prefix("l1000dsg01") == "l1000"
+    assert metadata.experiment_prefix("legend") == metadata.DEFAULT_RUNID_PREFIX
+
+
+def test_query_runlist_db_prefix(config):
+    assert metadata.query_runlist_db(config.metadata, "valid.phy.p03", "l1000") == [
+        f"l1000-p03-r00{r}-phy" for r in range(6)
+    ]
+
+
+def test_get_crystal_name(config):
+    diodes = config.metadata.hardware.detectors.germanium.diodes
+    assert metadata.get_crystal_name(diodes.V05261B) == "V05261"
+    assert metadata.get_crystal_name(diodes.B00000A) == "B99000"
+
+    assert (
+        metadata.get_crystal_name(diodes.V05261B)
+        in config.metadata.hardware.detectors.germanium.crystals
+    )
+
+
+def test_fallback_metadata(l1000_config, config):
+    """The experiment metadata lives in ``paths.config``, and not in the clone."""
+    fallback = l1000_config.fallback_metadata
+    assert fallback is not None
+    assert (
+        Path(fallback.__path__)
+        == metadata.fallback_metadata_dirname(l1000_config).resolve()
+    )
+
+    # legend-metadata describes no LEGEND-1000 experiment
+    assert config.get("fallback_metadata") is None
+
+
+def test_lookup_reaches_the_fallback_metadata(l1000_config):
+    """The runs, the run lists and the channel map come from the fallback."""
+    assert "p99" not in l1000_config.metadata.datasets.runinfo
+
+    rinfo = metadata.get_runinfo(l1000_config, "l1000-p99-r000-phy")
+    assert rinfo.start_key == "20000102T000000Z"
+    assert rinfo.livetime_in_s > 0
+
+    assert metadata.get_runlist(l1000_config, "some_simid") == [
+        "l1000-p99-r000-phy",
+        "l1000-p99-r001-phy",
+    ]
+
+    chmap = metadata.get_channelmap(l1000_config, rinfo.start_key)
+    assert set(chmap.group("system")) == {"geds", "spms"}
+    assert chmap.V99900A.analysis.usability == "on"
+    # the diode file merged into the channel map comes from the fallback too
+    assert chmap.V99900A.production.crystal == "900"
+
+
+def test_lookup_prefers_legend_metadata(l1000_config):
+    """A detector in both databases resolves to the legend-metadata entry."""
+    diodes = l1000_config.metadata.hardware.detectors.germanium.diodes
+    assert "V05261B" in diodes
+    assert metadata.get_diode(l1000_config, "V05261B") == diodes.V05261B
+
+    # V99900A exists only in the fallback
+    assert "V99900A" not in diodes
+    assert metadata.get_diode(l1000_config, "V99900A").production.crystal == "900"
+    assert metadata.get_crystal(l1000_config, "V99900").slices.A.status == "valid"
+
+    with pytest.raises(FileNotFoundError):
+        metadata.get_diode(l1000_config, "V00000Z")
+
+    assert metadata.get_diode(l1000_config, "V00000Z", default=None) is None
+
+
+def test_validate_fallback_metadata_rejects_run_collision(tmp_path, config):
+    """Refuse an fallback period that legend-metadata also defines.
+
+    The Simflow looks a run up by period and run number alone. Such a period
+    therefore resolves to the legend-metadata run instead.
+    """
+    fallback_dir = tmp_path / "metadata/l1000dsg01"
+    (fallback_dir / "datasets").mkdir(parents=True)
+    (fallback_dir / "datasets/runinfo.yaml").write_text(
+        "p02:\n  r000:\n    phy:\n      start_key: 20000102T000000Z\n"
+    )
+    fallback = LegendMetadata(fallback_dir)
+
+    with pytest.raises(SimflowConfigError, match="p02"):
+        metadata.validate_fallback_metadata(config.metadata, fallback)
+
+
+def test_validate_fallback_metadata_rejects_late_start_key(tmp_path, config):
+    """Refuse a fallback start key that reaches a legend-metadata channel map.
+
+    Such a run resolves to the legend-metadata channel map instead.
+    """
+    fallback_dir = tmp_path / "metadata/l1000dsg01"
+    (fallback_dir / "datasets").mkdir(parents=True)
+    (fallback_dir / "datasets/runinfo.yaml").write_text(
+        "p99:\n  r000:\n    phy:\n      start_key: 20990101T000000Z\n"
+    )
+    fallback = LegendMetadata(fallback_dir)
+
+    with pytest.raises(SimflowConfigError, match="20990101T000000Z"):
+        metadata.validate_fallback_metadata(config.metadata, fallback)
+
+
+def test_validate_fallback_metadata_accepts_early_start_key(tmp_path, config):
+    """Accept a fallback start key that precedes every legend-metadata entry."""
+    fallback_dir = tmp_path / "metadata/l1000dsg01"
+    (fallback_dir / "datasets").mkdir(parents=True)
+    (fallback_dir / "datasets/runinfo.yaml").write_text(
+        "p99:\n  r000:\n    phy:\n      start_key: 20000102T000000Z\n"
+    )
+    fallback = LegendMetadata(fallback_dir)
+
+    metadata.validate_fallback_metadata(config.metadata, fallback)
 
 
 def test_is_simid():
@@ -168,7 +310,7 @@ def test_encode_usability():
 
 
 def test_fccd(config):
-    assert metadata.get_sanitized_fccd(config.metadata, "B99000A") == 0.75
+    assert metadata.get_sanitized_fccd(config, "B99000A") == 0.75
 
 
 def test_extract_integer():

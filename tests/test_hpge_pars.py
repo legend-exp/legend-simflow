@@ -351,7 +351,7 @@ def test_plot_dt_selection_empty():
 def test_lookup_eres(config, test_l200data):
     meta = hpge_pars.lookup_energy_res_metadata(
         test_l200data / "v2.1.5",
-        config.metadata,
+        config,
         "l200-p03-r000-phy",
         hit_tier_name="pht",
     )
@@ -364,7 +364,7 @@ def test_lookup_eres(config, test_l200data):
 
     meta = hpge_pars.lookup_energy_res_metadata(
         test_l200data / "v3.0.0",
-        config.metadata,
+        config,
         "l200-p16-r008-ssc",
         hit_tier_name="hit",
     )
@@ -381,22 +381,24 @@ def test_eres_func():
     assert isinstance(f, Callable)
 
 
-def test_build_eres_funcs(config, test_l200data):
-    meta = hpge_pars.build_energy_res_func_dict(
-        test_l200data / "v2.1.5",
-        config.metadata,
-        "l200-p03-r000-phy",
-        hit_tier_name="pht",
-    )
+def test_build_eres_funcs():
+    # the builder fixes the model to FWHMLinear, it reads only the parameters
+    pars = {
+        "V00000A": {"parameters": {"a": 1.0, "b": 0.002}},
+        "V00000B": {"parameters": {"a": 4.0, "b": 0.0}},
+    }
+    funcs = hpge_pars.build_energy_res_func_dict(pars)
 
-    assert isinstance(meta, dict)
-    assert list(meta.keys()) == ["V02160A"]
+    assert list(funcs) == ["V00000A", "V00000B"]
+    # FWHMLinear: fwhm = sqrt(a + b * E)
+    assert funcs["V00000A"](2000) == pytest.approx(5**0.5, abs=1e-6)
+    assert funcs["V00000B"](2000) == pytest.approx(2.0, abs=1e-6)
 
 
 def test_lookup_aoeres(config, test_l200data):
     meta = hpge_pars.lookup_aoe_res_metadata(
         test_l200data / "v2.1.5",
-        config.metadata,
+        config,
         "l200-p03-r000-phy",
         hit_tier_name="pht",
     )
@@ -409,7 +411,7 @@ def test_lookup_aoeres(config, test_l200data):
 
     meta = hpge_pars.lookup_aoe_res_metadata(
         test_l200data / "v3.0.0",
-        config.metadata,
+        config,
         "l200-p16-r008-ssc",
         hit_tier_name="hit",
     )
@@ -435,23 +437,24 @@ def test_build_aoe_res_func_from_entry():
     assert f(500) == pytest.approx(0.01, abs=1e-6)
 
 
-def test_build_aoeres_funcs(config, test_l200data):
-    meta = hpge_pars.build_aoe_res_func_dict(
-        test_l200data / "v2.1.5",
-        config.metadata,
-        "l200-p03-r000-phy",
-        hit_tier_name="pht",
-    )
+def test_build_aoeres_funcs():
+    # the builder fixes the model to SigmaFit, it reads only the parameters
+    pars = {
+        "V00000A": {"parameters": {"a": 0.0001, "b": 0, "c": 1}},
+        "V00000B": {"parameters": {"a": 0.0004, "b": 0, "c": 1}},
+    }
+    funcs = hpge_pars.build_aoe_res_func_dict(pars)
 
-    assert isinstance(meta, dict)
-    assert list(meta.keys()) == ["V02160A"]
-    assert meta["V02160A"](2000) == pytest.approx(0.007, abs=0.001)
+    assert list(funcs) == ["V00000A", "V00000B"]
+    # SigmaFit with b=0: sigma = sqrt(a), constant across E
+    assert funcs["V00000A"](2000) == pytest.approx(0.01, abs=1e-6)
+    assert funcs["V00000B"](2000) == pytest.approx(0.02, abs=1e-6)
 
 
 def test_lookup_psd_cut_vals(config, test_l200data):
     meta = hpge_pars.lookup_psd_cut_values(
         test_l200data / "v2.1.5",
-        config.metadata,
+        config,
         "l200-p03-r000-phy",
         hit_tier_name="pht",
     )
@@ -465,7 +468,7 @@ def test_lookup_psd_cut_vals(config, test_l200data):
 
     meta = hpge_pars.lookup_psd_cut_values(
         test_l200data / "v3.0.0",
-        config.metadata,
+        config,
         "l200-p16-r008-ssc",
         hit_tier_name="hit",
     )

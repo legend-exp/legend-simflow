@@ -1,0 +1,4 @@
+# LEGEND-1000 operates every detector at the same voltage, so a single
+# `default` entry stands in for hundreds of identical ones
+default:
+  operational_voltage_in_V: 4200.0

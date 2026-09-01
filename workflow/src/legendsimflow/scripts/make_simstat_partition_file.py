@@ -90,7 +90,7 @@ def main() -> None:
 
     # get the run livetimes
     run_livetimes = {
-        run: mutils.runinfo(metadata, run).livetime_in_s for run in runlist
+        run: mutils.get_runinfo(config, run).livetime_in_s for run in runlist
     }
 
     # now partition the number of events according to the livetime fractions

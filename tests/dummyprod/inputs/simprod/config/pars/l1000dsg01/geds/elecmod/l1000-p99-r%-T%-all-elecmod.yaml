@@ -1,0 +1,3 @@
+default:
+  sigma: 40.0
+  tau: 150.0
