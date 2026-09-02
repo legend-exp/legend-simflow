@@ -512,8 +512,14 @@ function setup_hpge_simulation(meta_path::String,
     temperature::Real = 87.0,
     recompute_corrections::Bool = true)::Tuple{Simulation,Dict}
 
-    vdep = meta.characterization.l200_site.depletion_voltage_in_V
-
+    try
+        vdep = meta.characterization.l200_insitu.depletion_voltage_in_V
+        @info "detector has insitu Vdep = $vdep V"
+    catch
+        vdep = meta.characterization.l200_site.depletion_voltage_in_V
+        @info "detector only has HADES Vdep = $vdep V"
+    end
+    
     rescale_impurities =
         recompute_corrections &&
         !(vdep isa PropDicts.MissingProperty) &&

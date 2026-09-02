@@ -256,7 +256,12 @@ def _hpge_is_modelable(
     # detectors without a depletion voltage in the metadata are not modeled
     try:
         diode = config.metadata.hardware.detectors.germanium.diodes[name]
-        depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
+
+        try:
+            depletion_voltage = diode.characterization.l200_insitu.depletion_voltage_in_V
+        except (KeyError, AttributeError, FileNotFoundError):
+            depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
+            
     except (KeyError, AttributeError, FileNotFoundError):
         return False
 
