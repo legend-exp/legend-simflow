@@ -60,6 +60,10 @@ function main()
         required = true
     end
     @add_arg_table s begin
+        "--depv"
+        help = "detector depletion in V (defaults to metadata value)"
+    end
+    @add_arg_table s begin
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
     end
@@ -79,7 +83,11 @@ function main()
 
     raw_opv = parsed_args["opv"]
     opv_val = isnothing(raw_opv) ? nothing : parse(Float32, raw_opv)
-    meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
+
+    raw_depv = parsed_args["depv"]
+    depv_val = isnothing(raw_depv) ? nothing : parse(Float32, raw_depv)
+
+    meta, xtal, opv_val, depv_val = load_detector_metadata(meta_path, det, opv_val, depv_val)
 
 
     # Load optional simulation settings, falling back to built-in defaults.
@@ -94,7 +102,7 @@ function main()
     @info "using ref limits $ref_limits"
     # the SSD-modeling provenance scalars are stored as metadata by the
     # drift-time-map job, so the returned `info` is intentionally discarded here
-    sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
+    sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val,depv_val, T, ref_limits)
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
         result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
