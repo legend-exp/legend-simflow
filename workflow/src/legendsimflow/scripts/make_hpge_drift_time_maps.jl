@@ -74,6 +74,10 @@ function main()
         help = "detector operational voltage in V (defaults to metadata value)"
     end
     @add_arg_table s begin
+        "--depv"
+        help = "detector depletion in V (defaults to metadata value)"
+    end
+    @add_arg_table s begin
         "--ssd-settings"
         help = "Path to ssd settings YAML file (optional; built-in defaults used if absent or missing)"
         default = nothing
@@ -93,7 +97,10 @@ function main()
     raw_opv = parsed_args["opv"]
     opv_val = isnothing(raw_opv) ? nothing : parse(Float32, raw_opv)
 
-    meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
+    raw_depv = parsed_args["depv"]
+    depv_val = isnothing(raw_depv) ? nothing : parse(Float32, raw_depv)
+
+    meta, xtal, opv_val, depv_val = load_detector_metadata(meta_path, det, opv_val, depv_val)
 
 
     # Load optional simulation settings, falling back to built-in defaults.
@@ -105,7 +112,7 @@ function main()
     ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)
 
-    sim, info = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
+    sim, info = setup_hpge_simulation(meta_path, meta, xtal, opv_val,depv_val, T, ref_limits)
 
     # Compute drift time maps for each crystal axis angle
     output = nothing

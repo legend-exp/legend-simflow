@@ -30,7 +30,7 @@ const NEIGHBOR_OFFSETS_8CONN = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1,
 
 
 """
-    load_detector_metadata(meta_path::String, det::String, opv_val::Union{Float32, Nothing})
+    load_detector_metadata(meta_path::String, det::String, opv_val::Union{Float32, Nothing},depv_val::Union{Float32, Nothing})
 
 Load detector and crystal metadata from legend-metadata, and set the operational voltage.
 
@@ -38,11 +38,12 @@ Load detector and crystal metadata from legend-metadata, and set the operational
 - `meta_path`: Path to legend-metadata
 - `det`: HPGe detector name (e.g. "V03422A")
 - `opv_val`: Operational voltage in V (Float32). If `nothing`, the value from metadata is used.
+- `depv_val`: Depletion voltage in V (Float32). If `nothing`, the value from metadata is used.
 
 # Returns
-- `Tuple`: `(meta, xtal, opv_val)` where `meta` is the detector metadata (PropDict),
-  `xtal` is the crystal metadata (PropDict), and `opv_val` is the operational voltage
-  as Float32 (either from metadata or as provided)
+- `Tuple`: `(meta, xtal, opv_val, depv_val)` where `meta` is the detector metadata (PropDict),
+  `xtal` is the crystal metadata (PropDict), `opv_val` is the operational voltage
+  as Float32 (either from metadata or as provided), and `depv_val` is the depletion voltage. 
 """
 function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing} = nothing)
 
@@ -54,13 +55,30 @@ function load_detector_metadata(meta_path::String, det::String, opv_val::Union{R
     else
         @info "Using user-provided OPV: $opv_val V"
     end
+
+    if isnothing(vdep_val)
+         vdep_insitu = meta.characterization.l200_insitu.depletion_voltage_in_V
+        
+         if (vdep_insitu isa PropDicts.MissingProperty) || (vdep_insitu === nothing)
+             vdep_char = meta.characterization.l200_site.depletion_voltage_in_V
+            
+             if (vdep_char isa PropDicts.MissingProperty) || (vdep_char === nothing)
+                 vdep_char = nothing
+             end
+             @info "detector only has HADES Vdep = $vdep V"
+         else
+             vdep_val = vdep_insitu
+             @info "detector has insitu Vdep = $vdep V"
+         end
+    end
+    
     meta.characterization.l200_site.recommended_voltage_in_V = opv_val
 
     ids = Dict("bege" => "B", "coax" => "C", "ppc" => "P", "icpc" => "V")
     crystal = ids[meta.type] * @sprintf("%02d", meta.production.order) * meta.production.crystal
     xtal = readprops("$meta_path/hardware/detectors/germanium/crystals/$crystal.yaml")
 
-    return meta, xtal, opv_val
+    return meta, xtal, opv_val, vdep_val
 end
 
 
@@ -461,7 +479,7 @@ end
 
 
 """
-    setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, refinement_limits, threshold)
+    setup_hpge_simulation(meta_path, meta, xtal, opv_val, depv_val,T, refinement_limits, threshold)
 
 Set up and run the full SSD simulation for an HPGe detector: builds the simulation object,
 applies the ADL charge drift model, calculates electric potential, electric field,
@@ -482,6 +500,7 @@ scaling factor and the raw/corrected depletion voltages are returned in `info`.
 - `meta`: Detector metadata (PropDict)
 - `xtal`: Crystal metadata (PropDict)
 - `opv_val`: Operational voltage in V (Float32)
+- `depv_val`: Depletion voltage in V (Float32)
 - `T`: Floating-point precision type (typically Float32)
 - `refinement_limits`: Vector of refinement thresholds for SSD
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
@@ -508,16 +527,13 @@ scaling factor and the raw/corrected depletion voltages are returned in `info`.
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
-    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
+    opv_val::Real, T::Any, depv_val::Union{Real,Nothing},
+    refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
     temperature::Real = 87.0,
     recompute_corrections::Bool = true)::Tuple{Simulation,Dict}
 
-    vdep = meta.characterization.l200_site.depletion_voltage_in_V
-
-    rescale_impurities =
-        recompute_corrections &&
-        !(vdep isa PropDicts.MissingProperty) &&
-        vdep !== nothing
+    
+    rescale_impurities = recompute_corrections && depv_val!=nothing
 
     scale = nothing
 

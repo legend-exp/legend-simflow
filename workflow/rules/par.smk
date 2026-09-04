@@ -189,6 +189,57 @@ rule merge_hpge_drift_time_maps:
         """
 
 
+rule build_hpge_drift_time_map_depv_scan:
+    """Produce an HPGe drift-time map.
+
+    Run a Julia script based on a pulse-shape simulation performed with the
+    [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
+    package, using crystal geometry information from `legend-metadata`. The drift time recorded at each grid point is the time at
+    which the simulated hole charge-collection signal reaches its maximum current
+    (the argmax of the charge-signal derivative); one map is produced per
+    crystal-axis angle.
+
+    The output is one LH5 file per `(detector, voltage)` pair with a single
+    top-level group named after the detector, holding the gridded map in the
+    `(r, z)`-field format read back by
+    {func}`reboost.hpge.utils.get_hpge_rz_field` and consumed by
+    {func}`reboost.hpge.psd.drift_time` when the `hit` tier is built:
+
+    | Field                    | Type         | Units | Description                                                                                                       |
+    | ------------------------ | ------------ | ----- | --------------------------------------------------------------------------------------------------------------- |
+    | `r`                      | `Array`      | m     | Radial coordinates of the rectangular `(r, z)` grid.                                                             |
+    | `z`                      | `Array`      | m     | Axial coordinates of the grid. The origin `(r, z) = (0, 0)` is the centre of the p+ contact.                     |
+    | `drift_time_<angle>_deg` | `Array` (2D) | ns    | Drift time over the `(r, z)` grid at crystal-axis azimuth `<angle>`. Pixels outside the detector profile hold NaN. |
+
+    Uses wildcards `hpge_detector` and `hpge_voltage` `hpge_depletion`
+    """
+    message:
+        "Generating drift-time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V with {wildcards.hpge_depletion}V"
+    input:
+        unpack(smk_hpge_psd_simulation_inputs),
+    params:
+        metadata_path=config.paths.metadata,
+    output:
+        dtmap_file=patterns.output_dtmap_filename(config),
+        info_file=patterns.output_dtmap_info_filename(config),
+    log:
+        patterns.log_dtmap_filename(config),
+    benchmark:
+        patterns.benchmark_dtmap_filename(config)
+    # NOTE: not using the `script` directive here since Snakemake has no nice
+    # way to handle package dependencies nor Project.toml
+    shell:
+        "julia --project=workflow/src/LegendSimflow.jl --threads 1"
+        "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
+        "    --detector {wildcards.hpge_detector}"
+        f"   --metadata {config.paths.metadata}"
+        "    --ssd-settings {input.ssd_settings}"
+        "    --opv {wildcards.hpge_voltage}"
+        "    --depv {wildcards.hpge_depletion}"
+        "    --output-file {output.dtmap_file}"
+        "    --info-file {output.info_file} &> {log}"
+
+
 rule aggregate_hpge_ssd_modeling_info:
     """Aggregate the HPGe SSD-modeling provenance into a `detinfo` file.
 
