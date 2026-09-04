@@ -291,12 +291,11 @@ def plot_tier_cvt_observables_filename(config: SimflowConfig, **kwargs) -> Path:
 
 # drift-time maps
 
-
 def output_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the HPGe drift-time map file for a detector and voltage."""
     return _expand(
         config.paths.dtmaps
-        / "singles/{hpge_detector}-{hpge_voltage}V-hpge-drift-time-map.lh5",
+        / "singles/{hpge_detector}-op-{hpge_voltage}V-dep-{hpge_depletion}V-hpge-drift-time-map.lh5",
         **kwargs,
     )
 
@@ -305,7 +304,7 @@ def output_dtmap_info_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the HPGe SSD-modeling info sidecar for a detector and voltage."""
     return _expand(
         config.paths.dtmaps
-        / "singles/{hpge_detector}-{hpge_voltage}V-hpge-ssd-modeling.yaml",
+        / "singles/{hpge_detector}-op-{hpge_voltage}V-dep-{hpge_depletion}V-hpge-ssd-modeling.yaml",
         **kwargs,
     )
 
@@ -319,7 +318,7 @@ def log_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     """The log file path for drift-time map generation for a detector and voltage."""
     pat = (
         log_dirname(config)
-        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.log"
+        / "hpge/dtmaps/{hpge_detector}-op-{hpge_voltage}V-dep-{hpge_depletion}V-drift-time-map.log"
     )
     return _expand(pat, **kwargs)
 
@@ -328,7 +327,7 @@ def plot_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the drift-time map validation plot for a detector and voltage."""
     pat = (
         config.paths.dtmaps
-        / "singles/plots/{hpge_detector}-{hpge_voltage}V-drift-time-map.pdf"
+        / "singles/plots/{hpge_detector}-op-{hpge_voltage}V-dep-{hpge_depletion}V-drift-time-map.pdf"
     )
     return _expand(pat, **kwargs)
 
@@ -337,9 +336,10 @@ def benchmark_dtmap_filename(config: SimflowConfig, **kwargs) -> Path:
     """The benchmark file path for drift-time map generation for a detector and voltage."""
     pat = (
         config.paths.benchmarks
-        / "hpge/dtmaps/{hpge_detector}-{hpge_voltage}V-drift-time-map.tsv"
+        / "hpge/dtmaps/{hpge_detector}-op-{hpge_voltage}V-dep-{hpge_depletion}V-drift-time-map.tsv"
     )
     return _expand(pat, **kwargs)
+
 
 
 # hpge pulse-shape libraries

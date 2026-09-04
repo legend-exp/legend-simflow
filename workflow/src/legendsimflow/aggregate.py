@@ -227,18 +227,15 @@ def pivot_detinfo(
     return out
 
 
-def _hpge_is_modelable(
+def _hpge_modelling_info(_hpge_is_modelable(
     config: SimflowConfig,
     name: str,
     usability: str,
     skip: Mapping[str, str],
     operational_voltage: int | None,
     min_voltage_above_depletion: int,
-) -> bool:
-    """Whether the HPGe `name` is valid for drift-time-map modeling.
-
-    See :func:`gen_hpge_modeling_status` for the criteria.
-    """
+    depv_shift = 0
+) -> dict:
     # we don't model detectors that are OFF or AC because we need to tune the
     # models to valid L200 data
     if usability != "on":
@@ -265,6 +262,7 @@ def _hpge_is_modelable(
     except (KeyError, AttributeError, FileNotFoundError):
         return False
 
+    depletion_voltage = depletion_voltage + depv_shift
     if depletion_voltage is None:
         return False
 
@@ -274,7 +272,7 @@ def _hpge_is_modelable(
     # detectors without an impurity curve in the crystal metadata cannot be
     # modeled
     m = crystal_meta(config, diode)
-    return bool(
+    is_modelable = bool(
         m is not None
         and validate_dict_schema(
             m,
@@ -284,6 +282,22 @@ def _hpge_is_modelable(
             verbose=False,
         )
     )
+    return {"is_modelable":is_modelable,"depletion_voltage":depletion_voltage}
+    
+def _hpge_is_modelable(
+    config: SimflowConfig,
+    name: str,
+    usability: str,
+    skip: Mapping[str, str],
+    operational_voltage: int | None,
+    min_voltage_above_depletion: int,
+    depv_shift = 0
+) -> bool:
+    """Whether the HPGe `name` is valid for drift-time-map modeling.
+
+    See :func:`gen_hpge_modeling_status` for the criteria.
+    """
+    return _hpge_modelling_info(config, name, usability, skip, operational_voltage, min_voltage_above_depletion, depv_shift)["is_modelable"]
 
 
 def gen_hpge_modeling_status(
@@ -413,6 +427,112 @@ def gen_list_of_all_hpges_valid_for_modeling(
     }
 
 
+
+
+def gen_hpge_depvs(
+    config: SimflowConfig, runid: str, depv_shifts:list
+) -> dict[str, dict[str, list | int | None]]:
+    """Assess every HPGe deployed in `runid` for drift-time-map modeling
+    based on the supplied list of depletion voltage shifts.
+
+    Iterates over the germanium detectors deployed in `runid` (via the LEGEND
+    channelmap) and records, for each the depletion voltages to simulate.
+    Returns a mapping
+
+    .. code-block::
+
+        {
+          'V00048A': {
+            'depletion_voltages': [3800,3900],
+            'operational_voltage_in_V': 4200,
+          },
+          ...
+        }
+
+    Warning
+    -------
+    This function is expensive in terms of filesystem I/O! Do not call it
+    multiple times or in hot loops.
+    """
+    timestamp = start_key(config, runid)
+    metadata = config.metadata
+    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+
+    skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
+
+    # minimum operational-voltage margin above depletion required to consider an
+    # HPGe modelable; overridable per experiment via the modeling par settings
+    min_voltage_above_depletion = get_par_settings(config, "modeling").get(
+        "min_voltage_above_depletion_in_V", 100
+    )
+
+    status = {}
+    for _, hpge in chmap.group("system").geds.items():
+        name = hpge.name
+
+        # off detectors (and others without a bias) have no operational voltage
+        try:
+            operational_voltage = get_hpge_voltage(config, name, runid)
+        except KeyError:
+            operational_voltage = None
+        
+        depvs = []
+        for depv_shift in depv_shifts:
+
+            
+            hpge_info =  _hpge_modelling_info(
+                config,
+                name,
+                chmap[name].analysis.usability,
+                skip,
+                operational_voltage,
+                min_voltage_above_depletion,
+                depv_shift = depv_shift
+            )
+
+            if hpge_info["is_modelable"]:
+                
+                depvs.append(hpge_info["depletion_voltage"])
+                
+        status[name] = {
+            "depletion_voltages": depvs
+            "operational_voltage_in_V": operational_voltage,
+        }
+
+    return status
+
+
+def gen_list_of_all_hpge_depvs_for_modeling(
+    config: SimflowConfig, depv_shifts: list
+) -> dict[str, dict[str, dict[str, list | int | None]]]:
+    """Generate the modeling status of every HPGe detector, for every runid
+    based on the supplied shifts in depv.
+
+    Assesses all deployed HPGe detectors for each runid via
+    :func:`gen_hpge_modeling_status`. Returns the following dictionary:
+
+    .. code-block::
+
+        {
+          'l200-p03-r000-phy': {
+            'V00048A': {'depletion_voltages': [3700,3800,3900], 'operational_voltage_in_V': 4200},
+            ...
+          },
+          ...
+        }
+
+    i.e. a mapping ``runid -> hpge -> {"dep_voltages": list,
+    "operational_voltage_in_V": voltage}`` covering both modelable and
+    non-modelable detectors. 
+    """
+    all_runids = set()
+    for simid in gen_list_of_all_simids(config):
+        all_runids.update(get_runlist(config, simid))
+
+    return {
+        runid: gen_hpge_depvs(config, runid, depv_shifts) for runid in sorted(all_runids)
+    }
+
 def gen_list_of_all_usabilities(
     config: SimflowConfig,
 ) -> AttrsDict[str, AttrsDict[str, dict]]:
@@ -527,6 +647,40 @@ def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str
     except (KeyError, AttributeError, FileNotFoundError):
         return None
 
+
+def gen_list_of_dtmaps_depv_scan(
+    config: SimflowConfig,
+    runid: str,
+    depv_shifts: list,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
+) -> list[Path]:
+    """Generate the list of HPGe drift-time map files for a `runid`."""
+    if cache is None:
+        depvs = gen_hpge_depvs(config, runid, depv_shifts)
+
+        names = []
+        for hpge, info in hpges:
+
+            for depv in info["depletion_voltages"]:
+               names.append( patterns.output_dtmap_filename(
+                config,
+                hpge_detector=hpge,
+                hpge_voltage=get_hpge_voltage(config, hpge, runid),
+                hpge_depletion = depv
+            ))
+        
+         return names
+    # use the cache to avoid calling get_hpge_voltage()
+    hpge_voltages = cache[runid]
+    return [
+        patterns.output_dtmap_filename(
+            config,
+            hpge_detector=hpge,
+            hpge_voltage=entry["operational_voltage_in_V"],
+            hpge_depletion = entry["depletion_voltage_in_V"]
+        )
+        for hpge, entry in hpge_voltages.items()
+    ]
 
 def gen_list_of_dtmaps(
     config: SimflowConfig,
