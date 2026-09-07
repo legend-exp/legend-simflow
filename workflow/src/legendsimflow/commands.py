@@ -25,7 +25,7 @@ import pyg4ometry
 
 from . import SimflowConfig, nersc, patterns, utils
 from .exceptions import SimflowConfigError
-from .metadata import get_simconfig
+from .metadata import get_simconfig, get_vtx_product
 
 
 def remage_run(
@@ -361,13 +361,48 @@ def make_remage_macro(
                 raise SimflowConfigError(msg, block) from e
 
         elif gen_query.startswith("~vertices:"):
+            # primary kinematics are read from the vtx/kin table (remage's
+            # RMGGeneratorFromFile). the FileName line keeps the {JOBID}
+            # placeholder (all jobs of a simid share one schema).
+            vtx_name = gen_query.removeprefix("~vertices:").strip()
             vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
+            # whether the vertex position is also taken from the vtx/kin table
+            # (IncludePosition) or supplied by a separate confinement is decided
+            # from the generator's declared `product`, not by inspecting the
+            # produced file.
+            product = get_vtx_product(config, vtx_name)
             generator_lines = [
-                "/RMG/Generator/Confine FromFile",
-                f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
+                "/RMG/Generator/Select FromFile",
+                f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
             ]
-            # in this case, vertex confinement is not required
-            mac_subs["CONFINEMENT"] = None
+            if product == "positions":
+                msg = (
+                    f"vtx generator {vtx_name!r} produces positions only "
+                    "(product=positions) and has no kinematics; it cannot be "
+                    "used as a generator (use it as a confinement instead)",
+                    f"{block}.generator",
+                )
+                raise SimflowConfigError(*msg)
+            if product == "kinematics_and_positions":
+                # positions are stored alongside kinematics in vtx/kin: read them
+                # from the same table. IncludePosition must precede FileName.
+                generator_lines = [
+                    "/RMG/Generator/Select FromFile",
+                    "/RMG/Generator/FromFile/IncludePosition true",
+                    f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
+                ]
+                # positions come from the file, no confinement allowed
+                mac_subs["CONFINEMENT"] = ""
+            elif "confinement" not in sim_cfg:
+                # product == "kinematics": vtx/kin has no positions, so a separate
+                # confinement must supply them
+                msg = (
+                    f"vtx generator {vtx_name!r} produces kinematics only "
+                    "(product=kinematics) and has no positions; a confinement "
+                    "must be configured to supply them",
+                    f"{block}.generator",
+                )
+                raise SimflowConfigError(*msg)
         else:
             msg = (
                 "the field must be prefixed with ~vertices: or ~defines:",
@@ -387,6 +422,18 @@ def make_remage_macro(
                 if sim_cfg.get("generator", "").strip().startswith("~vertices:"):
                     msg = (
                         "no vertices in confinement field allowed if vertices are already specified as the generator",
+                        f"{block}.confinement",
+                    )
+                    raise SimflowConfigError(*msg)
+
+                # positions are read from the vtx/pos table (remage's
+                # Confine FromFile); the generator must declare it produces them.
+                vtx_name = conf_query.removeprefix("~vertices:").strip()
+                product = get_vtx_product(config, vtx_name)
+                if product != "positions":
+                    msg = (
+                        f"vtx generator {vtx_name!r} (product={product}) produces "
+                        "no vtx/pos positions and cannot be used as a confinement",
                         f"{block}.confinement",
                     )
                     raise SimflowConfigError(*msg)
