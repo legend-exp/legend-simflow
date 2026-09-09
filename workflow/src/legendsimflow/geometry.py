@@ -105,15 +105,11 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     """Render the geometry off-screen to *output* (PNG) using :func:`load_vis_scene`.
 
     Rebuilds the geometry with the light-weight segmented fiber model (the
-    simulation GDML uses the detailed one, far too heavy to render). Rendering
-    goes through the software OSMesa backend, so no GPU or X server is needed.
+    simulation GDML uses the detailed one, far too heavy to render).
     """
     from pyg4ometry import config as meshconfig  # noqa: PLC0415
     from pygeomtools import viewer  # noqa: PLC0415
 
-    # software OSMesa off-screen rendering; must be set before the render window
-    # is created
-    os.environ["VTK_DEFAULT_OPENGL_WINDOW"] = "vtkOSOpenGLRenderWindow"
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
 
     scene = load_vis_scene(config)

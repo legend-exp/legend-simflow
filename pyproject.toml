@@ -145,7 +145,7 @@ legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"
 reboost = ">=0.12.3,<0.13"
-# software OpenGL (OSMesa) for the head-less stp geometry rendering
+# software OpenGL (llvmpipe, through EGL) for the head-less stp geometry rendering
 mesalib = "*"
 
 # tier stp
@@ -156,6 +156,12 @@ julia = ">=1.12,<1.13"
 h5py = "*"
 hdf5 = "*"
 revertex = ">=0.1.2,<0.2"
+
+[tool.pixi.activation.env]
+# head-less off-screen rendering; unset to open an on-screen window
+VTK_DEFAULT_OPENGL_WINDOW = "vtkEGLRenderWindow"
+# libglvnd does not search the environment prefix for Mesa's EGL vendor config
+__EGL_VENDOR_LIBRARY_DIRS = "$CONDA_PREFIX/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
