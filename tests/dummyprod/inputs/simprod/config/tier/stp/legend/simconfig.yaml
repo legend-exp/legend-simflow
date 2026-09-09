@@ -32,13 +32,13 @@ sis1_z8224_src1_Ra224_to_Pb208:
   template: $_/template.mac
   geom_config_extra:
     sis:
-      "1":
+      1:
         sis_z: 8224
         offset: -63
         sources: [null, null, Th228, null]
-      "2": null
-      "3": null
-      "4": null
+      2: null
+      3: null
+      4: null
   generator: ~defines:Ra224_to_Pb208
   confinement: ~volumes.bulk:source_inner_sis1_source2
   primaries_per_job: 10_000
