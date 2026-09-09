@@ -15,8 +15,12 @@ import lh5
 import pytest
 import yaml
 
-from legendsimflow import aggregate, utils
-from legendsimflow.scripts import extract_hpge_current_pulse_model
+from legendsimflow import aggregate, patterns, utils
+from legendsimflow.metadata import ELECTRON_GUN_ENERGIES_IN_KEV
+from legendsimflow.scripts import (
+    extract_hpge_current_pulse_model,
+    simulate_electron_gun,
+)
 from legendsimflow.scripts.make_simstat_partition_file import main as simstat_main
 from legendsimflow.scripts.pars import extract_hpge_observables_models
 from legendsimflow.scripts.tier import cvt, evt, hit, opt
@@ -134,6 +138,67 @@ def legend_dtmap_path(tmp_path_factory, legend_testdata):
         lh5.write(maps, detector, path, wo_mode="write_safe")
 
     return path
+
+
+@pytest.fixture(scope="session")
+def legend_electron_gun_paths(tmp_path_factory):
+    """Simulate the electron gun on the mock array, one remage run per grid energy.
+
+    Returns the GDML geometry the simulations were run on and the ``stp`` files,
+    one per energy, as the ``simulate_electron_gun`` rule produces them.
+    """
+    if shutil.which("remage") is None:
+        pytest.skip("remage not installed")
+
+    out_dir = tmp_path_factory.mktemp("legend_electron_gun")
+    config_path = _l200_config(out_dir)
+    config = utils.init_simflow_context(config_path, workflow=None).config
+
+    with _override_argv(
+        "simulate-electron-gun",
+        "--geom-config",
+        str(patterns.geom_template_config_filename(config)),
+        "--output-dir",
+        str(out_dir),
+        "--energies",
+        *[str(e) for e in ELECTRON_GUN_ENERGIES_IN_KEV],
+        "--simflow-config",
+        str(config_path),
+    ):
+        simulate_electron_gun.main()
+
+    return {
+        "geom_file": out_dir / patterns.output_electron_gun_geom_filename(config).name,
+        "stp_files": [
+            out_dir / patterns.output_electron_gun_stp_filename(config, energy=e).name
+            for e in ELECTRON_GUN_ENERGIES_IN_KEV
+        ],
+    }
+
+
+def _write_aoemeanmod_pars(pars_dir: Path) -> None:
+    """Write the per-run A/E mean models the hit tier always loads.
+
+    They are the identity, so the raw A/E is left untouched: extracting the
+    real ones needs the electron-gun simulations.
+    """
+    identity = {"expression": "a * x + b", "pars": {"a": 0, "b": 1}}
+    out_dir = pars_dir / "hpge/aoemeanmod"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for runid in _RUNIDS_L200:
+        dbetto.utils.write_dict(
+            {
+                det: {"single_template": identity, "psl": identity}
+                for det in ("V00001A", "V00001B")
+            },
+            out_dir / f"{runid}-model.yaml",
+        )
+
+
+@pytest.fixture(scope="session")
+def write_aoemeanmod_pars():
+    """Expose :func:`_write_aoemeanmod_pars` to the test modules in this directory."""
+    return _write_aoemeanmod_pars
 
 
 def _l200_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Path:
@@ -387,6 +452,8 @@ def legend_hit_path(
             dest_dir = pars_dir / subdir
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(src, dest_dir / dest_name)
+
+    _write_aoemeanmod_pars(pars_dir)
 
     dtmap_dir = pars_dir / "hpge/dtmaps"
     dtmap_dir.mkdir(parents=True)

@@ -18,6 +18,7 @@ import ast
 import importlib
 import re
 import shlex
+from collections.abc import Mapping
 from copy import copy
 from pathlib import Path
 
@@ -476,17 +477,50 @@ def make_remage_macro(
 
     # read in template and substitute
     template_path = get_simconfig(config, tier, simid=simid, field="template")
+    ofile = patterns.input_simjob_filename(config, tier=tier, simid=simid)
+    text = render_macro_template(template_path, mac_subs, ofile)
+
+    return text, ofile
+
+
+def render_macro_template(
+    template_path: str | Path,
+    mac_subs: Mapping[str, str | None],
+    ofile: str | Path | None = None,
+) -> str:
+    """Render a remage macro template, optionally writing it to disk.
+
+    Substitutes the ``$VARIABLE`` placeholders of the template with `mac_subs`
+    (see ``legenddataflowscripts.subst_vars``). Curly-brace placeholders
+    (e.g. ``{SEED}``) are left untouched, to be substituted by remage at run
+    time.
+
+    Parameters
+    ----------
+    template_path
+        Path to the macro template.
+    mac_subs
+        Substitution rules.
+    ofile
+        If given, path of the output macro file. Parent directories are created.
+
+    Returns
+    -------
+    The rendered macro text.
+    """
     with Path(template_path).open() as f:
         try:
-            text = lds.subst_vars(f.read().strip(), mac_subs, ignore_missing=False)
+            text = lds.subst_vars(
+                f.read().strip(), dict(mac_subs), ignore_missing=False
+            )
         except KeyError as e:
             msg = f"no rules found to substitute variable {e} in the macro template"
             raise SimflowConfigError(msg) from e
 
-    # now write the macro to disk
-    ofile = patterns.input_simjob_filename(config, tier=tier, simid=simid)
-    ofile.parent.mkdir(parents=True, exist_ok=True)
-    with ofile.open("w") as f:
-        f.write(text)
+    if ofile is not None:
+        ofile = Path(ofile)
+        ofile.parent.mkdir(parents=True, exist_ok=True)
+        with ofile.open("w") as f:
+            f.write(text)
 
-    return text, ofile
+    return text

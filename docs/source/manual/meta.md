@@ -445,7 +445,6 @@ dead_layer_fraction: 0.5
 buffer_len: "500*MB"
 simulate_psd: True
 simulate_psd_with_psl: False
-two_pass_aoe_correction: False
 
 eresmod_default:
   expression: FWHMLinear
@@ -503,14 +502,6 @@ aoemeanmod_default:
   `psl` sub-blocks carries an `expression` in the energy `x` (keV) with
   parameters `a`, `b`. The identity model (`a: 0, b: 1`) applies no correction.
   See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
-- `two_pass_aoe_correction` (bool, default `False`): when `True`, the `hit` tier
-  is built twice. A temporary pre-correction pass computes the raw A/E for the
-  simulation IDs matching `simid_regex` (see the `aoemeanmod` par settings, by
-  default `sis*_z*_slot*_Pb212_to_Pb208`), from which a per-detector A/E
-  energy-dependence correction is fit and applied in the final pass, overriding
-  `aoemeanmod_default` where available. The selected experiment (or `simlist`)
-  must contain at least one matching `simid`, otherwise the workflow fails at
-  DAG-build time.
 
 (evt-tier-settings-meta)=
 
@@ -749,14 +740,66 @@ Each entry must contain:
 See {ref}`hpge-aoeresmod-extraction` for a description of how these files are
 used at runtime.
 
-(aoemeanmod-metadata-dir)=
+(aoemeanmod-settings-meta)=
 
-### A/E mean energy-dependence model
+### A/E mean energy-dependence settings
 
-The HPGe A/E mean energy-dependence correction is configured through the
-`aoemeanmod_default` key of the {ref}`hit-tier-settings` (applied to every
-detector) and, optionally, computed per detector by the Simflow itself when the
-`two_pass_aoe_correction` hit-tier setting is enabled.
+The HPGe A/E mean energy-dependence correction is always computed by the Simflow
+itself, per detector and run, from dedicated electron-gun simulations (see
+{ref}`hpge-aoemeanmod-extraction`); the `aoemeanmod_default` key of the
+{ref}`hit-tier-settings` covers the detectors that get no model. The
+electron-gun simulations are configured by a mandatory YAML file, loaded via
+`get_par_settings(config, "aoemeanmod")` from
+`simprod/config/pars/{experiment}/geds/aoemeanmod/`, and a _remage_ macro
+template stored next to it.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/aoemeanmod/settings.yaml
+
+primaries: 1_000_000
+```
+
+| Key         | Type | Description                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `primaries` | int  | Number of electrons simulated at each energy (mandatory). They are generated uniformly in the volume of all HPGe detectors, so each detector receives a share proportional to its volume; Only the events that stop the whole electron are used, 86 to 97% of them depending on the energy; about 5000 of those per energy in the smallest detector give the A/E mean slope to 5%. |
+
+The _remage_ macro template must be stored next to the settings file, as
+`template.mac`. Unlike the {ref}`simconfig.yaml` templates it holds the
+generator itself, since it serves only the electron gun:
+
+```{code-block} text
+:caption: simprod/config/pars/{experiment}/geds/aoemeanmod/template.mac
+
+/RMG/Geometry/RegisterDetectorsFromGDML Germanium
+/RMG/Output/NtupleUseVolumeName True
+
+/run/initialize
+
+/RMG/Output/Germanium/EdepCutLow 0
+
+/RMG/Generator/Select GPS
+/gps/particle e-
+/gps/ang/type iso
+/gps/ene/type Mono
+/gps/ene/mono {ENERGY_KEV} keV
+
+$CONFINEMENT
+
+/run/beamOn {N_EVENTS}
+```
+
+`$CONFINEMENT` is substituted by the Simflow with the germanium sensitive
+volumes of the geometry, so that the electrons are generated in the bulk of the
+detectors. `{ENERGY_KEV}` (the energy of the current run) and `{N_EVENTS}` are
+substituted by _remage_. Keep the physics settings identical to those of the
+production template.
+
+The electron energies are fixed (900, 1250, 1600, 1950 and 2350 keV): they span
+the same range over which the correction is determined in data, i.e. the Compton
+bands of {meth}`pygama.pargen.AoE_cal.CalAoE.energy_correction`. The simulations
+are run through the _remage_ Python API: `runcmd.remage` (see [](setup.md)) does
+not apply to them, _remage_ must be importable in the Simflow Python
+environment.
 
 (psdcuts-metadata-dir)=
 

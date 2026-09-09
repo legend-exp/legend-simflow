@@ -20,12 +20,15 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import shlex
 from collections.abc import Mapping
 from pathlib import Path
 
 import dbetto
 
 from . import SimflowConfig, patterns
+
+log = logging.getLogger(__name__)
 
 # NOTE: the heavy plotting/geometry packages (matplotlib, VTK via pyg4ometry /
 # pygeomtools, pygeoml200) are imported lazily inside the two functions below,
@@ -101,20 +104,29 @@ def make_hpge_mass_plot(
     fig.savefig(output, bbox_inches="tight")
 
 
-def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) -> None:
-    """Render the geometry off-screen to *output* (PNG) using :func:`load_vis_scene`.
+def construct_geometry(
+    config: SimflowConfig,
+    geom_config: Mapping,
+    *,
+    use_detailed_fiber_model: bool = True,
+) -> object:
+    """Build the geometry in memory with the experiment's geometry generator.
 
-    Rebuilds the geometry with the light-weight segmented fiber model (the
-    simulation GDML uses the detailed one, far too heavy to render).
+    The generator is read from the ``executable`` field of `geom_config`.
+    Returns the :class:`pyg4ometry.geant4.Registry` describing the geometry,
+    which can be written to GDML or handed to remage directly.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration.
+    geom_config
+        The geometry configuration, as loaded from its YAML file.
+    use_detailed_fiber_model
+        Whether to build the individual fibers, as the production simulations
+        do. Rendering uses the light-weight segmented model instead.
     """
-    from pyg4ometry import config as meshconfig  # noqa: PLC0415
-    from pygeomtools import viewer  # noqa: PLC0415
-
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
-
-    scene = load_vis_scene(config)
-    if scene.pop("fine_mesh", False):  # must be applied before building the geometry
-        meshconfig.setGlobalMeshSliceAndStack(100)
     executable = geom_config.get("executable")
 
     if executable == "legend-pygeom-l200":
@@ -124,25 +136,69 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
         # warnings, public-geometry notice) that would otherwise spam the log
         logging.getLogger("pygeoml200").setLevel(logging.ERROR)
 
-        registry = core.construct(
+        return core.construct(
             assemblies=cli._parse_assemblies(geom_config.get("assemblies")),
-            use_detailed_fiber_model=False,
+            use_detailed_fiber_model=use_detailed_fiber_model,
             config=geom_config,
             public_geometry=geom_config.get("public_geom", False),
         )
 
-    elif executable == "legend-pygeom-l1000":
+    if executable == "legend-pygeom-l1000":
         from pygeoml1000 import core  # noqa: PLC0415
 
         logging.getLogger("pygeoml1000").setLevel(logging.ERROR)
 
-        registry = core.construct(config=geom_config)
+        return core.construct(config=geom_config)
 
-    else:
-        msg = f"Unknown geometry executable {executable!r}"
-        raise ValueError(msg)
+    msg = f"Unknown geometry executable {executable!r}"
+    raise ValueError(msg)
+
+
+def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) -> None:
+    """Render the geometry off-screen to *output* (PNG) using :func:`load_vis_scene`.
+
+    Rebuilds the geometry with the light-weight segmented fiber model (the
+    simulation GDML uses the detailed one, far too heavy to render).
+    """
+    from pyg4ometry import config as meshconfig  # noqa: PLC0415
+    from pygeomtools import viewer  # noqa: PLC0415
+
+    scene = load_vis_scene(config)
+    if scene.pop("fine_mesh", False):  # must be applied before building the geometry
+        meshconfig.setGlobalMeshSliceAndStack(100)
+
+    registry = construct_geometry(config, geom_config, use_detailed_fiber_model=False)
 
     # `viewer._export_png` refuses to overwrite, so clear a stale target first
     Path(output).unlink(missing_ok=True)
     scene["export_and_exit"] = str(output)
     viewer.visualize(registry, scene)
+
+
+def build_gdml_command(
+    config: SimflowConfig, geom_config: str | Path, output: str | Path
+) -> str:
+    """The shell command building a GDML file with the experiment's geometry generator.
+
+    The executable is read from the ``executable`` field of the template
+    geometry configuration file (see
+    :func:`legendsimflow.patterns.geom_template_config_filename`) and run on
+    `geom_config`, with ``LEGEND_METADATA`` pointing to the Simflow metadata.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration.
+    geom_config
+        Path to the geometry configuration YAML file.
+    output
+        Path of the output GDML file.
+    """
+    executable = dbetto.utils.load_dict(patterns.geom_template_config_filename(config))[
+        "executable"
+    ]
+    return (
+        f"LEGEND_METADATA={shlex.quote(str(config.paths.metadata))} "
+        f"{executable} --verbose --config {shlex.quote(str(geom_config))} "
+        f"-- {shlex.quote(str(output))}"
+    )
