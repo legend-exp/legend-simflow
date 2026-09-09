@@ -20,6 +20,7 @@ linked there for the internal field structure. Their on-disk locations are:
 | Data superpulses                    | `{config.paths.pars}/hpge/superpulses/{detector}-superpulses.lh5`                           |
 | Electronics-response model (merged) | `{config.paths.pars}/hpge/elecmod/{runid}-model.yaml`                                       |
 | Realistic PSL (merged per run)      | `{config.paths.pars}/hpge/psl/realistic/{runid}-hpge-pulse-shape-lib.lh5`                   |
+| A/E mean model (merged per run)     | `{config.paths.pars}/hpge/aoemeanmod/{runid}-model.yaml`                                    |
 
 The data-superpulse layout switches to one file per `(runid, detector)` pair
 (`{runid}-{detector}-superpulses.lh5`) when `build_per_runid` is set (see

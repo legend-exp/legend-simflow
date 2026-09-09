@@ -190,6 +190,9 @@ extract-hpge-impurity-model = { cmd = "python -m legendsimflow.scripts.extract_h
 extract-drift-time-psl-tuning = { cmd = "python -m legendsimflow.scripts.extract_drift_time_psl_tuning" }
 extract-hpge-electronics-model-scan = { cmd = "python -m legendsimflow.scripts.extract_hpge_elec_response_model_scan" }
 
+simulate-electron-gun = { cmd = "python -m legendsimflow.scripts.simulate_electron_gun" }
+extract-hpge-aoemeanmod = { cmd = "python -m legendsimflow.scripts.extract_hpge_aoemean_energy_dependence" }
+
 [tool.pixi.tasks.prod]
 cmd = "snakemake --verbose --logger {{ logger }} --workflow-profile workflow/profiles/{{ profile }}"
 args = [

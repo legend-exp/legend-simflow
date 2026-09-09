@@ -1,0 +1,7 @@
+# electron-gun simulations feeding the A/E mean energy-dependence extraction
+# (simulate_electron_gun, extract_hpge_aoemean_energy_dependence)
+
+# the bare minimum for the fits to converge: this is a functional test, not a
+# measurement. The mock array has 8 identical germanium volumes, so each
+# collects about 1250 events per energy
+primaries: 10_000
