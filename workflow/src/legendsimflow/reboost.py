@@ -18,6 +18,7 @@ import logging
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import NamedTuple
 
 import awkward as ak
 import h5py
@@ -25,10 +26,18 @@ import lgdo
 import lh5
 import numba as nb
 import numpy as np
+import pint
 import pyg4ometry
+import pygeomhpges
 import pygeomtools
+import reboost.hpge.psd
+import reboost.hpge.surface
 import reboost.hpge.utils
+import reboost.math.functions
+import reboost.math.stats
 import reboost.units
+from dbetto import AttrsDict
+from dbetto.utils import load_dict
 from lgdo import LGDO
 from numpy.typing import ArrayLike
 
@@ -321,6 +330,290 @@ def load_hpge_dtmaps(
         dt_map = None
 
     return dt_map
+
+
+def read_detector_origins(stp_file: str | Path) -> dict[str, pint.Quantity]:
+    """Read the detector origins stored in a remage output file.
+
+    Returns a mapping of detector name to its origin ``[x, y, z]`` in the
+    global coordinate system, as a :class:`pint.Quantity` in metres.
+
+    Parameters
+    ----------
+    stp_file
+        Path to a remage output file.
+    """
+    # FIXME: units should be already present, to be fixed in remage
+    u = pint.UnitRegistry()
+    det_loc = lh5.read("detector_origins", stp_file)
+    return {
+        k: [v[field].value for field in ("xloc", "yloc", "zloc")] * u.m
+        for k, v in det_loc.items()
+    }
+
+
+def hpge_active_energy(
+    chunk: ak.Array,
+    pyobj: pygeomhpges.HPGe,
+    det_loc: pint.Quantity,
+    fccd_in_mm: float,
+    dead_layer_fraction: float,
+) -> tuple[ak.Array, ak.Array]:
+    """Apply the HPGe active-volume model to a chunk of remage steps.
+
+    Computes the distance of each step to the n+ surface of the detector (see
+    :func:`reboost.hpge.surface.distance_to_surface`), the corresponding
+    charge-collection efficiency with a piecewise-linear dead-layer model (see
+    :func:`reboost.math.functions.piecewise_linear_activeness`) and weights
+    the deposited energies accordingly.
+
+    Parameters
+    ----------
+    chunk
+        Awkward array of remage steps. Must have fields ``xloc``, ``yloc``,
+        ``zloc``, ``edep`` and ``dist_to_surf``.
+    pyobj
+        The HPGe geometry object.
+    det_loc
+        Origin of the detector in the global coordinate system.
+    fccd_in_mm
+        Full charge-collection depth of the detector, in mm.
+    dead_layer_fraction
+        Fraction of the dead layer thickness at which the linear ramp in
+        charge-collection efficiency starts.
+
+    Returns
+    -------
+    edep_active
+        Per-step energy deposits weighted by the activeness.
+    energy_true
+        Per-event active energy, sum of `edep_active` over the steps.
+    """
+    distance_to_nplus = reboost.hpge.surface.distance_to_surface(
+        chunk.xloc,
+        chunk.yloc,
+        chunk.zloc,
+        pyobj,
+        det_loc,
+        distances_precompute=chunk.dist_to_surf,
+        precompute_cutoff=(fccd_in_mm + 1),
+        surface_type="nplus",
+    )
+
+    activeness = reboost.math.functions.piecewise_linear_activeness(
+        distance_to_nplus,
+        fccd_in_mm=fccd_in_mm,
+        dlf=dead_layer_fraction,
+    )
+
+    edep_active = chunk.edep * activeness
+    return edep_active, ak.sum(edep_active, axis=-1)
+
+
+class HPGePSDInputs(NamedTuple):
+    """The per-detector, per-run inputs of the HPGe PSD simulation.
+
+    See :func:`load_hpge_psd_inputs`.
+    """
+
+    dt_map: dict[str, reboost.hpge.utils.HPGeRZField] | None
+    """Drift-time maps per crystal axis (single-template method)."""
+    currmod_pars: Mapping | None
+    """Current-pulse model parameters (single-template method)."""
+    current_reso: float | None
+    """Standard deviation of the Gaussian noise smearing the maximum current."""
+    psl_dt_maps: dict[str, reboost.hpge.utils.HPGeRZField] | None
+    """Drift-time maps per crystal axis of the realistic pulse-shape library."""
+    realistic_psl: dict[str, reboost.hpge.utils.HPGePulseShapeLibrary] | None
+    """Realistic pulse-shape library waveforms per crystal axis."""
+
+    @property
+    def can_model_psd(self) -> bool:
+        """Whether the single-template A/E can be simulated."""
+        return (
+            self.dt_map is not None
+            and self.currmod_pars is not None
+            and self.current_reso is not None
+        )
+
+    @property
+    def can_model_psd_with_psl(self) -> bool:
+        """Whether the pulse-shape-library A/E can be simulated."""
+        return self.realistic_psl is not None and self.current_reso is not None
+
+
+def load_hpge_psd_inputs(
+    config: SimflowConfig,
+    det_name: str,
+    runid: str,
+    *,
+    simulate_psd: bool,
+    simulate_psd_with_psl: bool,
+    currmod_pars_all: Mapping | None = None,
+) -> HPGePSDInputs:
+    """Load the inputs of the HPGe PSD simulation for a detector in a run.
+
+    Reads (from the known `par` step file patterns) the drift-time maps, the
+    current-pulse model parameters and the realistic pulse-shape library of
+    `det_name` in `runid`, as requested by the hit-tier settings. Missing
+    inputs are returned as ``None``; inspect
+    :attr:`HPGePSDInputs.can_model_psd` and
+    :attr:`HPGePSDInputs.can_model_psd_with_psl` to know which PSD method can
+    be simulated.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    det_name
+        HPGe detector name.
+    runid
+        Run identifier.
+    simulate_psd
+        Whether the single-template PSD simulation is enabled.
+    simulate_psd_with_psl
+        Whether the pulse-shape-library PSD simulation is enabled.
+    currmod_pars_all
+        Pre-loaded content of the merged current-pulse model file of `runid`
+        (see :func:`legendsimflow.patterns.output_currmod_merged_filename`).
+        Loaded from disk if ``None``.
+    """
+    dt_map = load_hpge_dtmaps(config, det_name, runid) if simulate_psd else None
+
+    psl_dt_maps = realistic_psl = None
+    if simulate_psd_with_psl:
+        psl_dt_maps, realistic_psl = load_hpge_realistic_psl(config, det_name, runid)
+
+    # the current-pulse model (noise smearing) is a product of the
+    # single-template PSD chain, needed by both methods
+    currmod_pars = current_reso = None
+    if simulate_psd:
+        if currmod_pars_all is None:
+            currmod_pars_all = AttrsDict(
+                load_dict(
+                    nersc.dvs_ro(
+                        config,
+                        patterns.output_currmod_merged_filename(config, runid=runid),
+                    )
+                )
+            )
+        pars = currmod_pars_all.get(det_name, None)
+        if pars is not None:
+            currmod_pars = pars.get("current_pulse_pars", None)
+            current_reso = pars["current_reso"] / pars["mean_aoe"]
+        else:
+            log.warning("no current-pulse model found for %s in %s", det_name, runid)
+
+    if simulate_psd_with_psl and realistic_psl is not None and current_reso is None:
+        log.warning(
+            "the pulse-shape-library A/E of %s in %s cannot be simulated without "
+            "the current-pulse model (noise smearing), enable simulate_psd",
+            det_name,
+            runid,
+        )
+
+    return HPGePSDInputs(dt_map, currmod_pars, current_reso, psl_dt_maps, realistic_psl)
+
+
+def compute_hpge_psd_observables(
+    chunk: ak.Array,
+    edep_active: ak.Array,
+    energy: ak.Array,
+    det_loc: pint.Quantity,
+    inputs: HPGePSDInputs,
+    *,
+    aoe_res: ArrayLike,
+    aoe_mean: ArrayLike,
+    aoe_mean_psl: ArrayLike,
+    psdcuts: Mapping,
+) -> tuple[ak.Array, ak.Array]:
+    """Compute the HPGe PSD observables of a chunk of events with all enabled methods.
+
+    Dispatches to :func:`extract_psd_observables` (single-template method) and
+    :func:`extract_detailed_psd_observables` (pulse-shape-library method)
+    according to what `inputs` allow to simulate. The observables of a method
+    that cannot be simulated are filled with NaN (or ``False`` for flags).
+
+    Parameters
+    ----------
+    chunk
+        Awkward array of the events to process.
+    edep_active
+        Per-step energy deposits weighted by the activeness.
+    energy
+        Per-event energy used to compute A/E.
+    det_loc
+        Origin of the detector in the global coordinate system.
+    inputs
+        The PSD inputs of the detector in the run, see
+        :func:`load_hpge_psd_inputs`.
+    aoe_res
+        A/E resolution (sigma) used for the A/E classifier.
+    aoe_mean
+        A/E mean energy-dependence model evaluated on the events
+        (single-template method).
+    aoe_mean_psl
+        As `aoe_mean`, for the pulse-shape-library method.
+    psdcuts
+        Low and high side cuts of the A/E classifier.
+
+    Returns
+    -------
+    psd_fields, psd_fields_detailed
+        The observables of the single-template and pulse-shape-library methods
+        (see the dispatched functions for the fields).
+    """
+    n = len(chunk)
+    psd_fields = ak.Array(
+        {
+            "aoe": np.full(n, np.nan),
+            "aoe_class": np.full(n, np.nan),
+            "aoe_corr": np.full(n, np.nan),
+            "is_single_site": np.full(n, False),
+            "t_max": np.full(n, np.nan),
+        }
+    )
+    psd_fields_detailed = ak.Array(
+        {
+            "aoe": np.full(n, np.nan),
+            "aoe_class": np.full(n, np.nan),
+            "aoe_corr": np.full(n, np.nan),
+            "is_single_site": np.full(n, False),
+            "is_bb_like": np.full(n, False),
+            "is_high_aoe": np.full(n, False),
+            "t_max": np.full(n, np.nan),
+        }
+    )
+
+    if inputs.can_model_psd:
+        psd_fields = extract_psd_observables(
+            chunk,
+            edep_active,
+            energy,
+            inputs.dt_map,
+            inputs.currmod_pars,
+            det_loc,
+            aoe_res=aoe_res,
+            aoe_mean=aoe_mean,
+            psdcuts=psdcuts,
+            current_reso=inputs.current_reso,
+        )
+
+    if inputs.can_model_psd_with_psl:
+        psd_fields_detailed = extract_detailed_psd_observables(
+            chunk,
+            edep_active,
+            energy,
+            inputs.psl_dt_maps,
+            inputs.realistic_psl["000"],
+            det_loc,
+            aoe_res=aoe_res,
+            aoe_mean=aoe_mean_psl,
+            psdcuts=psdcuts,
+            current_reso=inputs.current_reso,
+        )
+
+    return psd_fields, psd_fields_detailed
 
 
 def get_remage_hit_range(

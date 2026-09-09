@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import fnmatch
 import logging
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -27,6 +26,7 @@ from legendmeta.police import validate_dict_schema
 from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
+    ELECTRON_GUN_ENERGIES_IN_KEV,
     encode_psd_usability,
     get_par_settings,
     get_runlist,
@@ -105,11 +105,14 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
             files.append(patterns.plot_geom_hpge_mass_filename(config, simid=simid))
         return files
     if tier == "par":
+        # primary vertices of the electron-gun simulations, to validate the
+        # confinement in the HPGe bulk
+        files = [patterns.plot_electron_gun_vertices_filename(config)]
         # HPGe drift-time map plots, a byproduct of the par step; only produced
         # when PSD is simulated in the hit tier
         if not get_tier_settings(config, "hit").get("simulate_psd", True):
-            return []
-        files = gen_list_of_dtmap_plots_outputs(config, simid)
+            return files
+        files.extend(gen_list_of_dtmap_plots_outputs(config, simid))
         if get_tier_settings(config, "hit").get("simulate_psd_with_psl", True):
             files.extend(
                 gen_list_of_superpulses_uniformity_plots_outputs(config, simid)
@@ -148,40 +151,16 @@ def gen_list_of_all_plots_outputs(config: SimflowConfig, tier: str) -> list[Path
     return mlist
 
 
-def gen_list_of_all_simids_matching(config: SimflowConfig, pattern: str) -> list[str]:
-    r"""Filter :func:`gen_list_of_all_simids` by a glob-style `pattern`.
+def gen_list_of_electron_gun_stp_outputs(config: SimflowConfig) -> list[Path]:
+    """Generate the list of electron-gun ``stp`` output files.
 
-    Uses :func:`fnmatch.fnmatch` semantics. Raises if nothing matches: a
-    silently-empty match set would make the A/E correction input list empty,
-    which severs the DAG edge that pulls the pre-correction hit build into
-    existence at all, and the feature would silently no-op.
+    One file per electron energy (see
+    ``legendsimflow.metadata.ELECTRON_GUN_ENERGIES_IN_KEV``).
     """
-    matches = [s for s in gen_list_of_all_simids(config) if fnmatch.fnmatch(s, pattern)]
-    if not matches:
-        msg = (
-            f"no simid matches pattern {pattern!r}; "
-            "cannot compute the A/E energy correction"
-        )
-        raise SimflowConfigError(msg, "pars.aoemeanmod.settings.simid_regex")
-    return matches
-
-
-def gen_list_of_simid_precorr_hit_outputs(
-    config: SimflowConfig, simid: str
-) -> list[Path]:
-    """Generate the list of temporary pre-correction hit output files for a `simid`."""
-    n_jobs = get_simid_njobs(config, simid)
-    return patterns.output_simid_precorr_hit_filenames(config, n_jobs, simid=simid)
-
-
-def gen_list_of_precorr_hit_outputs_matching(
-    config: SimflowConfig, pattern: str
-) -> list[Path]:
-    """All temp pre-correction hit output files across simids matching `pattern`."""
-    files: list[Path] = []
-    for simid in gen_list_of_all_simids_matching(config, pattern):
-        files += gen_list_of_simid_precorr_hit_outputs(config, simid)
-    return files
+    return [
+        patterns.output_electron_gun_stp_filename(config, energy=energy)
+        for energy in ELECTRON_GUN_ENERGIES_IN_KEV
+    ]
 
 
 def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
@@ -719,28 +698,11 @@ def gen_list_of_dtmap_plots_outputs(
     return list(files)
 
 
-def gen_list_of_all_modelable_hpges(
-    cache: Mapping[str, Mapping[str, Mapping[str, int]]],
-) -> list[str]:
-    """Union, across all cached runids, of modelable HPGe detector names.
-
-    The A/E energy correction is run-independent, so (unlike currmod/elecmod)
-    it is computed once per detector across the whole Simflow rather than per
-    `runid`.
-    """
-    dets: set[str] = set()
-    for runid_dets in cache.values():
-        dets.update(runid_dets.keys())
-    return sorted(dets)
-
-
-def gen_list_of_aoemeanmods(
-    config: SimflowConfig, cache: Mapping[str, Mapping[str, Mapping[str, int]]]
-) -> list[Path]:
-    """Generate the list of per-detector A/E energy-correction files for the merge rule."""
+def gen_list_of_aoemeanmods(config: SimflowConfig, simid: str) -> list[Path]:
+    r"""Generate the list of A/E mean energy-dependence model files for all requested `runid`\ s."""
     return [
-        patterns.output_aoemeanmod_filename(config, hpge_detector=hpge)
-        for hpge in gen_list_of_all_modelable_hpges(cache)
+        patterns.output_aoemeanmod_filename(config, runid=runid)
+        for runid in get_runlist(config, simid)
     ]
 
 
@@ -881,6 +843,7 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
         files.extend(gen_list_of_psdcuts(config, simid))
+        files.extend(gen_list_of_aoemeanmods(config, simid))
     return files
 
 

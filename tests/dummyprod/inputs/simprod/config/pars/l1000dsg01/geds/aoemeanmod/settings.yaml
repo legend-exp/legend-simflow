@@ -1,0 +1,3 @@
+# electron-gun simulations feeding the A/E mean energy-dependence extraction
+# (simulate_electron_gun, extract_hpge_aoemean_energy_dependence)
+primaries: 4_000

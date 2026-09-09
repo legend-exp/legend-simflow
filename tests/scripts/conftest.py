@@ -119,6 +119,41 @@ def legend_stp_path(tmp_path_factory, legend_gdml_path):
     return stp_file
 
 
+# A/E mean energy-dependence models, as produced by
+# extract_hpge_aoemean_energy_dependence: a small negative slope, so the hit
+# tier exercises the correction rather than an identity transformation
+_AOEMEANMOD_MODEL = {
+    det: {
+        sim_type: {
+            "expression": "x*a+b",
+            "pars": {"a": -2.0e-06, "b": 1.002},
+            "errs": {"a": 1.0e-07, "b": 1.0e-04},
+        }
+        for sim_type in ("single_template", "psl")
+    }
+    for det in ("V02160A", "V05261B")
+}
+
+
+def write_dummy_aoemeanmod(pars_dir: Path, runid: str) -> Path:
+    """Write a dummy A/E mean energy-dependence model file for `runid`.
+
+    Mirrors the output of ``extract_hpge_aoemean_energy_dependence``, which the
+    hit tier reads from the known file pattern.
+    """
+    out_dir = pars_dir / "hpge/aoemeanmod"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / f"{runid}-model.yaml"
+    out_file.write_text(yaml.safe_dump(_AOEMEANMOD_MODEL))
+    return out_file
+
+
+@pytest.fixture(scope="session")
+def write_aoemeanmod():
+    """Expose :func:`write_dummy_aoemeanmod` to the test modules in this directory."""
+    return write_dummy_aoemeanmod
+
+
 @pytest.fixture(scope="session")
 def legend_dtmap_path():
     """Return the path to the pre-built dummy drift time map for V05261B.
@@ -375,6 +410,8 @@ def legend_hit_path(
             dest_dir = pars_dir / subdir
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(src, dest_dir / dest_name)
+
+        write_dummy_aoemeanmod(pars_dir, runid)
 
     dtmap_dir = pars_dir / "hpge/dtmaps"
     dtmap_dir.mkdir(parents=True)

@@ -20,12 +20,16 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import shlex
+import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 
 import dbetto
 
 from . import SimflowConfig, patterns
+
+log = logging.getLogger(__name__)
 
 # NOTE: the heavy plotting/geometry packages (matplotlib, VTK via pyg4ometry /
 # pygeomtools, pygeoml200) are imported lazily inside the two functions below,
@@ -146,3 +150,53 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     Path(output).unlink(missing_ok=True)
     scene["export_and_exit"] = str(output)
     viewer.visualize(registry, scene)
+
+
+def build_gdml_command(
+    config: SimflowConfig, geom_config: str | Path, output: str | Path
+) -> str:
+    """The shell command building a GDML file with the experiment's geometry generator.
+
+    The executable is read from the ``executable`` field of the template
+    geometry configuration file (see
+    :func:`legendsimflow.patterns.geom_template_config_filename`) and run on
+    `geom_config`, with ``LEGEND_METADATA`` pointing to the Simflow metadata.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration.
+    geom_config
+        Path to the geometry configuration YAML file.
+    output
+        Path of the output GDML file.
+    """
+    executable = dbetto.utils.load_dict(patterns.geom_template_config_filename(config))[
+        "executable"
+    ]
+    return (
+        f"LEGEND_METADATA={shlex.quote(str(config.paths.metadata))} "
+        f"{executable} --verbose --config {shlex.quote(str(geom_config))} "
+        f"-- {shlex.quote(str(output))}"
+    )
+
+
+def build_gdml(
+    config: SimflowConfig, geom_config: str | Path, output: str | Path
+) -> None:
+    """Build a GDML file with the experiment's geometry generator.
+
+    Runs :func:`build_gdml_command` in a subprocess, raising on failure and
+    forwarding the generator output to the log.
+    """
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+    cmd = build_gdml_command(config, geom_config, output)
+    log.debug("running: %s", cmd)
+    proc = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
+    if proc.stdout:
+        log.debug(proc.stdout)
+    if proc.returncode != 0:
+        msg = (
+            f"geometry generation failed (exit code {proc.returncode}):\n{proc.stderr}"
+        )
+        raise RuntimeError(msg)

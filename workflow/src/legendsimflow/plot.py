@@ -126,3 +126,90 @@ def read_concat_wempty(files: Iterable[str | Path], table: str) -> ak.Array | No
 
 def n_nans(array):
     return int(ak.sum(np.isnan(array)))
+
+
+def plot_primary_vertices(
+    remage_files: str | Path | Iterable[str | Path],
+    output_pdf: str | Path,
+    n_rows: int = 10_000,
+) -> None:
+    """Plot the primary event vertices stored in remage output files.
+
+    Reads at most `n_rows` vertices from each file and draws their xy and xz
+    projections and a 3D scatter plot, with a common scale on all axes.
+
+    Parameters
+    ----------
+    remage_files
+        one or more remage output files (``vtx`` table).
+    output_pdf
+        output plot file.
+    n_rows
+        maximum number of vertices read from each file.
+    """
+    if isinstance(remage_files, (str, Path)):
+        remage_files = [remage_files]
+
+    vtx = ak.concatenate(
+        [lh5.read_as("/vtx", str(f), n_rows=n_rows, library="ak") for f in remage_files]
+    )
+
+    x = vtx.xloc.to_numpy()
+    y = vtx.yloc.to_numpy()
+    z = vtx.zloc.to_numpy()
+
+    fig = plt.figure(figsize=(16, 6))
+    gs = fig.add_gridspec(1, 3, wspace=0.1)
+
+    ax_xy = fig.add_subplot(gs[0, 0])
+    ax_3d = fig.add_subplot(gs[0, 1], projection="3d")
+    ax_xz = fig.add_subplot(gs[0, 2])
+
+    # set consistent limits using a single scale across x,y,z
+    mins = np.array([x.min(), y.min(), z.min()], dtype=float)
+    maxs = np.array([x.max(), y.max(), z.max()], dtype=float)
+    centers = 0.5 * (mins + maxs)
+    half_range = 0.5 * (maxs - mins).max()
+    half_range *= 1.1
+
+    xlim = (centers[0] - half_range, centers[0] + half_range)
+    ylim = (centers[1] - half_range, centers[1] + half_range)
+    zlim = (centers[2] - half_range, centers[2] + half_range)
+
+    ax_xy.set_xlim(xlim)
+    ax_xy.set_ylim(ylim)
+
+    ax_xz.set_xlim(xlim)
+    ax_xz.set_ylim(zlim)
+
+    ax_3d.set_xlim(xlim)
+    ax_3d.set_ylim(ylim)
+    ax_3d.set_zlim(zlim)
+
+    # enforce equal scaling
+    ax_xy.set_aspect("equal", adjustable="box")
+    ax_xz.set_aspect("equal", adjustable="box")
+    ax_3d.set_box_aspect((1, 1, 1))
+
+    ax_xy.scatter(x, y, s=1)
+    ax_xy.set_xlabel("x [m]")
+    ax_xy.set_ylabel("y [m]")
+    ax_xy.set_title("xy projection")
+
+    ax_3d.scatter(x, y, z, s=1)
+    ax_3d.set_xlabel("x [m]")
+    ax_3d.set_ylabel("y [m]")
+    ax_3d.set_zlabel("z [m]")
+    ax_3d.set_title("3D")
+
+    ax_xz.scatter(x, z, s=1)
+    ax_xz.set_xlabel("x [m]")
+    ax_xz.set_ylabel("z [m]")
+    ax_xz.set_title("xz projection")
+
+    for ax in (ax_xy, ax_xz):
+        ax.grid(True)
+
+    decorate(fig)
+    fig.savefig(str(output_pdf))
+    plt.close(fig)

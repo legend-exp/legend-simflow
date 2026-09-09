@@ -18,6 +18,7 @@ import fnmatch
 from collections.abc import Iterable, Sequence
 
 import pyg4ometry
+import pygeomtools
 
 
 def _get_matching_volumes(
@@ -167,3 +168,32 @@ def get_lar_minishroud_confine_commands(
         )
 
     return lines
+
+
+def get_hpge_bulk_confine_commands(reg: pyg4ometry.geant4.Registry) -> list[str]:
+    """Remage commands to confine primaries in the bulk of all HPGe detectors.
+
+    Lists every germanium sensitive physical volume registered in the geometry
+    (see ``pygeomtools.detectors.get_all_sensvols``) as a remage volume
+    confinement. Meant to be used through the ``~function:`` confinement
+    mechanism of :func:`legendsimflow.commands.make_remage_macro`.
+
+    Parameters
+    ----------
+    reg
+        The registry describing the geometry.
+
+    Returns
+    -------
+    list[str]
+        Remage confinement commands, one ``AddVolume`` per HPGe physical
+        volume.
+    """
+    volumes = sorted(pygeomtools.detectors.get_all_sensvols(reg, "germanium"))
+    if len(volumes) == 0:
+        msg = "no germanium sensitive volumes registered in the geometry"
+        raise ValueError(msg)
+
+    return ["/RMG/Generator/Confine Volume"] + [
+        f"/RMG/Generator/Confinement/Physical/AddVolume {v}" for v in volumes
+    ]

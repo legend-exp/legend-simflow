@@ -78,16 +78,15 @@ rule build_geom_gdml:
     input:
         rules.gen_geom_config.output,
     params:
-        executable=dbetto.utils.load_dict(
-            patterns.geom_template_config_filename(config)
-        )["executable"],
+        cmd=lambda wc, input, output: geometry.build_gdml_command(
+            config, input[0], output[0]
+        ),
     output:
         patterns.geom_gdml_filename(config),
     log:
         patterns.geom_log_filename(config),
     shell:
-        "LEGEND_METADATA={config.paths.metadata} "
-        "{params.executable} --verbose --config {input} -- {output} &> {log}"
+        "{params.cmd} &> {log}"
 
 
 rule gen_remage_macro:

@@ -108,6 +108,27 @@ def test_make_macro(config):
     assert "/RMG/Generator/Confine Volume" in text
 
 
+def test_make_electron_gun_macro(fresh_config, test_gdml_file, tmp_path):
+    """The electron-gun macro renders the configured template with GPS electrons."""
+    config = fresh_config
+
+    ofile = tmp_path / "electron-gun.mac"
+    text = commands.make_electron_gun_macro(config, test_gdml_file, ofile)
+
+    assert ofile.is_file()
+    lines = text.split("\n")
+    assert "/gps/particle e-" in lines
+    assert f"/gps/ene/mono {{{commands.ELECTRON_GUN_ENERGY_ALIAS}}} keV" in lines
+    assert "/RMG/Generator/Confine Volume" in lines
+    assert any(
+        line.startswith("/RMG/Generator/Confinement/Physical/AddVolume V")
+        for line in lines
+    )
+    # remage substitutions of the template are left in place
+    assert "/run/beamOn {N_EVENTS}" in lines
+    assert "/RMG/Manager/Randomization/Seed {SEED}" in lines
+
+
 def test_make_macro_errors_1(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata

@@ -9,6 +9,7 @@ from dbetto import AttrsDict
 
 import legendsimflow.aggregate as agg_mod
 from legendsimflow import aggregate as agg
+from legendsimflow import metadata, patterns
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings
 
@@ -40,6 +41,27 @@ def test_simid_harvesting(config):
     assert isinstance(simids, type({}.keys()))
     assert all(isinstance(s, str) for s in simids)
     assert len(simids) == 11
+
+
+def test_electron_gun_aggregates(fresh_config):
+    config = fresh_config
+    simid = "birds_nest_K40"
+
+    # one stp file per electron energy, no job wildcard
+    stp_files = agg.gen_list_of_electron_gun_stp_outputs(config)
+    n_energies = len(metadata.ELECTRON_GUN_ENERGIES_IN_KEV)
+    assert len(stp_files) == n_energies
+    assert all(f.name.endswith("keV-tier_stp.lh5") for f in stp_files)
+    assert len({f.name for f in stp_files}) == n_energies
+
+    # the vertex plot is a par-step plot
+    plot = patterns.plot_electron_gun_vertices_filename(config)
+    assert plot in agg.gen_list_of_plots_outputs(config, "par", simid)
+
+    models = agg.gen_list_of_aoemeanmods(config, simid)
+    assert len(models) == len(agg.get_runlist(config, simid))
+    assert all("aoemeanmod" in str(f) and f.suffix == ".yaml" for f in models)
+    assert set(models) <= set(agg.gen_list_of_all_par_outputs(config))
 
 
 def test_simid_outputs(config):
@@ -251,9 +273,12 @@ def test_par_plots_psd_gate(fresh_config):
     # with PSD enabled (the default) the par tier yields the dtmap plots
     assert len(agg.gen_list_of_plots_outputs(config, "par", simid)) >= 1
 
-    # disabling PSD in the hit tier drops them
+    # disabling PSD in the hit tier drops them; the electron-gun vertex plots
+    # are not gated by it and stay
     get_tier_settings(config, "hit")["simulate_psd"] = False
-    assert agg.gen_list_of_plots_outputs(config, "par", simid) == []
+    plots = agg.gen_list_of_plots_outputs(config, "par", simid)
+    assert plots == [patterns.plot_electron_gun_vertices_filename(config)]
+    assert all("electron-gun" in str(f) for f in plots)
 
 
 def test_hpge_voltage_functions(config):

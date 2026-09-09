@@ -70,6 +70,9 @@ real `generated*` dirs.
   / `simulate_psd` settings (edited in a temp metadata copy) add/remove exactly
   the PSL / drift-time-map rules; guards the YAML-to-DAG wiring the dead
   `has_detailed_psd` key broke.
+- `test_aoe_energy_correction_chain`: the electron-gun simulation and the
+  per-run A/E mean energy-dependence extraction are always in the DAG, with one
+  `stp` file per electron energy and one model per run.
 - `test_skip_{opt,hit}_drops_*` / `..._mutually_exclusive`: the evt-tier
   `skip_opt` / `skip_hit` switches drop the opt / hit jobs (negative case: the
   same `make_steps` is unsatisfiable without the switch); both-skip is rejected
@@ -87,7 +90,9 @@ The remage-driven workflow tests form a progression:
    exercises the PSL-based "detailed" PSD path: the realistic pulse-shape
    library is built in the par tier, consumed by the hit tier into a
    `psd/pulse_lib` sub-table, and read back by the evt tier into
-   `geds/psd/pulse_lib`.
+   `geds/psd/pulse_lib`. The electron-gun simulation (a few remage runs of a
+   thousand electrons) and the per-run A/E mean energy-dependence extraction run
+   as well.
 2. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
    pipeline, experiment `l200cfg01`, requires `l200data`, NERSC-only. Run with:
    `pixi run -e test test-l200-workflow`

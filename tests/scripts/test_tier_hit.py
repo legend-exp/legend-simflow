@@ -28,6 +28,7 @@ def test_hit_script_cli(
     legend_hpge_obs_paths,
     legend_simstat_part_path,
     legend_detector_usabilities_path,
+    write_aoemeanmod,
 ):
     pars_dir = tmp_path / "pars"
 
@@ -42,6 +43,8 @@ def test_hit_script_cli(
             dest_dir = pars_dir / subdir
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(src, dest_dir / dest_name)
+
+        write_aoemeanmod(pars_dir, runid)
 
     dtmap_dir = pars_dir / "hpge/dtmaps"
     dtmap_dir.mkdir(parents=True)
