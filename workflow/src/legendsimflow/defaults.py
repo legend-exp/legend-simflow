@@ -55,7 +55,6 @@ TIER_SETTINGS: dict = {
     "hit": {
         "simulate_psd": True,
         "simulate_psd_with_psl": False,
-        "two_pass_aoe_correction": False,
         "tune_hpge_impurities_on_data": False,
         "store_surface_steps": False,
         "surface_depth_in_mm": 3,
@@ -76,9 +75,6 @@ TIER_SETTINGS: dict = {
 #: ``simprod/config/pars/{experiment}/geds/{par}/settings``, keyed by parameter
 #: name.
 PAR_SETTINGS: dict = {
-    "aoemeanmod": {
-        "simid_regex": "sis*_z*_slot*_Pb212_to_Pb208",
-    },
     "elecmod": {
         "angle": "000",
         "sigma_start": 10.0,
