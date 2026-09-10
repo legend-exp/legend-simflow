@@ -26,7 +26,13 @@ rule gen_all_tier_par:
     input:
         aggregate.gen_list_of_all_par_outputs(config),
         lambda wc: aggregate.gen_list_of_all_plots_outputs(
-            config, tier="par", cache=smk_load_hpge_cache()
+            config,
+            tier="par",
+            cache=(
+                smk_load_hpge_cache()
+                if aggregate.hpge_modeling_cache_needed(config)
+                else None
+            ),
         ),
 
 

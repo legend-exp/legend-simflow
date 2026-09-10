@@ -158,7 +158,7 @@ def gen_list_of_all_plots_outputs(
     Since the cache is `simid`-independent, it is built here once (if needed)
     and reused for every `simid`.
     """
-    if cache is None and tier == "par":
+    if cache is None and tier == "par" and hpge_modeling_cache_needed(config):
         cache = build_hpge_modeling_cache(config)
 
     mlist = []
@@ -437,6 +437,16 @@ def gen_list_of_all_hpges_valid_for_modeling(
     return {
         runid: gen_hpge_modeling_status(config, runid) for runid in sorted(all_runids)
     }
+
+
+def hpge_modeling_cache_needed(config: SimflowConfig) -> bool:
+    """Whether the ``par``-tier plot aggregation needs the modelable-HPGe cache.
+
+    ``False`` when PSD simulation is disabled in the ``hit`` tier: the ``par``
+    branch of :func:`gen_list_of_plots_outputs` then yields no plot at all, so
+    building (or loading) the cache would be pure overhead.
+    """
+    return get_tier_settings(config, "hit").get("simulate_psd", True)
 
 
 def build_hpge_modeling_cache(
@@ -957,12 +967,17 @@ def process_simlist(
     config: SimflowConfig,
     simlist: Iterable[str] | None = None,
     make_steps: Sequence[str] | None = None,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
     """Produce a list of all output files that refer to a `simlist`.
 
     Each simlist item is ``<tier>.<simid>``. The tier is interpreted as the
     *latest* tier requested for that simid; outputs are produced cumulatively
     for all tiers up to (and including) that tier in `make_steps`.
+
+    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
+    :func:`build_hpge_modeling_cache` and avoids repeated metadata lookups. It
+    is otherwise built at most once, and only if a ``par`` step is reached.
     """
     if simlist is None:
         simlist = config.simlist
@@ -1004,7 +1019,12 @@ def process_simlist(
 
         # cumulative: build all tiers up to the requested one
         for t in make_steps[: make_steps.index(tier) + 1]:
-            mlist += gen_list_of_plots_outputs(config, t, simid)
+            # the par-tier plots need the modelable-HPGe cache: build it lazily
+            # (only if a par step is actually reached) and share it across every
+            # simlist item, since it does not depend on the simid
+            if t == "par" and cache is None and hpge_modeling_cache_needed(config):
+                cache = build_hpge_modeling_cache(config)
+            mlist += gen_list_of_plots_outputs(config, t, simid, cache=cache)
 
             if t in ("vtx", "par"):
                 pass
