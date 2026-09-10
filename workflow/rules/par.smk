@@ -109,8 +109,8 @@ rule build_hpge_drift_time_map:
     The output is one LH5 file per `(detector, voltage)` pair with a single
     top-level group named after the detector, holding the gridded map in the
     `(r, z)`-field format read back by
-    {func}`reboost.hpge.utils.load_hpge_rz_field` and consumed by
-    {func}`reboost.hpge.psd.drift_time_crystal_axes` when the `hit` tier is built:
+    {func}`reboost.hpge.load_hpge_rz_field` and consumed by
+    {func}`reboost.hpge.drift_time_crystal_axes` when the `hit` tier is built:
 
     | Field                    | Type         | Units | Description                                                                                                       |
     | ------------------------ | ------------ | ----- | --------------------------------------------------------------------------------------------------------------- |
@@ -296,7 +296,7 @@ rule convolve_hpge_ideal_pulse_shape_lib:
 
     The output is one LH5 file per `(runid, detector)` pair with a top-level
     group named after the detector, in the pulse-shape-library format read back
-    by {func}`reboost.hpge.utils.load_hpge_pulse_shape_library` when the `hit`
+    by {func}`reboost.hpge.load_hpge_pulse_shape_library` when the `hit`
     tier is built:
 
     | Field                    | Type         | Units | Description                                                                                            |

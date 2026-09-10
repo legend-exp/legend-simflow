@@ -46,7 +46,8 @@ def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
     import pygeomtools
 
     # reboost binds its subpackages lazily, so importing the top-level package
-    # alone would leave the heavy ones (legendhpges, pyg4ometry, numba) unpaid
+    # alone would not pay the import cost of the heavy ones, which pull in
+    # legendhpges, pyg4ometry and numba
     import reboost.hpge
     import reboost.spms
     import remage
