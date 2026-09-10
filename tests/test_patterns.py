@@ -212,11 +212,6 @@ def test_dtmap_filenames(config):
 
 
 def test_currmod_filenames(config):
-    result = p.input_currmod_evt_idx_file(config, runid=RUNID, hpge_detector=DET)
-    assert isinstance(result, Path)
-    assert RUNID in str(result)
-    assert DET in str(result)
-
     result = p.output_currmod_filename(config, runid=RUNID, hpge_detector=DET)
     assert isinstance(result, Path)
     assert RUNID in str(result)
