@@ -235,7 +235,7 @@ def main() -> None:
         ideal_lib, data_superpulses, angle=settings.angle
     )
 
-    if settings.max_num_superpulses > len(ideal_wfs):
+    if settings.max_num_superpulses < len(ideal_wfs["ideal_wfs_slice"]):
         ideal_wfs["ideal_wfs_slice"] = dict(
             sorted(
                 ((k, v) for k, v in ideal_wfs["ideal_wfs_slice"].items()),
