@@ -24,13 +24,13 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
 import numpy as np
+import reboost
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, spms_pars, utils
-from legendsimflow import reboost as reboost_utils
 from legendsimflow.awkward import ak_isin
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
@@ -41,7 +41,6 @@ from legendsimflow.metadata import (
     parse_runid,
     runinfo,
 )
-from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.tcm import merge_stp_n_opt_tcms_to_lh5
 
@@ -167,7 +166,7 @@ def main() -> None:
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "tier-evt", parser, args)
-    perf_block, print_stats, print_stats_since_last = make_profiler()
+    perf_block, print_stats, print_stats_since_last = reboost.make_profiler()
 
     log.info("merging hit and opt TCMs")
     with perf_block("merge_tcms()"):
@@ -182,7 +181,7 @@ def main() -> None:
                 config, "opt"
             ).scintillator_volume_name
 
-            stp_uids = reboost_utils.get_remage_detector_uids(stp_file)
+            stp_uids = reboost.get_remage_detector_uids(stp_file)
             scintillator_uid = next(
                 (
                     uid
@@ -225,78 +224,35 @@ def main() -> None:
     # NOTE: we check on disk because we are not sure which tables were processed in
     # the hit tiers
     det2uid = {}
+    uid2det = {}
     for tier in ("opt", "hit"):
         if (tier == "opt" and skip_opt) or (tier == "hit" and skip_hit):
             det2uid[tier] = {}
+            uid2det[tier] = {}
             continue
-        det2uid[tier] = {
-            name: uid
-            for uid, name in reboost_utils.get_remage_detector_uids(
-                hit_file[tier], lh5_table="hit"
-            ).items()
-        }
+        uid2det[tier] = reboost.get_remage_detector_uids(
+            hit_file[tier], lh5_table="hit"
+        )
+        det2uid[tier] = {name: uid for uid, name in uid2det[tier].items()}
         msg = f"found mapping name -> uid ({tier} tier): {det2uid[tier]}"
         log.debug(msg)
 
     # little helper to simplify the code below
-    # TODO: move/fix in reboost
     def _read_hits(tcm_ak, tier, field):
-        if not det2uid[tier]:
+        if not uid2det[tier]:
             return ak.Array([[] for _ in range(len(ak.num(tcm_ak[tier].row_in_table)))])
 
         msg = f"loading {field=} data from {tier=} (file {hit_file[tier]})"
         log.debug(msg)
 
-        tcm = tcm_ak[tier]
-        tcm_flat = ak.Array({k: ak.flatten(tcm[k]) for k in tcm.fields})
-
-        data_flat = []
-        tcm_rows = []
-
-        # for un-flattening at the end
-        counts = ak.num(tcm.row_in_table)
-
-        for tab_name, key in det2uid[tier].items():
-            mask = tcm_flat.table_key == key
-
-            with perf_block("_read_hits()_tcm_filter"):
-                rows = np.sort(tcm_flat.row_in_table[mask].to_numpy())
-                tcm_rows.append(np.where(mask)[0].to_numpy())
-
-            with perf_block("_read_hits()_lh5.read()"):
-                # check if we can just use the start_row / n_rows arguments
-                # to read. this seems to be faster than using the idx argument
-                # TODO: check/fix in legend-lh5io
-                if len(rows) >= 2 and np.all(rows == np.arange(rows[0], rows[-1] + 1)):
-                    data_ch = lh5.read(
-                        f"hit/{tab_name}/{field}",
-                        hit_file[tier],
-                        start_row=rows[0],
-                        n_rows=len(rows),
-                    )
-                else:
-                    msg = (
-                        "unexpected: hit rows indices are != range(rows[0], rows[-1]+1). "
-                        "falling back to using lh5.read(..., idx=rows)"
-                    )
-                    log.warning(msg)
-                    data_ch = lh5.read(
-                        f"hit/{tab_name}/{field}", hit_file[tier], idx=rows
-                    )
-
-            units = data_ch.attrs.get("units", None)
-            data_ch = data_ch.view_as("ak")
-
-            data_flat.append(data_ch)
-
-        tcm_rows_concat = np.concatenate(tcm_rows)
-        data_flat_concat = ak.concatenate(data_flat)[np.argsort(tcm_rows_concat)]
-
-        data_unflat = ak.unflatten(data_flat_concat, counts)
-
-        if units is not None:
-            return ak.with_parameter(data_unflat, "units", units)
-        return data_unflat
+        with perf_block("_read_hits()"):
+            return reboost.read_hit_field_by_tcm(
+                tcm_ak[tier],
+                hit_file[tier],
+                field,
+                uid2det[tier],
+                with_units=True,
+            )
 
     if (
         add_random_coincidences

@@ -28,12 +28,9 @@ import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
-import reboost.hpge.psd
-import reboost.hpge.surface
-import reboost.hpge.utils
-import reboost.math.functions
-import reboost.math.stats
-import reboost.spms
+import reboost
+import reboost.hpge
+import reboost.math
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Table
@@ -44,9 +41,7 @@ from legendsimflow import hpge_pars, nersc, patterns, utils
 from legendsimflow import metadata as mutils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.metadata import get_tier_settings
-from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
-from legendsimflow.tcm import build_tcm
 
 
 @snakemake_compatible(
@@ -183,7 +178,7 @@ def main() -> None:
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "tier-hit", parser, args)
-    perf_block, print_perf, _ = make_profiler()
+    perf_block, print_perf, _ = reboost.make_profiler()
 
     # load the geometry and retrieve registered sensitive volume tables
     with perf_block("load_pygeom()"):
@@ -309,9 +304,9 @@ def main() -> None:
                 )
 
             log.debug("looking for indices of hit table rows to read...")
-            with perf_block("get_remage_hit_range()"):
-                i_start, n_entries = reboost_utils.get_remage_hit_range(
-                    tcm, det_name, geom_meta.uid, evt_idx_range
+            with perf_block("get_rows_in_event_range()"):
+                i_start, n_entries = reboost.get_rows_in_event_range(
+                    tcm, geom_meta.uid, *evt_idx_range
                 )
 
             # initialize the stp file iterator
@@ -386,7 +381,7 @@ def main() -> None:
                 chunk = lgdo_chunk.view_as("ak", with_units=True)
 
                 with perf_block("distance_to_surface()"):
-                    _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
+                    _distance_to_nplus = reboost.hpge.distance_to_surface(
                         chunk.xloc,
                         chunk.yloc,
                         chunk.zloc,
@@ -398,7 +393,7 @@ def main() -> None:
                     )
 
                 with perf_block("piecewise_linear_activeness()"):
-                    _activeness = reboost.math.functions.piecewise_linear_activeness(
+                    _activeness = reboost.math.piecewise_linear_activeness(
                         _distance_to_nplus,
                         fccd_in_mm=fccd,
                         dlf=dead_layer_fraction,
@@ -529,7 +524,7 @@ def main() -> None:
                                 edep_active,
                                 energy,
                                 psl_dt_maps,
-                                realistic_psl["000"],
+                                realistic_psl[0],
                                 det_loc[det_name],
                                 aoe_res=aoe_res,
                                 aoe_mean=aoe_mean_psl,
@@ -538,7 +533,7 @@ def main() -> None:
                             )
                         )
 
-                out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+                out_table = reboost.init_hit_table(lgdo_chunk)
 
                 out_table.add_field(
                     "energy",
@@ -644,12 +639,12 @@ def main() -> None:
                     lgdo.Array(np.full(shape=len(chunk), fill_value=is_valid_sim)),
                 )
 
-                with perf_block("write_chunk()"):
-                    reboost_utils.write_chunk(
+                with perf_block("write_hit_table_chunk()"):
+                    reboost.write_hit_table_chunk(
                         out_table,
-                        f"/hit/{det_name}",
+                        f"hit/{det_name}",
                         hit_file,
-                        geom_meta.uid,
+                        uid=geom_meta.uid,
                     )
 
             # this table has been processed
@@ -664,7 +659,7 @@ def main() -> None:
         log.warning("stp tables %s were not processed", not_done)
 
     log.debug("building the TCM")
-    build_tcm(hit_file, hit_file)
+    reboost.build_remage_tcm(hit_file, hit_file)
 
     with perf_block("move_to_cfs()"):
         move2cfs()

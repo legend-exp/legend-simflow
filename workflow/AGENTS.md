@@ -50,7 +50,8 @@ from Snakemake and directly from the command line. Follow the pattern in
   `dvs_ro`.
 - Add a `tier-<name>` pixi task and a test in
   `tests/scripts/test_tier_<name>.py`
-- Add profile logging in disk/compute-intensive scripts (`profile.py`)
+- Add profile logging in disk/compute-intensive scripts
+  (`reboost.make_profiler`)
 
 ## Snakefiles
 

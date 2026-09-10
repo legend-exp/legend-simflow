@@ -1,59 +1,21 @@
 from __future__ import annotations
 
 import awkward as ak
-import lgdo
 import lh5
 import numpy as np
 import pyg4ometry
-import pytest
-import reboost
-import reboost.math.stats
+import reboost.hpge
 
 from legendsimflow import reboost as rutils
 from legendsimflow import spms_pars
 
 
-def test_remage_hit_range(legend_testdata):
-    f_stp = legend_testdata["remage/th228-full-optional-v0_13.lh5"]
-
-    tcm = lh5.read_as("tcm", f_stp, library="ak")
-
-    for det, uid in zip(
-        ["det1", "det2", "scint1", "scint2", "optdet1", "optdet2"],
-        [11, 12, 1, 2, 101, 102],
-        strict=True,
-    ):
-        n_rows = lh5.read_n_rows(f"stp/{det}", f_stp)
-
-        tcm = lh5.read_as("tcm", f_stp, "ak")
-
-        assert rutils.get_remage_hit_range(tcm, det, uid, [0, len(tcm) - 1]) == (
-            0,
-            n_rows,
-        )
-
-        # divide into groups
-        groups = [[0, 10], [11, 40], [41, 101], [102, len(tcm) - 1]]
-        n = 0
-
-        for group in groups:
-            nen = rutils.get_remage_hit_range(tcm, det, uid, group)[1]
-
-            if nen is not None:
-                n += nen
-
-        assert n == n_rows
-
-
 def test_psd_stuff(legend_testdata):
-    dt_map = {}
-    for angle in ("000", "045"):
-        dt_map[angle] = reboost.hpge.utils.get_hpge_rz_field(
-            legend_testdata["lh5/V00048A-drift-time-maps-xtal-axes.lh5"],
-            "V00048A",
-            f"drift_time_{angle}_deg",
-            bounds_error=False,
-        )
+    dt_map = reboost.hpge.load_hpge_drift_time_maps(
+        legend_testdata["lh5/V00048A-drift-time-maps-xtal-axes.lh5"],
+        "V00048A",
+        bounds_error=False,
+    )
 
     xloc = [
         [0.162, 0.162, 0.162, 0.162, 0.162, 0.162, 0.162, 0.162, 0.162],
@@ -118,10 +80,12 @@ def test_psd_stuff(legend_testdata):
         unit="mm",
     )
 
-    dt = rutils.hpge_corrected_drift_time(
-        chunk,
+    dt = reboost.hpge.drift_time_crystal_axes(
+        chunk.xloc,
+        chunk.yloc,
+        chunk.zloc,
         dt_map,
-        det_loc,
+        coord_offset=det_loc,
     )
 
     assert ak.all((dt > 0) & (dt < 3000))
@@ -138,145 +102,6 @@ def test_psd_stuff(legend_testdata):
     amax = rutils.hpge_max_current(edep, dt, pars)
 
     assert ak.all((amax > 0) & (amax < 3000))
-
-
-def test_cluster_photoelectrons_does_not_cross_subarrays():
-    """Test that clustering does not merge elements across subarray boundaries."""
-    times = ak.Array([[[0.0, 0.6], [0.7, 0.9]]])
-    amps = ak.Array([[[1.0, 2.0], [3.0, 4.0]]])
-
-    t_out, a_out = rutils.cluster_photoelectrons(times, amps, thr=1.0)
-
-    assert ak.to_list(t_out) == [[[0.0], [0.7]]]
-    assert ak.to_list(a_out) == [[[3.0], [7.0]]]
-
-
-def test_cluster_photoelectrons_enforces_max_span():
-    """Test that clusters respect the maximum time span threshold."""
-    times = ak.Array([[0.0, 0.6, 1.1, 1.4, 2.3]])
-    amps = ak.Array([[1.0, 2.0, 3.0, 4.0, 5.0]])
-
-    t_out, a_out = rutils.cluster_photoelectrons(times, amps, thr=1.0)
-
-    assert ak.to_list(t_out) == [[0.0, 1.1, 2.3]]
-    assert ak.to_list(a_out) == [[3.0, 7.0, 5.0]]
-
-
-def test_cluster_photoelectrons_empty_and_boundary():
-    """Test clustering with empty arrays and exact boundary conditions."""
-    times = ak.Array([[], [0.0, 1.0, 1.0001]])
-    amps = ak.Array([[], [1.0, 2.0, 3.0]])
-
-    t_out, a_out = rutils.cluster_photoelectrons(times, amps, thr=1.0)
-
-    # [0.0, 1.0] spans exactly 1.0 -> same cluster; 1.0001 starts new
-    assert ak.to_list(t_out) == [[], [0.0, 1.0001]]
-    assert ak.to_list(a_out) == [[], [3.0, 3.0]]
-
-
-def test_cluster_photoelectrons_mismatched_shapes():
-    """Test that mismatched array shapes raise ValueError."""
-    # Different nesting depths
-    times_1d = ak.Array([0.0, 1.0, 2.0])
-    amps_2d = ak.Array([[1.0, 2.0, 3.0]])
-
-    with pytest.raises(ValueError, match="nesting depth"):
-        rutils.cluster_photoelectrons(times_1d, amps_2d, thr=1.0)
-
-    # Same nesting but different list lengths
-    times = ak.Array([[0.0, 1.0], [2.0]])
-    amps = ak.Array([[1.0], [2.0, 3.0]])
-
-    with pytest.raises(ValueError, match="mismatched list lengths"):
-        rutils.cluster_photoelectrons(times, amps, thr=1.0)
-
-
-def test_smear_photoelectrons_shape_preservation():
-    """Test that smear_photoelectrons preserves input array shape for 1D ragged arrays."""
-    # Test with 1D ragged arrays (the intended use case)
-    array_1d = ak.Array([[1.0, 2.0, 3.0], [4.0], [5.0, 6.0]])
-    array_empty = ak.Array([[], [1.0, 2.0], []])
-
-    rng = np.random.default_rng(42)
-    result_1d = rutils.smear_photoelectrons(array_1d, fwhm_in_pe=0.5, rng=rng)
-    # Check that the structure is preserved (number of elements per sublist)
-    assert ak.num(result_1d, axis=1).to_list() == ak.num(array_1d, axis=1).to_list()
-    assert len(result_1d) == len(array_1d)
-
-    rng = np.random.default_rng(42)
-    result_empty = rutils.smear_photoelectrons(array_empty, fwhm_in_pe=0.5, rng=rng)
-    assert (
-        ak.num(result_empty, axis=1).to_list() == ak.num(array_empty, axis=1).to_list()
-    )
-    assert len(result_empty) == len(array_empty)
-
-
-def test_smear_photoelectrons_non_negativity():
-    """Test that smear_photoelectrons clamps negative values to zero."""
-    # Use large FWHM to increase probability of negative samples
-    # With loc=1 and sigma=2/2.35482≈0.85, ~12% of samples would be negative
-    array = ak.Array([np.ones(10000)])
-    rng = np.random.default_rng(42)
-    result = rutils.smear_photoelectrons(array, fwhm_in_pe=2.0, rng=rng)
-
-    # Verify no negative values
-    flat_result = ak.flatten(result, axis=None)
-    assert ak.all(flat_result >= 0)
-
-    # Verify that clamping actually occurred (some zeros should exist)
-    assert ak.sum(flat_result == 0) > 0
-
-
-def test_smear_photoelectrons_statistical_properties():
-    """Test that smear_photoelectrons produces correct statistical distribution."""
-    # Generate large sample to test statistical properties
-    n_samples = 100000
-    array = ak.Array([np.ones(n_samples)])
-    fwhm = 0.4
-    expected_sigma = fwhm / 2.35482
-
-    rng = np.random.default_rng(42)
-    result = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng)
-
-    flat_result = ak.flatten(result, axis=None)
-    # Filter out clamped zeros for statistical analysis of untruncated distribution
-    non_zero = flat_result[flat_result > 0]
-
-    # Mean should be close to 1 (allowing for small statistical fluctuation)
-    # With small FWHM, very few values get clamped, so mean ≈ 1
-    mean = ak.mean(non_zero)
-    assert 0.99 < mean < 1.01
-
-    # Standard deviation should match expected value (with tolerance)
-    # Excluding clamped values gives us the true Gaussian sigma
-    std = ak.std(non_zero)
-    assert 0.95 * expected_sigma < std < 1.05 * expected_sigma
-
-
-def test_smear_photoelectrons_reproducibility():
-    """Test that smear_photoelectrons is reproducible with same seed."""
-    array = ak.Array([[1.0, 2.0, 3.0, 4.0]])
-    fwhm = 0.5
-
-    rng1 = np.random.default_rng(123)
-    result1 = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng1)
-
-    rng2 = np.random.default_rng(123)
-    result2 = rutils.smear_photoelectrons(array, fwhm_in_pe=fwhm, rng=rng2)
-
-    assert ak.all(result1 == result2)
-
-
-def test_smear_photoelectrons_default_rng():
-    """Test that smear_photoelectrons works with default RNG (no rng parameter)."""
-    array = ak.Array([[1.0, 2.0, 3.0]])
-
-    # Should not raise an error
-    result = rutils.smear_photoelectrons(array, fwhm_in_pe=0.5)
-
-    # Should still preserve shape and non-negativity
-    assert ak.num(result, axis=1).to_list() == ak.num(array, axis=1).to_list()
-    assert ak.all(ak.flatten(result, axis=None) >= 0)
 
 
 def test_process_spms_windows_basic():
@@ -447,127 +272,6 @@ def test_forced_trigger_library_num_processed_files(legend_testdata):
 
     assert len(r1) == len(r2)
     assert len(r3) == 2 * len(r1)
-
-
-def test_get_remage_detector_uids(legend_testdata):
-    """Test that get_remage_detector_uids returns a dict mapping UIDs to detector names."""
-    f_stp = legend_testdata["remage/th228-full-optional-v0_13.lh5"]
-
-    result = rutils.get_remage_detector_uids(f_stp)
-
-    assert isinstance(result, dict)
-    # all keys should be ints, all values should be strings
-    assert all(isinstance(k, int) for k in result)
-    assert all(isinstance(v, str) for v in result.values())
-    # verify the known mapping from the test file
-    assert result == {
-        1: "scint1",
-        2: "scint2",
-        11: "det1",
-        12: "det2",
-        101: "optdet1",
-        102: "optdet2",
-    }
-
-
-def test_make_output_chunk_scalar_t0():
-    """Test make_output_chunk when chunk already has scalar t0 and evtid arrays."""
-    chunk = lgdo.Table(size=3)
-    chunk.add_field(
-        "t0", lgdo.Array(np.array([100.0, 200.0, 300.0]), attrs={"units": "ns"})
-    )
-    chunk.add_field("evtid", lgdo.Array(np.array([1, 2, 3])))
-
-    result = rutils.make_output_chunk(chunk)
-
-    assert isinstance(result, lgdo.Table)
-    assert len(result) == 3
-    assert "t0" in result
-    assert "evtid" in result
-    np.testing.assert_array_equal(result.t0.nda, [100.0, 200.0, 300.0])
-    np.testing.assert_array_equal(result.evtid.nda, [1, 2, 3])
-
-
-def test_make_output_chunk_vector_time():
-    """Test make_output_chunk when chunk has vector time and evtid (takes firsts)."""
-    chunk = lgdo.Table(size=3)
-    chunk.add_field(
-        "time",
-        lgdo.VectorOfVectors(
-            ak.Array([[100.0, 200.0], [300.0], [400.0, 500.0, 600.0]]),
-            attrs={"units": "ns"},
-        ),
-    )
-    chunk.add_field("evtid", lgdo.VectorOfVectors(ak.Array([[1, 2], [3], [4, 5, 6]])))
-
-    result = rutils.make_output_chunk(chunk)
-
-    assert isinstance(result, lgdo.Table)
-    assert len(result) == 3
-    assert "t0" in result
-    assert "evtid" in result
-    # t0 should be the first time value of each event
-    np.testing.assert_array_equal(result.t0.nda, [100.0, 300.0, 400.0])
-    # evtid should be the first evtid of each event
-    np.testing.assert_array_equal(result.evtid.nda, [1, 3, 4])
-
-
-def test_write_chunk(tmp_path):
-    """Test write_chunk writes data and creates soft links for new detectors."""
-    outfile = tmp_path / "output.lh5"
-    chunk = lgdo.Table(size=3)
-    chunk.add_field(
-        "t0", lgdo.Array(np.array([100.0, 200.0, 300.0]), attrs={"units": "ns"})
-    )
-    chunk.add_field("evtid", lgdo.Array(np.array([1, 2, 3])))
-
-    # First write: creates file and soft link
-    rutils.write_chunk(chunk, "hit/det001", outfile, 1)
-    assert "hit/det001" in lh5.ls(outfile, "hit/")
-    assert "hit/__by_uid__" in lh5.ls(outfile, "hit/")
-    assert "hit/__by_uid__/det001" in lh5.ls(outfile, "hit/__by_uid__/")
-
-    # Second write: appends to existing detector table (no new link)
-    rutils.write_chunk(chunk, "hit/det001", outfile, 1)
-    result = lh5.read("hit/det001", outfile)
-    assert len(result) == 6  # appended 3 more rows
-
-    # Third write: adds a new detector with its own link
-    rutils.write_chunk(chunk, "hit/det002", outfile, 2)
-    assert "hit/__by_uid__/det002" in lh5.ls(outfile, "hit/__by_uid__/")
-
-
-def test_listoffset_chain_1d():
-    """Test _listoffset_chain with a 1D list-of-values array."""
-    arr = ak.Array([[1.0, 2.0], [3.0]])
-    layout = ak.to_layout(arr)
-
-    offsets_chain, content = rutils._listoffset_chain(layout)
-
-    assert len(offsets_chain) == 1
-    np.testing.assert_array_equal(offsets_chain[0], [0, 2, 3])
-    assert isinstance(content, ak.contents.NumpyArray)
-
-
-def test_listoffset_chain_nested():
-    """Test _listoffset_chain with a doubly-nested array (3D)."""
-    arr = ak.Array([[[1.0, 2.0], [3.0]], [[4.0, 5.0, 6.0]]])
-    layout = ak.to_layout(arr)
-
-    offsets_chain, content = rutils._listoffset_chain(layout)
-
-    assert len(offsets_chain) == 2
-    assert isinstance(content, ak.contents.NumpyArray)
-
-
-def test_listoffset_chain_non_numpy_content():
-    """Test _listoffset_chain raises TypeError when content is not NumpyArray."""
-    # A list of records does not end in a NumpyArray
-    arr = ak.Array([{"x": 1}, {"x": 2}])
-    layout = ak.to_layout(arr)
-
-    with pytest.raises(TypeError, match="NumpyArray"):
-        rutils._listoffset_chain(layout)
 
 
 def test_gauss_smear_output_type_and_shape():

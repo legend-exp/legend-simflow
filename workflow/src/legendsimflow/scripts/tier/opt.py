@@ -26,10 +26,7 @@ import lh5
 import numpy as np
 import pyg4ometry
 import pygeomtools
-import reboost.hpge.psd
-import reboost.hpge.surface
-import reboost.hpge.utils
-import reboost.math.functions
+import reboost
 import reboost.spms
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
@@ -43,9 +40,7 @@ from legendsimflow import nersc, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings
-from legendsimflow.profile import make_profiler
 from legendsimflow.scripts import log_script_invocation
-from legendsimflow.tcm import build_tcm
 
 
 def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> float:
@@ -167,7 +162,7 @@ def main() -> None:
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "tier-opt", parser, args)
-    perf_block, print_perf, print_perf_last = make_profiler()
+    perf_block, print_perf, print_perf_last = reboost.make_profiler()
 
     # load the geometry and retrieve registered sensitive volume tables
     geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
@@ -201,7 +196,7 @@ def main() -> None:
     ) -> None:
         with perf_block("load_optmap()"):
             if not isinstance(optmap_lar, OptmapForConvolve):
-                optmap_lar = reboost.spms.pe.load_optmap(optmap_lar, sipm)
+                optmap_lar = reboost.spms.load_optmap(optmap_lar, sipm)
 
         # constant for this SiPM, so resolve it once instead of per chunk
         map_scaling = resolve_map_scaling(optmap_scaling_factor, sipm)
@@ -212,12 +207,12 @@ def main() -> None:
             chunk = lgdo_chunk.view_as("ak")
 
             with perf_block("emitted_scintillation_photons()"):
-                scint_ph = reboost.spms.pe.emitted_scintillation_photons(
+                scint_ph = reboost.spms.emitted_scintillation_photons(
                     chunk.edep, chunk.particle, "lar"
                 )
 
             with perf_block("number_of_detected_photoelectrons()"):
-                _output = reboost.spms.pe.number_of_detected_photoelectrons(
+                _output = reboost.spms.number_of_detected_photoelectrons(
                     chunk.xloc,
                     chunk.yloc,
                     chunk.zloc,
@@ -234,7 +229,7 @@ def main() -> None:
                 is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
 
             with perf_block("photoelectron_times()"):
-                pe_times_micro = reboost.spms.pe.photoelectron_times(
+                pe_times_micro = reboost.spms.photoelectron_times(
                     nr_pe, chunk.particle, chunk.time, "lar"
                 )
 
@@ -243,13 +238,13 @@ def main() -> None:
                 pe_times_micro = ak.sort(pe_times_micro, axis=-1)
 
             with perf_block("photoelectron_resolution()"):
-                pe_amps_micro = reboost_utils.smear_photoelectrons(
+                pe_amps_micro = reboost.spms.smear_photoelectrons(
                     pe_times_micro, photoelectron_resolution_sigma
                 )
 
             if time_resolution_in_ns > 0:
                 with perf_block("cluster_photoelectrons()"):
-                    pe_times, pe_amps = reboost_utils.cluster_photoelectrons(
+                    pe_times, pe_amps = reboost.spms.cluster_photoelectrons(
                         pe_times_micro,
                         pe_amps_micro,
                         time_resolution_in_ns,
@@ -258,8 +253,8 @@ def main() -> None:
                 pe_times = pe_times_micro
                 pe_amps = pe_amps_micro
 
-            with perf_block("write_chunk()"):
-                out_table = reboost_utils.make_output_chunk(lgdo_chunk)
+            with perf_block("write_hit_table_chunk()"):
+                out_table = reboost.init_hit_table(lgdo_chunk)
 
                 out_table.add_field(
                     "time",
@@ -280,11 +275,11 @@ def main() -> None:
                         Array(np.full(shape=len(chunk), fill_value=field_vals[i])),
                     )
 
-                reboost_utils.write_chunk(
+                reboost.write_hit_table_chunk(
                     out_table,
-                    "/hit/" + ("spms" if sipm == "all" else sipm),
+                    "hit/" + ("spms" if sipm == "all" else sipm),
                     out_file,
-                    sipm_uid,
+                    uid=sipm_uid,
                 )
 
     partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
@@ -296,7 +291,7 @@ def main() -> None:
 
     # pre load optical map for a little speed up
     if not optmap_per_sipm:
-        optmap_lar = reboost.spms.pe.load_optmap(optmap_lar, "all")
+        optmap_lar = reboost.spms.load_optmap(optmap_lar, "all")
 
     # loop over the partitions for this file
     for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -330,8 +325,8 @@ def main() -> None:
 
             msg = "looking for indices of hit table rows to read..."
             log.debug(msg)
-            i_start, n_entries = reboost_utils.get_remage_hit_range(
-                tcm, det_name, geom_meta.uid, evt_idx_range
+            i_start, n_entries = reboost.get_rows_in_event_range(
+                tcm, geom_meta.uid, *evt_idx_range
             )
 
             def _make_iterator(det_name=det_name, i_start=i_start, n_entries=n_entries):
@@ -382,7 +377,7 @@ def main() -> None:
                 )
 
     log.debug("building the TCM")
-    build_tcm(opt_file, opt_file)
+    reboost.build_remage_tcm(opt_file, opt_file)
 
     with perf_block("move_to_cfs()"):
         move2cfs()
