@@ -592,7 +592,7 @@ rule build_superpulses_from_data:
         "Building data superpulses for detector {wildcards.hpge_detector}"
     params:
         runids=lambda wc: (
-            wc.runid
+            [wc.runid]
             if _build_per_runid
             else sorted(aggregate.gen_list_of_all_runids(config))
         ),
