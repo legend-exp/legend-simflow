@@ -6,6 +6,7 @@ This is an important step in tuning the pulse shape discrimination (PSD) simulat
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from dataclasses import dataclass
@@ -475,7 +476,9 @@ def lookup_wfs_indices(
 
 def _get_dsp_config(dsp_config: str | dict | Path) -> dict:
     if isinstance(dsp_config, dict):
-        config_dict = dsp_config
+        # copy: the processors are rewritten below and the caller may well be
+        # reusing the config object elsewhere
+        config_dict = copy.deepcopy(dsp_config)
     elif isinstance(dsp_config, (str, Path)):
         config_dict = dbetto.utils.load_dict(dsp_config)
     else:
