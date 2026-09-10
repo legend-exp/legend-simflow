@@ -377,27 +377,27 @@ function find_valid_spawn_position(
 
     verbose && @debug "Position $pos_candidate is in contact, searching for alternative"
 
-    min_dist = Inf
-    pos_result = nothing
+    # track the index rather than the point itself, to keep the loop type-stable
+    min_dist = T(Inf)
+    best_idx = 0
 
-    for pos in spawn_positions
+    for (i, pos) in enumerate(spawn_positions)
         if !in(pos, detector.contacts) && in(pos, detector)
             dist = norm(pos - pos_candidate)
             if dist < min_dist
-                pos_result = pos
+                best_idx = i
                 min_dist = dist
             end
         end
     end
 
-    # dont allow returning nothing
-    if (pos_result == nothing)
+    if best_idx == 0
         error("No valid spawn position found for candidate index $candidate_idx")
     end
 
-    verbose && @debug "Found position $pos_result at distance $min_dist"
+    verbose && @debug "Found position $(spawn_positions[best_idx]) at distance $min_dist"
 
-    return pos_result
+    return spawn_positions[best_idx]
 end
 
 
