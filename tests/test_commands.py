@@ -155,6 +155,30 @@ def test_make_macro_errors_2(fresh_config):
         commands.make_remage_macro(config, "birds_nest_K40", "stp")
 
 
+def test_make_macro_errors_confinement_list(fresh_config):
+    """An invalid entry anywhere in a confinement list gives a config error."""
+    config = fresh_config
+    metadata = fresh_config.metadata
+    simconfig = metadata.simprod.config.tier.stp.legend.simconfig["birds_nest_K40"]
+
+    # invalid entry first: the valid one that follows must not resurrect the
+    # accumulator and crash with a TypeError instead
+    simconfig["confinement"] = [
+        "~baaaaaa:beh",
+        "~volumes.bulk:hpge_assembly_plate_pen.*",
+    ]
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "birds_nest_K40", "stp")
+
+    # invalid entry last
+    simconfig["confinement"] = [
+        "~volumes.bulk:hpge_assembly_plate_pen.*",
+        "~baaaaaa:beh",
+    ]
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "birds_nest_K40", "stp")
+
+
 def test_make_macro_errors_vertices(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
