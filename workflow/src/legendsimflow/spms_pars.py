@@ -224,9 +224,9 @@ def get_chunk_rc_data(
         Ordered sequence of evt files that can provide random-coincidence data.
         Must not be empty.
     rc_file_state
-        Mutable state for file cycling and carryover between chunks. Expected
-        keys are created/updated internally (e.g. ``order``, ``idx``,
-        ``counts``, ``carryover``).
+        Mutable state for file cycling, carryover and library caching between
+        chunks. Expected keys are created/updated internally (e.g. ``order``,
+        ``idx``, ``counts``, ``carryover``, ``library``).
     chunk_size
         Number of random-coincidence events requested for the current chunk.
         Must be positive.
@@ -279,10 +279,20 @@ def get_chunk_rc_data(
     while total_rc_events < chunk_size and empty_parts_streak < max_empty_parts:
         rc_evt_file = _next_rc_evt_file(rc_evt_files, rc_file_state)
         n_missing = chunk_size - total_rc_events
-        part = get_rc_library(
-            rc_evt_file,
-            rc_index_lookup,
-        )
+
+        # building the library means reading and windowing a full evt file, and
+        # the same file is visited again as soon as its carryover runs out (in
+        # noise_trigger mode there is typically only one file to cycle through).
+        # cache the last one, but only that one: libraries can be large
+        cached = rc_file_state.get("library")
+        if cached is not None and cached[0] == str(rc_evt_file):
+            part = cached[1]
+        else:
+            part = get_rc_library(
+                rc_evt_file,
+                rc_index_lookup,
+            )
+            rc_file_state["library"] = (str(rc_evt_file), part)
         if len(part) == 0:
             empty_parts_streak += 1
             log.warning(
