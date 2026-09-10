@@ -284,6 +284,11 @@ def test_currmod_stuff(config):
     assert len(agg.gen_list_of_merged_elecmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
 
+    # the current-model fit plots are par-tier plot targets
+    par_plots = agg.gen_list_of_plots_outputs(config, "par", simid)
+    for p in agg.gen_list_of_currmod_plots_outputs(config, simid):
+        assert p in par_plots
+
 
 def test_psl_stuff(config):
     runid = "l200-p02-r000-phy"
