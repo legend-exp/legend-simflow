@@ -41,7 +41,8 @@ log = logging.getLogger(__name__)
 def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArray:
     """Select ideal waveforms whose drift time falls in a slice.
 
-    Drift times are computed on the fly for the provided waveforms.
+    Drift times are computed on the fly for the provided waveforms. Waveforms
+    containing any NaN sample are never selected.
 
     Parameters
     ----------
@@ -58,9 +59,11 @@ def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArr
         Waveforms in the slice, shape ``(n_selected, n_samples)``.
 
     """
-    # Compute drift times
+    # Compute drift times. A waveform holding any NaN sample is rejected: the
+    # nan_to_num() below would otherwise zero those samples and let argmax()
+    # synthesize a peak out of partly corrupt data
     raw_current = np.diff(ideal_wfs, axis=-1, prepend=0)
-    nan_mask = np.all(np.isnan(raw_current), axis=-1)
+    nan_mask = np.any(np.isnan(raw_current), axis=-1)
     peak_idx = np.argmax(np.nan_to_num(raw_current, nan=0.0), axis=-1)
     drift_times = np.where(nan_mask, np.nan, peak_idx * dt)
 

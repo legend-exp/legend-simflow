@@ -65,6 +65,17 @@ def test_select_ideal_wfs_in_slice_nan():
     assert len(selected) == 0
 
 
+def test_select_ideal_wfs_in_slice_partial_nan():
+    dt = 1.0
+    wfs = _make_step_waveforms(dt, [1000, 1000])
+    # corrupt a single sample of the second waveform, outside its step
+    wfs[1, 1150] = np.nan
+    sl = Slice(energy_range=(0, 1e6), drift_time_range=(800, 1200))
+
+    selected = select_ideal_wfs_in_slice(wfs, dt, sl)
+    assert selected.shape[0] == 1
+
+
 def test_compute_rms_identical():
     sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
     wf = np.sin(np.linspace(0, 2 * np.pi, 200))
