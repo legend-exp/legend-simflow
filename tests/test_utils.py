@@ -438,6 +438,26 @@ def test_init_generated_pars_db_direct_format(tier_test_data_direct):
     assert "generated/par/pht" in repr(par_pht_db)
 
 
+def test_make_path(tmp_path):
+    # tmp_path is already resolved: _make_path resolves its input, and e.g. on
+    # macOS /tmp is a symlink to /private/tmp
+    out = utils._make_path(
+        {"a": f"{tmp_path}/x", "sub": {"b": f"{tmp_path}/y"}},
+    )
+    assert out["a"] == tmp_path / "x"
+    assert out["sub"]["b"] == tmp_path / "y"
+
+
+@pytest.mark.parametrize("bad", [None, 42, ["/tmp/x"]])
+def test_make_path_rejects_non_path_entries(bad):
+    with pytest.raises(SimflowConfigError, match=r"paths\.a"):
+        utils._make_path({"a": bad})
+
+    # nested blocks report their full key path
+    with pytest.raises(SimflowConfigError, match=r"paths\.sub\.b"):
+        utils._make_path({"sub": {"b": bad}})
+
+
 def test_sorted_by():
     order = ["vtx", "stp", "hit", "evt"]
 

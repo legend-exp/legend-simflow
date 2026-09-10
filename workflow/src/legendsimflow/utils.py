@@ -73,12 +73,16 @@ def _merge_defaults(user: dict, default: dict) -> dict:
     return result
 
 
-def _make_path(d):
+def _make_path(d, block="paths"):
+    """Recursively convert the strings in a ``paths`` config block to paths."""
     for k, v in d.items():
         if isinstance(v, str):
             d[k] = Path(v).resolve()
+        elif isinstance(v, dict):
+            d[k] = _make_path(v, block=f"{block}.{k}")
         else:
-            d[k] = _make_path(v)
+            msg = f"{v!r} is neither a path nor a sub-block of paths"
+            raise SimflowConfigError(msg, f"{block}.{k}")
     return d
 
 
