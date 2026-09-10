@@ -631,6 +631,11 @@ function compute_ideal_pulse_shape_lib(
     for (i, idx) in enumerate(idx_spawn_positions[in_idx])
         raw_signal = wf_signals_threaded[i]
 
+        # The map padding routine tells detector pixels from out-of-detector ones
+        # by looking at the first sample only, so a waveform must never be
+        # partially NaN.
+        @assert !any(isnan, raw_signal) "partially NaN waveform at pixel $idx"
+
         # Normalize charge waveforms so that their amplitude (energy) = 1.
         # The signal is never negative, so the guard only catches all-zero waveforms.
         max_val = maximum(raw_signal)
