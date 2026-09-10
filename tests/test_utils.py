@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import shutil
 import tempfile
 from pathlib import Path
@@ -447,6 +448,24 @@ def test_sanitize_dict():
     assert out["a"]["y"] == 4.2  # kept (numeric)
     assert out["b"]["flag"] is True  # replaced (wrong type)
     assert out["b"]["name"] == "ok"  # filled from default
+
+
+def test_sanitize_dict_does_not_mutate_input():
+    defaults = {"a": {"x": -1.5, "y": 3}, "b": {"flag": True, "name": "ok"}}
+    read = {"a": {"x": "nope", "y": 4.2}, "b": {"flag": "yes"}}
+    read_before = copy.deepcopy(read)
+
+    out = utils.sanitize_dict_with_defaults(read, defaults)
+
+    assert read == read_before
+    assert out["a"] is not read["a"]
+    assert out["b"] is not read["b"]
+
+    # the same defaults dict stays reusable across distinct inputs
+    assert utils.sanitize_dict_with_defaults({}, defaults) == {
+        "a": {"x": -1.5, "y": 3},
+        "b": {"flag": True, "name": "ok"},
+    }
 
 
 def test_get_dict_value():
