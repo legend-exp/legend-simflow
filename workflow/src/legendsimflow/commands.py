@@ -195,7 +195,7 @@ def remage_run(
     joined_cmd = shlex.join(cmd)
 
     if nersc.is_scratch_enabled(config):
-        joined_cmd += f" && mv -v {output} {output_final}"
+        joined_cmd += " && " + shlex.join(["mv", "-v", str(output), str(output_final)])
 
     return joined_cmd
 
