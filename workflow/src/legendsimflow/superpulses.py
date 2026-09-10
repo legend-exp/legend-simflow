@@ -558,6 +558,8 @@ def get_wfs_for_slice(
     """
     from dspeed.vis import WaveformBrowser  # noqa: PLC0415
 
+    dsp = _get_dsp_config(dsp_config)
+
     waveforms = []
     for file_idx in np.unique(file_indices):
         indices = [
@@ -567,8 +569,6 @@ def get_wfs_for_slice(
 
         if len(indices) == 0:
             continue
-
-        dsp = _get_dsp_config(dsp_config)
 
         browser = WaveformBrowser(
             str(raw_files[file_idx]),
