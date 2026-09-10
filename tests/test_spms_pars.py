@@ -197,6 +197,32 @@ def test_get_chunk_rc_data_carryover(legend_testdata):
     assert len(chunk2) == 10
 
 
+def test_get_chunk_rc_data_reuses_library(legend_testdata, monkeypatch):
+    """A file visited again is not read and windowed a second time."""
+    evt_file = legend_testdata[EVT_FILE]
+    rc_evt_files = [str(evt_file)]
+    lookup = spms_pars.build_rc_evt_index_lookup(rc_evt_files)
+
+    lib_size = len(spms_pars.get_rc_library(evt_file, lookup))
+
+    calls = []
+    orig = spms_pars.get_rc_library
+
+    def _counting(*args, **kwargs):
+        calls.append(args[0])
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(spms_pars, "get_rc_library", _counting)
+
+    # ask for more events than the file provides, so it must be visited twice
+    state: dict = {}
+    chunk = spms_pars.get_chunk_rc_data(rc_evt_files, state, 2 * lib_size, lookup)
+
+    assert len(chunk) == 2 * lib_size
+    assert len(calls) == 1, f"library was rebuilt {len(calls)} times"
+    assert state["library"][0] == str(evt_file)
+
+
 def _write_noise_trigger_evt(path):
     """Write a minimal noise-trigger evt file.
 
