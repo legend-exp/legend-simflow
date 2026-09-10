@@ -100,7 +100,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--runid",
-        type=str,
+        nargs="+",
+        metavar="RUNID",
         required=True,
         help="One or more run IDs (e.g., l200-p16-r006-ssc)",
     )
@@ -161,8 +162,6 @@ def main() -> int:
         raise RuntimeError(msg)
 
     runids = args.runid
-    runids = runids.strip("[]")
-    runids = [r.strip(" '\"") for r in runids.split(",")] if "," in runids else [runids]
 
     log.info(
         "building superpulses for %s from %s runs (%d in total)",
