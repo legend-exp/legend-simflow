@@ -13,7 +13,7 @@ from dbetto import AttrsDict
 from legendmeta import LegendMetadata
 from lgdo import Array, Table
 
-from legendsimflow import hpge_pars, utils
+from legendsimflow import SimflowConfigError, hpge_pars, utils
 
 _REPO_TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
 
@@ -436,6 +436,26 @@ def test_init_generated_pars_db_direct_format(tier_test_data_direct):
     )
     assert par_pht_db is not None
     assert "generated/par/pht" in repr(par_pht_db)
+
+
+def test_sorted_by():
+    order = ["vtx", "stp", "hit", "evt"]
+
+    assert utils.sorted_by(["evt", "vtx"], order) == ["vtx", "evt"]
+    # duplicates are dropped
+    assert utils.sorted_by(["evt", "vtx", "evt"], order) == ["vtx", "evt"]
+    assert utils.sorted_by([], order) == []
+
+
+def test_sorted_by_rejects_unknown_items():
+    order = ["vtx", "stp", "hit", "evt"]
+
+    with pytest.raises(SimflowConfigError, match="sttp"):
+        utils.sorted_by(["vtx", "sttp"], order)
+
+    # the config block name ends up in the message
+    with pytest.raises(SimflowConfigError, match="make_steps"):
+        utils.sorted_by(["vtx", "sttp"], order, "make_steps")
 
 
 def test_sanitize_dict():
