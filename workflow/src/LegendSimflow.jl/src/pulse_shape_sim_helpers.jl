@@ -612,11 +612,6 @@ function compute_ideal_pulse_shape_lib(
         end
 
         p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
-        if p === nothing
-            @warn "find_valid_spawn_position did not return a valid spawn position for index $(in_idx[i]); skipping."
-            wf_signals_threaded[i] = Float32[]
-            continue
-        end
 
         e = SSD.Event([p], [sim_energy])
         simulate!(e, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
@@ -635,7 +630,6 @@ function compute_ideal_pulse_shape_lib(
 
     for (i, idx) in enumerate(idx_spawn_positions[in_idx])
         raw_signal = wf_signals_threaded[i]
-        isempty(raw_signal) && continue
 
         # Normalize charge waveforms so that their amplitude (energy) = 1.
         # The signal is never negative, so the guard only catches all-zero waveforms.
@@ -721,11 +715,7 @@ function compute_drift_time_map(
         end
 
         pos = find_valid_spawn_position(inside_detector_idx[i], spawn_positions, sim.detector; verbose = false)
-        if pos === nothing
-            @warn "find_valid_spawn_position did not return a valid spawn position for index $(inside_detector_idx[i]); skipping."
-            drift_times[i] = -1
-            continue
-        end
+
         event = SSD.Event([pos], [2039u"keV"])
         simulate!(event, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
 
