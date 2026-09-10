@@ -143,7 +143,7 @@ four stages, each a separate `par`-tier rule:
 
 The realistic PSL is then consumed by `build_tier_hit` as the
 pulse-shape-library input to reboost's HPGe PSD routines
-({func}`reboost.hpge.utils.load_hpge_pulse_shape_library`).
+({func}`reboost.hpge.load_hpge_pulse_shape_library`).
 
 (hpge-dtmap-extraction)=
 
@@ -165,7 +165,7 @@ script reads crystal geometry from `legend-metadata` (diode and crystal YAML
 files), solves the electric field, and records the drift time from each $(r, z)$
 grid point to the readout contact. The output is one LH5 file per
 `(detector, voltage)` pair, in the $(r, z)$-field format consumed by reboost
-({func}`reboost.hpge.utils.load_hpge_drift_time_maps`). See the
+({func}`reboost.hpge.load_hpge_drift_time_maps`). See the
 [`build_hpge_drift_time_map`](../api/snakemake_rules.md) rule reference for the
 output fields.
 
@@ -309,9 +309,8 @@ merged electronics model file, and applies the following processing chain:
 5. Normalise the current amplitudes by the mode of the A/E distribution.
 
 The output for a single `(runid, detector)` pair is in the pulse-shape-library
-format consumed by reboost
-({func}`reboost.hpge.utils.load_hpge_pulse_shape_library`). See the
-[`convolve_hpge_ideal_pulse_shape_lib`](../api/snakemake_rules.md) rule
+format consumed by reboost ({func}`reboost.hpge.load_hpge_pulse_shape_library`).
+See the [`convolve_hpge_ideal_pulse_shape_lib`](../api/snakemake_rules.md) rule
 reference for the output fields. Validation plots (R and Z waveform scans and an
 A/E R/Z heatmap) are produced alongside.
 
