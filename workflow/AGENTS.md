@@ -21,6 +21,14 @@
   `legendsimflow/warmup.py` (`warm_numba_caches`/`warm_hpge_dsp_cache`) with the
   exact runtime dtypes, else parallel jobs race the on-disk cache and segfault.
   Verify with `NUMBA_DEBUG_CACHE=1 pixi run warmup`. See `developer.md`.
+- Do not add structure the change does not need:
+  - No module constant for a value used once or twice; use a literal or an
+    argument default, meaning in the docstring. Exception: user-facing knobs and
+    parameters that must stay in sync across callers.
+  - No helper function for a few lines used once; inline them.
+  - Docstring length follows complexity: one line or none for tiny functions.
+    Rationale goes in the commit/PR, not in docstrings or comments.
+  - Prefer editing an existing function over adding one.
 - Other conventions are enforced by pre-commit
 
 ## Resource constraints
