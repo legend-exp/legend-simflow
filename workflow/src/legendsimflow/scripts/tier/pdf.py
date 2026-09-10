@@ -133,7 +133,9 @@ def main() -> None:
         # 2-D: (E_min, E_max) for multiplicity-2 events; not split by group
         mul2_hist = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
 
-    if has_spms_coinc:
+    # the LAr-veto histograms are HPGe-energy spectra: without hit-tier data
+    # (i.e. skip_hit productions) there is nothing to fill them with.
+    if has_geds and has_spms_coinc:
         for cut in ("mul_lar", "mul_lar_psd"):
             histograms[cut] = {g: h1() for g in groups}
         fail_histograms["lar"] = {g: h1() for g in groups}
@@ -235,9 +237,6 @@ def main() -> None:
                 ak.min(data_m2.geds.energy, axis=-1),
                 ak.max(data_m2.geds.energy, axis=-1),
             )
-
-        elif has_spms_coinc:
-            pass
 
     log.info("... convert histograms to lgdo")
 

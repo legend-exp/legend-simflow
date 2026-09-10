@@ -352,9 +352,9 @@ themselves are unchanged and applied globally.
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                                                                            |
 | `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                                                                       |
-| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon). Present only when SiPM data is available.                                         |
+| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon). Present only when both HPGe and SiPM data are available.                          |
 | `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires `psd.is_good`, `psd.single_temp.has_aoe`, and `psd.single_temp.is_single_site` for all hits. Events where PSD is not valid or not simulated are classified as background and excluded. |
-| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`). Present only when SiPM data is available.                                                                               |
+| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`). Present only when both HPGe and SiPM data are available.                                                                |
 
 :::{warning}
 
@@ -388,5 +388,5 @@ detector group (`pdf/fail/<cut>/<group>`).
 
 | Cut   | Description                                                                                                                                                                             |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lar` | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when SiPM data is available.                                                                       |
+| `lar` | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when both HPGe and SiPM data are available.                                                        |
 | `psd` | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.single_temp.is_single_site == False`). Events without valid PSD are not included here. |
