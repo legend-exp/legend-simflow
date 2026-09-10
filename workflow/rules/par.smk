@@ -166,13 +166,12 @@ rule merge_hpge_drift_time_maps:
         patterns.output_dtmap_merged_filename(config),
     shell:
         r"""
-        shopt -s nullglob
         out={output}
 
-        # expand input files
+        # turn the input file list into positional arguments
         set -- {input}
 
-        # if no matches, create an empty hdf5 file
+        # if there is no input, create an empty hdf5 file
         if [ "$#" -eq 0 ]; then
           python -c "import h5py; h5py.File('$out', 'w')"
           exit 0
@@ -356,13 +355,12 @@ rule merge_hpge_realistic_psls:
         patterns.output_realistic_psl_merged_filename(config),
     shell:
         r"""
-        shopt -s nullglob
         out={output}
 
-        # expand input files
+        # turn the input file list into positional arguments
         set -- {input}
 
-        # if no matches, create an empty hdf5 file
+        # if there is no input, create an empty hdf5 file
         if [ "$#" -eq 0 ]; then
           python -c "import h5py; h5py.File('$out', 'w')"
           exit 0
