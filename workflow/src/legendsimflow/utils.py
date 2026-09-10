@@ -631,11 +631,17 @@ def sorted_by(subset: Sequence, order: Sequence) -> list:
 
 
 def sanitize_dict_with_defaults(read_dict: dict, defaults: dict) -> dict:
-    """Swap-in defaults when values are illegal."""
+    """Swap-in defaults when values are illegal.
+
+    `read_dict` is left untouched: the returned dictionary owns fresh copies of
+    the sub-dictionaries listed in `defaults`.
+    """
     out = read_dict.copy()
 
     for key, sub in defaults.items():
-        out.setdefault(key, {})
+        # copy the sub-dict: out is only a shallow copy of read_dict, so writing
+        # into out[key] in place would mutate the caller's input
+        out[key] = dict(out.get(key, {}))
         for field, default_val in sub.items():
             val = out[key].get(field, default_val)
 
