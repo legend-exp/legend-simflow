@@ -199,6 +199,19 @@ def test_make_steps_selects_tiers(tmp_path, make_steps, present, absent):
     assert {TIER_BUILD_RULE[t] for t in absent}.isdisjoint(rules)
 
 
+def test_vtx_only_make_steps_warns(tmp_path, caplog):
+    """A vtx-only `make_steps` leaves the default target empty, with a warning.
+
+    The vtx step has no aggregate rule, so `rule all` ends up with no input and
+    Snakemake would otherwise silently report "Nothing to be done".
+    """
+    with caplog.at_level("WARNING", logger="snakemake"):
+        rules = dag_rule_names(default_config, overrides(tmp_path, make_steps=["vtx"]))
+
+    assert rules == {"all"}
+    assert "the default target is empty" in caplog.text
+
+
 # the PSD switches gate per-detector rules downstream of the modelable-HPGe
 # checkpoint; the touch executor (see dag_rule_names) is what expands them
 STEPS_TO_HIT = ["vtx", "stp", "par", "opt", "hit"]
