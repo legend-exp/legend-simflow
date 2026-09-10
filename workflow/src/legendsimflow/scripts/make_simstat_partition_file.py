@@ -96,6 +96,11 @@ def main() -> None:
     # now partition the number of events according to the livetime fractions
     total_events = sum(n_events.values())
     total_livetime = sum(run_livetimes.values())
+
+    if total_livetime <= 0:
+        msg = f"total livetime of runlist {runlist} is zero, cannot partition events"
+        raise RuntimeError(msg)
+
     n_events_part = {
         run: int(total_events * dtime / total_livetime)
         for run, dtime in run_livetimes.items()
