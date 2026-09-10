@@ -249,6 +249,47 @@ def test_hpge_ssd_modeling_info_aggregation(fresh_config, tmp_path):
     }
 
 
+def test_par_plots_cache_is_built_once(fresh_config, monkeypatch):
+    """The expensive modelable-HPGe cache is built at most once per aggregation."""
+    config = fresh_config
+    calls = []
+    real_build = agg.build_hpge_modeling_cache
+
+    def counting_build(cfg):
+        calls.append(cfg)
+        return real_build(cfg)
+
+    monkeypatch.setattr(agg, "build_hpge_modeling_cache", counting_build)
+
+    # once for the whole Simflow, not once per simid
+    agg.gen_list_of_all_plots_outputs(config, "par")
+    assert len(calls) == 1
+
+    # ...and shared across the simlist items, which are aggregated one by one
+    calls.clear()
+    agg.process_simlist(
+        config,
+        simlist=["hit.birds_nest_K40", "hit.pen_plates_Ra224_to_Pb208"],
+        make_steps=["stp", "par", "hit"],
+    )
+    assert len(calls) == 1
+
+    # a supplied cache is used as is
+    calls.clear()
+    agg.gen_list_of_all_plots_outputs(config, "par", cache=real_build(config))
+    assert calls == []
+
+    # nothing is built when the par plots are not produced at all
+    get_tier_settings(config, "hit")["simulate_psd"] = False
+    calls.clear()
+    agg.gen_list_of_all_plots_outputs(config, "par")
+    agg.process_simlist(
+        config, simlist=["hit.birds_nest_K40"], make_steps=["stp", "par", "hit"]
+    )
+    assert calls == []
+    assert not agg.hpge_modeling_cache_needed(config)
+
+
 def test_par_plots_psd_gate(fresh_config):
     config = fresh_config
     simid = "pen_plates_Ra224_to_Pb208"
