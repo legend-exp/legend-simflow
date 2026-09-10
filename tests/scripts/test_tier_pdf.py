@@ -284,7 +284,7 @@ def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
 
 
 def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
-    """With no geds data (skip_hit), geds histograms absent; LAr histograms present with 0 counts."""
+    """With no geds data (skip_hit), no histogram can be filled: none must be written."""
     cvt_file = tmp_path / "cvt.lh5"
     _make_cvt_file_no_geds(cvt_file)
     with caplog.at_level("WARNING"):
@@ -302,35 +302,12 @@ def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
             f"'{name}' should be absent when has_geds=False; got {inner_keys}"
         )
 
-    # LAr histograms must be present (initialised from has_spms_coinc=True guard)
-    for name in ("pdf/mul_lar", "pdf/mul_lar_psd"):
-        assert name in inner_keys, (
-            f"'{name}' missing from pdf/; expected when has_spms_coinc=True, got {inner_keys}"
+    # the LAr histograms are HPGe-energy spectra: nothing fills them without
+    # hit-tier data, so they must not be written either
+    for name in ("pdf/mul_lar", "pdf/mul_lar_psd", "pdf/fail"):
+        assert name not in inner_keys, (
+            f"'{name}' should be absent when has_geds=False; got {inner_keys}"
         )
-
-    fail_keys = lh5.ls(pdf_file, "pdf/fail/")
-    assert "pdf/fail/lar" in fail_keys, (
-        f"'pdf/fail/lar' missing from pdf/fail/; expected when has_spms_coinc=True, got {fail_keys}"
-    )
-
-    # fail/psd must be absent (needs geds data)
-    assert "pdf/fail/psd" not in fail_keys, (
-        f"'pdf/fail/psd' should be absent when has_geds=False; got {fail_keys}"
-    )
-
-    def _sum(path):
-        return lh5.read_as(path, pdf_file, "hist").sum()
-
-    # all LAr histograms were initialised but never filled → 0 counts
-    assert _sum("pdf/mul_lar/all") == 0, (
-        "pdf/mul_lar should have 0 counts when has_geds=False"
-    )
-    assert _sum("pdf/mul_lar_psd/all") == 0, (
-        "pdf/mul_lar_psd should have 0 counts when has_geds=False"
-    )
-    assert _sum("pdf/fail/lar/all") == 0, (
-        "pdf/fail/lar should have 0 counts when has_geds=False"
-    )
 
 
 @pytest.mark.needs_remage
