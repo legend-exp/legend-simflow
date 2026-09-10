@@ -23,8 +23,8 @@ from typing import Any
 import awkward as ak
 import lh5
 import numpy as np
+from reboost import make_profiler
 
-from .profile import make_profiler
 from .utils import lookup_dataflow_config
 
 log = logging.getLogger(__name__)

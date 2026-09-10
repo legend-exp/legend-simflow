@@ -44,7 +44,11 @@ def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
     import pygeomhpges
     import pygeomoptics
     import pygeomtools
-    import reboost
+
+    # reboost binds its subpackages lazily, so importing the top-level package
+    # alone would leave the heavy ones (legendhpges, pyg4ometry, numba) unpaid
+    import reboost.hpge
+    import reboost.spms
     import remage
     import revertex
 
@@ -62,8 +66,7 @@ def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
     # signature (Numba caches per signature). These are the only cache=True
     # kernels the parallel rules reach.
     from reboost.hpge.psd import _current_pulse_model
-
-    from .reboost import _cluster_photoelectrons_flat
+    from reboost.spms.pe import _cluster_photoelectrons_flat
 
     # currmod fit: float64 time array + seven float64 scalars
     _current_pulse_model(

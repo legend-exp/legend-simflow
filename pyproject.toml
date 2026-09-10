@@ -68,7 +68,7 @@ dependencies = [
     "pygama >=2.3.6",
     "pylegendmeta >=1.7",
     "pyyaml",
-    "reboost >=0.12.3,<0.13",
+    "reboost >=1,<2",
     "revertex >=0.1.2",
     "ruamel.yaml",
     "snakemake >=9.19,<9.20",
@@ -144,12 +144,12 @@ mplhep = ">=1.0"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"
-reboost = ">=0.12.3,<0.13"
+reboost = ">=1,<2"
 # software OpenGL (llvmpipe, through EGL) for the head-less stp geometry rendering
 mesalib = "*"
 
 # tier stp
-remage = ">=0.24,<0.25"
+remage = ">=0.25,<0.26"
 
 # drift-time maps and other SSD.jl jobs
 julia = ">=1.12,<1.13"
