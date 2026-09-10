@@ -227,7 +227,11 @@ rule archive_plots:
     localrule: True
     input:
         # deferred: avoid the expensive evaluation at Snakefile parse time
-        lambda wc: aggregate.gen_list_of_all_plots(config),
+        # the modelable-HPGe cache is only needed by the par-tier plots
+        lambda wc: aggregate.gen_list_of_all_plots(
+            config,
+            cache=smk_load_hpge_cache() if "par" in config.make_steps else None,
+        ),
     output:
         patterns.plots_tarball_filename(config),
     run:

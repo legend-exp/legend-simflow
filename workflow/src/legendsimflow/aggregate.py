@@ -76,8 +76,18 @@ def gen_list_of_simid_outputs(
     return patterns.output_simid_filenames(config, n_jobs, tier=tier, simid=simid)
 
 
-def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
-    """Generate the list of plots files for a `tier.simid`."""
+def gen_list_of_plots_outputs(
+    config: SimflowConfig,
+    tier: str,
+    simid: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
+):
+    """Generate the list of plots files for a `tier.simid`.
+
+    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
+    :func:`build_hpge_modeling_cache` and avoids repeated metadata lookups in
+    the ``par`` tier. It is ignored by all other tiers.
+    """
     if tier == "cvt":
         return [
             patterns.plot_tier_cvt_observables_filename(config, simid=simid),
@@ -109,10 +119,14 @@ def gen_list_of_plots_outputs(config: SimflowConfig, tier: str, simid: str):
         # when PSD is simulated in the hit tier
         if not get_tier_settings(config, "hit").get("simulate_psd", True):
             return []
-        files = gen_list_of_dtmap_plots_outputs(config, simid)
+        if cache is None:
+            cache = build_hpge_modeling_cache(config)
+        files = gen_list_of_dtmap_plots_outputs(config, simid, cache=cache)
         if get_tier_settings(config, "hit").get("simulate_psd_with_psl", True):
             files.extend(
-                gen_list_of_superpulses_uniformity_plots_outputs(config, simid)
+                gen_list_of_superpulses_uniformity_plots_outputs(
+                    config, simid, cache=cache
+                )
             )
         return files
     return []
@@ -139,11 +153,24 @@ def gen_list_of_all_simid_outputs(config: SimflowConfig, tier: str) -> list[Path
     return mlist
 
 
-def gen_list_of_all_plots_outputs(config: SimflowConfig, tier: str) -> list[Path]:
-    r"""Generate a list of all plot files that belong to a `tier`."""
+def gen_list_of_all_plots_outputs(
+    config: SimflowConfig,
+    tier: str,
+    cache: dict[str, dict[str, dict[str, int]]] | None = None,
+) -> list[Path]:
+    r"""Generate a list of all plot files that belong to a `tier`.
+
+    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
+    :func:`build_hpge_modeling_cache` and avoids repeated metadata lookups.
+    Since the cache is `simid`-independent, it is built here once (if needed)
+    and reused for every `simid`.
+    """
+    if cache is None and tier == "par":
+        cache = build_hpge_modeling_cache(config)
+
     mlist = []
     for simid in gen_list_of_all_simids(config):
-        mlist += gen_list_of_plots_outputs(config, tier, simid)
+        mlist += gen_list_of_plots_outputs(config, tier, simid, cache=cache)
 
     return mlist
 
@@ -184,15 +211,19 @@ def gen_list_of_precorr_hit_outputs_matching(
     return files
 
 
-def gen_list_of_all_plots(config: SimflowConfig) -> list[Path]:
+def gen_list_of_all_plots(
+    config: SimflowConfig, cache: dict[str, dict[str, dict[str, int]]] | None = None
+) -> list[Path]:
     r"""Generate a list of all plot files across all active `make_steps`.
 
     Iterates over :func:`gen_list_of_all_plots_outputs` for every tier in
-    ``config.make_steps``.
+    ``config.make_steps``. If ``cache`` is provided, it must be the
+    modelable-HPGe cache produced by :func:`build_hpge_modeling_cache` and
+    avoids repeated metadata lookups.
     """
     files = []
     for tier in config.make_steps:
-        files.extend(gen_list_of_all_plots_outputs(config, tier))
+        files.extend(gen_list_of_all_plots_outputs(config, tier, cache=cache))
     return files
 
 
@@ -412,6 +443,33 @@ def gen_list_of_all_hpges_valid_for_modeling(
 
     return {
         runid: gen_hpge_modeling_status(config, runid) for runid in sorted(all_runids)
+    }
+
+
+def build_hpge_modeling_cache(
+    config: SimflowConfig,
+) -> dict[str, dict[str, dict[str, int]]]:
+    """Build the modelable-HPGe cache from the metadata.
+
+    Returns the mapping ``runid -> hpge -> {"operational_voltage_in_V":
+    voltage}``, restricted to the detectors valid for modeling. This is the
+    same object the Snakemake helper ``smk_load_hpge_cache()`` returns (which
+    reads it from the on-disk cache written by the ``cache_modelable_hpges``
+    checkpoint, and should be preferred inside the workflow) and is accepted by
+    the ``cache`` argument of the aggregation functions below.
+
+    Warning
+    -------
+    This function is expensive in terms of filesystem I/O! Build the cache once
+    and pass it around.
+    """
+    return {
+        runid: {
+            hpge: {"operational_voltage_in_V": entry["operational_voltage_in_V"]}
+            for hpge, entry in dets.items()
+            if entry["is_modelable"]
+        }
+        for runid, dets in gen_list_of_all_hpges_valid_for_modeling(config).items()
     }
 
 
