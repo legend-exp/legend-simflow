@@ -17,6 +17,11 @@ from pathlib import Path
 
 import dbetto
 from legendsimflow import aggregate, nersc, patterns
+from legendsimflow.metadata import get_tier_settings
+
+# the HPGe modeling cache is only needed by the PSD-gated par outputs. aux.smk
+# is always included, so the flag is available to the other rule modules too
+_simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
 
 
 def on_scratch_smk(path: str | Path):
@@ -227,14 +232,12 @@ rule archive_plots:
     localrule: True
     input:
         # deferred: avoid the expensive evaluation at Snakefile parse time
-        # the modelable-HPGe cache is only needed by the par-tier plots: don't
-        # trigger the checkpoint when they are not part of the build
+        # don't trigger the checkpoint if no par-tier plot is part of the build
         lambda wc: aggregate.gen_list_of_all_plots(
             config,
             cache=(
                 smk_load_hpge_cache()
-                if "par" in config.make_steps
-                and aggregate.hpge_modeling_cache_needed(config)
+                if _simulate_psd and "par" in config.make_steps
                 else None
             ),
         ),

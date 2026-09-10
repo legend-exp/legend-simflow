@@ -74,12 +74,7 @@ def gen_list_of_plots_outputs(
     simid: str,
     cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ):
-    """Generate the list of plots files for a `tier.simid`.
-
-    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
-    :func:`build_hpge_modeling_cache` and avoids repeated metadata lookups in
-    the ``par`` tier. It is ignored by all other tiers.
-    """
+    """Generate the list of plots files for a `tier.simid`."""
     if tier == "cvt":
         return [
             patterns.plot_tier_cvt_observables_filename(config, simid=simid),
@@ -151,14 +146,13 @@ def gen_list_of_all_plots_outputs(
     tier: str,
     cache: dict[str, dict[str, dict[str, int]]] | None = None,
 ) -> list[Path]:
-    r"""Generate a list of all plot files that belong to a `tier`.
-
-    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
-    :func:`build_hpge_modeling_cache` and avoids repeated metadata lookups.
-    Since the cache is `simid`-independent, it is built here once (if needed)
-    and reused for every `simid`.
-    """
-    if cache is None and tier == "par" and hpge_modeling_cache_needed(config):
+    r"""Generate a list of all plot files that belong to a `tier`."""
+    # the cache does not depend on the simid: build it once for all of them
+    if (
+        cache is None
+        and tier == "par"
+        and get_tier_settings(config, "hit").get("simulate_psd", True)
+    ):
         cache = build_hpge_modeling_cache(config)
 
     mlist = []
@@ -210,9 +204,7 @@ def gen_list_of_all_plots(
     r"""Generate a list of all plot files across all active `make_steps`.
 
     Iterates over :func:`gen_list_of_all_plots_outputs` for every tier in
-    ``config.make_steps``. If ``cache`` is provided, it must be the
-    modelable-HPGe cache produced by :func:`build_hpge_modeling_cache` and
-    avoids repeated metadata lookups.
+    ``config.make_steps``.
     """
     files = []
     for tier in config.make_steps:
@@ -439,32 +431,15 @@ def gen_list_of_all_hpges_valid_for_modeling(
     }
 
 
-def hpge_modeling_cache_needed(config: SimflowConfig) -> bool:
-    """Whether the ``par``-tier plot aggregation needs the modelable-HPGe cache.
-
-    ``False`` when PSD simulation is disabled in the ``hit`` tier: the ``par``
-    branch of :func:`gen_list_of_plots_outputs` then yields no plot at all, so
-    building (or loading) the cache would be pure overhead.
-    """
-    return get_tier_settings(config, "hit").get("simulate_psd", True)
-
-
 def build_hpge_modeling_cache(
     config: SimflowConfig,
 ) -> dict[str, dict[str, dict[str, int]]]:
-    """Build the modelable-HPGe cache from the metadata.
+    """Build the ``cache`` accepted by the aggregation functions below.
 
-    Returns the mapping ``runid -> hpge -> {"operational_voltage_in_V":
-    voltage}``, restricted to the detectors valid for modeling. This is the
-    same object the Snakemake helper ``smk_load_hpge_cache()`` returns (which
-    reads it from the on-disk cache written by the ``cache_modelable_hpges``
-    checkpoint, and should be preferred inside the workflow) and is accepted by
-    the ``cache`` argument of the aggregation functions below.
-
-    Warning
-    -------
-    This function is expensive in terms of filesystem I/O! Build the cache once
-    and pass it around.
+    Maps ``runid -> hpge -> {"operational_voltage_in_V": voltage}`` for the
+    detectors valid for modeling. Same as what ``smk_load_hpge_cache()``
+    returns from the ``cache_modelable_hpges`` checkpoint output, to be
+    preferred inside the workflow. Expensive: build it once and pass it around.
     """
     return {
         runid: {
@@ -974,10 +949,6 @@ def process_simlist(
     Each simlist item is ``<tier>.<simid>``. The tier is interpreted as the
     *latest* tier requested for that simid; outputs are produced cumulatively
     for all tiers up to (and including) that tier in `make_steps`.
-
-    If ``cache`` is provided, it must be the modelable-HPGe cache produced by
-    :func:`build_hpge_modeling_cache` and avoids repeated metadata lookups. It
-    is otherwise built at most once, and only if a ``par`` step is reached.
     """
     if simlist is None:
         simlist = config.simlist
@@ -1019,10 +990,12 @@ def process_simlist(
 
         # cumulative: build all tiers up to the requested one
         for t in make_steps[: make_steps.index(tier) + 1]:
-            # the par-tier plots need the modelable-HPGe cache: build it lazily
-            # (only if a par step is actually reached) and share it across every
-            # simlist item, since it does not depend on the simid
-            if t == "par" and cache is None and hpge_modeling_cache_needed(config):
+            # build the cache at most once, and share it across the simids
+            if (
+                t == "par"
+                and cache is None
+                and get_tier_settings(config, "hit").get("simulate_psd", True)
+            ):
                 cache = build_hpge_modeling_cache(config)
             mlist += gen_list_of_plots_outputs(config, t, simid, cache=cache)
 

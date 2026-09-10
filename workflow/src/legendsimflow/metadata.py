@@ -98,12 +98,7 @@ def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
 
 
 def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:
-    """Make a Snakemake ``params:`` callable resolving a tier setting lazily.
-
-    The lookup is deferred to rule-evaluation time, i.e. it is only performed
-    for the rules that actually end up in the DAG. Bind `config` with
-    :func:`functools.partial` in the rule files.
-    """
+    """Make a Snakemake ``params:`` callable resolving a tier setting lazily."""
     return lambda wildcards: get_tier_settings(config, tier)[key]  # noqa: ARG005
 
 

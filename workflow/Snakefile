@@ -87,15 +87,11 @@ def gen_target_all():
         elif step == "par":
             inputs.extend(rules.gen_all_tier_par.input)
 
-    # the vtx step has no aggregate rule (vtx files are auxiliary inputs to
-    # stp), so a make_steps holding it alone leaves the default target empty
-    # and Snakemake just reports "Nothing to be done"
+    # happens e.g. with make_steps=[vtx], which has no aggregate rule
     if not inputs:
         logger.warning(
             f"the default target is empty with make_steps={make_steps}: "
-            "no output file will be built. Request the files you need "
-            "explicitly on the command line, or add a step that produces "
-            "aggregate outputs"
+            "request the files you need explicitly on the command line"
         )
 
     return inputs

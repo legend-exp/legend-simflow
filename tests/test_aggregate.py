@@ -204,8 +204,7 @@ def test_dtmap_stuff(config):
         assert p in par_plots
     assert len(agg.gen_list_of_all_plots_outputs(config, "par")) >= 1
 
-    # the cached path (the one the workflow takes) must agree with the
-    # metadata-querying one
+    # the cached path must agree with the metadata-querying one
     cache = agg.build_hpge_modeling_cache(config)
     assert cache[runid] == {"V99000A": {"operational_voltage_in_V": 4200}}
     assert agg.gen_list_of_dtmap_plots_outputs(
@@ -265,7 +264,7 @@ def test_par_plots_cache_is_built_once(fresh_config, monkeypatch):
     agg.gen_list_of_all_plots_outputs(config, "par")
     assert len(calls) == 1
 
-    # ...and shared across the simlist items, which are aggregated one by one
+    # ...and once for the whole simlist
     calls.clear()
     agg.process_simlist(
         config,
@@ -274,12 +273,11 @@ def test_par_plots_cache_is_built_once(fresh_config, monkeypatch):
     )
     assert len(calls) == 1
 
-    # a supplied cache is used as is
     calls.clear()
     agg.gen_list_of_all_plots_outputs(config, "par", cache=real_build(config))
     assert calls == []
 
-    # nothing is built when the par plots are not produced at all
+    # nothing is built when no par plot is produced at all
     get_tier_settings(config, "hit")["simulate_psd"] = False
     calls.clear()
     agg.gen_list_of_all_plots_outputs(config, "par")
@@ -287,7 +285,6 @@ def test_par_plots_cache_is_built_once(fresh_config, monkeypatch):
         config, simlist=["hit.birds_nest_K40"], make_steps=["stp", "par", "hit"]
     )
     assert calls == []
-    assert not agg.hpge_modeling_cache_needed(config)
 
 
 def test_par_plots_psd_gate(fresh_config):
