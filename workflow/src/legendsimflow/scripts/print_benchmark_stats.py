@@ -91,35 +91,40 @@ for simd in sorted(logdir.glob("*/*")):
     evts_1h_round = "..."
     njobs_round = "..."
 
+    # pool the per-thread samples of all benchmark jobs of this simid
+    thread_speeds: list[float] = []
+    runtimes: list[float] = []
+
     for jobd in simd.glob("*.log"):
         with jobd.open("r", encoding="utf-8") as f:
             data = f.read()
 
-            # extract events/sec for each thread
-            thread_speeds = [float(m.group(2)) for m in speed_pattern.finditer(data)]
+        # extract events/sec for each thread
+        job_speeds = [float(m.group(2)) for m in speed_pattern.finditer(data)]
 
-            # simulation might have crashed or still be running
-            if not thread_speeds:
-                break
+        # get the runtime of each thread
+        job_runtimes = [
+            timedelta(
+                days=int(d), hours=int(h), minutes=int(mi), seconds=int(s)
+            ).total_seconds()
+            for d, h, mi, s in time_pattern.findall(data)
+        ]
 
-            # get the runtime of each thread
-            runtimes = [
-                timedelta(
-                    days=int(d), hours=int(h), minutes=int(mi), seconds=int(s)
-                ).total_seconds()
-                for d, h, mi, s in time_pattern.findall(data)
-            ]
+        # simulation might have crashed or still be running
+        if not job_speeds or not job_runtimes:
+            continue
 
-            if not runtimes:
-                break
+        thread_speeds += job_speeds
+        runtimes += job_runtimes
 
-            runtime = mean(runtimes)
-            speed = mean(thread_speeds)
+    if thread_speeds and runtimes:
+        runtime = mean(runtimes)
+        speed = mean(thread_speeds)
 
-            evts_1h = int(speed * 3600)
-            evts_1h_round = int(round_down_2sf_5(speed * 3600))
-            njobs = int(1e8 / evts_1h)
-            njobs_round = int(1e8 / evts_1h_round)
+        evts_1h = int(speed * 3600)
+        evts_1h_round = int(round_down_2sf_5(speed * 3600))
+        njobs = int(1e8 / evts_1h)
+        njobs_round = int(1e8 / evts_1h_round)
 
     printline(
         simd.parent.name + "." + simd.name,
