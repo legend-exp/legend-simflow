@@ -438,6 +438,7 @@ def make_remage_macro(
                     )
                 else:
                     confinement = None
+                    break
 
         if confinement is None:
             msg = (
