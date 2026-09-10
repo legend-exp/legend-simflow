@@ -310,9 +310,9 @@ def main() -> None:
                 )
 
             # initialize the stp file iterator
-            # NOTE: if the entry list is empty, there will be no processing but an
-            # empty output table will be nonetheless created. this is important for
-            # the buil_tcm() step at the end
+            # NOTE: an empty event range yields no chunks, so nothing is written
+            # here: hit/{det_name} is created by whichever partition recorded
+            # hits for this detector
 
             iterator = LH5Iterator(
                 stp_file,
