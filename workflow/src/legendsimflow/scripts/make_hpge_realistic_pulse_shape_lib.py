@@ -22,6 +22,7 @@ import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
+import numpy as np
 import pyg4ometry
 import pygeomhpges
 from lgdo import Array, Struct
@@ -73,6 +74,12 @@ def main():
         required=False,
         default=None,
         help="Path to save validation plots",
+    )
+    parser.add_argument(
+        "--dtype",
+        choices=("float32", "float64"),
+        default=str(psl.WF_DTYPE),
+        help="bit depth of the pulse-shape samples (default: %(default)s)",
     )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -128,6 +135,7 @@ def main():
         NSAMPLES_OUTPUT_CURRENT_WFS,
         mw_pars=MW_PARS,
         dt_data=DT_DATA,
+        dtype=np.dtype(args.dtype),
     )
     # 4. normalise the current waveforms
     h_aoe, mean_aoe = psl.get_avg_aoe(

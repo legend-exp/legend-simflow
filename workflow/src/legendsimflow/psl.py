@@ -32,6 +32,9 @@ from scipy.signal import convolve, fftconvolve
 logger = logging.getLogger(__name__)
 
 DT_DATA: float = 16.0
+# Bit depth of the pulse-shape samples, both in memory and on disk. float32 is
+# more than enough for the ~1% A/E it feeds and halves the library footprint
+WF_DTYPE: np.dtype = np.dtype(np.float32)
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
 
 
@@ -69,7 +72,8 @@ def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
     hist_aoe.fill(aoe)
     counts, bin_edges = hist_aoe.to_numpy()
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-    avg_aoe = bin_centers[np.argmax(counts)]
+    # plain float: an np.float64 would upcast the float32 waveforms it normalizes
+    avg_aoe = float(bin_centers[np.argmax(counts)])
 
     return hist_aoe, avg_aoe
 
@@ -308,6 +312,7 @@ def process_ideal_waveforms(
     mw_pars: dict[str, int],
     dt_data: float,
     return_mode: str = "current",
+    dtype: np.dtype = WF_DTYPE,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply electronics response and DSP chain to ideal charge waveforms.
 
@@ -332,6 +337,8 @@ def process_ideal_waveforms(
         Data sampling time step in ns.
     return_mode
         Whether to extract the "current" or the "charge" waveform.
+    dtype
+        Floating-point type used throughout the processing chain.
 
     Returns
     -------
@@ -342,7 +349,11 @@ def process_ideal_waveforms(
         and alignment, shape ``(n_wfs,)``.
 
     """
-    convolved = ak.to_numpy(apply_electronics_response(wfs, rf_kernel))
+    convolved = ak.to_numpy(
+        apply_electronics_response(
+            np.asarray(wfs, dtype=dtype), rf_kernel.astype(dtype, copy=False)
+        )
+    )
 
     # Derivative (charge -> current), scaled to data sampling units
     current = np.diff(convolved, axis=-1, prepend=0) * (dt_data / dt)
@@ -351,9 +362,9 @@ def process_ideal_waveforms(
     current_peak_indices = np.argmax(current, axis=1)
 
     # Moving window average
-    mwa_out = np.zeros_like(current, dtype=float)
+    mwa_out = np.zeros_like(current, dtype=dtype)
     moving_window_multi(
-        current.astype(float, copy=False),
+        current.astype(dtype, copy=False),
         mw_pars["length"],
         mw_pars["num_mw"],
         mw_pars["mw_type"],
@@ -384,6 +395,7 @@ def make_realistic_pulse_shape_lib(
     nsamples_output_current_wfs: int,
     mw_pars: dict[str, float | int],
     dt_data: float = 1.0,
+    dtype: np.dtype = WF_DTYPE,
 ) -> dict[str, Array | Scalar]:
     """Apply the waveform post-processing chain to generate a realistic waveform map.
 
@@ -423,6 +435,9 @@ def make_realistic_pulse_shape_lib(
     dt_data
         The time step of the original data waveforms (in ns), used to scale
         the derivative.
+    dtype
+        Floating-point type of the waveform and drift-time samples, both in
+        memory and in the output library.
 
     Returns
     -------
@@ -494,25 +509,22 @@ def make_realistic_pulse_shape_lib(
             nsamples_output_current_wfs,
             mw_pars,
             dt_data,
+            dtype=dtype,
         )
 
         # Calculate drift time from current peak position
         drift_indices = current_peak_indices - kernel_delay_idx
         drift_times_flat = drift_indices * dt
-        drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(
-            np.float32
-        )
+        drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(dtype)
 
         # Restore NaN for invalid pixels in drift time
         drift_times_2d[nan_mask] = np.nan
         dt_key = key.replace("waveform", "drift_time")
         realistic_pulse_shape_lib[dt_key] = Array(drift_times_2d, attrs={"units": "ns"})
 
-        # Reshape. float32 halves the on-disk library and the load footprint
-        # (more than enough for the ~1% A/E it feeds)
         new_length = curr_aligned.shape[-1]
         new_shape = (*original_shape[:-1], new_length)
-        wfs_out = curr_aligned.reshape(new_shape).astype(np.float32)
+        wfs_out = curr_aligned.reshape(new_shape).astype(dtype, copy=False)
 
         # Restore NaN for invalid pixels in waveforms
         wfs_out[nan_mask] = np.nan

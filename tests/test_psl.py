@@ -313,6 +313,33 @@ def test_make_realistic_pulse_shape_lib_3d():
     assert output["drift_time_0"].view_as("np").shape == (n_r, n_z)
 
 
+@pytest.mark.parametrize("dtype", [None, np.float32, np.float64])
+def test_make_realistic_pulse_shape_lib_dtype(dtype):
+    rng = np.random.default_rng(2)
+    ideal_psl = {
+        "r": Array([0.1, 0.2, 0.3], attrs={"units": "m"}),
+        "z": Array([-0.15, -0.05, 0.05, 0.15], attrs={"units": "m"}),
+        "waveform_0": Array(rng.random((3, 4, 1000))),
+        "dt": Scalar(10, attrs={"units": "ns"}),
+    }
+
+    kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
+    kwargs = {} if dtype is None else {"dtype": np.dtype(dtype)}
+    output = psl.make_realistic_pulse_shape_lib(
+        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, **kwargs
+    )
+
+    # float32 by default, and the toggle is honored
+    expected = np.dtype(np.float32 if dtype is None else dtype)
+    wfs_out = output["waveform_0"].view_as("np")
+    assert wfs_out.dtype == expected
+    assert output["drift_time_0"].view_as("np").dtype == expected
+
+    # the A/E normalization applied downstream must not upcast
+    _, mean_aoe = psl.get_avg_aoe([wfs_out])
+    assert (wfs_out / mean_aoe).dtype == expected
+
+
 def test_plot_aoe_rz_map_single_angle():
     n_r, n_z, n_samples = 3, 4, 50
     rng = np.random.default_rng(0)
