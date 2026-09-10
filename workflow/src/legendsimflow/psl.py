@@ -101,6 +101,10 @@ def build_electronics_response_kernel(
     `kernel_length` and will only contain the Gaussian component, since no
     convolution is performed.
 
+    ``t=0`` sits at index ``-2 * kernel_start`` (``-kernel_start`` if
+    `gaussian_only`), not at the kernel maximum (the Gaussian makes the kernel
+    non-causal).
+
     Parameters
     ----------
     dt
@@ -398,6 +402,7 @@ def make_realistic_pulse_shape_lib(
     mw_pars: dict[str, float | int],
     dt_data: float = 1.0,
     dtype: np.dtype = WF_DTYPE,
+    kernel_t0_idx: int = 200,
 ) -> dict[str, Array | Scalar]:
     """Apply the waveform post-processing chain to generate a realistic waveform map.
 
@@ -406,7 +411,8 @@ def make_realistic_pulse_shape_lib(
     1. Converts coordinates (m to mm)
     2. Convolves with system response
     3. Aligns by Peak Time
-    4. Calculates compensated Drift Time
+    4. Calculates the drift time: filtered-current peak (the alignment sample)
+       measured from the energy deposition time, i.e. minus `kernel_t0_idx`
 
     Parameters
     ----------
@@ -440,6 +446,9 @@ def make_realistic_pulse_shape_lib(
     dtype
         Floating-point type of the waveform and drift-time samples, both in
         memory and in the output library.
+    kernel_t0_idx
+        Index of ``t=0`` in `rf_kernel`, ``-2 * kernel_start`` of
+        :func:`build_electronics_response_kernel` (200 for its defaults).
 
     Returns
     -------
@@ -468,9 +477,6 @@ def make_realistic_pulse_shape_lib(
     realistic_pulse_shape_lib["t0"] = Scalar(
         -1.0 * alignment_idx * dt, attrs={"units": "ns"}
     )  # Set the global t0 relative to alignment index
-
-    # Delay of the response kernel
-    kernel_delay_idx = np.argmax(rf_kernel)
 
     for coord in ["r", "z"]:
         if coord in ideal_pulse_shape_lib_obj:
@@ -514,8 +520,7 @@ def make_realistic_pulse_shape_lib(
             dtype=dtype,
         )
 
-        # Calculate drift time from current peak position
-        drift_indices = current_peak_indices - kernel_delay_idx
+        drift_indices = current_peak_indices - kernel_t0_idx
         drift_times_flat = drift_indices * dt
         drift_times_2d = drift_times_flat.reshape(original_shape[:-1]).astype(dtype)
 

@@ -305,7 +305,8 @@ merged electronics model file, and applies the following processing chain:
 2. Differentiate to obtain current waveforms, then apply a three-stage
    moving-window average.
 3. Align waveforms by shifting the current peak to a fixed sample index.
-4. Compute the drift time for each (r, z) pixel from the current peak position.
+4. Compute the drift time for each (r, z) pixel: the filtered current peak (like
+   `tp_aoe_max` in data) measured from the energy deposition time.
 5. Normalise the current amplitudes by the mode of the A/E distribution.
 
 The output for a single `(runid, detector)` pair is in the pulse-shape-library
