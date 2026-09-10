@@ -7,104 +7,119 @@ flowchart TB
 	id2[build_geom_gdml]
 	id3[gen_geom_config]
 	id4[gen_remage_macro]
-	id5[plot_geom]
-	id6[build_tier_vtx]
-	id7[cache_detector_usabilities]
-	id8[cache_modelable_hpges]
-	id9[make_simstat_partition_file]
-	id10[extract_hpge_observables_models]
-	id11[plot_hpge_drift_time_maps]
-	id12[build_hpge_drift_time_map]
-	id13[_init_julia_env]
-	id14[build_tier_opt]
-	id15[plot_tier_opt_observables]
-	id16[build_tier_hit]
-	id17[plot_tier_hit_observables]
-	id18[build_tier_evt]
-	id19[build_tier_cvt]
-	id20[plot_tier_cvt_observables]
-	id21[build_tier_pdf]
-	id22[merge_hpge_drift_time_maps]
-	id23[merge_current_pulse_model_pars]
-	id24[extract_current_pulse_model]
-	id25[aggregate_hpge_ssd_modeling_info]
-	id26[all]
-	style id0 fill:#577AD9,stroke-width:2px,color:#333333
-	style id1 fill:#B5D957,stroke-width:2px,color:#333333
-	style id2 fill:#D99257,stroke-width:2px,color:#333333
-	style id3 fill:#57D9A9,stroke-width:2px,color:#333333
-	style id4 fill:#57D9B5,stroke-width:2px,color:#333333
-	style id5 fill:#57B5D9,stroke-width:2px,color:#333333
-	style id6 fill:#A9D957,stroke-width:2px,color:#333333
-	style id7 fill:#9ED957,stroke-width:2px,color:#333333
-	style id8 fill:#92D957,stroke-width:2px,color:#333333
-	style id9 fill:#57D9C1,stroke-width:2px,color:#333333
-	style id10 fill:#63D957,stroke-width:2px,color:#333333
-	style id11 fill:#57A9D9,stroke-width:2px,color:#333333
-	style id12 fill:#D99E57,stroke-width:2px,color:#333333
-	style id13 fill:#D95757,stroke-width:2px,color:#333333
-	style id14 fill:#CDD957,stroke-width:2px,color:#333333
-	style id15 fill:#5786D9,stroke-width:2px,color:#333333
-	style id16 fill:#D9D957,stroke-width:2px,color:#333333
-	style id17 fill:#5792D9,stroke-width:2px,color:#333333
-	style id18 fill:#D9CD57,stroke-width:2px,color:#333333
-	style id19 fill:#D9C157,stroke-width:2px,color:#333333
-	style id20 fill:#579ED9,stroke-width:2px,color:#333333
-	style id21 fill:#C1D957,stroke-width:2px,color:#333333
-	style id22 fill:#57CDD9,stroke-width:2px,color:#333333
-	style id23 fill:#57D9CD,stroke-width:2px,color:#333333
-	style id24 fill:#7AD957,stroke-width:2px,color:#333333
-	style id25 fill:#D96357,stroke-width:2px,color:#333333
-	style id26 fill:#D96E57,stroke-width:2px,color:#333333
+	id5[plot_geom_rendering]
+	id6[plot_geom_hpge_mass]
+	id7[build_tier_vtx]
+	id8[cache_detector_usabilities]
+	id9[cache_modelable_hpges]
+	id10[make_simstat_partition_file]
+	id11[extract_hpge_observables_models]
+	id12[simulate_electron_gun]
+	id13[plot_hpge_drift_time_maps]
+	id14[build_hpge_drift_time_map]
+	id15[_init_julia_env]
+	id16[build_tier_opt]
+	id17[plot_tier_opt_observables]
+	id18[build_tier_hit]
+	id19[plot_tier_hit_observables]
+	id20[build_tier_evt]
+	id21[build_tier_cvt]
+	id22[plot_tier_cvt_observables]
+	id23[build_tier_pdf]
+	id24[merge_hpge_drift_time_maps]
+	id25[merge_current_pulse_model_pars]
+	id26[extract_current_pulse_model]
+	id27[extract_hpge_aoemean_energy_dependence]
+	id28[aggregate_hpge_ssd_modeling_info]
+	id29[all]
+	style id0 fill:#5783D9,stroke-width:2px,color:#333333
+	style id1 fill:#C0D957,stroke-width:2px,color:#333333
+	style id2 fill:#D98E57,stroke-width:2px,color:#333333
+	style id3 fill:#57D99F,stroke-width:2px,color:#333333
+	style id4 fill:#57D9AA,stroke-width:2px,color:#333333
+	style id5 fill:#57BAD9,stroke-width:2px,color:#333333
+	style id6 fill:#57C5D9,stroke-width:2px,color:#333333
+	style id7 fill:#B5D957,stroke-width:2px,color:#333333
+	style id8 fill:#AAD957,stroke-width:2px,color:#333333
+	style id9 fill:#9FD957,stroke-width:2px,color:#333333
+	style id10 fill:#57D9B5,stroke-width:2px,color:#333333
+	style id11 fill:#67D957,stroke-width:2px,color:#333333
+	style id12 fill:#5762D9,stroke-width:2px,color:#333333
+	style id13 fill:#57AFD9,stroke-width:2px,color:#333333
+	style id14 fill:#D99957,stroke-width:2px,color:#333333
+	style id15 fill:#D95757,stroke-width:2px,color:#333333
+	style id16 fill:#D6D957,stroke-width:2px,color:#333333
+	style id17 fill:#578ED9,stroke-width:2px,color:#333333
+	style id18 fill:#D9D057,stroke-width:2px,color:#333333
+	style id19 fill:#5799D9,stroke-width:2px,color:#333333
+	style id20 fill:#D9C557,stroke-width:2px,color:#333333
+	style id21 fill:#D9BA57,stroke-width:2px,color:#333333
+	style id22 fill:#57A4D9,stroke-width:2px,color:#333333
+	style id23 fill:#CBD957,stroke-width:2px,color:#333333
+	style id24 fill:#57D9D6,stroke-width:2px,color:#333333
+	style id25 fill:#57D9C0,stroke-width:2px,color:#333333
+	style id26 fill:#89D957,stroke-width:2px,color:#333333
+	style id27 fill:#72D957,stroke-width:2px,color:#333333
+	style id28 fill:#D96257,stroke-width:2px,color:#333333
+	style id29 fill:#D96D57,stroke-width:2px,color:#333333
 	id1 --> id0
-	id2 --> id1
+	id7 --> id1
 	id4 --> id1
-	id6 --> id1
+	id2 --> id1
 	id3 --> id2
 	id2 --> id4
 	id3 --> id5
-	id2 --> id6
-	id1 --> id9
-	id12 --> id11
-	id13 --> id12
-	id9 --> id14
-	id2 --> id14
-	id7 --> id14
-	id1 --> id14
-	id14 --> id15
-	id9 --> id16
-	id2 --> id16
-	id22 --> id16
+	id3 --> id6
+	id2 --> id7
+	id1 --> id10
+	id14 --> id13
+	id15 --> id14
+	id8 --> id16
 	id10 --> id16
 	id1 --> id16
-	id7 --> id16
-	id23 --> id16
+	id2 --> id16
 	id16 --> id17
-	id9 --> id18
-	id14 --> id18
+	id8 --> id18
+	id2 --> id18
+	id10 --> id18
+	id11 --> id18
+	id25 --> id18
+	id27 --> id18
 	id1 --> id18
-	id7 --> id18
-	id16 --> id18
+	id24 --> id18
 	id18 --> id19
-	id19 --> id20
-	id19 --> id21
-	id12 --> id22
-	id24 --> id23
-	id12 --> id25
-	id19 --> id26
-	id9 --> id26
-	id0 --> id26
-	id5 --> id26
-	id11 --> id26
-	id10 --> id26
-	id14 --> id26
-	id15 --> id26
-	id20 --> id26
-	id25 --> id26
-	id1 --> id26
-	id21 --> id26
-	id7 --> id26
-	id17 --> id26
-	id8 --> id26
-	id16 --> id26
-	id18 --> id26
+	id8 --> id20
+	id10 --> id20
+	id18 --> id20
+	id1 --> id20
+	id16 --> id20
+	id20 --> id21
+	id21 --> id22
+	id21 --> id23
+	id14 --> id24
+	id26 --> id25
+	id24 --> id27
+	id25 --> id27
+	id9 --> id27
+	id12 --> id27
+	id14 --> id28
+	id27 --> id29
+	id0 --> id29
+	id20 --> id29
+	id28 --> id29
+	id21 --> id29
+	id17 --> id29
+	id6 --> id29
+	id9 --> id29
+	id19 --> id29
+	id11 --> id29
+	id16 --> id29
+	id8 --> id29
+	id12 --> id29
+	id10 --> id29
+	id18 --> id29
+	id22 --> id29
+	id1 --> id29
+	id13 --> id29
+	id5 --> id29
+	id23 --> id29

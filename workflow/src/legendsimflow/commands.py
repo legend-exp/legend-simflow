@@ -17,6 +17,7 @@ from __future__ import annotations
 import ast
 import importlib
 import shlex
+from collections.abc import Mapping
 from copy import copy
 from pathlib import Path
 
@@ -24,8 +25,9 @@ import legenddataflowscripts as lds
 import pyg4ometry
 
 from . import SimflowConfig, nersc, patterns, utils
+from .confine import get_hpge_bulk_confine_commands
 from .exceptions import SimflowConfigError
-from .metadata import get_simconfig
+from .metadata import electron_gun_macro_template, get_par_settings, get_simconfig
 
 
 def remage_run(
@@ -459,17 +461,98 @@ def make_remage_macro(
 
     # read in template and substitute
     template_path = get_simconfig(config, tier, simid=simid, field="template")
+    ofile = patterns.input_simjob_filename(config, tier=tier, simid=simid)
+    text = render_macro_template(template_path, mac_subs, ofile)
+
+    return text, ofile
+
+
+def render_macro_template(
+    template_path: str | Path, mac_subs: Mapping[str, str | None], ofile: str | Path
+) -> str:
+    """Render a remage macro template and write it to disk.
+
+    Substitutes the ``$VARIABLE`` placeholders of the template with `mac_subs`
+    (see ``legenddataflowscripts.subst_vars``). Curly-brace placeholders
+    (e.g. ``{SEED}``) are left untouched, to be substituted by remage at run
+    time.
+
+    Parameters
+    ----------
+    template_path
+        Path to the macro template.
+    mac_subs
+        Substitution rules.
+    ofile
+        Path of the output macro file. Parent directories are created.
+
+    Returns
+    -------
+    The rendered macro text.
+    """
     with Path(template_path).open() as f:
         try:
-            text = lds.subst_vars(f.read().strip(), mac_subs, ignore_missing=False)
+            text = lds.subst_vars(
+                f.read().strip(), dict(mac_subs), ignore_missing=False
+            )
         except KeyError as e:
             msg = f"no rules found to substitute variable {e} in the macro template"
             raise SimflowConfigError(msg) from e
 
-    # now write the macro to disk
-    ofile = patterns.input_simjob_filename(config, tier=tier, simid=simid)
+    ofile = Path(ofile)
     ofile.parent.mkdir(parents=True, exist_ok=True)
     with ofile.open("w") as f:
         f.write(text)
 
-    return text, ofile
+    return text
+
+
+# remage macro substitution (alias) holding the electron kinetic energy in keV
+ELECTRON_GUN_ENERGY_ALIAS = "ENERGY_KEV"
+
+
+def make_electron_gun_macro(
+    config: SimflowConfig, geom: str | Path, ofile: str | Path
+) -> str:
+    """Render the remage macro of the electron-gun simulations and write it to disk.
+
+    The macro template is the ``aoemeanmod`` one (see
+    :func:`legendsimflow.metadata.electron_gun_macro_template`). Its ``$GENERATOR``
+    placeholder is substituted with a GPS mono-energetic electron source whose
+    energy is the remage alias ``{ENERGY_KEV}`` (substituted at run time, one
+    run per energy) and ``$CONFINEMENT`` with the bulk of all the germanium
+    sensitive volumes of the geometry `geom` (see
+    :func:`legendsimflow.confine.get_hpge_bulk_confine_commands`). Further
+    substitutions can be provided with the optional ``macro_substitutions``
+    key of the ``aoemeanmod`` par settings.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration.
+    geom
+        Path to the GDML geometry file.
+    ofile
+        Path of the output macro file.
+
+    Returns
+    -------
+    The rendered macro text.
+    """
+    reg = pyg4ometry.gdml.Reader(str(nersc.dvs_ro(config, geom))).getRegistry()
+
+    mac_subs = {
+        "GENERATOR": "\n".join(
+            [
+                "/RMG/Generator/Select GPS",
+                "/gps/particle e-",
+                "/gps/ang/type iso",
+                "/gps/ene/type Mono",
+                f"/gps/ene/mono {{{ELECTRON_GUN_ENERGY_ALIAS}}} keV",
+            ]
+        ),
+        "CONFINEMENT": "\n".join(get_hpge_bulk_confine_commands(reg)),
+    }
+    mac_subs |= get_par_settings(config, "aoemeanmod").get("macro_substitutions", {})
+
+    return render_macro_template(electron_gun_macro_template(config), mac_subs, ofile)

@@ -1,0 +1,20 @@
+/RMG/Manager/Randomization/Seed {SEED}
+
+/RMG/Geometry/RegisterDetectorsFromGDML Germanium
+
+# name tables with ntuple
+/RMG/Output/NtupleUseVolumeName True
+
+/run/initialize
+
+/RMG/Geometry/PrintListOfLogicalVolumes
+/RMG/Geometry/PrintListOfPhysicalVolumes
+
+# discard events without Germanium energy
+/RMG/Output/Germanium/EdepCutLow 0
+
+$GENERATOR
+
+$CONFINEMENT
+
+/run/beamOn {N_EVENTS}

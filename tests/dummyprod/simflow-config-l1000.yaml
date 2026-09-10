@@ -7,7 +7,7 @@ runlist:
 benchmark:
   enabled: true
   n_primaries:
-    stp: 1000
+    stp: 2000
 
 make_steps:
   - vtx

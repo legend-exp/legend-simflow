@@ -226,3 +226,33 @@ def test_get_par_settings(config):
     settings_empty = metadata.get_par_settings(config, "nonexistent_par")
     assert isinstance(settings_empty, AttrsDict)
     assert len(settings_empty) == 0
+
+
+def test_electron_gun_settings(fresh_config):
+    config = fresh_config
+
+    # the energies span the range corrected in data (the pygama Compton bands)
+    assert len(metadata.ELECTRON_GUN_ENERGIES_IN_KEV) == 5
+    assert list(metadata.ELECTRON_GUN_ENERGIES_IN_KEV) == sorted(
+        metadata.ELECTRON_GUN_ENERGIES_IN_KEV
+    )
+    assert metadata.ELECTRON_GUN_ENERGIES_IN_KEV[0] == 900
+    assert metadata.ELECTRON_GUN_ENERGIES_IN_KEV[-1] == 2350
+
+    template = metadata.electron_gun_macro_template(config)
+    assert template.is_file()
+    assert template.name == "template.mac"
+    assert metadata.electron_gun_primaries(config) == 4000
+
+
+def test_electron_gun_settings_missing(fresh_config, monkeypatch):
+    """Both the number of primaries and the macro template are mandatory."""
+    config = fresh_config
+
+    monkeypatch.setattr(metadata, "get_par_settings", lambda *_: AttrsDict({}))
+    with pytest.raises(SimflowConfigError):
+        metadata.electron_gun_primaries(config)
+
+    config["experiment"] = "nonexistent"
+    with pytest.raises(SimflowConfigError):
+        metadata.electron_gun_macro_template(config)

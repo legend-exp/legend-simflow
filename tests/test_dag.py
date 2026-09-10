@@ -28,6 +28,8 @@ import yaml
 from snakemake import api as smkapi
 from snakemake.exceptions import MissingInputException, WorkflowError
 
+from legendsimflow.metadata import ELECTRON_GUN_ENERGIES_IN_KEV
+
 dummyprod = Path(__file__).parent / "dummyprod"
 default_config = dummyprod / "simflow-config.yaml"
 l1000_config = dummyprod / "simflow-config-l1000.yaml"
@@ -64,6 +66,14 @@ STD_PSD_RULES = {
     "aggregate_hpge_ssd_modeling_info",
     "extract_current_pulse_model",
     "merge_current_pulse_model_pars",
+}
+
+
+# rules simulating the electron gun and extracting the A/E mean energy
+# dependence from it
+AOE_CORR_RULES = {
+    "simulate_electron_gun",
+    "extract_hpge_aoemean_energy_dependence",
 }
 
 
@@ -129,8 +139,8 @@ def overrides(
     return cfg
 
 
-def dag_rule_names(configfile: Path, config_overrides: Mapping) -> set[str]:
-    """Return the set of rule names making up the resolved workflow DAG.
+def dag_jobs(configfile: Path, config_overrides: Mapping) -> list[tuple[str, tuple]]:
+    """Return the ``(rule name, output files)`` of every job in the resolved DAG.
 
     Built with the touch executor (see the module docstring), so rules both
     upstream and downstream of the modelable-HPGe checkpoint appear, independent
@@ -154,7 +164,15 @@ def dag_rule_names(configfile: Path, config_overrides: Mapping) -> set[str]:
             dag.execute_workflow(executor="touch")
         # the public API exposes no DAG accessor, so reach into the workflow
         # object for the resolved graph
-        return {job.rule.name for job in wf_api._workflow.dag.jobs}
+        return [
+            (job.rule.name, tuple(str(o) for o in job.output))
+            for job in wf_api._workflow.dag.jobs
+        ]
+
+
+def dag_rule_names(configfile: Path, config_overrides: Mapping) -> set[str]:
+    """Return the set of rule names making up the resolved workflow DAG."""
+    return {name for name, _ in dag_jobs(configfile, config_overrides)}
 
 
 def test_dag(tmp_path):
@@ -254,6 +272,39 @@ def test_simulate_psd_toggles_dtmap_rules(tmp_path):
     assert STD_PSD_RULES.isdisjoint(off)
     # flipping the switch changes nothing but the drift-time map rules
     assert on - off == STD_PSD_RULES
+
+
+def test_aoe_energy_correction_chain(tmp_path):
+    """The A/E mean energy-dependence chain is always part of the DAG.
+
+    One electron-gun job produces one `stp` file per energy, and one extraction
+    job per run produces the model the hit tier consumes.
+    """
+    jobs = dag_jobs(
+        l1000_config,
+        overrides(tmp_path, make_steps=STEPS_TO_HIT, experiment="l1000dsg01"),
+    )
+    assert {name for name, _ in jobs} >= AOE_CORR_RULES
+
+    # one electron-gun job producing one stp file per energy
+    egun_stp = {
+        out
+        for name, outs in jobs
+        if name == "simulate_electron_gun"
+        for out in outs
+        if out.endswith("-tier_stp.lh5")
+    }
+    assert len(egun_stp) == len(ELECTRON_GUN_ENERGIES_IN_KEV)
+
+    # one extraction per run, each producing the model consumed by the hit tier
+    models = {
+        out
+        for name, outs in jobs
+        if name == "extract_hpge_aoemean_energy_dependence"
+        for out in outs
+        if out.endswith("-model.yaml")
+    }
+    assert len(models) == 2
 
 
 def test_skip_opt_drops_opt_tier(tmp_path):

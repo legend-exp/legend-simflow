@@ -28,6 +28,7 @@ Definitions:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from legendmeta.police import validate_dict_schema
@@ -215,21 +216,6 @@ def input_simid_filenames(config: SimflowConfig, n_macros, **kwargs) -> list[Pat
 def output_simid_filenames(config: SimflowConfig, n_macros, **kwargs):
     """Returns the full path to `n_macros` output files for a `simid`."""
     pat = output_simjob_filename(config, **kwargs)
-    jobids = expand("{id:>04d}", id=list(range(n_macros)))
-    return _expand(pat, jobid=jobids, keep_list=True, **kwargs)
-
-
-def output_simjob_precorr_hit_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to a temporary, pre-correction `hit` output file for a `simid`/`jobid`."""
-    fname = simjob_base_segment(config) + "-tier_hit-precorr.lh5"
-    return _expand(config.paths.tier.hit / "precorr" / fname, **kwargs)
-
-
-def output_simid_precorr_hit_filenames(
-    config: SimflowConfig, n_macros, **kwargs
-) -> list[Path]:
-    """Returns the full path to `n_macros` temp pre-correction hit files for a `simid`."""
-    pat = output_simjob_precorr_hit_filename(config, **kwargs)
     jobids = expand("{id:>04d}", id=list(range(n_macros)))
     return _expand(pat, jobid=jobids, keep_list=True, **kwargs)
 
@@ -605,33 +591,94 @@ def output_psdcuts_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+# hpge A/E mean energy dependence (electron-gun simulations)
+
+
+def output_electron_gun_geom_filename(config: SimflowConfig) -> Path:
+    """The path to the GDML geometry file of the electron-gun simulations."""
+    fname = config.experiment + "-electron-gun-geom.gdml"
+    return config.paths.pars / "hpge/aoemeanmod/stp" / fname
+
+
+def output_electron_gun_macro_filename(config: SimflowConfig) -> Path:
+    """The path to the rendered remage macro of the electron-gun simulations."""
+    fname = config.experiment + "-electron-gun-tier_stp.mac"
+    return config.paths.pars / "hpge/aoemeanmod/stp" / fname
+
+
+def output_electron_gun_stp_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the electron-gun ``stp`` output file for an `energy` (keV)."""
+    fname = config.experiment + "-electron-gun-{energy}keV-tier_stp.lh5"
+    return _expand(config.paths.pars / "hpge/aoemeanmod/stp" / fname, **kwargs)
+
+
+def electron_gun_energy_from_path(path: str | Path) -> int:
+    """Electron kinetic energy (keV) encoded in an electron-gun ``stp`` file name.
+
+    Inverse of :func:`output_electron_gun_stp_filename`. Raises ``ValueError``
+    if `path` is not an electron-gun ``stp`` file.
+    """
+    m = re.search(r"-electron-gun-(\d+)keV-tier_stp\.lh5$", Path(path).name)
+    if m is None:
+        msg = f"{path!s} is not an electron-gun stp file"
+        raise ValueError(msg)
+    return int(m.group(1))
+
+
+def plot_electron_gun_vertices_filename(config: SimflowConfig) -> Path:
+    """The path to the primary vertex validation plot of the electron-gun simulations."""
+    fname = config.experiment + "-electron-gun-vertices.pdf"
+    return config.paths.pars / "hpge/aoemeanmod/plots" / fname
+
+
+def log_electron_gun_stp_filename(config: SimflowConfig) -> Path:
+    """The log file path of the electron-gun simulations."""
+    fname = config.experiment + "-electron-gun-tier_stp.log"
+    return log_dirname(config) / "hpge/aoemeanmod" / fname
+
+
+def benchmark_electron_gun_stp_filename(config: SimflowConfig) -> Path:
+    """The benchmark file path of the electron-gun simulations."""
+    fname = config.experiment + "-electron-gun-tier_stp.tsv"
+    return config.paths.benchmarks / "hpge/aoemeanmod" / fname
+
+
 def output_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the per-detector A/E energy-dependence correction file."""
+    """The path to the A/E mean energy-dependence model file for a `runid`.
+
+    Detector-keyed, in the schema consumed by the `hit` tier.
+    """
     return _expand(
-        config.paths.pars / "hpge/aoemeanmod/{hpge_detector}-model.yaml",
+        config.paths.pars / "hpge/aoemeanmod/{runid}-model.yaml",
         **kwargs,
     )
 
 
-def output_aoemeanmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the single, merged, run-independent A/E energy-dependence correction file."""
+def output_aoemeanmod_stats_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the electron-gun A/E statistics file for a `runid`."""
     return _expand(
-        config.paths.pars / "hpge/aoemeanmod/model.yaml",
+        config.paths.pars / "hpge/aoemeanmod/{runid}-electron-gun-stats.yaml",
         **kwargs,
     )
 
 
 def plot_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the A/E energy-correction fit validation plot for a detector."""
+    """The path to the A/E mean energy-dependence validation plots for a `runid`."""
     return _expand(
-        config.paths.pars / "hpge/aoemeanmod/plots/{hpge_detector}-fit-result.pdf",
+        config.paths.pars / "hpge/aoemeanmod/plots/{runid}-fit-results.pdf",
         **kwargs,
     )
 
 
 def log_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The log file path for A/E energy-correction extraction for a detector."""
-    pat = log_dirname(config) / "hpge/aoemeanmod/{hpge_detector}-model.log"
+    """The log file path for A/E mean energy-dependence extraction for a `runid`."""
+    pat = log_dirname(config) / "hpge/aoemeanmod/{runid}-model.log"
+    return _expand(pat, **kwargs)
+
+
+def benchmark_aoemeanmod_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The benchmark file path for A/E mean energy-dependence extraction for a `runid`."""
+    pat = config.paths.benchmarks / "hpge/aoemeanmod/{runid}-model.tsv"
     return _expand(pat, **kwargs)
 
 

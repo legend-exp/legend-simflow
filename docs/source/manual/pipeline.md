@@ -81,6 +81,44 @@ The same rule produces a per-detector YAML file for the PSD cut values,
 following the {ref}`source-resolution logic <par-collection-model>`. The
 metadata directory is described in {ref}`psdcuts-metadata-dir`.
 
+(hpge-aoemeanmod-extraction)=
+
+### HPGe A/E mean energy dependence
+
+The `hit` tier centres the simulated single-site A/E band at 1 by subtracting an
+energy-dependent mean, $\mu(E) = a E + b$, from the raw A/E (see
+{ref}`build-tier-hit-hpge`). In LEGEND-200 data the analogous correction is
+derived from the single-site Compton continuum of calibration data. In the
+simulation, the energy dependence of the raw A/E (mostly due to the finite
+extension of the electron tracks) is instead measured directly with an electron
+gun. The chain is separate from the `stp` tier and consists of two rules only,
+sized after the runtime of the tasks:
+
+1. `simulate_electron_gun` (one job by default, see
+   {ref}`aoemeanmod-settings-meta`) builds the production geometry from the
+   experiment's template geometry configuration, renders the _remage_ macro from
+   the configured template (GPS mono-energetic electrons, confined in the bulk
+   of all germanium sensitive volumes of the geometry) and runs _remage_ through
+   its Python API once per electron energy (500 to 3000 keV in 500 keV steps,
+   about one second per thousand electrons after initialisation). The `stp`
+   output files (one per energy) are temporary: they are deleted once consumed
+   by all the extraction jobs. A plot of the primary vertices checks the
+   confinement.
+2. `extract_hpge_aoemean_energy_dependence` (one job per `runid`, since all the
+   PSD inputs are run-dependent) loops over the modelable HPGe detectors of the
+   run and post-processes the electron-gun files with the same active-volume and
+   PSD routines as `build_tier_hit` (drift-time maps, current-pulse model and,
+   if enabled, realistic pulse-shape library of the run), without applying any
+   correction. Electrons are single-site events, so the raw A/E at each energy
+   is summarised by its unbinned mode (the half-sample mode, insensitive to the
+   low-side tail left by escaping or re-absorbed bremsstrahlung; its uncertainty
+   comes from a bootstrap). The modes are fitted with the same linear model and
+   Minuit procedure used on data ({class}`pygama.pargen.AoE_cal.Pol1`), which is
+   the model consumed by the `hit` tier. The per-run model file has the same
+   format as the `aoemeanmod_default` hit-tier setting; a statistics file stores
+   the per-energy modes and widths, and a validation PDF shows the A/E
+   distributions at each energy together with the fit, for every detector.
+
 (hpge-currmod-extraction)=
 
 ### HPGe current-pulse model
@@ -351,11 +389,12 @@ and validates that every simulated detector has the parameters it needs.
 The hard-error vs. fallback policy below applies whenever PSD is simulated and
 differs slightly per observable:
 
-| Observable        | Hard error                                                                                             | Fallback (+ warning) | Fallback key        |
-| ----------------- | ------------------------------------------------------------------------------------------------------ | -------------------- | ------------------- |
-| Energy resolution | ON detector missing entry                                                                              | `off`/`ac` detector  | `eresmod_default`   |
-| A/E resolution    | ON detector with `psd_usability ≠ "missing"` and PSD modelable (dtmap + currmod present) missing entry | all other cases      | `aoeresmod_default` |
-| PSD cuts          | ON detector with `psd_usability ≠ "missing"` and PSD modelable (dtmap + currmod present) missing entry | all other cases      | `psdcuts_default`   |
+| Observable        | Hard error                                                                                             | Fallback (+ warning) | Fallback key         |
+| ----------------- | ------------------------------------------------------------------------------------------------------ | -------------------- | -------------------- |
+| Energy resolution | ON detector missing entry                                                                              | `off`/`ac` detector  | `eresmod_default`    |
+| A/E resolution    | ON detector with `psd_usability ≠ "missing"` and PSD modelable (dtmap + currmod present) missing entry | all other cases      | `aoeresmod_default`  |
+| PSD cuts          | ON detector with `psd_usability ≠ "missing"` and PSD modelable (dtmap + currmod present) missing entry | all other cases      | `psdcuts_default`    |
+| A/E mean model    | never                                                                                                  | missing entry        | `aoemeanmod_default` |
 
 The fallback keys are read from {ref}`hit-tier-settings`. They are never
 triggered when a `default` key is present in the corresponding metadata (cases 3

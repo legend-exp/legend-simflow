@@ -8,6 +8,7 @@ import awkward as ak
 import legenddataflowscripts
 import lh5
 import numpy as np
+import pygeomtools
 import pytest
 import yaml
 from dbetto import AttrsDict
@@ -54,6 +55,19 @@ def test_generate_gdml(config):
     return core.construct(
         use_detailed_fiber_model=False, config=geom_config, public_geometry=True
     )
+
+
+@pytest.fixture(scope="session")
+def test_gdml_file(tmp_path_factory, test_generate_gdml):
+    """Write the test geometry to a GDML file (with the remage detector metadata).
+
+    :func:`pygeomtools.write_pygeom` appends the sensitive-detector auxiliary
+    structure to the registry before writing, which is what the confinement
+    helpers and the tier scripts read back.
+    """
+    path = tmp_path_factory.mktemp("legend_gdml") / "legend-geom.gdml"
+    pygeomtools.write_pygeom(test_generate_gdml, path)
+    return path
 
 
 def make_config():

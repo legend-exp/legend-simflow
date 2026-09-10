@@ -277,6 +277,49 @@ def test_currmod_filenames(config):
     assert result.parent.name == "plots"
 
 
+def test_aoemeanmod_filenames(config):
+    result = p.output_aoemeanmod_filename(config, runid=RUNID)
+    assert isinstance(result, Path)
+    assert RUNID in str(result)
+    assert result.suffix == ".yaml"
+    assert "aoemeanmod" in str(result)
+
+    result = p.output_aoemeanmod_stats_filename(config, runid=RUNID)
+    assert RUNID in str(result)
+    assert result.suffix == ".yaml"
+
+    result = p.plot_aoemeanmod_filename(config, runid=RUNID)
+    assert RUNID in str(result)
+    assert result.suffix == ".pdf"
+    assert result.parent.name == "plots"
+
+    result = p.log_aoemeanmod_filename(config, runid=RUNID)
+    assert RUNID in str(result)
+    assert result.suffix == ".log"
+
+    result = p.benchmark_aoemeanmod_filename(config, runid=RUNID)
+    assert RUNID in str(result)
+    assert result.suffix == ".tsv"
+
+    stp = p.output_electron_gun_stp_filename(config, energy=1500)
+    assert stp.suffix == ".lh5"
+    assert "1500keV" in stp.name
+    assert p.electron_gun_energy_from_path(stp) == 1500
+    with pytest.raises(ValueError):
+        p.electron_gun_energy_from_path("/some/other-file.lh5")
+
+    for func in (
+        p.output_electron_gun_geom_filename,
+        p.output_electron_gun_macro_filename,
+        p.plot_electron_gun_vertices_filename,
+        p.log_electron_gun_stp_filename,
+        p.benchmark_electron_gun_stp_filename,
+    ):
+        result = func(config)
+        assert isinstance(result, Path)
+        assert "electron-gun" in result.name
+
+
 def test_psl_filenames(config):
     result = p.output_ideal_psl_filename(
         config, hpge_detector=DET, hpge_voltage=VOLTAGE

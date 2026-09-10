@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pyg4ometry
 import pytest
 
 from legendsimflow import commands, confine
@@ -95,3 +96,23 @@ def test_get_lar_minishroud_confine_commands(test_generate_gdml):
         confine.get_lar_minishroud_confine_commands(
             test_generate_gdml, inside=False, outer_height_in_mm=2000
         )
+
+
+def test_get_hpge_bulk_confine_commands(test_gdml_file):
+    reg = pyg4ometry.gdml.Reader(str(test_gdml_file)).getRegistry()
+    lines = confine.get_hpge_bulk_confine_commands(reg)
+
+    assert lines[0] == "/RMG/Generator/Confine Volume"
+    volumes = [
+        line.removeprefix("/RMG/Generator/Confinement/Physical/AddVolume ")
+        for line in lines[1:]
+    ]
+    assert len(volumes) > 0
+    # one HPGe physical volume per line, sorted, no regex
+    assert volumes == sorted(volumes)
+    assert all(v[0] in "VPBC" and "*" not in v for v in volumes)
+
+    lines_eval = commands.get_confinement_from_function(
+        "legendsimflow.confine.get_hpge_bulk_confine_commands(<...>)", reg
+    )
+    assert lines_eval == lines
