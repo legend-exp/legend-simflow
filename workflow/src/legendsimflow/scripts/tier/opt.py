@@ -195,6 +195,9 @@ def main() -> None:
         usability: str,
     ) -> None:
         with perf_block("load_optmap()"):
+            # in per-SiPM mode the map is (re)loaded here, once per call, and
+            # released again on return: the per-channel maps are too large to
+            # keep all of them resident for the whole job.
             if not isinstance(optmap_lar, OptmapForConvolve):
                 optmap_lar = reboost.spms.load_optmap(optmap_lar, sipm)
 
@@ -289,7 +292,8 @@ def main() -> None:
     log.debug(msg)
     tcm = lh5.read_as("tcm", stp_file, library="ak")
 
-    # pre load optical map for a little speed up
+    # in combined mode there is a single map, so pre-load it once for a little
+    # speed up. in per-SiPM mode the maps are loaded on demand in process_sipm()
     if not optmap_per_sipm:
         optmap_lar = reboost.spms.load_optmap(optmap_lar, "all")
 
