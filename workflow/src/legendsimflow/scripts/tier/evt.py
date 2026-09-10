@@ -303,6 +303,14 @@ def main() -> None:
             else []
         )
 
+        # placeholders for events with no LAr edep, see below. they only depend
+        # on on_spms_uids, so build them once here as length-1 arrays: ak.where()
+        # broadcasts them over the chunk, no need to materialize one per event
+        empty_energy = ak.Array([[[] for _ in on_spms_uids]])
+        empty_time = ak.Array([[[] for _ in on_spms_uids]])
+        empty_is_saturated = ak.Array([[False for _ in on_spms_uids]])
+        empty_hit_idx = ak.Array([[-1 for _ in on_spms_uids]])
+
         if add_random_coincidences:
             with perf_block("lookup_l200data_evts_for_rc()"):
                 evt_tier_name = utils.get_evt_tier_name(l200data)
@@ -584,7 +592,6 @@ def main() -> None:
 
                 energy_sel = energy[pesel][chansel]
                 # fill in empty arrays for events with no LAr edep
-                empty_energy = ak.Array([[[] for _ in on_spms_uids]] * n_events)
                 energy_sel = ak.where(is_empty_opt, empty_energy, energy_sel)
                 out_table.add_field(
                     "spms/energy",
@@ -594,9 +601,6 @@ def main() -> None:
                 is_saturated = _read_hits(tcm, "opt", "is_saturated")
                 is_saturated_sel = is_saturated[chansel]
                 # fill in Falses for events with no LAr edep
-                empty_is_saturated = ak.Array(
-                    [[False for _ in on_spms_uids]] * n_events
-                )
                 is_saturated_sel = ak.where(
                     is_empty_opt, empty_is_saturated, is_saturated_sel
                 )
@@ -606,14 +610,12 @@ def main() -> None:
 
                 hit_idx = tcm["opt"].row_in_table[chansel]
                 # fill in -1 hit index for events with no LAr edep
-                empty_hit_idx = ak.Array([[-1 for _ in on_spms_uids]] * n_events)
                 hit_idx = ak.where(is_empty_opt, empty_hit_idx, hit_idx)
                 out_table.add_field("spms/hit_idx", VectorOfVectors(hit_idx))
 
                 time = _read_hits(tcm, "opt", "time")
                 time_sel = time[pesel][chansel]
                 # fill in empty arrays for events with no LAr edep
-                empty_time = ak.Array([[[] for _ in on_spms_uids]] * n_events)
                 time_sel = ak.where(is_empty_opt, empty_time, time_sel)
                 out_table.add_field(
                     "spms/time",
