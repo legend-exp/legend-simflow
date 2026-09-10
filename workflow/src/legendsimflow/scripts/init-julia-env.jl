@@ -26,10 +26,11 @@ end
 # refuses to upgrade already-pinned packages; only a fresh resolve honors a
 # bumped compat bound.
 proj = dirname(Base.active_project())
-if Pkg.is_manifest_current(proj) !== true
+manifest = joinpath(proj, "Manifest.toml")
+if !isfile(manifest) || Pkg.is_manifest_current(proj) !== true
     @info("Project.toml changed, regenerating the Julia environment")
     Pkg.Registry.update()
-    rm(joinpath(proj, "Manifest.toml"); force = true)
+    rm(manifest; force = true)
 end
 
 Pkg.instantiate()
