@@ -605,12 +605,10 @@ function compute_ideal_pulse_shape_lib(
 
     @info "Simulating grid (r, z) at angle $(angle_deg)°..."
 
-    @threads for i in 1:n
-        if i % 1000 == 0
-            pct = round(100 * i / n)
-            @info "...simulating $i out of $n ($pct %)"
-        end
+    # count completed iterations across threads, so progress is reported in order
+    n_done = Threads.Atomic{Int}(0)
 
+    @threads for i in 1:n
         p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
 
         e = SSD.Event([p], [sim_energy])
@@ -623,6 +621,12 @@ function compute_ideal_pulse_shape_lib(
         end
 
         wf_signals_threaded[i] = ustrip(add_baseline_and_extend_tail(wf, 0, waveform_length).signal)
+
+        done = Threads.atomic_add!(n_done, 1) + 1
+        if done % 1000 == 0
+            pct = round(100 * done / n)
+            @info "...simulated $done out of $n ($pct %)"
+        end
     end
 
     # Initialize with NaN; pixels outside the detector will remain NaN
@@ -713,12 +717,10 @@ function compute_drift_time_map(
 
     @info "Simulating $n_points energy depositions on grid r=0:$grid_step:$radius, z=0:$grid_step:$height at $(angle_deg)°..."
 
-    @threads for i in 1:n_points
-        if i % 1000 == 0
-            pct = round(100 * i / n_points)
-            @info "...simulating $i / $n_points ($pct%)"
-        end
+    # count completed iterations across threads, so progress is reported in order
+    n_done = Threads.Atomic{Int}(0)
 
+    @threads for i in 1:n_points
         pos = find_valid_spawn_position(inside_detector_idx[i], spawn_positions, sim.detector; verbose = false)
 
         event = SSD.Event([pos], [2039u"keV"])
@@ -726,6 +728,12 @@ function compute_drift_time_map(
 
         wf = get_electron_and_hole_contribution(event, sim, 1).hole_contribution
         drift_times[i] = argmax(diff(ustrip(wf.signal)))
+
+        done = Threads.atomic_add!(n_done, 1) + 1
+        if done % 1000 == 0
+            pct = round(100 * done / n_points)
+            @info "...simulated $done / $n_points ($pct%)"
+        end
     end
 
     # Build drift time matrix (r × z layout)
