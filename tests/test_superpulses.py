@@ -13,6 +13,7 @@ from lgdo import Array, Scalar, Struct
 from legendsimflow.superpulses import (
     Slice,
     Superpulse,
+    _get_dsp_config,
     _get_nested_field,
     compute_chi2,
     get_wfs_for_slice,
@@ -104,6 +105,20 @@ dsp = {
         },
     }
 }
+
+# ===========================================================================
+# DSP config
+# ===========================================================================
+
+
+def test_get_dsp_config_does_not_mutate_input():
+    original = copy.deepcopy(dsp)
+
+    config = _get_dsp_config(dsp)
+
+    assert dsp == original
+    assert config["processors"]["curr"]["function"] == "avg_current"
+
 
 # ===========================================================================
 # Slice
