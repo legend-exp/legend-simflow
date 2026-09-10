@@ -208,6 +208,15 @@ def test_dtmap_stuff(config):
         assert p in par_plots
     assert len(agg.gen_list_of_all_plots_outputs(config, "par")) >= 1
 
+    # the cached path (the one the workflow takes) must agree with the
+    # metadata-querying one
+    cache = agg.build_hpge_modeling_cache(config)
+    assert cache[runid] == {"V99000A": {"operational_voltage_in_V": 4200}}
+    assert agg.gen_list_of_dtmap_plots_outputs(
+        config, simid, cache=cache
+    ) == agg.gen_list_of_dtmap_plots_outputs(config, simid)
+    assert agg.gen_list_of_plots_outputs(config, "par", simid, cache=cache) == par_plots
+
 
 def test_hpge_ssd_modeling_info_aggregation(fresh_config, tmp_path):
     config = fresh_config
