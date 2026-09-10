@@ -90,7 +90,7 @@ def fig(table):
             ax,
             color="tab:red",
             label="energy > 100 keV",
-            n_nans=n_nans(data.psd.single_temp.aoe_corr),
+            n_nans=n_nans(aoe_raw),
         )
         if plotted:
             ax.legend()
@@ -111,7 +111,7 @@ def fig(table):
             ax,
             color="tab:orange",
             label="energy > 100 keV",
-            n_nans=n_nans(data.psd.single_temp.drift_time_amax),
+            n_nans=n_nans(dt),
         )
         if plotted:
             ax.legend()
