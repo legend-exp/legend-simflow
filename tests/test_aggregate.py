@@ -17,10 +17,6 @@ def test_simid_aggregates(fresh_config):
     config = fresh_config
     assert agg.get_simid_njobs(config, "birds_nest_K40") == 2
 
-    val = agg.gen_list_of_simid_inputs(config, "stp", "birds_nest_K40")
-    assert isinstance(val, list)
-    assert len(val) == 1
-
     val = agg.gen_list_of_simid_outputs(config, "stp", "birds_nest_K40")
     assert isinstance(val, list)
     assert len(val) == 2

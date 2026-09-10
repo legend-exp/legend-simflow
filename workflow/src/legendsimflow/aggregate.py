@@ -58,14 +58,6 @@ def get_simid_njobs(config: SimflowConfig, simid: str) -> int:
     return get_simconfig(config, "stp", simid=simid, field="number_of_jobs")
 
 
-def gen_list_of_simid_inputs(
-    config: SimflowConfig, tier: str, simid: str
-) -> list[Path]:
-    """Generate the list of input files for a `tier.simid`."""
-    n_jobs = get_simid_njobs(config, simid)
-    return patterns.input_simid_filenames(config, n_jobs, tier=tier, simid=simid)
-
-
 def gen_list_of_simid_outputs(
     config: SimflowConfig, tier: str, simid: str, max_files: int | None = None
 ) -> list[Path]:

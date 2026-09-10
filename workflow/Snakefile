@@ -21,7 +21,7 @@ import time
 from snakemake.logging import logger
 from dbetto import AttrsDict
 
-from legendsimflow import aggregate, nersc, utils
+from legendsimflow import aggregate, utils
 
 
 logger.info("Initializing workflow context")
@@ -35,10 +35,6 @@ make_steps = utils.sorted_by(make_steps, aggregate.STEPS_ORDERED)
 config["make_steps"] = make_steps
 
 logger.info("Done! Handing it over to Snakemake")
-
-
-def dvs_ro(x):
-    return nersc.dvs_ro(config, x)
 
 
 wildcard_constraints:

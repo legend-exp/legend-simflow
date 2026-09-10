@@ -189,19 +189,6 @@ def output_simjob_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(config.paths.tier[tier] / fname, **kwargs)
 
 
-def output_simjob_regex(config: SimflowConfig, **kwargs) -> str:
-    """A glob-style regex matching all output files for a `tier`."""
-    tier = kwargs.get("tier")
-
-    if tier is None:
-        msg = "the 'tier' argument is mandatory"
-        raise RuntimeError(msg)
-
-    fname = config.experiment + "-*-tier_{tier}.lh5"
-    expr = str(config.paths.tier[tier] / "{simid}" / fname)
-    return _expand(expr, **kwargs)
-
-
 def input_simid_filenames(config: SimflowConfig, n_macros, **kwargs) -> list[Path]:
     """Returns the full path to `n_macros` input files for a `simid`.
 
