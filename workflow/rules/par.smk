@@ -17,7 +17,7 @@
 
 from pathlib import Path
 
-from legendsimflow import aggregate, hpge_pars, patterns
+from legendsimflow import aggregate, patterns
 from legendsimflow.metadata import get_par_settings
 
 
@@ -381,30 +381,6 @@ rule merge_hpge_realistic_psls:
         """
 
 
-def smk_extract_current_pulse_model_inputs(wildcards):
-    """Prepare inputs for the HPGe current model extraction rule."""
-    raw_file, wf_idx, dsp_cfg_file = hpge_pars.find_current_pulse_model_inputs(
-        config,
-        wildcards.runid,
-        wildcards.hpge_detector,
-        hit_tier_name="hit",
-        use_hpge_name="true",
-    )
-
-    evt_idx_file = patterns.input_currmod_evt_idx_file(
-        config, runid=wildcards.runid, hpge_detector=wildcards.hpge_detector
-    )
-
-    with evt_idx_file.open("w") as f:
-        f.write(wf_idx)
-
-    return {
-        "raw_file": raw_file,
-        "raw_wf_idx_file": evt_idx_file,
-        "dsp_cfg_file": dsp_cfg_file,
-    }
-
-
 rule extract_current_pulse_model:
     """Extract the HPGe current-pulse model.
 
@@ -424,8 +400,6 @@ rule extract_current_pulse_model:
         "Extracting current model for detector {wildcards.hpge_detector} in {wildcards.runid}"
     # NOTE: we don't list the file dependencies here because they are
     # dynamically generated, and that would slow down the DAG generation
-    # input:
-    #     unpack(smk_extract_current_pulse_model_inputs),
     params:
         # track l200data so the rule reruns when it changes: inputs are
         # discovered dynamically and not listed above
