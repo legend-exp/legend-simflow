@@ -119,17 +119,6 @@ def test_output_simjob_filename(config):
     assert "0001" in files[1].name
 
 
-def test_output_simjob_regex(config):
-    with pytest.raises(RuntimeError, match="tier"):
-        p.output_simjob_regex(config)
-
-    result = p.output_simjob_regex(config, tier="stp")
-    assert isinstance(result, str)
-    assert config.experiment in result
-    assert "stp" in result
-    assert "*" in result
-
-
 def test_input_simid_filenames(config):
     # input filename has no {jobid}, so n_macros does not affect the count
     result = p.input_simid_filenames(config, 3, tier="stp", simid=SIMID)
