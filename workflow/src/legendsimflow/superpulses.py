@@ -1289,10 +1289,20 @@ def plot_current_superpulses_fwhm_and_amplitude(
             continue
 
         il = left[-1]
+        ir = right[0]
+
+        # sign_changes comes from np.diff(), so il + 1 and ir + 1 are always in
+        # bounds. The interpolation slope can still vanish, if two consecutive
+        # samples sit exactly at half maximum
+        if shifted[il + 1] == shifted[il] or shifted[ir + 1] == shifted[ir]:
+            log.warning(
+                "slice %s: half-max crossing is not interpolable, skipping", group
+            )
+            continue
+
         t_left = times[il] - shifted[il] * (times[il + 1] - times[il]) / (
             shifted[il + 1] - shifted[il]
         )
-        ir = right[0]
         t_right = times[ir] - shifted[ir] * (times[ir + 1] - times[ir]) / (
             shifted[ir + 1] - shifted[ir]
         )
