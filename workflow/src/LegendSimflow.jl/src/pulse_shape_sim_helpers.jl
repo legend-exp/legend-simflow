@@ -637,7 +637,8 @@ function compute_ideal_pulse_shape_lib(
         raw_signal = wf_signals_threaded[i]
         isempty(raw_signal) && continue
 
-        # Normalize charge waveforms so that their amplitude (energy) = 1
+        # Normalize charge waveforms so that their amplitude (energy) = 1.
+        # The signal is never negative, so the guard only catches all-zero waveforms.
         max_val = maximum(raw_signal)
         signal = max_val > 0 ? raw_signal ./ max_val : raw_signal
         wf_padded[:, idx[2], idx[1]] = signal
