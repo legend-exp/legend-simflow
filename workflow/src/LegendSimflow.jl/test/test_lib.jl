@@ -4,7 +4,6 @@ using SolidStateDetectors
 using LegendSimflow
 using LinearAlgebra  # for norm
 using PropDicts
-using RadiationDetectorDSP
 using Unitful
 using LegendDataManagement
 
@@ -117,27 +116,6 @@ end
 
     @test size(wf_map.waveform_000_deg) == (5000, length(wf_map.z), length(wf_map.r))
 
-end
-
-@testset "extract_drift_time_from_waveform" begin
-    convergence_threshold = 1 - 1e-6
-    intersect_op = Intersect(mintot = 0)
-
-    # Waveform that ramps from 0 to 1 then holds at plateau
-    n = 100
-    wf_positive = vcat(collect(1:50) ./ 50.0, ones(50))
-
-    dt = extract_drift_time_from_waveform(wf_positive, convergence_threshold, intersect_op)
-
-    @test isa(dt, Real)
-    @test 1 <= dt <= n
-
-    # Negative waveform: negation is handled internally and should give the same result
-    wf_negative = -wf_positive
-    dt_neg = extract_drift_time_from_waveform(wf_negative, convergence_threshold, intersect_op)
-
-    @test isa(dt_neg, Real)
-    @test dt_neg == dt
 end
 
 @testset "extend_drift_time_map" begin

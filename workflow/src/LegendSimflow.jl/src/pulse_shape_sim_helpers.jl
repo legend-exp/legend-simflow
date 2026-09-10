@@ -20,7 +20,6 @@ using SolidStateDetectors
 using Unitful
 using Base.Threads
 using LinearAlgebra
-using RadiationDetectorDSP
 using LegendDataManagement
 using Printf
 using PropDicts
@@ -61,63 +60,6 @@ function load_detector_metadata(meta_path::String, det::String, opv_val::Union{R
     xtal = readprops("$meta_path/hardware/detectors/germanium/crystals/$crystal.yaml")
 
     return meta, xtal, opv_val
-end
-
-
-"""
-    extract_drift_time_from_waveform(wf::AbstractVector{<:Real}, convergence_threshold::Real, intersect_op::Intersect)
-
-Extract the drift time from a charge waveform using intersection-based analysis.
-
-# Arguments
-- `wf`: Waveform signal array (unitless)
-- `convergence_threshold`: Fraction of collected charge to define convergence (e.g., 1 - 1e-6)
-- `intersect_op`: An `Intersect` operator from RadiationDetectorDSP
-
-# Returns
-- `Int`: Drift time in samples
-"""
-function extract_drift_time_from_waveform(
-    wf::AbstractVector{<:Real},
-    convergence_threshold::Real,
-    intersect_op::Intersect
-)::Int
-    collected_charge = wf[argmax(abs.(wf))]
-
-    # Handle rare case where electron drift dominates and holes are stuck
-    if collected_charge < 0
-        wf = wf .* -1  # Create negated copy for Intersect compatibility
-        collected_charge *= -1
-    end
-
-    threshold_level = convergence_threshold * collected_charge
-    intersection = intersect_op(wf, threshold_level)
-    dt_intersection = ceil(Int, intersection.x)
-    dt_fallback = length(wf)
-    dt_diff = dt_fallback - dt_intersection
-
-    dt = if intersection.multiplicity > 0
-        if dt_diff > 2
-            # Check intersection again with stricter mintot
-            intersect_recheck = Intersect(mintot = dt_diff)
-            intersection2 = intersect_recheck(wf, threshold_level)
-            if intersection2.multiplicity > 0
-                # Monotonic waveforms converging slowly
-                dt_intersection
-            else
-                # Non-monotonic waveforms
-                dt_fallback
-            end
-        else
-            # Intersection at waveform end (drift length and convergence agree)
-            dt_intersection
-        end
-    else
-        # No intersection found
-        dt_fallback
-    end
-
-    return dt
 end
 
 
@@ -765,8 +707,6 @@ function compute_drift_time_map(
     # Simulation parameters
     time_step = T(1)u"ns"
     max_nsteps = 10000
-    convergence_threshold = 1 - 1e-6
-    intersect_op = Intersect(mintot = 0)
 
     n_points = length(inside_detector_idx)
     drift_times = Vector{Int}(undef, n_points)
