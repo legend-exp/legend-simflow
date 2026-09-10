@@ -345,8 +345,8 @@ def process_ideal_waveforms(
     aligned_currents
         Aligned current waveforms, shape ``(n_wfs, nsamples_output)``.
     current_peak_indices
-        Index of the current peak for each waveform before MWA
-        and alignment, shape ``(n_wfs,)``.
+        Index of the current peak for each waveform after MWA and before
+        alignment, shape ``(n_wfs,)``.
 
     """
     convolved = ak.to_numpy(
@@ -358,9 +358,6 @@ def process_ideal_waveforms(
     # Derivative (charge -> current), scaled to data sampling units
     current = np.diff(convolved, axis=-1, prepend=0) * (dt_data / dt)
 
-    # Record peak indices before MWA
-    current_peak_indices = np.argmax(current, axis=1)
-
     # Moving window average
     mwa_out = np.zeros_like(current, dtype=dtype)
     moving_window_multi(
@@ -371,14 +368,19 @@ def process_ideal_waveforms(
         mwa_out,
     )
 
+    # Record peak indices after MWA: this is both the reference used for the
+    # alignment below and the analogue of tp_aoe_max, which the production DSP
+    # chain extracts from the moving-window-averaged current (curr_av)
+    current_peak_indices = np.argmax(mwa_out, axis=1)
+
     aligned_currents, _ = align_waveforms_to_peak(
-        mwa_out, alignment_idx, nsamples_output, peak_indices=np.argmax(mwa_out, axis=1)
+        mwa_out, alignment_idx, nsamples_output, peak_indices=current_peak_indices
     )
     aligned_charges, _ = align_waveforms_to_peak(
         convolved,
         alignment_idx,
         nsamples_output,
-        peak_indices=np.argmax(mwa_out, axis=1),
+        peak_indices=current_peak_indices,
     )
     if return_mode == "current":
         return aligned_currents, current_peak_indices
