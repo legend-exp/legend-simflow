@@ -478,6 +478,8 @@ def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> li
     - runids in the form accepted by :func:`is_runid`;
     - runlist DB queries in the form ``<tag>.<datatype>.<period>`` (see
       :func:`query_runlist_db`).
+
+    The returned list is sorted and free of duplicates.
     """
     if not isinstance(runlist, list | tuple):
         runlist = [runlist]
@@ -492,7 +494,11 @@ def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> li
                 raise ValueError(msg)
 
             runs.append(item)
-    return sorted(runs)
+
+    # deduplicate: the same runid can be listed explicitly and also be part of a
+    # runlist DB query. duplicates would silently corrupt the event partitioning
+    # downstream (see partitioning.partition_simstat)
+    return sorted(set(runs))
 
 
 def get_runlist(config: SimflowConfig, simid: str) -> list[str]:

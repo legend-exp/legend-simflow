@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from legendsimflow.partitioning import partition_simstat
 
 
@@ -39,3 +41,17 @@ def test_partition_simstat_unsorted_runlist():
     assert partition_simstat(
         n_events, n_events_part, sorted_runlist
     ) == partition_simstat(n_events, n_events_part, reversed_runlist)
+
+
+def test_partition_simstat_rejects_duplicate_runids():
+    n_events = {"job_000": 10, "job_001": 10}
+    n_events_part = {
+        "l200-p03-r001-phy": 5,
+        "l200-p03-r002-phy": 10,
+        "l200-p03-r003-phy": 5,
+    }
+    # a duplicate would be visited twice and silently overwrite the first chunk
+    runlist = [*n_events_part.keys(), "l200-p03-r002-phy"]
+
+    with pytest.raises(ValueError, match="duplicate runids"):
+        partition_simstat(n_events, n_events_part, runlist)

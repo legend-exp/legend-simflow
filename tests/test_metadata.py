@@ -84,6 +84,14 @@ def test_run_stuff(config):
         config.metadata, ["~runlists:valid.phy.p02", "~runlists:valid.cal.p02"]
     ) == sorted([f"l200-p02-r00{r}-{dt}" for r in range(8) for dt in ("phy", "cal")])
 
+    # duplicates (explicit runid also matched by a runlist DB query) are removed
+    assert metadata.expand_runlist(
+        config.metadata, ["~runlists:valid.phy.p02", "l200-p02-r003-phy"]
+    ) == [f"l200-p02-r00{r}-phy" for r in range(8)]
+    assert metadata.expand_runlist(
+        config.metadata, ["l200-p02-r000-phy", "l200-p02-r000-phy"]
+    ) == ["l200-p02-r000-phy"]
+
     assert metadata.get_runlist(config, "exotic_physics_hpge") == config.runlist
     assert metadata.get_runlist(config, "phbr_surface_Ra228_to_Ac228") == [
         "l200-p02-r000-phy",

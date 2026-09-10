@@ -14,6 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping
 
 
@@ -64,10 +65,22 @@ def partition_simstat(
 
     runlist
         list of runs in the form ``<experiment>-<period>-<run>-<datatype>``.
+        Must not contain duplicates.
 
+    Raises
+    ------
+    ValueError
+        if `runlist` contains duplicate runids.
     """
     # sort runids to guarantee sequential partitioning
     runlist = sorted(runlist)
+
+    # a duplicated runid would be visited twice in the inner loop below and the
+    # second chunk would silently overwrite the first one in job_partitions
+    duplicates = sorted(r for r, n in Counter(runlist).items() if n > 1)
+    if duplicates:
+        msg = f"runlist contains duplicate runids: {duplicates}"
+        raise ValueError(msg)
 
     # remaining events per run to allocate across jobs
     remaining_run_events = dict(n_events_part)
