@@ -1,5 +1,7 @@
+from functools import partial
+
 from legendsimflow import patterns, aggregate
-from legendsimflow.metadata import get_tier_settings
+from legendsimflow.metadata import deferred_tier_setting, get_tier_settings
 
 _evt_settings = get_tier_settings(config, "evt")
 _skip_opt = _evt_settings.get("skip_opt", False)
@@ -8,11 +10,7 @@ _skip_hit = _evt_settings.get("skip_hit", False)
 if _skip_opt and _skip_hit:
     raise WorkflowError("evt: skip_opt and skip_hit cannot both be True")
 
-
-def _tier_setting(tier, key):
-    return lambda wc: config.metadata.simprod.config.tier[tier][
-        config.experiment
-    ].settings[key]
+_tier_setting = partial(deferred_tier_setting, config)
 
 
 rule gen_all_tier_evt:
