@@ -209,9 +209,25 @@ def test_remage_cli(fresh_config):
         ).as_posix()
     )
 
-    cmd = commands.remage_run(config, "birds_nest_K40", tier="stp", macro_free=True)
+    cmd = commands.remage_run(
+        config, "birds_nest_K40", tier="stp", geom="/some/geom.gdml", macro_free=True
+    )
     mac_cmds = shlex.split(cmd.partition(" -- ")[2])
     assert all(cmd[0] == "/" for cmd in mac_cmds)
+
+    # macro_free renders the macro here and now, so geom must be a real path
+    with pytest.raises(ValueError, match="Snakemake placeholder"):
+        commands.remage_run(config, "birds_nest_K40", tier="stp", macro_free=True)
+
+    # a path that merely contains braces is not a placeholder
+    cmd = commands.remage_run(
+        config,
+        "birds_nest_K40",
+        tier="stp",
+        geom="/some/geom{v1}.gdml",
+        macro_free=True,
+    )
+    assert "/some/geom{v1}.gdml" in shlex.split(cmd.partition(" -- ")[0])
 
     config.benchmark.enabled = True
     config.benchmark.n_primaries.stp = 999

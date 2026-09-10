@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import re
 import shlex
 from copy import copy
 from pathlib import Path
@@ -88,7 +89,8 @@ def remage_run(
     tier
         Simulation tier (e.g., ``"stp"``, ``"ver"``). Default is ``"stp"``.
     geom
-        Path (or Snakemake placeholder) to the GDML geometry file.
+        Path (or Snakemake placeholder) to the GDML geometry file. Must be an
+        actual path if `macro_free` is True.
     procs
         Number of threads to pass to remage (integer or Snakemake placeholder).
         Internally uses remage's ``--procs``.
@@ -101,6 +103,11 @@ def remage_run(
     Returns
     -------
     A shell-escaped command line suitable for direct execution.
+
+    Raises
+    ------
+    ValueError
+        if `macro_free` is True but `geom` is still a Snakemake placeholder.
 
     """
     if not isinstance(output, Path):
@@ -115,6 +122,15 @@ def remage_run(
 
     # get macro
     if macro_free:
+        # the macro is rendered here and now, so a Snakemake placeholder would
+        # be passed verbatim to e.g. the GDML reader of a ~function: confinement
+        if re.fullmatch(r"\{[^{}]*\}", str(geom)):
+            msg = (
+                f"geom={str(geom)!r} is a Snakemake placeholder, but macro_free=True "
+                "requires an actual path to the GDML geometry file"
+            )
+            raise ValueError(msg)
+
         macro_text, _ = make_remage_macro(config, simid, tier=tier, geom=geom)
 
     # need some modifications if this is a benchmark run
