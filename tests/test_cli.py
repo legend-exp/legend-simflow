@@ -142,6 +142,22 @@ def test_nersc_cli_simlist_partitioned(tmp_path, monkeypatch, capsys):
     assert out.count("would spawn") == 2
 
 
+def test_nersc_cli_skips_empty_chunks(tmp_path, monkeypatch, capsys):
+    """No worker is spawned with an empty simlist when nodes exceed simlist items."""
+    _make_nersc_config(tmp_path, simlist=["stp.s1", "stp.s2"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys, "argv", ["snakemake-nersc", "-N", "5", "--no-submit", "--without-srun"]
+    )
+    with patch("legendsimflow.cli.LegendMetadata"):
+        snakemake_nersc_cli()
+    out = capsys.readouterr().out
+    # one process per simlist item, none for the three leftover nodes
+    assert out.count("would spawn") == 2
+    assert "simlist=\n" not in out
+    assert "simlist= " not in out
+
+
 # ---------------------------------------------------------------------------
 # snakemake_nersc_batch_cli
 # ---------------------------------------------------------------------------

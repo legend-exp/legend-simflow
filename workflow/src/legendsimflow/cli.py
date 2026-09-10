@@ -112,8 +112,18 @@ def snakemake_nersc_cli():
     simlist = list(simlist)  # make a copy so we don't modify the input simlist in place
     random.shuffle(simlist)
 
+    chunks = [chunk for chunk in _partition(simlist, args.nodes) if chunk]
+    if len(chunks) < args.nodes:
+        log.warning(
+            "only %d simlist item(s) to distribute over %d nodes, "
+            "spawning just %d snakemake process(es)",
+            len(simlist),
+            args.nodes,
+            len(chunks),
+        )
+
     procs = []
-    for simlist_chunk in _partition(simlist, args.nodes):
+    for simlist_chunk in chunks:
         smk_cmd = [
             "snakemake",
             "--workflow-profile",
