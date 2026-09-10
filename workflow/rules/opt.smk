@@ -1,13 +1,12 @@
+from functools import partial
+
 from dbetto.utils import load_dict
 
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
+from legendsimflow.metadata import deferred_tier_setting
 
-
-def _tier_setting(tier, key):
-    return lambda wc: config.metadata.simprod.config.tier[tier][
-        config.experiment
-    ].settings[key]
+_tier_setting = partial(deferred_tier_setting, config)
 
 
 rule gen_all_tier_opt:

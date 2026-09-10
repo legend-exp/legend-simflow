@@ -201,6 +201,18 @@ def test_get_tier_settings_hit(config):
     assert settings.buffer_len == "500*MB"
 
 
+def test_deferred_tier_setting(config):
+    """deferred_tier_setting defers the lookup to call time."""
+    getter = metadata.deferred_tier_setting(config, "hit", "dead_layer_fraction")
+
+    # nothing is looked up before the callable is invoked with the wildcards
+    assert callable(getter)
+    assert getter(None) == 0.5
+
+    with pytest.raises(KeyError):
+        metadata.deferred_tier_setting(config, "hit", "not-a-setting")(None)
+
+
 def test_get_tier_settings_evt(config):
     """get_tier_settings returns the settings object for the evt tier."""
     settings = metadata.get_tier_settings(config, "evt")

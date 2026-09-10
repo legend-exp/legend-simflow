@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 
 import lh5
@@ -95,6 +95,16 @@ def get_simconfig(
 def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
     """Return the settings block for *tier* and the current experiment."""
     return config.metadata.simprod.config.tier[tier][config.experiment].settings
+
+
+def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:
+    """Make a Snakemake ``params:`` callable resolving a tier setting lazily.
+
+    The lookup is deferred to rule-evaluation time, i.e. it is only performed
+    for the rules that actually end up in the DAG. Bind `config` with
+    :func:`functools.partial` in the rule files.
+    """
+    return lambda wildcards: get_tier_settings(config, tier)[key]  # noqa: ARG005
 
 
 def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
