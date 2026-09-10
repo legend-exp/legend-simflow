@@ -309,7 +309,9 @@ rule convolve_hpge_ideal_pulse_shape_lib:
     | `waveform_<angle>_deg`   | `Array` (3D) |       | Processed, normalised current waveforms at azimuth `<angle>`, shape `(n_r, n_z, n_samples)`; NaN outside the detector. |
     | `drift_time_<angle>_deg` | `Array` (2D) | ns    | Drift time per `(r, z)` pixel at azimuth `<angle>`, shape `(n_r, n_z)`; NaN outside the detector.       |
 
-    The current-waveform sample times are `t_i = t0 + i * dt`.
+    The current-waveform sample times are `t_i = t0 + i * dt`. The drift time
+    is the filtered-current peak (the alignment sample, like `tp_aoe_max` in
+    data) measured from the energy deposition time; electronics delays are kept.
 
     Uses wildcards `runid` and `hpge_detector`.
     """

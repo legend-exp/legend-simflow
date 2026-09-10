@@ -326,7 +326,12 @@ def test_make_realistic_pulse_shape_lib_dtype(dtype):
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     kwargs = {} if dtype is None else {"dtype": np.dtype(dtype)}
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, **kwargs
+        ideal_psl,
+        kernel,
+        500,
+        1000,
+        mw_pars=_MW_PARS,
+        **kwargs,
     )
 
     # float32 by default, and the toggle is honored
@@ -417,3 +422,57 @@ def test_process_ideal_waveforms():
     assert np.all(np.max(aligned, axis=1) > 0)
     # Peak indices must reflect the different step positions
     assert np.all(np.diff(peak_indices) > 0)
+
+
+def test_electronics_response_kernel_t0():
+    # a nearly causal kernel (tiny sigma) has all its mass from t=0 onwards,
+    # while its maximum sits later than t=0
+    t0 = 200  # -2 * kernel_start for the default kernel
+    kernel = psl.build_electronics_response_kernel(1, 0, 0.3, 40)
+    assert kernel[:t0].sum() < 1e-3
+    assert kernel[t0] > 0
+    assert np.argmax(kernel) >= t0
+    # a wide gaussian makes the kernel non-causal: mass before t=0
+    kernel = psl.build_electronics_response_kernel(1, 0, 13, 40)
+    assert kernel[:t0].sum() > 0.05
+
+
+def test_make_realistic_pulse_shape_lib_drift_time_origin():
+    # step charge waveforms: the current is a delta at the step, so with a
+    # delta-like kernel and no smoothing the drift time is the step time
+    n_samples = 3000
+    steps = [400, 700, 1300]
+    wfs = np.zeros((1, len(steps), n_samples), dtype=np.float32)
+    for i, t_step in enumerate(steps):
+        wfs[0, i, t_step:] = 1.0
+    ideal_psl = {
+        "r": Array([0.01], attrs={"units": "m"}),
+        "z": Array([0.0, 0.01, 0.02], attrs={"units": "m"}),
+        "waveform_000_deg": Array(wfs),
+        "dt": Scalar(1, attrs={"units": "ns"}),
+    }
+    no_mwa = {"length": 1, "num_mw": 1, "mw_type": 0}
+
+    for gaussian_only in (True, False):
+        kernel = psl.build_electronics_response_kernel(
+            1, 0, 0.3, 40, gaussian_only=gaussian_only
+        )
+        t0_idx = 100 if gaussian_only else 200
+        out = psl.make_realistic_pulse_shape_lib(
+            ideal_psl, kernel, 1000, 2001, mw_pars=no_mwa, kernel_t0_idx=t0_idx
+        )
+        assert np.array_equal(out["drift_time_000_deg"].view_as("np")[0], steps)
+
+    # with the production MWA the peak is delayed by the filter: the drift
+    # time still increases with the step time and stays within the filter span
+    kernel = psl.build_electronics_response_kernel(1, 0, 0.3, 40)
+    out = psl.make_realistic_pulse_shape_lib(
+        ideal_psl,
+        kernel,
+        1000,
+        2001,
+        mw_pars=psl.MW_PARS,
+    )
+    drift = out["drift_time_000_deg"].view_as("np")[0]
+    assert np.all(np.diff(drift) > 0)
+    assert np.all((drift - steps >= 0) & (drift - steps <= 3 * psl.MW_PARS["length"]))
