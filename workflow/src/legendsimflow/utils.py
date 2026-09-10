@@ -40,6 +40,7 @@ from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import SimflowConfig, nersc
+from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
 
@@ -612,9 +613,30 @@ def check_nans_leq(
         raise RuntimeError(msg)
 
 
-def sorted_by(subset: Sequence, order: Sequence) -> list:
-    """Sort a sequence according to a specified order, dropping duplicates."""
+def sorted_by(subset: Sequence, order: Sequence, block: str | None = None) -> list:
+    """Sort a sequence according to a specified order, dropping duplicates.
+
+    Parameters
+    ----------
+    subset
+        the sequence to sort. Every item must be present in `order`.
+    order
+        the reference sequence defining the wanted order.
+    block
+        name of the configuration block `subset` comes from, used to build the
+        error message if `subset` contains unknown items.
+
+    Raises
+    ------
+    SimflowConfigError
+        if `subset` contains items that are not in `order`.
+    """
     pos = {k: i for i, k in enumerate(order)}
+
+    unknown = [k for k in dict.fromkeys(subset) if k not in pos]
+    if unknown:
+        msg = f"invalid item(s) {unknown}, valid ones are {list(pos)}"
+        raise SimflowConfigError(msg, block)
 
     # stable sort by order
     out = sorted(subset, key=pos.__getitem__)

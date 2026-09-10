@@ -31,7 +31,7 @@ config = SIMFLOW_CONTEXT.config
 
 # sanitize the make_steps field
 make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)
-make_steps = utils.sorted_by(make_steps, aggregate.STEPS_ORDERED)
+make_steps = utils.sorted_by(make_steps, aggregate.STEPS_ORDERED, "make_steps")
 config["make_steps"] = make_steps
 
 logger.info("Done! Handing it over to Snakemake")
