@@ -465,6 +465,7 @@ def gen_list_of_all_usabilities(
           'l200-p03-r000-phy': {
             'V00048A': {
               'usability': 'on',
+              'daq_rawid': 1104000,
               'psd_usability': 'valid',
               'crystal_metadata_usability': 'valid',
             },
@@ -472,6 +473,11 @@ def gen_list_of_all_usabilities(
           },
           ...
         }
+
+    ``daq_rawid`` is the ``daq.rawid`` field in the channel map of the run. It
+    changes when channels are recabled, and is used to match random-coincidence
+    data to the simulated channels. The runs random coincidences are drawn from
+    (``random_coincidence_runid`` in the evt tier settings) are included.
 
     ``psd_usability`` is the ``psd.status.low_aoe`` field in the channel map
     status for germanium detectors (encoded later via
@@ -493,6 +499,12 @@ def gen_list_of_all_usabilities(
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
 
+    rc_runid = get_tier_settings(config, "evt").get("random_coincidence_runid")
+    if isinstance(rc_runid, Mapping):
+        all_runids.update(rc_runid.values())
+    elif rc_runid is not None:
+        all_runids.add(rc_runid)
+
     out_dict = {}
     for runid in all_runids:
         out_dict[runid] = {}
@@ -502,7 +514,7 @@ def gen_list_of_all_usabilities(
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability
 
-                entry = {"usability": usability}
+                entry = {"usability": usability, "daq_rawid": chmap[chname].daq.rawid}
                 if chmap[chname].system == "geds":
                     psd_usability = "valid"
                     try:
