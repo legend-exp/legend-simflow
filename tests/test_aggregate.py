@@ -365,11 +365,13 @@ def test_usability_harvesting(config):
     assert usability["l200-p02-r000-phy"] == {
         "V99000A": {
             "usability": "on",
+            "daq_rawid": 1234568,
             "psd_usability": "valid",
             "crystal_metadata_usability": "valid",
         },
         "B99000A": {
             "usability": "off",
+            "daq_rawid": 1234569,
             "psd_usability": "missing",
             "crystal_metadata_usability": "valid",
         },
