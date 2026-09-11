@@ -402,7 +402,8 @@ def make_realistic_pulse_shape_lib(
     mw_pars: dict[str, float | int],
     dt_data: float = 1.0,
     dtype: np.dtype = WF_DTYPE,
-    kernel_t0_idx: int = 200,
+    *,
+    kernel_t0_idx: int,
 ) -> dict[str, Array | Scalar]:
     """Apply the waveform post-processing chain to generate a realistic waveform map.
 
@@ -447,8 +448,8 @@ def make_realistic_pulse_shape_lib(
         Floating-point type of the waveform and drift-time samples, both in
         memory and in the output library.
     kernel_t0_idx
-        Index of ``t=0`` in `rf_kernel`, ``-2 * kernel_start`` of
-        :func:`build_electronics_response_kernel` (200 for its defaults).
+        Index of ``t=0`` in `rf_kernel`, ``-2 * kernel_start`` for
+        :func:`build_electronics_response_kernel`.
 
     Returns
     -------
