@@ -23,8 +23,8 @@ from matplotlib import colormaps
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
+from legendsimflow import hpge_pars, utils
 from legendsimflow import metadata as mutils
-from legendsimflow import utils
 
 log = logging.getLogger(__name__)
 
@@ -515,8 +515,8 @@ def get_wfs_for_slice(
 ) -> AttrsDict | None:
     """Extract aligned charge and current waveforms for a set of slice events.
 
-    Uses the DSP processing chain via ``WaveformBrowser``. After alignment each
-    event has the same sampling rate and number of samples but a different
+    Runs the DSP chain with :func:`.hpge_pars.get_dsp_outputs`. After alignment
+    each event has the same sampling rate and number of samples but a different
     x-offset. This function collects all events, finds the overlapping time
     region, and trims every waveform to that common window.
 
@@ -559,64 +559,43 @@ def get_wfs_for_slice(
         energy
             Energy estimator for each event, shape ``(n_valid,)``.
     """
-    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
+    dsp = hpge_pars.get_dsp_outputs(
+        raw_files,
+        lh5_group,
+        hit_indices,
+        file_indices,
+        dsp_config=_get_dsp_config(dsp_config),
+        outputs=[charge_output, current_output, bl_output, energy_output],
+        align=align,
+    )
+    charge, current = dsp[charge_output], dsp[current_output]
 
-    dsp = _get_dsp_config(dsp_config)
-
+    # First pass: collect valid events with their x- and y-data
     waveforms = []
-    for file_idx in np.unique(file_indices):
-        indices = [
-            int(idx)
-            for idx in np.array(hit_indices)[np.array(file_indices) == file_idx]
-        ]
+    for i, energy in enumerate(dsp[energy_output].tolist()):
+        charge_y = charge.values[i] / energy
+        current_y = current.values[i] / energy
 
-        if len(indices) == 0:
+        if np.any(np.isnan(charge_y)) or np.any(np.isnan(current_y)):
+            log.debug("event %d: NaN in waveform, skipping", i)
             continue
 
-        browser = WaveformBrowser(
-            str(raw_files[file_idx]),
-            lh5_group,
-            dsp_config=dsp,
-            lines=[charge_output, current_output, bl_output, energy_output],
-            align=align,
-        )
-
-        browser.find_entry(indices, append=False)
-
-        charge_lines = browser.lines.get(charge_output, [])
-        current_lines = browser.lines.get(current_output, [])
-
-        bl_std_vals = browser.lines.get(bl_output, [])
-        energy_vals = browser.lines.get(energy_output, [])
-
-        # First pass: collect valid events with their x- and y-data
-        for i, (cl, il, el) in enumerate(
-            zip(charge_lines, current_lines, energy_vals, strict=True)
+        # alignment failed (skipped)
+        if align is not None and (
+            charge.times[i, 0] == 0.0 or current.times[i, 0] == 0.0
         ):
-            charge_y = cl.get_ydata() / float(el.get_ydata()[0])
-            current_y = il.get_ydata() / float(el.get_ydata()[0])
+            continue
 
-            if np.any(np.isnan(charge_y)) or np.any(np.isnan(current_y)):
-                log.debug("event %d: NaN in waveform, skipping", i)
-                continue
-
-            # alignment failed (skipped)
-            if align is not None and (
-                cl.get_xdata()[0] == 0.0 or il.get_xdata()[0] == 0.0
-            ):
-                continue
-
-            entry = {
-                "charge_t": cl.get_xdata(),
+        waveforms.append(
+            {
+                "charge_t": charge.times[i],
                 "charge_y": charge_y,
-                "current_t": il.get_xdata(),
+                "current_t": current.times[i],
                 "current_y": current_y,
+                "bl_std": float(dsp[bl_output][i]),
+                "energy": energy,
             }
-
-            entry["bl_std"] = float(bl_std_vals[i].get_ydata()[0])
-            entry["energy"] = float(el.get_ydata()[0])
-
-            waveforms.append(entry)
+        )
 
     if len(waveforms) == 0:
         return None

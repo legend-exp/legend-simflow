@@ -265,9 +265,9 @@ prerequisite of the production and test tasks) sidesteps this by calling every
 such kernel once, serially, before the parallel fan-out, so the jobs only ever
 read the cache.
 
-Some rules instead run a whole processing chain (e.g. a `dspeed`
-`WaveformBrowser` DSP chain) that lazily compiles dozens of kernels on first
-execution; these are warmed the same way by
+Some rules instead run a whole processing chain (e.g. the `dspeed` DSP chain run
+by {func}`legendsimflow.hpge_pars.get_dsp_outputs`) that lazily compiles dozens
+of kernels on first execution; these are warmed the same way by
 {func}`legendsimflow.warmup.warm_hpge_dsp_cache`, see its docstring for details.
 
 :::{important}

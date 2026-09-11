@@ -19,7 +19,7 @@ import itertools
 import logging
 import math
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +27,10 @@ import hist
 import lh5
 import numpy as np
 from dbetto import AttrsDict, TextDB
+from dspeed import build_dsp
 from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
+from lgdo import WaveformTable
 from matplotlib import pyplot as plt
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian
@@ -390,6 +392,84 @@ def plot_gauss_fit(
     return fig, ax
 
 
+def get_dsp_outputs(
+    raw_files: Sequence[str | Path],
+    lh5_group: str,
+    entries: ArrayLike,
+    file_indices: ArrayLike,
+    *,
+    dsp_config: str | Mapping | None,
+    outputs: Sequence[str],
+    align: str | None = None,
+) -> AttrsDict:
+    """Run the DSP chain on selected raw-tier events and return the outputs as arrays.
+
+    The results follow the order of `entries`, repeated events included. They
+    are all held in memory: split large selections into chunks.
+
+    Parameters
+    ----------
+    raw_files
+        paths to the raw-tier files.
+    lh5_group
+        table holding the waveforms in the raw files, e.g. ``ch1084803/raw``.
+    entries
+        row of each event in its raw file.
+    file_indices
+        index in `raw_files` of the file holding each event.
+    dsp_config
+        :mod:`dspeed` configuration, or path to it. ``None`` runs no
+        processors, so only fields of the raw table can be requested.
+    outputs
+        names of the DSP outputs to return.
+    align
+        name of a time output of the DSP chain, e.g. ``tp_aoe_max``. If given,
+        each waveform time axis is shifted so that this time is at zero. It
+        must be in the unit of the waveform time axis (ns for LEGEND data).
+
+    Returns
+    -------
+    a dictionary keyed by output name. A waveform output has fields ``times``
+    (in the unit of the sampling period, ns for LEGEND data) and ``values``,
+    both of shape ``(n_events, n_samples)``. A scalar output is an array of
+    shape ``(n_events,)``.
+    """
+    # distinct events, sorted by file and row as the LH5 iterator reads them
+    events, order = np.unique(
+        np.column_stack([file_indices, entries]), axis=0, return_inverse=True
+    )
+    files = np.unique(events[:, 0])
+    raw = lh5.LH5Iterator(
+        [str(raw_files[i]) for i in files],
+        lh5_group,
+        entry_list=[events[events[:, 0] == i, 1] for i in files],
+    )
+    dsp = build_dsp(
+        raw,
+        dsp_config={"processors": {}} if dsp_config is None else dsp_config,
+        outputs=[*outputs, align] if align is not None else list(outputs),
+    )
+
+    t_align = 0 if align is None else dsp[align].nda[order]
+
+    out = AttrsDict()
+    for name in outputs:
+        data = dsp[name]
+        if isinstance(data, WaveformTable):
+            t0 = data.t0.nda[order] - t_align
+            t_end = t0 + data.dt.nda[order] * (data.wf_len - 1)
+            out[name] = AttrsDict(
+                {
+                    "times": np.linspace(t0, t_end, data.wf_len, axis=-1),
+                    "values": data.values.nda[order],
+                }
+            )
+        else:
+            out[name] = data.nda[order]
+
+    return out
+
+
 def get_current_pulse(
     raw_file: Path | str,
     lh5_group: str,
@@ -398,42 +478,11 @@ def get_current_pulse(
     dsp_output: str = "curr_av",
     align: str = "tp_aoe_max",
 ) -> tuple:
-    """Extract the current pulse.
-
-    Parameters
-    ----------
-    raw_file
-        path to the raw tier file.
-    lh5_group
-        where to find the waveform table.
-    idx
-        the index of the waveform to read.
-    dsp_config
-        the :mod:`dspeed` configuration file defining the DSP processing chain
-        to estimate the current pulse.
-    dsp_output
-        the name of the DSP output corresponding to the current pulse.
-    align
-        DSP value around which the pulses are aligned.
-
-    """
-    # HACK: importing this messes up pint registries
-    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
-
-    browser = WaveformBrowser(
-        str(raw_file),
-        lh5_group,
-        dsp_config=dsp_config,
-        lines=[dsp_output],
-        align=align,
+    """Extract the current pulse of event `idx`, see :func:`get_current_pulses`."""
+    times_list, current_list = get_current_pulses(
+        [(raw_file, idx)], lh5_group, dsp_config, dsp_output, align
     )
-
-    browser.find_entry(idx)
-
-    t = browser.lines[dsp_output][0].get_xdata()
-    A = browser.lines[dsp_output][0].get_ydata()
-
-    return t, A
+    return times_list[0], current_list[0]
 
 
 def get_current_pulses(
@@ -445,8 +494,9 @@ def get_current_pulses(
 ) -> tuple[list[NDArray], list[NDArray]]:
     """Extract current pulses for multiple events.
 
-    Calls :func:`get_current_pulse` for each ``(raw_file, idx)`` pair and
-    returns the results as two parallel lists.
+    Runs the DSP chain once on all ``(raw_file, idx)`` pairs with
+    :func:`get_dsp_outputs` and returns the results as two lists, parallel to
+    `raw_file_idx_pairs`.
 
     Parameters
     ----------
@@ -469,15 +519,23 @@ def get_current_pulses(
     current_list
         list of current-value arrays.
     """
-    times_list = []
-    current_list = []
-    for raw_file, idx in raw_file_idx_pairs:
-        t, A = get_current_pulse(
-            raw_file, lh5_group, idx, dsp_config, dsp_output, align
-        )
-        times_list.append(t)
-        current_list.append(A)
-    return times_list, current_list
+    if not raw_file_idx_pairs:
+        return [], []
+
+    raw_files, file_indices = np.unique(
+        [str(raw_file) for raw_file, _ in raw_file_idx_pairs], return_inverse=True
+    )
+    pulses = get_dsp_outputs(
+        raw_files,
+        lh5_group,
+        [idx for _, idx in raw_file_idx_pairs],
+        file_indices,
+        dsp_config=dsp_config,
+        outputs=[dsp_output],
+        align=align,
+    )[dsp_output]
+
+    return list(pulses.times), list(pulses.values)
 
 
 def _remove_outliers(data: NDArray, sigma: float = 5) -> NDArray:
@@ -500,24 +558,24 @@ def _iter_noise_waveforms(
 
     Parameters are the same as :func:`get_noise_maxima_and_sample`.
     """
-    from dspeed.vis import WaveformBrowser  # noqa: PLC0415
-
     for raw_file, hit_file in zip(raw_files, hit_files, strict=True):
-        browser = WaveformBrowser(
-            str(raw_file), lh5_group, dsp_config=dsp_config, lines=[dsp_output]
-        )
         energies = lh5.read(
             f"{lh5_group.replace('raw', 'hit')}/{energy_var}", hit_file
         ).view_as("np")
+        entries = np.flatnonzero(energies < threshold)
 
-        indices = np.where(energies < threshold)[0]
-        del energies
-
-        for idx in indices:
-            browser.find_entry(idx, append=False)
-            yield browser.lines[dsp_output][0].get_ydata()[:length].copy()
-
-        del indices
+        # at most 250 waveforms in memory at a time
+        for start in range(0, len(entries), 250):
+            chunk = entries[start : start + 250]
+            wfs = get_dsp_outputs(
+                [raw_file],
+                lh5_group,
+                chunk,
+                np.zeros_like(chunk),
+                dsp_config=dsp_config,
+                outputs=[dsp_output],
+            )[dsp_output].values
+            yield from wfs[:, :length].copy()
 
 
 def get_noise_maxima_and_sample(
