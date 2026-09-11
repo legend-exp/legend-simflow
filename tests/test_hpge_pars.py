@@ -7,6 +7,7 @@ import lh5
 import numpy as np
 import pytest
 from dbetto import AttrsDict
+from dspeed.vis import WaveformBrowser
 from iminuit import Minuit
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -189,6 +190,89 @@ def test_get_index_sorted_by_proximity(legend_testdata):
     # Each distance should be <= the next one
     for i in range(len(distances) - 1):
         assert distances[i] <= distances[i + 1]
+
+
+@pytest.mark.parametrize("align", [None, "tp_max"])
+def test_get_dsp_outputs(legend_testdata, align):
+    path = Path(
+        legend_testdata.get_path("lh5/prod-ref-l200/generated/tier/raw/cal/p03/r001")
+    )
+    files = sorted(str(p) for p in path.glob("*.lh5"))
+    group = "ch1084803/raw"
+    waveforms = ["waveform", "wf_blsub", "curr"]
+    scalars = ["wf_max", "bl_std"]
+    dsp_config = {
+        "processors": {
+            "bl_mean, bl_std, bl_slope, bl_intercept": {
+                "function": "linear_slope_fit",
+                "module": "dspeed.processors",
+                "args": [
+                    "waveform[0:1000]",
+                    "bl_mean",
+                    "bl_std",
+                    "bl_slope",
+                    "bl_intercept",
+                ],
+                "unit": ["ADC", "ADC", "ADC", "ADC"],
+            },
+            "wf_blsub": {
+                "function": "bl_subtract",
+                "module": "dspeed.processors",
+                "args": ["waveform", "bl_mean", "wf_blsub"],
+                "unit": "ADC",
+            },
+            "tp_min, tp_max, wf_min, wf_max": {
+                "function": "min_max",
+                "module": "dspeed.processors",
+                "args": ["wf_blsub", "tp_min", "tp_max", "wf_min", "wf_max"],
+                "unit": ["ns", "ns", "ADC", "ADC"],
+            },
+            "curr": {
+                "function": "avg_current",
+                "module": "dspeed.processors",
+                "args": [
+                    "wf_blsub",
+                    1,
+                    "curr(shape=len(wf_blsub)-1, period=wf_blsub.period, offset=wf_blsub.offset)",
+                ],
+                "unit": "ADC/sample",
+            },
+        }
+    }
+
+    # interleaved files, unsorted rows and a repeated event
+    file_indices = [1, 0, 1, 0, 1]
+    entries = [4, 7, 0, 2, 4]
+
+    out = hpge_pars.get_dsp_outputs(
+        files,
+        group,
+        entries,
+        file_indices,
+        dsp_config=dsp_config,
+        outputs=waveforms + scalars,
+        align=align,
+    )
+
+    for i, (f, e) in enumerate(zip(file_indices, entries, strict=True)):
+        raw = lh5.read(group, files[f], idx=[e])["waveform"].values.nda[0]
+        np.testing.assert_array_equal(out.waveform.values[i], raw)
+
+        # the WaveformBrowser is the reference implementation
+        browser = WaveformBrowser(
+            files[f],
+            group,
+            dsp_config=dsp_config,
+            lines=waveforms + scalars,
+            align=align,
+        )
+        browser.find_entry(e)
+        for name in waveforms:
+            line = browser.lines[name][0]
+            np.testing.assert_array_equal(out[name].times[i], line.get_xdata())
+            np.testing.assert_array_equal(out[name].values[i], line.get_ydata())
+        for name in scalars:
+            assert out[name][i] == browser.lines[name][0].get_ydata()[0]
 
 
 def test_get_waveform(legend_testdata):
