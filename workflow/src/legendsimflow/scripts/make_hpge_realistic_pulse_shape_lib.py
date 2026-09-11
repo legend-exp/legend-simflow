@@ -120,11 +120,13 @@ def main():
     dt = ideal_map_obj["dt"].value * units.units_convfact(ideal_map_obj["dt"], "ns")
 
     # 2. Setup Physics Kernel (mu=0, sigma=sigma ns, tau=tau ns)
+    kernel_start = -100
     rf_kernel = psl.build_electronics_response_kernel(
         dt,
         mu_bandwidth=0,
         sigma_bandwidth=sigma_conv,
         tau_rc=tau_conv,
+        kernel_start=kernel_start,
     )
 
     # 3. Process
@@ -136,6 +138,7 @@ def main():
         mw_pars=MW_PARS,
         dt_data=DT_DATA,
         dtype=np.dtype(args.dtype),
+        kernel_t0_idx=-2 * kernel_start,
     )
     # 4. normalise the current waveforms
     h_aoe, mean_aoe = psl.get_avg_aoe(

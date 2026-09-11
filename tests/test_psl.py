@@ -231,6 +231,7 @@ def test_make_realistic_pulse_shape_lib():
             "num_mw": 3,
             "mw_type": 0,
         },
+        kernel_t0_idx=200,
     )
     assert isinstance(output, dict)
 
@@ -269,7 +270,7 @@ def test_make_realistic_pulse_shape_lib_nan_propagation():
 
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS
+        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, kernel_t0_idx=200
     )
 
     out_wfs = output["waveform_0"].view_as("np")
@@ -306,7 +307,7 @@ def test_make_realistic_pulse_shape_lib_3d():
 
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS
+        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, kernel_t0_idx=200
     )
 
     assert output["waveform_0"].view_as("np").shape == (n_r, n_z, n_samples)
@@ -331,6 +332,7 @@ def test_make_realistic_pulse_shape_lib_dtype(dtype):
         500,
         1000,
         mw_pars=_MW_PARS,
+        kernel_t0_idx=200,
         **kwargs,
     )
 
@@ -472,6 +474,7 @@ def test_make_realistic_pulse_shape_lib_drift_time_origin():
         1000,
         2001,
         mw_pars=psl.MW_PARS,
+        kernel_t0_idx=200,
     )
     drift = out["drift_time_000_deg"].view_as("np")[0]
     assert np.all(np.diff(drift) > 0)
