@@ -51,17 +51,19 @@ l200-p03-r001-phy:
 ```
 
 A detector appears under a flag only when that flag applies to it: SiPM channels
-carry `usability` alone, while `psd_usability`, `crystal_metadata_usability`,
-`is_modelable`, and `operational_voltage_in_V` are germanium-only.
+carry `usability` and `daq_rawid` alone, while `psd_usability`,
+`crystal_metadata_usability`, `is_modelable`, and `operational_voltage_in_V` are
+germanium-only.
 
 The [`cache_detector_usabilities`](../api/snakemake_rules.md) rule writes the
 data-quality flags for **all** deployed detectors:
 
-| File                              | Applies to  | Value                | Description                                                                                                                                       |
-| --------------------------------- | ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `usability.yaml`                  | geds + SiPM | `on`, `off`, `ac`, … | Analysis usability from the channel-map status (`analysis.usability`).                                                                            |
-| `psd_usability.yaml`              | geds        | `valid`, …           | PSD usability from `analysis.psd.status.low_aoe`; defaults to `valid` when the field is absent.                                                   |
-| `crystal_metadata_usability.yaml` | geds        | `valid`, …, `null`   | Usability of the crystal metadata required for modeling (the crystal-slice `status`). `null` when the information is unavailable in the metadata. |
+| File                              | Applies to  | Value                | Description                                                                                                                                                                                                                                  |
+| --------------------------------- | ----------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `usability.yaml`                  | geds + SiPM | `on`, `off`, `ac`, … | Analysis usability from the channel-map status (`analysis.usability`).                                                                                                                                                                       |
+| `daq_rawid.yaml`                  | geds + SiPM | integer              | DAQ rawid from the channel map (`daq.rawid`). Changes when channels are recabled; used to match random-coincidence data to the simulated channels. Also lists the runs that random coincidences are drawn from (`random_coincidence_runid`). |
+| `psd_usability.yaml`              | geds        | `valid`, …           | PSD usability from `analysis.psd.status.low_aoe`; defaults to `valid` when the field is absent.                                                                                                                                              |
+| `crystal_metadata_usability.yaml` | geds        | `valid`, …, `null`   | Usability of the crystal metadata required for modeling (the crystal-slice `status`). `null` when the information is unavailable in the metadata.                                                                                            |
 
 The [`cache_modelable_hpges`](../api/snakemake_rules.md) checkpoint writes the
 modeling flags for **every deployed germanium** detector:
@@ -274,7 +276,7 @@ argon.
 
 | Field          | Type              | Units | Description                                                                                                                                                                                                                                                                               |
 | -------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rawid`        | `VectorOfVectors` | —     | SiPM channel UIDs, matching the channel identifiers used in LEGEND-200 data. Always the full list of non-OFF channels per event.                                                                                                                                                          |
+| `rawid`        | `VectorOfVectors` | —     | SiPM channel UIDs of the simulated geometry (the DAQ rawids of the channel map it was built with). Always the full list of non-OFF channels per event.                                                                                                                 |
 | `energy`       | `VectorOfVectors` | —     | PE amplitudes per channel per event, filtered by the PE energy threshold. Nested variable-length array.                                                                                                                                                                                   |
 | `time`         | `VectorOfVectors` | ns    | PE times per channel per event, relative to `trigger/timestamp`. Nested variable-length array matching `energy`. Unlike `spms/t0` in LEGEND-200 data, which counts from the start of the waveform.                                                                                        |
 | `is_saturated` | `VectorOfVectors` | —     | Boolean SiPM saturation flag per channel. `True` if PE count exceeds threshold.                                                                                                                                                                                                           |
@@ -282,7 +284,7 @@ argon.
 | `expected_pes` | `VectorOfVectors` | —     | _(optional)_ Expected number of photoelectrons per channel at unit channel efficiency, before the PE-per-hit cap and the PE threshold. Same order as `rawid`; `0` for events with no LAr energy deposition. Present only when `store_expected_pes` is enabled in the `opt` tier settings. |
 | `energy_sum`   | `Array`           | —     | Total PE energy summed over all channels and all PEs. Scalar per event.                                                                                                                                                                                                                   |
 | `multiplicity` | `Array`           | —     | Number of SiPM channels with at least one detected PE. Scalar per event.                                                                                                                                                                                                                  |
-| `rc_energy`    | `VectorOfVectors` | —     | _(optional)_ Random-coincidence PE amplitudes from forced-trigger data. Present only when `add_random_coincidences` is enabled.                                                                                                                                                           |
+| `rc_energy`    | `VectorOfVectors` | —     | _(optional)_ Random-coincidence PE amplitudes taken from LEGEND-200 data (see `random_coincidence_mode`), in the `rawid` channel order. Channels are matched by name through the DAQ rawids of the source run. Present only when `add_random_coincidences` is enabled. |
 | `rc_time`      | `VectorOfVectors` | ns    | _(optional)_ Random-coincidence PE times, on the same time axis as `time`. Present only when `add_random_coincidences` is enabled.                                                                                                                                                        |
 
 ### `coincident/` — detector coincidence flags
