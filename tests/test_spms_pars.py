@@ -71,6 +71,57 @@ def test_process_spms_windows_invalid_range_raises():
         )
 
 
+def _rc_data(rawid):
+    # channel c of every event carries amplitude c+1 and time 10*(c+1)
+    n_ch = len(rawid)
+    return ak.Array(
+        {
+            "rawid": [rawid] * 2,
+            "npe": [[[float(c + 1)] for c in range(n_ch)]] * 2,
+            "t0": [[[10.0 * (c + 1)] for c in range(n_ch)]] * 2,
+        }
+    )
+
+
+def test_reorder_rc_channels_recabled():
+    # sim uids 1, 2, 3 were recabled to DAQ rawids 103, 101, 102 in the RC run
+    uid_of_rawid = {101: 2, 102: 3, 103: 1}
+    rc = _rc_data([101, 102, 103])
+
+    out = spms_pars.reorder_rc_channels(rc, uid_of_rawid, [1, 2, 3])
+
+    # uid 1 <- rawid 103 (slot 2), uid 2 <- rawid 101 (slot 0), uid 3 <- rawid 102 (slot 1)
+    assert ak.to_list(out.rawid) == [[103, 101, 102]] * 2
+    assert ak.to_list(out.npe) == [[[3.0], [1.0], [2.0]]] * 2
+    assert ak.to_list(out.t0) == [[[30.0], [10.0], [20.0]]] * 2
+
+
+def test_reorder_rc_channels_same_order_is_noop():
+    rc = _rc_data([101, 102, 103])
+    out = spms_pars.reorder_rc_channels(rc, {101: 1, 102: 2, 103: 3}, [1, 2, 3])
+    assert out is rc
+
+
+def test_reorder_rc_channels_unmatched_channel_raises():
+    rc = _rc_data([101, 102, 104])
+    with pytest.raises(
+        ValueError, match=r"missing in RC \[1\].*simulated channel \[104\]"
+    ):
+        spms_pars.reorder_rc_channels(rc, {101: 2, 102: 3, 103: 1}, [1, 2, 3])
+
+
+def test_reorder_rc_channels_varying_channel_list_raises():
+    rc = ak.Array(
+        {
+            "rawid": [[101, 102], [102, 101]],
+            "npe": [[[], []], [[], []]],
+            "t0": [[[], []], [[], []]],
+        }
+    )
+    with pytest.raises(ValueError, match="same channel list"):
+        spms_pars.reorder_rc_channels(rc, {101: 1, 102: 2}, [1, 2])
+
+
 def test_next_rc_evt_file_cycles_order():
     """_next_rc_evt_file should iterate in order and wrap around."""
     files = ["f0", "f1"]
