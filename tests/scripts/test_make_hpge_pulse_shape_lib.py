@@ -51,7 +51,7 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
 
 
 
-#@pytest.mark.needs_julia
+@pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
     """Run the Julia pulse shape library script and verify the output LH5 structure."""
@@ -78,6 +78,11 @@ def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
                 testprod
                 / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/settings.yaml"
             ),
+            "--scan-settings",
+            str(
+                testprod
+                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/scan_settings.yaml"
+            ),
             "--output-file",
             str(psl_file),
         ],
@@ -88,5 +93,10 @@ def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
     assert psl_file.exists(), "Pulse shape library LH5 file was not created"
 
     top_keys = lh5.ls(psl_file)
-    lh5.show(psl_file)
+    
     assert "V05261B" in top_keys, f"Expected group 'V05261B' in LH5, got: {top_keys}"
+    
+    slopes = lh5.ls(psl_file, "V05261B/")
+    assert len(slopes) > 0, "No slopes found in LH5 file"
+
+    
