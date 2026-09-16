@@ -37,11 +37,6 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
                 testprod
                 / "legend-metadata/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
             ),
-            "--scan-settings",
-            str(
-                testprod
-                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/scan_settings.yaml"
-            ),
             "--output-file",
             str(psl_file),
         ],
@@ -82,6 +77,11 @@ def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
             str(
                 testprod
                 / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/settings.yaml"
+            ),
+            "--scan-settings",
+            str(
+                testprod
+                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/scan_settings.yaml"
             ),
             "--output-file",
             str(psl_file),
