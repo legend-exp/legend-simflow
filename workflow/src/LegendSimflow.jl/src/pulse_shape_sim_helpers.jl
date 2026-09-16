@@ -450,15 +450,15 @@ scaling factor and the raw/corrected depletion voltages are returned in `info`.
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
-    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
+    opv_val::Real, T::Any, refinement_limits::AbstractVector; 
+    threshold::Real = 200, 
+    medium::String = "LAr",
     temperature::Real = 87.0,
+    vdep::Union{Real,Nothing} = nothing,
     recompute_corrections::Bool = true)::Tuple{Simulation,Dict}
-
-    vdep = meta.characterization.l200_site.depletion_voltage_in_V
 
     rescale_impurities =
         recompute_corrections &&
-        !(vdep isa PropDicts.MissingProperty) &&
         vdep !== nothing
 
     scale = nothing
@@ -517,7 +517,7 @@ function setup_hpge_simulation(meta_path::String,
     end
     @info "Simulated depletion voltage is $dep"
 
-    if !(vdep isa PropDicts.MissingProperty) && vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
+    if !(vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
         error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
@@ -532,7 +532,7 @@ function setup_hpge_simulation(meta_path::String,
     # normalize into a serialization-ready provenance dict with explicit names:
     # strip Unitful voltages to plain numbers (in V) and map missing measured
     # depletion voltage to `nothing`
-    vdep_meas = (vdep isa PropDicts.MissingProperty || vdep === nothing) ? nothing : Float64(vdep)
+    vdep_meas = (vdep === nothing) ? nothing : Float64(vdep)
 
     return sim,
     Dict(
