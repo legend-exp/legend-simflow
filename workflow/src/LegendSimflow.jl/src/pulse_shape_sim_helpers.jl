@@ -401,6 +401,9 @@ function find_valid_spawn_position(
 end
 
 
+function adjust_impurity_slope(xtal::PropDict, slope::Real)::PropDict
+    return xtal
+end
 
 """
     setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, refinement_limits, threshold)
