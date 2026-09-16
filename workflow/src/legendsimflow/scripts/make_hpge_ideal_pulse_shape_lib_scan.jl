@@ -43,7 +43,7 @@ using LegendSimflow
 Generate ideal HPGe waveform maps for specified detector and save to LH5 file.
 """
 function main()
-    T = Float32
+    T = Float64
 
     s = ArgParseSettings()
 
@@ -86,7 +86,7 @@ function main()
 
     # extract the metadata
     raw_opv = parsed_args["opv"]
-    opv_val = isnothing(raw_opv) ? nothing : parse(Float32, raw_opv)
+    opv_val = isnothing(raw_opv) ? nothing : parse(T, raw_opv)
 
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
