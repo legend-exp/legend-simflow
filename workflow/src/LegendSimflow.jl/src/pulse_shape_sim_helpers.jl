@@ -520,7 +520,7 @@ function setup_hpge_simulation(meta_path::String,
     end
     @info "Simulated depletion voltage is $dep"
 
-    if !(vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
+    if !(vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V")
         error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
