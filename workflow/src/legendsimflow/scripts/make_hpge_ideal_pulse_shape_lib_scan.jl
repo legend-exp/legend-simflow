@@ -159,9 +159,16 @@ function main()
         @info "Creating output directory: $output_dir"
         mkpath(output_dir)
     end
+    # reformat
+    
+    dict_to_namedtuple(d::AbstractDict) =
+    (; (k => v isa AbstractDict ? dict_to_namedtuple(v) : v for (k, v) in d)...)
+    
+
+    output = dict_to_namedtuple(output)
 
     lh5open(output_file, "cw") do f
-        return f[det] = (; output...)
+        return f[det] = output
     end
 end
 

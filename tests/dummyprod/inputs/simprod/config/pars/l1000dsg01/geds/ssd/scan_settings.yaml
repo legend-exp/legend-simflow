@@ -1,6 +1,6 @@
 low_depv_shift: -500
 high_depv_shift: -50.0
-depv_step: 150.0
+depv_step: 450.0
 low_slope: -1.0
-high_slope: 1.0
-slope_step: 0.5
+high_slope: 0.0
+slope_step: 1.0
