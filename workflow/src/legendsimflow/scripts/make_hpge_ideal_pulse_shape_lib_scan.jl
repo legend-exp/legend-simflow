@@ -40,6 +40,7 @@ using PropDicts
 using Printf
 using Unitful
 using LegendSimflow
+using SolidStateDetectors
 
 """
     main()
@@ -122,8 +123,6 @@ function main()
     for slope in low_slope:slope_step:high_slope
         
         xtal = adjust_impurity_slope(base_xtal, slope)
-        # the SSD-modeling provenance scalars are stored as metadata by the
-        # drift-time-map job, so the returned `info` is intentionally discarded here
         sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + low_depv_shift)
     
         output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
@@ -132,23 +131,23 @@ function main()
             depv = opv_val + depv_shift
             
             scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, 
-                vdep,
+                depv,
                 check_for_depletion = false,
                 reconverge_electric_potential = false
                 )
 
             calculate_electric_field!(sim)
-
-            output[Symbol("slope_$slope")][Symbol("dep_$(depv_shift)_V")] = nothing
+            
+            output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] = nothing
         
             for a in CRYSTAL_AXIS_ANGLES
                 result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
 
                 key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
-                if output === nothing
-                    output[Symbol("slope_$slope")][Symbol("dep_$(depv_shift)_V")] = Dict{Symbol,Any}(pairs(result))
+                if output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] === nothing
+                    output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] = Dict{Symbol,Any}(pairs(result))
                 else
-                    output[Symbol("slope_$slope")][Symbol("dep_$(depv_shift)_V")][key] = result[key]
+                    output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")][key] = result[key]
                 end
             end
         end
