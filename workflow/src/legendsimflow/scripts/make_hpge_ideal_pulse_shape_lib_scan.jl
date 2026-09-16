@@ -30,6 +30,10 @@ const LOW_DEPV_SHIFT = -1000.0
 const HIGH_DEPV_SHIFT = -20.0
 const DEPV_STEP = 20.0
 
+const LOW_SLOPE = -0.9
+const HIGH_SLOPE = 3.0
+const SLOPE_STEP = 0.2
+
 using LegendHDF5IO
 using ArgParse
 using PropDicts
@@ -120,7 +124,7 @@ function main()
         xtal = adjust_impurity_slope(base_xtal, slope)
         # the SSD-modeling provenance scalars are stored as metadata by the
         # drift-time-map job, so the returned `info` is intentionally discarded here
-        sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits)
+        sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + low_depv_shift)
     
         output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
 

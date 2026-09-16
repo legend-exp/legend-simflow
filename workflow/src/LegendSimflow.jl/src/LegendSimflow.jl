@@ -11,5 +11,5 @@ export compute_ideal_pulse_shape_lib
 export setup_hpge_simulation
 export extend_drift_time_map
 export extend_pulse_shape_lib
-
+export adjust_impurity_slope
 end # module legendsimflow
