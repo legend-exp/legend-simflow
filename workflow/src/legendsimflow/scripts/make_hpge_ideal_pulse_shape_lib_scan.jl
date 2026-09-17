@@ -120,16 +120,26 @@ function main()
     # loop over slopes
     output = Dict{Symbol,Any}()
     base_xtal = deepcopy(xtal)
+
+    time_setup = 0
+    time_rescale = 0
+
+    time_drift = 0
+
     for slope in low_slope:slope_step:high_slope
         
+        t0 = time()
         xtal = adjust_impurity_slope(base_xtal, slope)
         sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + low_depv_shift)
-    
+        
+        time_setup += time() - t0
+
         output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
 
         for depv_shift in low_depv_shift:depv_step:high_depv_shift
             depv = opv_val + depv_shift
             
+            t0 = time()
             scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, 
                 depv,
                 check_for_depletion = false,
@@ -137,9 +147,11 @@ function main()
                 )
 
             calculate_electric_field!(sim)
-            
+            time_rescale += time() - t0
+
             output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] = nothing
-        
+            
+            t0 = time()
             for a in CRYSTAL_AXIS_ANGLES
                 result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
 
@@ -150,9 +162,17 @@ function main()
                     output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")][key] = result[key]
                 end
             end
+
+            time_drift += time() - t0
         end
     end
 
+    @info "Timing summary:"
+    @info "  Setup time: $(time_setup) seconds"
+    @info "  Rescale time: $(time_rescale) seconds"
+    @info "  Drift time: $(time_drift) seconds"
+
+    t0 = time()
     @info "Saving to disk..."
     output_dir = dirname(output_file)
     if !isdir(output_dir)
@@ -168,8 +188,11 @@ function main()
     output = dict_to_namedtuple(output)
 
     lh5open(output_file, "cw") do f
-        return f[det] = output
+        f[det] = output
     end
+    time_write = time() - t0   
+    @info "Saved to disk in $(time_write) seconds"
+
 end
 
 
