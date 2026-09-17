@@ -26,6 +26,7 @@ the best-fit parameters to a YAML file.
 
 import argparse
 import logging
+from contextlib import nullcontext
 from pathlib import Path
 
 import dbetto
@@ -174,100 +175,99 @@ def main() -> None:
     comparison_window = tuple(settings.comparison_window)
     plot_window = tuple(settings.plot_window)
 
-    output = {}
-    for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/"):
-        slope = slope_group.split("/")[-1]
-        output[slope] = {}
-
-        log.info("... reading ideal waveforms from %s ...", slope)
-
-        for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/{slope}/"):
-            depv = depv_group.split("/")[-1]
-            log.info("... reading ideal waveforms from %s ...", depv)
-
-            ideal_lib = lh5.read(f"{args.hpge_detector}/{slope}/{depv}", args.ideal_lib)
-
-            # Prepare ideal waveforms
-            log.info("... selecting ideal waveforms per slice ...")
-            ideal_wfs = get_ideal_wfs_all_slices(
-                ideal_lib,
-                data_superpulses,
-                angle=settings.angle,
-                max_num_superpulses=settings.max_num_superpulses,
-            )
-
-            if not ideal_wfs["ideal_wfs_slice"].keys():
-                msg = "no ideal waveforms matched any data superpulse slice"
-                raise RuntimeError(msg)
-         
-
-            # Run fit
-            log.info(
-                "starting fit (sigma0=%.1f, tau0=%.1f) ...",
-                settings.sigma_start,
-                settings.tau_start,
-            )
-            result = fit_electronics_parameters(
-                **ideal_wfs,
-                data_superpulses=data_superpulses,
-                sigma_start=settings.sigma_start,
-                tau_start=settings.tau_start,
-                sigma_limits=tuple(settings.sigma_limits),
-                tau_limits=tuple(settings.tau_limits),
-                comparison_window=comparison_window,
-                weight_power=settings.get("weight_power", 0.0),
-                max_calls=settings.max_calls,
-            )
-
-            # Write output
-            output[slope][depv] = {
-                "detector": args.hpge_detector,
-                "angle": settings.angle,
-                "sigma": result["sigma"],
-                "tau": result["tau"],
-                "rms": result["best_rms"],
-            }
-
-    print(output)
-    return 1
-
-    # Plots
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)
 
-        with PdfPages(str(args.plot_file)) as pdf:
-            fig, _ = plot_convergence(result)
-            decorate(fig)
-            pdf.savefig(fig)
-            plt.close(fig)
+    output = {}
+    with (
+        PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
+    ):
+        for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/"):
+            slope = slope_group.split("/")[-1]
+            output[slope] = {}
 
-            fig, _, data_amax, mc_amax = plot_best_fit(
-                result,
-                data_superpulses,
-                comparison_window=comparison_window,
-                plot_window=plot_window,
-                detector_name=args.hpge_detector,
-            )
-            output["aoe_data"] = data_amax
-            output["aoe_mc"] = mc_amax
-            decorate(fig)
-            pdf.savefig(fig)
-            plt.close(fig)
+            log.info("... reading ideal waveforms from %s ...", slope)
 
-            fig, _, _, _ = plot_best_fit(
-                result,
-                data_superpulses,
-                comparison_window=comparison_window,
-                plot_window=plot_window,
-                plot_charge=True,
-                detector_name=args.hpge_detector,
-            )
-            decorate(fig)
-            pdf.savefig(fig)
-            plt.close(fig)
+            for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/{slope}/"):
+                depv = depv_group.split("/")[-1]
+                log.info("... reading ideal waveforms from %s ...", depv)
 
-        log.info("... saved diagnostic plots to %s", args.plot_file)
+                ideal_lib = lh5.read(
+                    f"{args.hpge_detector}/{slope}/{depv}", args.ideal_lib
+                )
+
+                # Prepare ideal waveforms
+                ideal_wfs = get_ideal_wfs_all_slices(
+                    ideal_lib,
+                    data_superpulses,
+                    angle=settings.angle,
+                    max_num_superpulses=settings.max_num_superpulses,
+                )
+
+                if not ideal_wfs["ideal_wfs_slice"].keys():
+                    msg = "no ideal waveforms matched any data superpulse slice"
+                    raise RuntimeError(msg)
+
+                # Run fit
+                log.info(
+                    "starting fit (sigma0=%.1f, tau0=%.1f) ...",
+                    settings.sigma_start,
+                    settings.tau_start,
+                )
+                result = fit_electronics_parameters(
+                    **ideal_wfs,
+                    data_superpulses=data_superpulses,
+                    sigma_start=settings.sigma_start,
+                    tau_start=settings.tau_start,
+                    sigma_limits=tuple(settings.sigma_limits),
+                    tau_limits=tuple(settings.tau_limits),
+                    comparison_window=comparison_window,
+                    weight_power=settings.get("weight_power", 0.0),
+                    max_calls=settings.max_calls,
+                )
+
+                # Write output
+                output[slope][depv] = {
+                    "detector": args.hpge_detector,
+                    "angle": settings.angle,
+                    "sigma": result["sigma"],
+                    "tau": result["tau"],
+                    "rms": result["best_rms"],
+                }
+
+                # plots
+                if pdf is not None:
+                    fig, _ = plot_convergence(result)
+                    decorate(fig)
+                    pdf.savefig(fig)
+                    plt.close(fig)
+
+                    fig, _, data_amax, mc_amax = plot_best_fit(
+                        result,
+                        data_superpulses,
+                        comparison_window=comparison_window,
+                        plot_window=plot_window,
+                        detector_name=args.hpge_detector,
+                    )
+                    output[slope]["aoe_data"] = data_amax
+                    output[depv]["aoe_mc"] = mc_amax
+
+                    decorate(fig)
+                    pdf.savefig(fig)
+                    plt.close(fig)
+
+                    fig, _, _, _ = plot_best_fit(
+                        result,
+                        data_superpulses,
+                        comparison_window=comparison_window,
+                        plot_window=plot_window,
+                        plot_charge=True,
+                        detector_name=args.hpge_detector,
+                    )
+                    decorate(fig)
+                    pdf.savefig(fig)
+                    plt.close(fig)
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
