@@ -15,7 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Tune the electronics response parameters (sigma, tau) against data superpulses.
+"""Tune the electronics response parameters (sigma, tau) against data superpulses loooping over
+PSLS.
 
 Reads an ideal pulse-shape library and data superpulses from LH5, fits the
 Gaussian sigma and exponential tau of the system response kernel by minimising
@@ -26,6 +27,7 @@ the best-fit parameters to a YAML file.
 
 import argparse
 import logging
+import time
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -179,6 +181,10 @@ def main() -> None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)
 
+    time_read = 0
+    time_fit = 0
+    time_plot = 0
+
     output = {}
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
@@ -193,6 +199,7 @@ def main() -> None:
                 depv = depv_group.split("/")[-1]
                 log.info("... reading ideal waveforms from %s ...", depv)
 
+                t0 = time.time()
                 ideal_lib = lh5.read(
                     f"{args.hpge_detector}/{slope}/{depv}", args.ideal_lib
                 )
@@ -204,12 +211,14 @@ def main() -> None:
                     angle=settings.angle,
                     max_num_superpulses=settings.max_num_superpulses,
                 )
+                time_read += time.time() - t0
 
                 if not ideal_wfs["ideal_wfs_slice"].keys():
                     msg = "no ideal waveforms matched any data superpulse slice"
                     raise RuntimeError(msg)
 
                 # Run fit
+                t0 = time.time()
                 log.info(
                     "starting fit (sigma0=%.1f, tau0=%.1f) ...",
                     settings.sigma_start,
@@ -235,9 +244,11 @@ def main() -> None:
                     "tau": result["tau"],
                     "rms": result["best_rms"],
                 }
+                time_fit += time.time() - t0
 
                 # plots
                 if pdf is not None:
+                    t0 = time.time()
                     fig, _ = plot_convergence(result)
                     decorate(fig)
                     pdf.savefig(fig)
@@ -268,6 +279,13 @@ def main() -> None:
                     decorate(fig)
                     pdf.savefig(fig)
                     plt.close(fig)
+
+                    time_plot += time.time() - t0
+
+    log.info("finished took:")
+    log.info("... reading ideal waveforms: %.1f s", time_read)
+    log.info("... fitting electronics parameters: %.1f s", time_fit)
+    log.info("... plotting: %.1f s", time_plot)
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
