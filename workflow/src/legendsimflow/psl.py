@@ -179,6 +179,14 @@ def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
     raise NotImplementedError
 
 
+def load_ideal_psl_scan(psl_file, det):
+    pass
+
+
+def convolve_elecmod_scan(ideal_psls, elecmod_pars, padding):
+    pass
+
+
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
     """Estimate the average A/E from the PSL.
 
