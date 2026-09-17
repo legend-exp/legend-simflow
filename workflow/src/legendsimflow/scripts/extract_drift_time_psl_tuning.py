@@ -211,12 +211,11 @@ def main() -> None:
     fccd = mutils.get_sanitized_fccd(metadata, det)
 
     with perf_block("load_psl()"):
-        ideal_psls = psl.load_ideal_psl_scan(args.psl_file, det)
-        elecmod_pars = dbetto.utils.load_dict(args.elecmod, det)["best_fit"]
-        
+        ideal_psls, info = psl.load_ideal_psl_scan(args.psl_file)
+        elecmod_pars = dbetto.utils.load_dict(args.elecmod)["best_fit"]
+
         realistic_psl, psl_dt_maps = psl.convolve_elecmod_scan(
-            ideal_psls, sigma = elecmod_pars["sigma"],
-            tau = elecmod_pars["tau"]
+            ideal_psls, sigma=elecmod_pars["sigma"], tau=elecmod_pars["tau"]
         )
 
     # loop over steps

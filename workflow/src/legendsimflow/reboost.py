@@ -19,6 +19,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import awkward as ak
+import lgdo
 import lh5
 import numpy as np
 import pyg4ometry
@@ -26,7 +27,9 @@ import pygeomtools
 import reboost.hpge
 import reboost.math
 import reboost.units
-from numpy.typing import ArrayLike
+from dbetto import AttrsDict
+from numpy.typing import ArrayLike, DTypeLike
+from reboost.hpge.utils import HPGePulseShapeLibrary
 
 from legendsimflow import nersc, utils
 
@@ -81,11 +84,6 @@ def load_hpge_pulse_shape_library(
         ``float32`` halves the memory taken by the library and is enough for a
         A/E estimate at the percent level.
     """
-
-    if not isinstance(data, lgdo.Struct):
-        msg = f"{obj} in {filename} is not an LGDO Struct"
-        raise TypeError(msg)
-
     t0 = data["t0"].value
     dt = data["dt"].value
 
@@ -100,7 +98,9 @@ def load_hpge_pulse_shape_library(
 
     data = AttrsDict(
         {
-            k: np.nan_to_num(data[k].view_as("np", with_units=(k != field)), nan=out_of_bounds_val)
+            k: np.nan_to_num(
+                data[k].view_as("np", with_units=(k != field)), nan=out_of_bounds_val
+            )
             for k in ("r", "z", field)
         }
     )
@@ -109,7 +109,9 @@ def load_hpge_pulse_shape_library(
 
     waveforms = data[field] if dtype is None else np.asarray(data[field], dtype=dtype)
 
-    return HPGePulseShapeLibrary(waveforms, data.r.u, data.z.u, tu, data.r.m, data.z.m, times)
+    return HPGePulseShapeLibrary(
+        waveforms, data.r.u, data.z.u, tu, data.r.m, data.z.m, times
+    )
 
 
 def load_hpge_realistic_psl(
