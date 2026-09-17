@@ -95,7 +95,7 @@ def convolve_elecmod_scan(
                 tau_rc=tau,
                 kernel_start=kernel_start,
             )
-            
+
     for slope, depv_psls in ideal_psls.items():
         psls[slope] = {}
         dt_maps[slope] = {}
@@ -126,7 +126,7 @@ def convolve_elecmod_scan(
                 realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
             )
             dt_maps[slope][depv] = {
-                "000": realistic_dict[f"drift_time_{angle}_deg"].view_as("np"),
+                "000": realistic_dict[f"drift_time_000_deg"].view_as("np"),
                 "045": realistic_dict["drift_time_045_deg"].view_as("np"),
             }
 
