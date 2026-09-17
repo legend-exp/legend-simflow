@@ -126,17 +126,18 @@ function main()
 
     time_drift = 0
 
-    for (sidx,slope) in enumerate(low_slope:slope_step:high_slope)
+    for (sidx, slope) in enumerate(low_slope:slope_step:high_slope)
 
         t0 = time()
-        xtal = adjust_impurity_slope(base_xtal, slope)
+        xtal.impurity_curve.parameters = adjust_impurity_pars(base_xtal.impurity_curve.parameters, slope)
+
         sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + low_depv_shift)
 
         time_setup += time() - t0
 
         output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
 
-        for didx,depv_shift in enumerate(low_depv_shift:depv_step:high_depv_shift)
+        for (didx, depv_shift) in enumerate(low_depv_shift:depv_step:high_depv_shift)
             depv = opv_val + depv_shift
 
             t0 = time()
@@ -186,7 +187,10 @@ function main()
 
 
     output = dict_to_namedtuple(output)
-    output = (psl_scan = output, info = (slope_min = low_slope, slope_step = slope_step, dep_min = low_depv_shift+opv_val, dep_step = depv_step))
+    output = (
+        psl_scan = output,
+        info = (slope_min = low_slope, slope_step = slope_step, dep_min = low_depv_shift+opv_val, dep_step = depv_step)
+    )
 
     lh5open(output_file, "cw") do f
         return f[det] = output
