@@ -126,7 +126,7 @@ function main()
 
     time_drift = 0
 
-    for slope in low_slope:slope_step:high_slope
+    for (sidx,slope) in enumerate(low_slope:slope_step:high_slope)
 
         t0 = time()
         xtal = adjust_impurity_slope(base_xtal, slope)
@@ -136,7 +136,7 @@ function main()
 
         output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
 
-        for depv_shift in low_depv_shift:depv_step:high_depv_shift
+        for didx,depv_shift in enumerate(low_depv_shift:depv_step:high_depv_shift)
             depv = opv_val + depv_shift
 
             t0 = time()
@@ -156,10 +156,10 @@ function main()
                 result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
 
                 key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
-                if output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] === nothing
-                    output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] = Dict{Symbol,Any}(pairs(result))
+                if output[Symbol("slope_$sidx")][Symbol("dep_$(didx)")] === nothing
+                    output[Symbol("slope_$sidx")][Symbol("dep_$(didx)")] = Dict{Symbol,Any}(pairs(result))
                 else
-                    output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")][key] = result[key]
+                    output[Symbol("slope_$sidx")][Symbol("dep_$(didx)")][key] = result[key]
                 end
             end
 
@@ -186,6 +186,7 @@ function main()
 
 
     output = dict_to_namedtuple(output)
+    output = (psl_scan = output, info = (slope_min = low_slope, slope_step = slope_step, dep_min = low_depv_shift+opv_val, dep_step = depv_step))
 
     lh5open(output_file, "cw") do f
         return f[det] = output
