@@ -71,7 +71,6 @@ def cluster_steps(chunk: ak.Array, **kwargs) -> ak.Array:
     yc = _apply_cluster(clusters, chunk.yloc, mode="mean")
     zc = _apply_cluster(clusters, chunk.zloc, mode="mean")
     ec = _apply_cluster(clusters, chunk.edep, mode="sum")
-
     dc = _apply_cluster(clusters, chunk.dist_to_surf, mode="mean")
 
     return ak.Array(
@@ -215,7 +214,7 @@ def main() -> None:
     with perf_block("load_psl()"):
         ideal_psls = psl.load_ideal_psl_scan(args.psl_file, det)
         elecmod_pars = dbetto.utils.load_dict(args.elecmod, det)["best_fit"]
-        realistic_psl, psl_dt_maps = psl.convolve_elecmod(
+        realistic_psl, psl_dt_maps = psl.convolve_elecmod_scan(
             ideal_psls, elecmod_pars, padding=PADDING
         )
 
