@@ -21,6 +21,7 @@ from collections.abc import Mapping
 
 import awkward as ak
 import hist
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from dspeed.processors import moving_window_multi
@@ -28,6 +29,8 @@ from lgdo import Array, Scalar
 from matplotlib.figure import Figure
 from reboost import units
 from scipy.signal import convolve, fftconvolve
+
+from legendsimflow import reboost as reboost_utils
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +41,10 @@ WF_DTYPE: np.dtype = np.dtype(np.float32)
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
 
 
-
-def load_ideal_psl_scan(psl_file:str)->tuple[dict[str, dict[str, np.ndarray]], dict[str, np.ndarray]]:
-    """Load the ideal pulse-shape library scan. """
-
+def load_ideal_psl_scan(
+    psl_file: str,
+) -> tuple[dict[str, dict[str, np.ndarray]], dict[str, np.ndarray]]:
+    """Load the ideal pulse-shape library scan."""
     dets = lh5.ls(psl_file, "/")
 
     assert len(dets) == 1
@@ -52,41 +55,56 @@ def load_ideal_psl_scan(psl_file:str)->tuple[dict[str, dict[str, np.ndarray]], d
     slopes = lh5.ls(psl_file, f"{det}/psl_scan/")
 
     for slope_group in slopes:
-
         slope = slope_group.split("/")[-1]
 
         depv_groups = lh5.ls(psl_file, f"{slope_group}/")
         output[slope] = {}
-        
+
         for depv in depv_groups:
             depv_name = depv.split("/")[-1]
-            output[slope][depv_name] = lh5.read(psl_file, f"{det}/psl_scan/{slope}")
+            output[slope][depv_name] = lh5.read(
+                f"{det}/psl_scan/{slope}/{depv_name}",
+                psl_file,
+            )
 
     info = lh5.read(f"{det}/info", psl_file)
 
     return output, info
 
-def convolve_elecmod_scan(ideal_psls:dict, sigma:float,tau:float,alignment_idx = 1000.,n_samples = 4001,mw_pars = {"length": 48, "num_mw": 3, "mw_type": 0}, dt_data =16):
-    """ Convolve ideal PSLs from scan, with the electronics model."""
 
-    output = {}
+def convolve_elecmod_scan(
+    ideal_psls: dict,
+    sigma: float,
+    tau: float,
+    alignment_idx=1000,
+    n_samples=4001,
+    mw_pars=MW_PARS,
+    dt_data=16,
+    angle="000",
+):
+    """Convolve ideal PSLs from scan, with the electronics model."""
+    kernel_start = -100
+
+    psls = {}
+    dt_maps = {}
+
     for slope, depv_psls in ideal_psls.items():
         psls[slope] = {}
-        
-        for depv, ideal_psl in depv_psls.items():
+        dt_maps[slope] = {}
 
+        for depv, ideal_psl in depv_psls.items():
             dt = ideal_psl["dt"].value * units.units_convfact(ideal_psl["dt"], "ns")
 
-            rf_kernel = psl.build_electronics_response_kernel(
+            rf_kernel = build_electronics_response_kernel(
                 dt,
                 mu_bandwidth=0,
-                sigma_bandwidth=elecmod_,
+                sigma_bandwidth=sigma,
                 tau_rc=tau,
-                kernel_start=-100,
+                kernel_start=kernel_start,
             )
 
             realistic_dict = make_realistic_pulse_shape_lib(
-                ideal_map_obj,
+                ideal_psl,
                 rf_kernel,
                 alignment_idx,
                 n_samples,
@@ -95,17 +113,25 @@ def convolve_elecmod_scan(ideal_psls:dict, sigma:float,tau:float,alignment_idx =
                 dtype=np.float32,
                 kernel_t0_idx=-2 * kernel_start,
             )
-            h_aoe, mean_aoe = get_avg_aoe(
+            _, mean_aoe = get_avg_aoe(
                 [realistic_dict[k] for k in realistic_dict if "waveform" in k]
             )
 
             for key in realistic_dict:
                 if "waveform" in key:
-                    realistic_dict[key] = realistic_dict[key].view_as("np") / mean_aoe
-                    
-            output[slope][depv] = realistic_dict
+                    realistic_dict[key] = Array(
+                        realistic_dict[key].view_as("np") / mean_aoe
+                    )
 
-   return output
+            psls[slope][depv] = reboost_utils.load_hpge_pulse_shape_library(
+                realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
+            )
+            dt_maps[slope][depv] = {
+                "000": realistic_dict[f"drift_time_{angle}_deg"].view_as("np"),
+                "045": realistic_dict["drift_time_045_deg"].view_as("np"),
+            }
+
+    return psls, dt_maps
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
