@@ -15,15 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Tune the electronics response parameters (sigma, tau) against data superpulses loooping over
-PSLS.
-
-Reads an ideal pulse-shape library and data superpulses from LH5, fits the
-Gaussian sigma and exponential tau of the system response kernel by minimising
-the mean RMS between simulated and measured current superpulses, and writes
-the best-fit parameters to a YAML file.
-
-"""
 
 import argparse
 import logging
