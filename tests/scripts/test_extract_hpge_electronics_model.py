@@ -209,7 +209,6 @@ def test_make_ideal_psl_scan(tmp_path):
 
     lh5.write(Struct(output), f"V03422A", ideal_psl, wo_mode="of")
 
-    lh5.show(ideal_psl)
     return ideal_psl
 
 def test_extract_electronics_model_scan_cli_with_data(
