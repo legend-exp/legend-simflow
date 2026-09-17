@@ -258,25 +258,30 @@ def main() -> None:
         with perf_block("drift_time"):
             drift_times = {}
 
-            for idx, dep in enumerate(psl_dt_maps):
-                if idx % 10 == 0:
-                    msg = f"Processing drift time for {dep} ({idx}/{len(psl_dt_maps)})"
-                    log.info(msg)
+            for slope, depv_psls in realistic_psl.items():
+                
+                drift_times[slope] = {}
+                
+                for depv in depv_psls:
 
-                _drift_time = reboost_utils.hpge_corrected_drift_time(
-                    chunk_new, psl_dt_maps[dep], det_loc[det]
-                )
-                _r, _z = get_rz(det_loc[det], chunk_new)
+                    dt_maps = psl_dt_maps[slope][depv]
+                    psl = realistic_psl[slope][depv]
 
-                drift_times[dep] = reboost.hpge.psd.maximum_current(
-                    edep_active,
-                    _drift_time,
-                    times=None,
-                    r=_r,
-                    z=_z,
-                    template=realistic_psl[dep],
-                    return_mode="max_time",
-                )
+                    _drift_time = reboost_utils.hpge_corrected_drift_time(
+                        chunk_new, dt_maps, det_loc[det]
+                    )
+                    _r, _z = get_rz(det_loc[det], chunk_new)
+
+                    drift_times[slope][depv] = reboost.hpge.psd.maximum_current(
+                        edep_active,
+                        _drift_time,
+                        times=None,
+                        r=_r,
+                        z=_z,
+                        template=psl
+                        return_mode="max_time",
+                    )
+                    
         if drift_times == {}:
             out = Table(ak.Array({"energy": energy_true}))
         else:
