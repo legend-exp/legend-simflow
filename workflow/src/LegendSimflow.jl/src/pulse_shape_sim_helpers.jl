@@ -400,9 +400,39 @@ function find_valid_spawn_position(
     return spawn_positions[best_idx]
 end
 
+"""
+    adjust_impurity_pars(pars::PropDict, slope::Real)
 
-function adjust_impurity_slope(xtal::PropDict, slope::Real)::PropDict
-    return xtal
+Adjust the impurity parameters in a `PropDict` `pars` by a given `slope`.
+
+The impurity profile is scaled according to
+
+```math
+I^*(z) = (1 + s) \\times (I(z) - I(0)) + I(0),
+```
+
+where I(z) is the original impurity profile, I^*(z) is the adjusted
+profile, and s is the slope factor.
+
+This means, the non-constant fraction of the impurity profile is
+scaled by a factor s, while the constant offset I(0) is preserved.
+"""
+function adjust_impurity_pars(pars::PropDict, slope::Real)
+
+    pars_new = deepcopy(pars)
+    a_new = pars.a
+
+    if :n in keys(pars)
+        a_new+=(-slope)*pars.n*exp(-pars.l/pars.m)
+    end
+    pars_new.a=a_new
+
+    for par in [:b, :c, :n]
+        if par in keys(pars)
+            pars_new[par] = (1+slope)*pars[par]
+        end
+    end
+    return pars_new
 end
 
 """

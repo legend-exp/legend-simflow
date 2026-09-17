@@ -61,6 +61,18 @@ end
 
 end
 
+@testset "impurity_curves" begin
+    
+
+    impurity_curves = adjust_impurity_pars(PropDict(a=1,b=5), 2.0)
+
+    @test impurity_curves isa PropDict
+
+    # shouldnt change a but increases b to 10.0
+    @test impurity_curves.a == 1.0
+    @test impurity_curves.b == 10.0    
+end
+
 @testset "map_generation" begin
     meta_path = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
     det = "V99000A"
