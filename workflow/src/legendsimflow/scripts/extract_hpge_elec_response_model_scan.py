@@ -28,6 +28,7 @@ import argparse
 from pathlib import Path
 
 import dbetto
+import logging
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
@@ -58,9 +59,6 @@ DEFAULT_SETTINGS = {
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
     "plot_window": (-600.0, 600.0),
-    # data-amplitude weight exponent p for the fit cost (w = |data|**p): biases
-    # the fit toward the current peak and its flanks; 0.0 reproduces the plain
-    # equal-weight RMS
     "weight_power": 2.0,
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
@@ -117,7 +115,6 @@ def main() -> None:
         "--simflow-config",
         "--config",
         dest="simflow_config",
-        required=True,
         help="simflow config YAML path",
     )
     parser.add_argument(
@@ -135,14 +132,19 @@ def main() -> None:
         help="File name for diagnostic plots.",
     )
 
-
     args = parser.parse_args()
 
-    config = utils.init_simflow_context(args.simflow_config, workflow=None).config
-    metadata = config.metadata
+    if args.simflow_config is not None:
+        config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+        metadata = config.metadata
 
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, args.log_file)
-    log_script_invocation(log, "extract-hpge-elecmod-scan", parser, args)
+        log_config = metadata.simprod.config.logging
+        log = ldfs.utils.build_log(log_config, args.log_file)
+
+        log_script_invocation(log, "extract-hpge-elecmod-scan", parser, args)
+    else:
+        logging.basicConfig(level=logging.INFO,format="%(asctime)s [%(levelname)s] %(message)s")
+        log = logging.getLogger(__name__)
 
     hpge = args.hpge_detector
     pars_file = args.pars_file
