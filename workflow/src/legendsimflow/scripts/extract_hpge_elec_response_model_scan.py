@@ -76,7 +76,6 @@ DEFAULT_SETTINGS = {
         "superpulses": "input.superpulses",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
-        "uniformity_plot_file": "output.uniformity_plot_file",
         "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
@@ -136,13 +135,6 @@ def main() -> None:
         help="File name for diagnostic plots.",
     )
 
-    parser.add_argument(
-        "--uniformity-plot-file",
-        type=str,
-        required=False,
-        default=None,
-        help="File name for the response uniformity plot.",
-    )
 
     args = parser.parse_args()
 
@@ -283,16 +275,6 @@ def main() -> None:
             plt.close(fig)
 
         log.info("... saved diagnostic plots to %s", args.plot_file)
-
-    if args.uniformity_plot_file is not None:
-        fig, _ = plot_current_superpulses_fwhm_and_amplitude(
-            args.superpulses,
-            args.hpge_detector,
-            dt_range_tuning=dt_range_fit,
-        )
-        decorate(fig)
-        fig.savefig(args.uniformity_plot_file)
-        plt.close(fig)
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
