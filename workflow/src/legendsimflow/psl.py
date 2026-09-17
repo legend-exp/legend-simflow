@@ -88,20 +88,19 @@ def convolve_elecmod_scan(
     psls = {}
     dt_maps = {}
 
-    for slope, depv_psls in ideal_psls.items():
-        psls[slope] = {}
-        dt_maps[slope] = {}
-
-        for depv, ideal_psl in depv_psls.items():
-            dt = ideal_psl["dt"].value * units.units_convfact(ideal_psl["dt"], "ns")
-
-            rf_kernel = build_electronics_response_kernel(
-                dt,
+    rf_kernel = build_electronics_response_kernel(
+                1.0,
                 mu_bandwidth=0,
                 sigma_bandwidth=sigma,
                 tau_rc=tau,
                 kernel_start=kernel_start,
             )
+            
+    for slope, depv_psls in ideal_psls.items():
+        psls[slope] = {}
+        dt_maps[slope] = {}
+
+        for depv, ideal_psl in depv_psls.items():
 
             realistic_dict = make_realistic_pulse_shape_lib(
                 ideal_psl,
