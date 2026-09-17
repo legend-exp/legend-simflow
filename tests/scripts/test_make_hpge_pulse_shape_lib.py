@@ -51,7 +51,7 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
 
 
 
-#@pytest.mark.needs_julia
+@pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
     """Run the Julia pulse shape library script and verify the output LH5 structure."""
