@@ -275,8 +275,6 @@ def main() -> None:
 
     # get the global best fit pars
 
-    step_info = {k: v.view_as() for k,v in lh5.read(f"{args.hpge_detector}/info", args.ideal_lib).items()}
-    output["info"] = step_info
 
     best_rms = float("inf")
     best_pars = None
@@ -288,6 +286,10 @@ def main() -> None:
                 best_pars = info
                 best_pars["slope"] = slope
                 best_pars["depv"] = depv
+
+    step_info = {k: float(v.view_as()) for k,v in lh5.read(f"{args.hpge_detector}/info", args.ideal_lib).items()}
+
+    output["info"] = step_info
 
     if best_pars is not None:
         output["best_fit"] = best_pars
