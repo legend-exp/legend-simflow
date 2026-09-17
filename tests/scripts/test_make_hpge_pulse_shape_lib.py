@@ -50,7 +50,6 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
     assert "V00001A" in top_keys, f"Expected group 'V00001A' in LH5, got: {top_keys}"
 
 
-
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
@@ -93,10 +92,8 @@ def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
     assert psl_file.exists(), "Pulse shape library LH5 file was not created"
 
     top_keys = lh5.ls(psl_file)
-    
+
     assert "V05261B" in top_keys, f"Expected group 'V05261B' in LH5, got: {top_keys}"
-    
+
     slopes = lh5.ls(psl_file, "V05261B/")
     assert len(slopes) > 0, "No slopes found in LH5 file"
-
-    

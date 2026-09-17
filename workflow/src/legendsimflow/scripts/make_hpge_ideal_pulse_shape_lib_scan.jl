@@ -107,7 +107,7 @@ function main()
     # extract the settings of the scan
     scan_settings = parsed_args["scan-settings"]
     scan_cfg = (!isnothing(scan_settings) && isfile(scan_settings)) ? readprops(scan_settings) : PropDict()
-    
+
     low_depv_shift = get(scan_cfg, :low_depv_shift, LOW_DEPV_SHIFT)
     high_depv_shift = get(scan_cfg, :high_depv_shift, HIGH_DEPV_SHIFT)
     depv_step = get(scan_cfg, :depv_step, DEPV_STEP)
@@ -127,30 +127,30 @@ function main()
     time_drift = 0
 
     for slope in low_slope:slope_step:high_slope
-        
+
         t0 = time()
         xtal = adjust_impurity_slope(base_xtal, slope)
         sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + low_depv_shift)
-        
+
         time_setup += time() - t0
 
         output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
 
         for depv_shift in low_depv_shift:depv_step:high_depv_shift
             depv = opv_val + depv_shift
-            
+
             t0 = time()
-            scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, 
+            scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim,
                 depv,
                 check_for_depletion = false,
                 reconverge_electric_potential = false
-                )
+            )
 
             calculate_electric_field!(sim)
             time_rescale += time() - t0
 
             output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] = nothing
-            
+
             t0 = time()
             for a in CRYSTAL_AXIS_ANGLES
                 result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
@@ -180,17 +180,17 @@ function main()
         mkpath(output_dir)
     end
     # reformat
-    
+
     dict_to_namedtuple(d::AbstractDict) =
-    (; (k => v isa AbstractDict ? dict_to_namedtuple(v) : v for (k, v) in d)...)
-    
+        (; (k => v isa AbstractDict ? dict_to_namedtuple(v) : v for (k, v) in d)...)
+
 
     output = dict_to_namedtuple(output)
 
     lh5open(output_file, "cw") do f
-        f[det] = output
+        return f[det] = output
     end
-    time_write = time() - t0   
+    time_write = time() - t0
     @info "Saved to disk in $(time_write) seconds"
 
 end
