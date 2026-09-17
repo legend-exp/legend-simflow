@@ -38,6 +38,14 @@ WF_DTYPE: np.dtype = np.dtype(np.float32)
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
 
 
+def load_ideal_psl_scan(psl_file, det):
+    pass
+
+
+def convolve_elecmod_scan(ideal_psls, elecmod_pars, padding):
+    pass
+
+
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
     """Estimate the average A/E from the PSL.
 
