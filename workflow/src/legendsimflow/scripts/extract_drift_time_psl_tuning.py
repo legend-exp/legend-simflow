@@ -33,12 +33,12 @@ import reboost.hpge.utils
 from lgdo import Table
 from lh5 import LH5Iterator
 from reboost import units
+from reboost.io import write_hit_table_chunk
 from reboost.shape.cluster import apply_cluster, cluster_by_step_length
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
-from legendsimflow import reboost as reboost_utils
 from legendsimflow.scripts import log_script_invocation
 
 N_MAX = 10000
@@ -133,7 +133,6 @@ N_MAX = 10000
 @snakemake_compatible(
     mapping={
         "stp_file": "input.simid",
-        "jobid": "wildcards.jobid",
         "hpge_detector": "wildcards.hpge_detector",
         "drift_time_file": "output",
         "elecmod": "input.elecmod",
@@ -145,7 +144,7 @@ N_MAX = 10000
 )
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the hit tier.")
-    parser.add_argument("--stp-file", required=True, help="input stp tier file")
+    parser.add_argument("--stp-file", required=True, help="Input stp tier directory.")
     parser.add_argument(
         "--drift-time-file", required=True, help="output drift time file"
     )
@@ -235,8 +234,8 @@ def main() -> None:
         with perf_block("activeness"):
             _distance_to_nplus = reboost.hpge.surface.distance_to_surface(
                 chunk_new.xloc,
-                chunk_new.xloc,
-                chunk_new.xloc,
+                chunk_new.yloc,
+                chunk_new.zloc,
                 pyobj,
                 det_loc[det],
                 distances_precompute=chunk_new.dist_to_surf,
@@ -258,36 +257,45 @@ def main() -> None:
         with perf_block("drift_time"):
             drift_times = {}
 
-            for idx, dep in enumerate(psl_dt_maps):
-                if idx % 10 == 0:
-                    msg = f"Processing drift time for {dep} ({idx}/{len(psl_dt_maps)})"
-                    log.info(msg)
+            for slope, depv_psls in realistic_psl.items():
+                drift_times[slope] = {}
 
-                _drift_time = reboost_utils.hpge_corrected_drift_time(
-                    chunk_new, psl_dt_maps[dep], det_loc[det]
-                )
-                _r, _z = get_rz(det_loc[det], chunk_new)
+                for depv in depv_psls:
+                    dt_maps = psl_dt_maps[slope][depv]
+                    psl_temp = depv_psls[depv]
 
-                drift_times[dep] = reboost.hpge.psd.maximum_current(
-                    edep_active,
-                    _drift_time,
-                    times=None,
-                    r=_r,
-                    z=_z,
-                    template=realistic_psl[dep],
-                    return_mode="max_time",
-                )
+                    _drift_time = reboost.hpge.drift_time_crystal_axes(
+                        chunk_new.xloc,
+                        chunk_new.yloc,
+                        chunk_new.zloc,
+                        dt_maps,
+                        coord_offset=det_loc,
+                    )
+                    _r, _z = get_rz(det_loc[det], chunk_new)
+
+                    drift_times[slope][depv] = reboost.hpge.psd.maximum_current(
+                        edep_active,
+                        _drift_time,
+                        times=None,
+                        r=_r,
+                        z=_z,
+                        template=psl_temp,
+                        return_mode="max_time",
+                    )
+
         if drift_times == {}:
             out = Table(ak.Array({"energy": energy_true}))
         else:
-            out = Table(ak.Array({"energy": energy_true, "psd": drift_times}))
+            out = Table(ak.Array({"energy": energy_true, "drift_time": drift_times}))
 
-        reboost_utils.write_chunk(
+        write_hit_table_chunk(
             out,
-            f"/drift_time/{det}",
+            f"/{det}/",
             dt_file,
             geom_meta.uid,
         )
+    # write info block
+    lh5.write(info, f"/{det}/info", dt_file, wo_mode="append")
 
     with perf_block("move_to_cfs()"):
         move2cfs()

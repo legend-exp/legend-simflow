@@ -228,21 +228,19 @@ def convolve_elecmod_scan(
     psls = {}
     dt_maps = {}
 
+    rf_kernel = build_electronics_response_kernel(
+        1.0,
+        mu_bandwidth=0,
+        sigma_bandwidth=sigma,
+        tau_rc=tau,
+        kernel_start=kernel_start,
+    )
+
     for slope, depv_psls in ideal_psls.items():
         psls[slope] = {}
         dt_maps[slope] = {}
 
         for depv, ideal_psl in depv_psls.items():
-            dt = ideal_psl["dt"].value * units.units_convfact(ideal_psl["dt"], "ns")
-
-            rf_kernel = build_electronics_response_kernel(
-                dt,
-                mu_bandwidth=0,
-                sigma_bandwidth=sigma,
-                tau_rc=tau,
-                kernel_start=kernel_start,
-            )
-
             realistic_dict = make_realistic_pulse_shape_lib(
                 ideal_psl,
                 rf_kernel,
@@ -267,7 +265,7 @@ def convolve_elecmod_scan(
                 realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
             )
             dt_maps[slope][depv] = {
-                "000": realistic_dict[f"drift_time_{angle}_deg"].view_as("np"),
+                "000": realistic_dict["drift_time_000_deg"].view_as("np"),
                 "045": realistic_dict["drift_time_045_deg"].view_as("np"),
             }
 
