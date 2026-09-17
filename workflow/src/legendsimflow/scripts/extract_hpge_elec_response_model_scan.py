@@ -275,17 +275,20 @@ def main() -> None:
     # get the global best fit pars
     best_rms = float("inf")
     best_pars = None
-    
-    for slope in output:
-        for depv in output[slope]:
-            if output[slope][depv]["rms"] < best_rms:
-                best_rms = output[slope][depv]["rms"]
-                best_pars = output[slope][depv]
-    
+
+    for slope, slope_dict in output.items():
+        for depv, info in slope_dict.items():
+            if info["rms"] < best_rms:
+                best_rms = info["rms"]
+                best_pars = info
+                best_pars["slope"] = slope
+                best_pars["depv"] = depv
+
     if best_pars is not None:
         output["best_fit"] = best_pars
     else:
-        raise RuntimeError("Something went badly wrong, no best fit parameters found!")
+        msg = "Something went badly wrong, no best fit parameters found!"
+        raise RuntimeError(msg)
 
     log.info("finished took:")
     log.info("... reading ideal waveforms: %.1f s", time_read)
