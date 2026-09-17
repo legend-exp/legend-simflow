@@ -184,11 +184,10 @@ def main() -> None:
             slope = slope_group.split("/")[-1]
             output[slope] = {}
 
-            log.info("... reading ideal waveforms from %s ...", slope)
+            log.debug("... reading ideal waveforms from %s ...", slope)
 
             for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/{slope}/"):
                 depv = depv_group.split("/")[-1]
-                log.info("... reading ideal waveforms from %s ...", depv)
 
                 t0 = time.time()
                 ideal_lib = lh5.read(
