@@ -25,10 +25,10 @@ the best-fit parameters to a YAML file.
 """
 
 import argparse
+import logging
 from pathlib import Path
 
 import dbetto
-import logging
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
@@ -36,7 +36,6 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import metadata as mutils
 from legendsimflow import utils
 from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
@@ -47,7 +46,6 @@ from legendsimflow.hpge_electronics_tuning import (
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
-    plot_current_superpulses_fwhm_and_amplitude,
     read_superpulses,
 )
 
@@ -83,7 +81,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Extract the HPGe electronics model for a LEGEND run."
     )
- 
+
     parser.add_argument(
         "--hpge-detector",
         required=True,
@@ -143,7 +141,9 @@ def main() -> None:
 
         log_script_invocation(log, "extract-hpge-elecmod-scan", parser, args)
     else:
-        logging.basicConfig(level=logging.INFO,format="%(asctime)s [%(levelname)s] %(message)s")
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+        )
         log = logging.getLogger(__name__)
 
     hpge = args.hpge_detector
@@ -155,90 +155,81 @@ def main() -> None:
         else dbetto.AttrsDict(DEFAULT_SETTINGS)
     )
 
-    log.info("extracting electronics model from superpulses %s in %s ...", hpge, args.superpulses)
+    log.info(
+        "extracting electronics model from superpulses %s in %s ...",
+        hpge,
+        args.superpulses,
+    )
 
     log.info("... reading data superpulses from %s ...", args.superpulses)
-    data_superpulses = read_superpulses(args.superpulses, args.hpge_detector, dt_range_tuning = settings.dt_range_tuning)
-
-    for slope in lh5.ls(args.ideal_lib,f"{args.hpge_detector}/"):
-        log.info("... reading ideal waveforms from %s ...", slope)
-        
-        for depv in lh5.ls(args.ideal_lib,f"{args.hpge_detector}/{slope}/"):
-            log.info("... reading ideal waveforms from %s ...", depv)
-
-            ideal_lib = lh5.read(f"{args.hpge_detector}/{slope}/{depv}", args.ideal_lib)
-
-            log.info(ideal_lib)
-
-    return 1
-    log.info("... reading data superpulses from %s ...", args.superpulses)
-    data_superpulses = read_superpulses(args.superpulses, args.hpge_detector, dt_range_tuning = settings.dt_range_tuning)
-    
-    msg = f"Selected {data_superpulses}"
-    log.info(msg)
+    data_superpulses = read_superpulses(
+        args.superpulses, args.hpge_detector, dt_range_tuning=settings.dt_range_tuning
+    )
 
     if not data_superpulses:
         msg = f"no superpulses found in drift time range [{settings.dt_range_tuning[0]:.0f}, {settings.dt_range_tuning[1]:.0f}] ns"
         raise RuntimeError(msg)
-        
-    log.info(
-        "... selected %d slices in [%.0f, %.0f] ns",
-        len(data_superpulses),
-        *settings.dt_range_tuning,
-    )
 
+    # loop over slope and depv
     comparison_window = tuple(settings.comparison_window)
     plot_window = tuple(settings.plot_window)
 
-    # Prepare ideal waveforms
-    log.info("... selecting ideal waveforms per slice ...")
-    ideal_wfs = get_ideal_wfs_all_slices(
-        ideal_lib, data_superpulses, angle=settings.angle,
-        max_num_superpulses  = settings.max_num_superpulses
-    )
+    output = {}
+    for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/"):
+        slope = slope_group.split("/")[-1]
+        output[slope] = {}
 
-    if not ideal_wfs["ideal_wfs_slice"].keys():
-        msg = "no ideal waveforms matched any data superpulse slice"
-        raise RuntimeError(msg)
-    dt_range_fit = (
-        min(sl.drift_time_range[0] for sl in ideal_wfs["ideal_wfs_slice"]),
-        max(sl.drift_time_range[1] for sl in ideal_wfs["ideal_wfs_slice"]),
-    )
+        log.info("... reading ideal waveforms from %s ...", slope)
 
-    # Run fit
-    log.info(
-        "starting fit (sigma0=%.1f, tau0=%.1f) ...",
-        settings.sigma_start,
-        settings.tau_start,
-    )
-    result = fit_electronics_parameters(
-        **ideal_wfs,
-        data_superpulses=data_superpulses,
-        sigma_start=settings.sigma_start,
-        tau_start=settings.tau_start,
-        sigma_limits=tuple(settings.sigma_limits),
-        tau_limits=tuple(settings.tau_limits),
-        comparison_window=comparison_window,
-        weight_power=settings.get("weight_power", 0.0),
-        max_calls=settings.max_calls,
-    )
+        for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/{slope}/"):
+            depv = depv_group.split("/")[-1]
+            log.info("... reading ideal waveforms from %s ...", depv)
 
-    # Print summary
-    log.info("")
-    log.info("=" * 50)
-    log.info("  sigma = %.4f ns", result["sigma"])
-    log.info("  tau   = %.4f ns", result["tau"])
-    log.info("  RMS   = %.6f", result["best_rms"])
-    log.info("=" * 50)
+            ideal_lib = lh5.read(f"{args.hpge_detector}/{slope}/{depv}", args.ideal_lib)
 
-    # Write output
-    output = {
-        "detector": args.hpge_detector,
-        "angle": settings.angle,
-        "sigma": result["sigma"],
-        "tau": result["tau"],
-        "rms": result["best_rms"],
-    }
+            # Prepare ideal waveforms
+            log.info("... selecting ideal waveforms per slice ...")
+            ideal_wfs = get_ideal_wfs_all_slices(
+                ideal_lib,
+                data_superpulses,
+                angle=settings.angle,
+                max_num_superpulses=settings.max_num_superpulses,
+            )
+
+            if not ideal_wfs["ideal_wfs_slice"].keys():
+                msg = "no ideal waveforms matched any data superpulse slice"
+                raise RuntimeError(msg)
+         
+
+            # Run fit
+            log.info(
+                "starting fit (sigma0=%.1f, tau0=%.1f) ...",
+                settings.sigma_start,
+                settings.tau_start,
+            )
+            result = fit_electronics_parameters(
+                **ideal_wfs,
+                data_superpulses=data_superpulses,
+                sigma_start=settings.sigma_start,
+                tau_start=settings.tau_start,
+                sigma_limits=tuple(settings.sigma_limits),
+                tau_limits=tuple(settings.tau_limits),
+                comparison_window=comparison_window,
+                weight_power=settings.get("weight_power", 0.0),
+                max_calls=settings.max_calls,
+            )
+
+            # Write output
+            output[slope][depv] = {
+                "detector": args.hpge_detector,
+                "angle": settings.angle,
+                "sigma": result["sigma"],
+                "tau": result["tau"],
+                "rms": result["best_rms"],
+            }
+
+    print(output)
+    return 1
 
     # Plots
     if args.plot_file is not None:
