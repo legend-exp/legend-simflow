@@ -179,12 +179,74 @@ def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
     raise NotImplementedError
 
 
-def load_ideal_psl_scan(psl_file, det):
-    pass
 
+def load_ideal_psl_scan(psl_file:str)->tuple[dict[str, dict[str, np.ndarray]], dict[str, np.ndarray]]:
+    """Load the ideal pulse-shape library scan. """
 
-def convolve_elecmod_scan(ideal_psls, elecmod_pars, padding):
-    pass
+    dets = lh5.ls(psl_file, "/")
+
+    assert len(dets) == 1
+    det = dets[0]
+
+    output = {}
+
+    slopes = lh5.ls(psl_file, f"{det}/psl_scan/")
+
+    for slope_group in slopes:
+
+        slope = slope_group.split("/")[-1]
+
+        depv_groups = lh5.ls(psl_file, f"{slope_group}/")
+        output[slope] = {}
+        
+        for depv in depv_groups:
+            depv_name = depv.split("/")[-1]
+            output[slope][depv_name] = lh5.read(psl_file, f"{det}/psl_scan/{slope}")
+
+    info = lh5.read(f"{det}/info", psl_file)
+
+    return output, info
+
+def convolve_elecmod_scan(ideal_psls:dict, sigma:float,tau:float,alignment_idx = 1000.,n_samples = 4001,mw_pars = {"length": 48, "num_mw": 3, "mw_type": 0}, dt_data =16):
+    """ Convolve ideal PSLs from scan, with the electronics model."""
+
+    output = {}
+    for slope, depv_psls in ideal_psls.items():
+        psls[slope] = {}
+        
+        for depv, ideal_psl in depv_psls.items():
+
+            dt = ideal_psl["dt"].value * units.units_convfact(ideal_psl["dt"], "ns")
+
+            rf_kernel = psl.build_electronics_response_kernel(
+                dt,
+                mu_bandwidth=0,
+                sigma_bandwidth=elecmod_,
+                tau_rc=tau,
+                kernel_start=-100,
+            )
+
+            realistic_dict = make_realistic_pulse_shape_lib(
+                ideal_map_obj,
+                rf_kernel,
+                alignment_idx,
+                n_samples,
+                mw_pars=mw_pars,
+                dt_data=dt_data,
+                dtype=np.float32,
+                kernel_t0_idx=-2 * kernel_start,
+            )
+            h_aoe, mean_aoe = get_avg_aoe(
+                [realistic_dict[k] for k in realistic_dict if "waveform" in k]
+            )
+
+            for key in realistic_dict:
+                if "waveform" in key:
+                    realistic_dict[key] = realistic_dict[key].view_as("np") / mean_aoe
+                    
+            output[slope][depv] = realistic_dict
+
+   return output
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:

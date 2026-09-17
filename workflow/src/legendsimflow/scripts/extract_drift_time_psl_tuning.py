@@ -41,7 +41,6 @@ from legendsimflow import nersc, psl, utils
 from legendsimflow import reboost as reboost_utils
 from legendsimflow.scripts import log_script_invocation
 
-PADDING = (0, 2000)
 N_MAX = 10000
 
 
@@ -214,8 +213,10 @@ def main() -> None:
     with perf_block("load_psl()"):
         ideal_psls = psl.load_ideal_psl_scan(args.psl_file, det)
         elecmod_pars = dbetto.utils.load_dict(args.elecmod, det)["best_fit"]
+        
         realistic_psl, psl_dt_maps = psl.convolve_elecmod_scan(
-            ideal_psls, elecmod_pars, padding=PADDING
+            ideal_psls, sigma = elecmod_pars["sigma"],
+            tau = elecmod_pars["tau"]
         )
 
     # loop over steps
