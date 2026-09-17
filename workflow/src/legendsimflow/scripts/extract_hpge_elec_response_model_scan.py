@@ -251,8 +251,8 @@ def main() -> None:
                         plot_window=plot_window,
                         detector_name=args.hpge_detector,
                     )
-                    output[slope]["aoe_data"] = data_amax
-                    output[depv]["aoe_mc"] = mc_amax
+                    output[slope][depv]["aoe_data"] = data_amax
+                    output[slope][depv]["aoe_mc"] = mc_amax
 
                     decorate(fig)
                     pdf.savefig(fig)
@@ -271,6 +271,21 @@ def main() -> None:
                     plt.close(fig)
 
                     time_plot += time.time() - t0
+
+    # get the global best fit pars
+    best_rms = float("inf")
+    best_pars = None
+    
+    for slope in output:
+        for depv in output[slope]:
+            if output[slope][depv]["rms"] < best_rms:
+                best_rms = output[slope][depv]["rms"]
+                best_pars = output[slope][depv]
+    
+    if best_pars is not None:
+        output["best_fit"] = best_pars
+    else:
+        raise RuntimeError("Something went badly wrong, no best fit parameters found!")
 
     log.info("finished took:")
     log.info("... reading ideal waveforms: %.1f s", time_read)
