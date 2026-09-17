@@ -61,6 +61,20 @@ end
 
 end
 
+@testset "impurity_curves" begin
+    meta_path = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
+    det = "V99000A"
+    opv_val = 4200.0
+
+    meta, xtal, opv = load_detector_metadata(meta_path, det, opv_val)
+
+    impurity_curves = adjust_impurity_pars(meta, xtal, opv)
+
+    @test impurity_curves isa PropDict
+
+
+end
+
 @testset "map_generation" begin
     meta_path = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "tests", "dummyprod", "inputs"))
     det = "V99000A"
