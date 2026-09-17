@@ -180,18 +180,19 @@ def main() -> None:
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
-        for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/"):
+        for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/psl_scan/"):
+
             slope = slope_group.split("/")[-1]
             output[slope] = {}
 
             log.debug("... reading ideal waveforms from %s ...", slope)
 
-            for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/{slope}/"):
+            for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/psl_scan/{slope}/"):
                 depv = depv_group.split("/")[-1]
 
                 t0 = time.time()
                 ideal_lib = lh5.read(
-                    f"{args.hpge_detector}/{slope}/{depv}", args.ideal_lib
+                    f"{args.hpge_detector}/psl_scan/{slope}/{depv}", args.ideal_lib
                 )
 
                 # Prepare ideal waveforms
@@ -273,6 +274,10 @@ def main() -> None:
                     time_plot += time.time() - t0
 
     # get the global best fit pars
+
+    step_info = {k: v.view_as() for k,v in lh5.read(f"{args.hpge_detector}/info", args.ideal_lib).items()}
+    output["info"] = step_info
+
     best_rms = float("inf")
     best_pars = None
 
