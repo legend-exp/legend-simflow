@@ -135,7 +135,7 @@ function main()
 
         time_setup += time() - t0
 
-        output[Symbol("slope_$slope")] = Dict{Symbol,Any}()
+        output[Symbol("slope_$sidx")] = Dict{Symbol,Any}()
 
         for (didx, depv_shift) in enumerate(low_depv_shift:depv_step:high_depv_shift)
             depv = opv_val + depv_shift
@@ -150,7 +150,7 @@ function main()
             calculate_electric_field!(sim)
             time_rescale += time() - t0
 
-            output[Symbol("slope_$slope")][Symbol("dep_$(depv)_V")] = nothing
+            output[Symbol("slope_$sidx")][Symbol("dep_$didx")] = nothing
 
             t0 = time()
             for a in CRYSTAL_AXIS_ANGLES
