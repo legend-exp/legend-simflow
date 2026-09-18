@@ -8,8 +8,10 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+import dbetto
 import dbetto.utils
 import h5py
+import lh5
 import pytest
 import yaml
 
@@ -38,18 +40,20 @@ def _override_argv(*args):
 
 @pytest.fixture(scope="session")
 def legend_gdml_path(tmp_path_factory):
-    """Generate the legend GDML file using legend-pygeom-l200.
-
-    Calls the ``legend-pygeom-l200`` CLI with the dummyprod geometry config and
-    metadata, writing a pygeomtools-compatible GDML to a session-scoped
-    temporary directory. The result is cached for the full test session (~5 s
-    one-time cost).
-    """
+    """Build the array of the `l200cfg01` experiment, the one the full chain runs on."""
     out_dir = tmp_path_factory.mktemp("legend_gdml")
     gdml_path = out_dir / "legend.gdml"
-    geom_config = testprod / "inputs/simprod/config/geom/legend-geom-config.yaml"
+
+    # read the configuration through the metadata database, which expands its
+    # $_ paths, as the gen_geom_config rule does
+    metadata = dbetto.TextDB(testprod / "legend-metadata", lazy=True)
+    geom_config = out_dir / "geom-config.yaml"
+    dbetto.utils.write_dict(
+        metadata.simprod.config.geom["l200cfg01-geom-config"].to_dict(), geom_config
+    )
+
     env = os.environ.copy()
-    env["LEGEND_METADATA"] = str(testprod / "inputs")
+    env["LEGEND_METADATA"] = str(testprod / "legend-metadata")
     subprocess.run(
         [
             "legend-pygeom-l200",
@@ -66,13 +70,7 @@ def legend_gdml_path(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def legend_stp_path(tmp_path_factory, legend_gdml_path):
-    """Generate a legend stp LH5 file by running remage with the public geometry.
-
-    Skips if remage is not installed (requires the pixi test environment).  The
-    simulation is a minimal 2 MeV gamma source confined to all V-type detectors,
-    producing hits in several germanium detectors.  The result is cached for the
-    full test session.
-    """
+    """Simulate 2 MeV gammas in the germanium detectors of the array, with remage."""
     if shutil.which("remage") is None:
         pytest.skip("remage not installed")
 
@@ -120,42 +118,52 @@ def legend_stp_path(tmp_path_factory, legend_gdml_path):
 
 
 @pytest.fixture(scope="session")
-def legend_dtmap_path():
-    """Return the path to the pre-built dummy drift time map for V05261B.
+def legend_dtmap_path(tmp_path_factory, legend_testdata):
+    """Write the drift time maps of the two modelled detectors.
 
-    The file lives in ``dummyprod/inputs/simprod/`` and contains constant
-    1000 ns drift times on a 1 mm grid covering the V05261B detector volume.
-    It is used as ``--dtmap-files`` input to the hit tier script.
+    legend-testdata ships the maps of `V99999Z`, of which every detector of the
+    array is a copy, so the same maps serve all of them under their own name.
     """
-    return testprod / "inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5"
+    source = Path(
+        legend_testdata.get_path("remage/V99999Z-3500V-hpge-drift-time-map.lh5")
+    )
+    maps = lh5.read("V99999Z", source)
+
+    path = tmp_path_factory.mktemp("legend_dtmap") / "hpge-drift-time-maps.lh5"
+    for detector in ("V00001A", "V00001B"):
+        lh5.write(maps, detector, path, wo_mode="write_safe")
+
+    return path
 
 
 def _l200_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Path:
     """Write a minimal simflow-config-l200.yaml to *tmp_dir* and return its path.
 
-    The metadata is the one committed in `dummyprod/inputs`, not the mock
-    `legend-metadata` the full-chain workflow test runs on.
+    The metadata is the one the full-chain workflow test runs on, assembled by
+    the ``dummyprod_testdata`` fixture.
 
     ``settings_by_tier`` maps a tier name to the settings keys to overwrite. When
-    it is given, the dummyprod metadata is copied to `<tmp_dir>/inputs` first, so
+    it is given, the metadata is copied to `<tmp_dir>/legend-metadata` first, so
     the committed tree stays untouched. That copy is where `$_` already points,
     so no path entry needs an override.
     """
     raw = yaml.safe_load((testprod / "simflow-config-l200.yaml").read_text())
 
     if settings_by_tier:
-        shutil.copytree(testprod / "inputs", tmp_dir / "inputs")
+        shutil.copytree(
+            testprod / "legend-metadata", tmp_dir / "legend-metadata", symlinks=False
+        )
         for tier, overlay in settings_by_tier.items():
             f = (
                 tmp_dir
-                / "inputs/simprod/config/tier"
+                / "legend-metadata/simprod/config/tier"
                 / tier
                 / "l200cfg01/settings.yaml"
             )
             f.write_text(yaml.safe_dump(yaml.safe_load(f.read_text()) | overlay))
     else:
-        raw["paths"]["metadata"] = str(testprod / "inputs")
-        raw["paths"]["config"] = str(testprod / "inputs/simprod/config")
+        raw["paths"]["metadata"] = str(testprod / "legend-metadata")
+        raw["paths"]["config"] = str(testprod / "legend-metadata/simprod/config")
 
     config_path = tmp_dir / "simflow-config-l200.yaml"
     config_path.write_text(yaml.safe_dump(raw))
@@ -392,8 +400,8 @@ def legend_hit_path(
         pass
 
     raw = yaml.safe_load((testprod / "simflow-config-l200.yaml").read_text())
-    raw["paths"]["metadata"] = str(testprod / "inputs")
-    raw["paths"]["config"] = str(testprod / "inputs/simprod/config")
+    raw["paths"]["metadata"] = str(testprod / "legend-metadata")
+    raw["paths"]["config"] = str(testprod / "legend-metadata/simprod/config")
     raw["paths"]["pars"] = str(pars_dir)
     config_path = out_dir / "simflow-config-l200.yaml"
     config_path.write_text(yaml.safe_dump(raw))

@@ -14,8 +14,7 @@ repo_root = Path(__file__).parent.parent.parent
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_l200(tmp_path):
-    """Run the Julia pulse shape library script and verify the output LH5 structure."""
-    psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-lib.lh5"
+    psl_file = tmp_path / "V00001A-3500V-hpge-pulse-shape-lib.lh5"
 
     subprocess.run(
         [
@@ -28,14 +27,15 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
                 / "workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
             ),
             "--detector",
-            "V05261B",
+            "V00001A",
             "--metadata",
-            str(testprod / "inputs"),
+            str(testprod / "legend-metadata"),
             "--opv",
-            "4200",
+            "3500",
             "--ssd-settings",
             str(
-                testprod / "inputs/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
+                testprod
+                / "legend-metadata/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
             ),
             "--output-file",
             str(psl_file),
@@ -47,4 +47,4 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
     assert psl_file.exists(), "Pulse shape library LH5 file was not created"
 
     top_keys = lh5.ls(psl_file)
-    assert "V05261B" in top_keys, f"Expected group 'V05261B' in LH5, got: {top_keys}"
+    assert "V00001A" in top_keys, f"Expected group 'V00001A' in LH5, got: {top_keys}"
