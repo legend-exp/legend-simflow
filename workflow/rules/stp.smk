@@ -15,6 +15,8 @@
 
 """Rules to build the `stp` tier."""
 
+from pathlib import Path
+
 from legendsimflow import aggregate, commands, geometry, utils, patterns
 from legendsimflow import metadata as mutils
 import dbetto
@@ -52,12 +54,12 @@ rule gen_geom_config:
     output:
         patterns.geom_config_filename(config),
     run:
-        from dbetto import utils as dbetto_utils
+        gconfig = dbetto.utils.load_dict(input[0])
+        # expand $_ to the directory holding the template, as dbetto does
+        dbetto.Props.subst_vars(
+            gconfig, var_values={"_": Path(input[0]).parent.resolve()}
+        )
 
-        # read through the metadata database, so that $_ paths are expanded
-        gconfig = config.metadata.simprod.config.geom[
-            config.experiment + "-geom-config"
-        ].to_dict()
         sconfig = mutils.get_simconfig(
             config, tier=wildcards.tier, simid=wildcards.simid
         )
@@ -65,7 +67,7 @@ rule gen_geom_config:
         if "geom_config_extra" in sconfig:
             gconfig |= sconfig.geom_config_extra.to_dict()
 
-        dbetto_utils.write_dict(gconfig, output[0])
+        dbetto.utils.write_dict(gconfig, output[0])
 
 
 rule build_geom_gdml:
