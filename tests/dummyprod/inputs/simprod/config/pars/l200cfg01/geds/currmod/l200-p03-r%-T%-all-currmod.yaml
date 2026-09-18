@@ -10,7 +10,7 @@ default:
   mean_aoe: 0.72
   current_reso: 4.1
 
-V02160A:
+V00001A:
   current_pulse_pars:
     amax: 1400.0
     mu: 4.0

@@ -31,9 +31,9 @@ def test_opt_script_cli(
 ):
     optmap_path = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))
 
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
+    raw = yaml.safe_load((dummyprod / "simflow-config-l200.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
-    config_path = tmp_path / "simflow-config-l1000.yaml"
+    config_path = tmp_path / "simflow-config-l200.yaml"
     config_path.write_text(yaml.safe_dump(raw))
 
     common_args = [

@@ -13,7 +13,7 @@ repo_root = Path(__file__).parent.parent.parent
 
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
-def test_make_hpge_pulse_shape_lib_l1000(tmp_path):
+def test_make_hpge_pulse_shape_lib_l200(tmp_path):
     """Run the Julia pulse shape library script and verify the output LH5 structure."""
     psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-lib.lh5"
 
@@ -35,8 +35,7 @@ def test_make_hpge_pulse_shape_lib_l1000(tmp_path):
             "4200",
             "--ssd-settings",
             str(
-                testprod
-                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/settings.yaml"
+                testprod / "inputs/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
             ),
             "--output-file",
             str(psl_file),

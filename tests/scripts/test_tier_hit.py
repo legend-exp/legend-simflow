@@ -51,10 +51,10 @@ def test_hit_script_cli(
     with h5py.File(dtmap_dir / f"{_RUNIDS[1]}-hpge-drift-time-maps.lh5", "w"):
         pass
 
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
+    raw = yaml.safe_load((dummyprod / "simflow-config-l200.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
     raw["paths"]["pars"] = str(pars_dir)
-    config_path = tmp_path / "simflow-config-l1000.yaml"
+    config_path = tmp_path / "simflow-config-l200.yaml"
     config_path.write_text(yaml.safe_dump(raw))
 
     hit_file = tmp_path / "hit.lh5"

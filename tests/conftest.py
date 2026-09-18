@@ -28,23 +28,49 @@ config_filename = dummyprod / "simflow-config.yaml"
 @pytest.fixture(scope="session")
 def legend_testdata():
     ldata = LegendTestData()
-    ldata.checkout("68d8b49")
+    ldata.checkout("6344a0b")
     return ldata
 
 
 @pytest.fixture(scope="session", autouse=True)
 def dummyprod_optmap(legend_testdata):
-    """Copy the real optical map from legend_testdata into dummyprod.
+    """Copy the optical map from legend_testdata into the dummyprod metadata.
 
-    All configs referencing ``$_/inputs/simprod/l200cfg01-optmap-dummy.lh5``
-    find a valid LH5 file.  The file is gitignored; this fixture is the sole
-    source of truth for test runs.
+    The configs referencing ``$_/inputs/simprod/l200cfg01-optmap-dummy.lh5``
+    find a valid LH5 file. It is gitignored; this fixture is the sole source of
+    truth for test runs.
     """
     src = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))
     dst = dummyprod / "inputs/simprod/l200cfg01-optmap-dummy.lh5"
     shutil.copy2(src, dst)
     yield
     dst.unlink(missing_ok=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def dummyprod_testdata(legend_testdata):
+    """Assemble the metadata the full-chain test runs on, under ``dummyprod``.
+
+    The hardware and the datasets are the mock `legend-metadata` of
+    legend-testdata, while the `simprod` configuration of the production is the
+    one committed here, which changes far more often. ``$_/testdata`` points at
+    the rest of legend-testdata, for the optical map. Both are gitignored.
+    """
+    testdata = dummyprod / "testdata"
+    testdata.unlink(missing_ok=True)
+    testdata.symlink_to(Path(legend_testdata.get_path("metadata")).parent)
+
+    metadata = dummyprod / "legend-metadata"
+    shutil.rmtree(metadata, ignore_errors=True)
+    metadata.mkdir()
+    for folder in ("hardware", "datasets"):
+        (metadata / folder).symlink_to(testdata / "metadata/legend-metadata" / folder)
+    (metadata / "simprod").symlink_to(dummyprod / "inputs/simprod")
+
+    yield
+
+    testdata.unlink(missing_ok=True)
+    shutil.rmtree(metadata, ignore_errors=True)
 
 
 @pytest.fixture(scope="session")

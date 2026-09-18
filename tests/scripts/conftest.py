@@ -22,7 +22,7 @@ from legendsimflow.scripts.tier import cvt, evt, hit, opt
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
 
-_RUNIDS_L1000 = ("l200-p03-r000-phy", "l200-p03-r001-phy")
+_RUNIDS_L200 = ("l200-p03-r000-phy", "l200-p03-r001-phy")
 
 
 @contextlib.contextmanager
@@ -130,15 +130,18 @@ def legend_dtmap_path():
     return testprod / "inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5"
 
 
-def _l1000_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Path:
-    """Write a minimal simflow-config-l1000.yaml to *tmp_dir* and return its path.
+def _l200_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Path:
+    """Write a minimal simflow-config-l200.yaml to *tmp_dir* and return its path.
+
+    The metadata is the one committed in `dummyprod/inputs`, not the mock
+    `legend-metadata` the full-chain workflow test runs on.
 
     ``settings_by_tier`` maps a tier name to the settings keys to overwrite. When
     it is given, the dummyprod metadata is copied to `<tmp_dir>/inputs` first, so
     the committed tree stays untouched. That copy is where `$_` already points,
     so no path entry needs an override.
     """
-    raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
+    raw = yaml.safe_load((testprod / "simflow-config-l200.yaml").read_text())
 
     if settings_by_tier:
         shutil.copytree(testprod / "inputs", tmp_dir / "inputs")
@@ -147,39 +150,40 @@ def _l1000_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Pat
                 tmp_dir
                 / "inputs/simprod/config/tier"
                 / tier
-                / "l1000dsg01/settings.yaml"
+                / "l200cfg01/settings.yaml"
             )
             f.write_text(yaml.safe_dump(yaml.safe_load(f.read_text()) | overlay))
     else:
         raw["paths"]["metadata"] = str(testprod / "inputs")
+        raw["paths"]["config"] = str(testprod / "inputs/simprod/config")
 
-    config_path = tmp_dir / "simflow-config-l1000.yaml"
+    config_path = tmp_dir / "simflow-config-l200.yaml"
     config_path.write_text(yaml.safe_dump(raw))
     return config_path
 
 
 @pytest.fixture(scope="session")
-def l1000_config_factory():
-    """Expose :func:`_l1000_config` to the test modules in this directory."""
-    return _l1000_config
+def l200_config_factory():
+    """Expose :func:`_l200_config` to the test modules in this directory."""
+    return _l200_config
 
 
 @pytest.fixture(scope="session")
 def legend_currmod_paths(tmp_path_factory):
-    """Run ``extract_hpge_current_pulse_model`` for both l1000dsg01 runids.
+    """Run ``extract_hpge_current_pulse_model`` for both l200cfg01 runids.
 
-    The l1000dsg01 metadata has a ``default`` key so no l200data is required.
+    The l200cfg01 metadata has a ``default`` key so no l200data is required.
     For each runid, runs the per-detector extraction script over all modelable
     HPGes and merges the outputs into a single ``{runid}-model.yaml`` keyed by
     detector name (mirroring the ``merge_current_pulse_model_pars`` rule).
     Returns a dict mapping each runid to its merged YAML path.
     """
     out_dir = tmp_path_factory.mktemp("legend_currmod")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
     config = utils.init_simflow_context(str(config_path), workflow=None).config
 
     paths = {}
-    for runid in _RUNIDS_L1000:
+    for runid in _RUNIDS_L200:
         merged_file = out_dir / f"{runid}-model.yaml"
         merged: dict = {}
         for hpge in aggregate.gen_list_of_hpges_valid_for_modeling(config, runid):
@@ -209,13 +213,13 @@ def legend_currmod_paths(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def legend_simstat_part_path(tmp_path_factory, legend_stp_path):
-    """Run ``make_simstat_partition_file`` with both l1000dsg01 runids.
+    """Run ``make_simstat_partition_file`` with both l200cfg01 runids.
 
     Depends on ``legend_stp_path``; skips if remage is not installed.
     Returns the path to the output partition YAML file.
     """
     out_dir = tmp_path_factory.mktemp("legend_simstat")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
     output_file = out_dir / "partitions.yaml"
 
     with _override_argv(
@@ -223,7 +227,7 @@ def legend_simstat_part_path(tmp_path_factory, legend_stp_path):
         "--stp-files",
         str(legend_stp_path),
         "--runlist",
-        *_RUNIDS_L1000,
+        *_RUNIDS_L200,
         "--output-file",
         str(output_file),
         "--simflow-config",
@@ -236,15 +240,15 @@ def legend_simstat_part_path(tmp_path_factory, legend_stp_path):
 
 @pytest.fixture(scope="session")
 def legend_detector_usabilities_path(tmp_path_factory):
-    """Build the per-flag detector-info files for all l1000dsg01 runs.
+    """Build the per-flag detector-info files for all l200cfg01 runs.
 
-    Calls ``aggregate.gen_list_of_all_usabilities`` with the l1000dsg01
+    Calls ``aggregate.gen_list_of_all_usabilities`` with the l200cfg01
     metadata (no remage or Julia required) and writes one YAML per flag
     (``usability.yaml``, ``psd_usability.yaml``,
     ``crystal_metadata_usability.yaml``). Returns the directory containing them.
     """
     out_dir = tmp_path_factory.mktemp("legend_detinfo")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
 
     config = utils.init_simflow_context(config_path, workflow=None).config
     detinfo = aggregate.pivot_detinfo(
@@ -258,17 +262,17 @@ def legend_detector_usabilities_path(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def legend_hpge_obs_paths(tmp_path_factory):
-    """Run ``extract_hpge_observables_models`` for both l1000dsg01 runids.
+    """Run ``extract_hpge_observables_models`` for both l200cfg01 runids.
 
-    The l1000dsg01 metadata has ``default`` keys for all three observables so
+    The l200cfg01 metadata has ``default`` keys for all three observables so
     no l200data is required.  Returns a dict
     ``{runid: {eresmod: path, aoeresmod: path, psdcuts: path}}``.
     """
     out_dir = tmp_path_factory.mktemp("legend_hpge_obs")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
 
     paths = {}
-    for runid in _RUNIDS_L1000:
+    for runid in _RUNIDS_L200:
         eresmod_file = out_dir / f"{runid}-eresmod.yaml"
         aoeresmod_file = out_dir / f"{runid}-aoeresmod.yaml"
         psdcuts_file = out_dir / f"{runid}-psdcuts.yaml"
@@ -312,7 +316,7 @@ def legend_opt_path(
     installed (the stp fixture already enforces this).
     """
     out_dir = tmp_path_factory.mktemp("legend_opt")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
     opt_file = out_dir / "opt.lh5"
 
     optmap_path = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))
@@ -357,14 +361,14 @@ def legend_hit_path(
     """Run ``hit.main()`` and return the path to the output hit LH5 file.
 
     Sets up a full pars directory with energy-resolution models, A/E models,
-    PSD cuts, current-pulse models, and drift-time maps for the two l1000dsg01
+    PSD cuts, current-pulse models, and drift-time maps for the two l200cfg01
     run IDs.  Skips if remage or Julia are not installed (the stp / dtmap
     fixtures already enforce this).
     """
     out_dir = tmp_path_factory.mktemp("legend_hit")
     pars_dir = out_dir / "pars"
 
-    for runid in _RUNIDS_L1000:
+    for runid in _RUNIDS_L200:
         obs = legend_hpge_obs_paths[runid]
         for subdir, src, dest_name in (
             ("hpge/eresmod", obs["eresmod"], f"{runid}-model.yaml"),
@@ -381,16 +385,17 @@ def legend_hit_path(
     # r000: real dtmap for V05261B → PSD will be computed
     shutil.copy(
         legend_dtmap_path,
-        dtmap_dir / f"{_RUNIDS_L1000[0]}-hpge-drift-time-maps.lh5",
+        dtmap_dir / f"{_RUNIDS_L200[0]}-hpge-drift-time-maps.lh5",
     )
     # r001: empty dtmap → dt_map = None → PSD will be NaN
-    with h5py.File(dtmap_dir / f"{_RUNIDS_L1000[1]}-hpge-drift-time-maps.lh5", "w"):
+    with h5py.File(dtmap_dir / f"{_RUNIDS_L200[1]}-hpge-drift-time-maps.lh5", "w"):
         pass
 
-    raw = yaml.safe_load((testprod / "simflow-config-l1000.yaml").read_text())
+    raw = yaml.safe_load((testprod / "simflow-config-l200.yaml").read_text())
     raw["paths"]["metadata"] = str(testprod / "inputs")
+    raw["paths"]["config"] = str(testprod / "inputs/simprod/config")
     raw["paths"]["pars"] = str(pars_dir)
-    config_path = out_dir / "simflow-config-l1000.yaml"
+    config_path = out_dir / "simflow-config-l200.yaml"
     config_path.write_text(yaml.safe_dump(raw))
 
     hit_file = out_dir / "hit.lh5"
@@ -406,10 +411,10 @@ def legend_hit_path(
         "--geom-file",
         str(legend_gdml_path),
         "--dtmap-files",
-        str(dtmap_dir / f"{_RUNIDS_L1000[0]}-hpge-drift-time-maps.lh5"),
+        str(dtmap_dir / f"{_RUNIDS_L200[0]}-hpge-drift-time-maps.lh5"),
         "--currmod-files",
-        str(legend_currmod_paths[_RUNIDS_L1000[0]]),
-        str(legend_currmod_paths[_RUNIDS_L1000[1]]),
+        str(legend_currmod_paths[_RUNIDS_L200[0]]),
+        str(legend_currmod_paths[_RUNIDS_L200[1]]),
         "--simstat-part-file",
         str(legend_simstat_part_path),
         "--usability-file",
@@ -440,7 +445,7 @@ def legend_evt_path(
     Skips if remage is not installed (the stp fixture already enforces this).
     """
     out_dir = tmp_path_factory.mktemp("legend_evt")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
     evt_file = out_dir / "evt.lh5"
 
     with _override_argv(
@@ -474,7 +479,7 @@ def legend_cvt_path(tmp_path_factory, legend_evt_path):
     Skips if remage is not installed (the evt fixture already enforces this).
     """
     out_dir = tmp_path_factory.mktemp("legend_cvt")
-    config_path = _l1000_config(out_dir)
+    config_path = _l200_config(out_dir)
     cvt_file = out_dir / "cvt.lh5"
 
     with _override_argv(

@@ -13,8 +13,8 @@ dummyprod = Path(__file__).parent.parent / "dummyprod"
 
 @pytest.mark.needs_remage
 def test_simstat_partition_file(tmp_path, legend_stp_path, monkeypatch):
-    config_path = tmp_path / "simflow-config-l1000.yaml"
-    raw = yaml.safe_load((dummyprod / "simflow-config-l1000.yaml").read_text())
+    config_path = tmp_path / "simflow-config-l200.yaml"
+    raw = yaml.safe_load((dummyprod / "simflow-config-l200.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
     raw["paths"]["generated"] = str(tmp_path)
     raw["paths"]["pars"] = str(tmp_path / "pars")
