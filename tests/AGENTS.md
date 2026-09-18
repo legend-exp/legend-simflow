@@ -59,11 +59,10 @@ are shared across all tests under `tests/scripts/`: `legend_gdml_path`,
 `legend_stp_path`, `legend_dtmap_path`, `legend_opt_path`, `legend_hit_path`,
 `legend_evt_path`, `legend_cvt_path`.
 
-A pre-built static drift-time map is committed at
-`tests/dummyprod/inputs/simprod/V05261B-4200V-hpge-drift-time-map.lh5`. It
-contains constant 1000 ns drift times on a 1 mm grid for detector V05261B at
-4200 V. The `legend_dtmap_path` fixture uses this file directly so that the
-Julia drift-time map script does not need to run during unit tests.
+They run on the same geometry and metadata as the full-chain test: the mock
+array built by `legend-pygeom-l200`. The `legend_dtmap_path` fixture writes the
+drift time maps legend-testdata ships for `V99999Z` under the names of the
+modelled detectors, so the Julia script does not need to run during unit tests.
 
 ## DAG tests (`test_dag.py`)
 

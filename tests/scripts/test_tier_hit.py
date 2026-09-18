@@ -45,7 +45,7 @@ def test_hit_script_cli(
 
     dtmap_dir = pars_dir / "hpge/dtmaps"
     dtmap_dir.mkdir(parents=True)
-    # r000: real dtmap for V05261B → PSD will be computed
+    # r000: real dtmap for V00001A → PSD will be computed
     shutil.copy(legend_dtmap_path, dtmap_dir / f"{_RUNIDS[0]}-hpge-drift-time-maps.lh5")
     # r001: empty dtmap → dt_map = None → PSD will be NaN
     with h5py.File(dtmap_dir / f"{_RUNIDS[1]}-hpge-drift-time-maps.lh5", "w"):
@@ -127,16 +127,16 @@ def test_hit_script_cli(
         f"'psd/single_temp' missing from {first_det}; got {psd_fields}"
     )
 
-    # r000 has a dtmap for V05261B → finite PSD; r001 has none → NaN
-    # both partitions land in the same hit/V05261B table, distinguishable by run
-    assert "hit/V05261B" in det_tables, "V05261B not found in hit output"
-    v_drift = _field("hit/V05261B/psd/single_temp", "drift_time_amax")
-    v_run = _field("hit/V05261B", "run")
+    # r000 has a dtmap for V00001A → finite PSD; r001 has none → NaN
+    # both partitions land in the same hit/V00001A table, distinguishable by run
+    assert "hit/V00001A" in det_tables, "V00001A not found in hit output"
+    v_drift = _field("hit/V00001A/psd/single_temp", "drift_time_amax")
+    v_run = _field("hit/V00001A", "run")
     assert not np.all(np.isnan(v_drift[v_run == 0])), (
-        "r000 V05261B drift_time_amax is all NaN despite having a dtmap"
+        "r000 V00001A drift_time_amax is all NaN despite having a dtmap"
     )
     assert np.all(np.isnan(v_drift[v_run == 1])), (
-        "r001 V05261B drift_time_amax should be all NaN (no dtmap)"
+        "r001 V00001A drift_time_amax should be all NaN (no dtmap)"
     )
 
     # energy is always smeared — must be finite and positive
