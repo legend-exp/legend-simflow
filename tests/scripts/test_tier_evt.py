@@ -13,7 +13,7 @@ from legendsimflow.scripts.tier import evt
 @pytest.mark.needs_remage
 def test_evt_script_cli(
     tmp_path,
-    l1000_config_factory,
+    l200_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -21,7 +21,7 @@ def test_evt_script_cli(
     legend_simstat_part_path,
     legend_detector_usabilities_path,
 ):
-    config_path = l1000_config_factory(tmp_path)
+    config_path = l200_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -164,7 +164,7 @@ def test_evt_script_cli(
 @pytest.mark.needs_remage
 def test_evt_script_cli_skip_opt(
     tmp_path,
-    l1000_config_factory,
+    l200_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_hit_path,
@@ -172,7 +172,7 @@ def test_evt_script_cli_skip_opt(
     legend_detector_usabilities_path,
 ):
     """--skip-opt: no opt file passed; geds table present, spms table absent."""
-    config_path = l1000_config_factory(tmp_path)
+    config_path = l200_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -229,7 +229,7 @@ def test_evt_script_cli_skip_opt(
 @pytest.mark.needs_remage
 def test_evt_script_cli_skip_hit(
     tmp_path,
-    l1000_config_factory,
+    l200_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -241,7 +241,7 @@ def test_evt_script_cli_skip_hit(
     The trigger fields must be sourced from the opt tier, so trigger/period
     should still be 3 (p03 runs).
     """
-    config_path = l1000_config_factory(tmp_path)
+    config_path = l200_config_factory(tmp_path)
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(
@@ -305,7 +305,7 @@ def test_evt_script_cli_skip_hit(
 @pytest.mark.needs_remage
 def test_evt_script_cli_unknown_scintillator_volume(
     tmp_path,
-    l1000_config_factory,
+    l200_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -314,7 +314,7 @@ def test_evt_script_cli_unknown_scintillator_volume(
     legend_detector_usabilities_path,
 ):
     """The scintillator volume comes from the opt-tier settings, not from a constant."""
-    config_path = l1000_config_factory(
+    config_path = l200_config_factory(
         tmp_path, {"opt": {"scintillator_volume_name": "not_a_volume"}}
     )
 
@@ -357,7 +357,7 @@ def test_evt_script_cli_lar_veto_thresholds(
     thresholds,
     expect_veto,
     tmp_path,
-    l1000_config_factory,
+    l200_config_factory,
     monkeypatch,
     legend_stp_path,
     legend_opt_path,
@@ -367,7 +367,7 @@ def test_evt_script_cli_lar_veto_thresholds(
 ):
     """The LAr veto thresholds come from the evt-tier settings, not from constants."""
     mult_thr, esum_thr = thresholds
-    config_path = l1000_config_factory(
+    config_path = l200_config_factory(
         tmp_path,
         {
             "evt": {

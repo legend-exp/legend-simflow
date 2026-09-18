@@ -14,7 +14,7 @@ repo_root = Path(__file__).parent.parent.parent
 
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
-def test_make_hpge_drift_time_maps_l1000(tmp_path):
+def test_make_hpge_drift_time_maps_l200(tmp_path):
     """Run the Julia drift time map script and verify the output LH5 structure."""
     dtmap_file = tmp_path / "V05261B-4200V-hpge-drift-time-map.lh5"
     info_file = tmp_path / "V05261B-4200V-hpge-ssd-modeling.yaml"
@@ -37,8 +37,7 @@ def test_make_hpge_drift_time_maps_l1000(tmp_path):
             "4200",
             "--ssd-settings",
             str(
-                testprod
-                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/settings.yaml"
+                testprod / "inputs/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
             ),
             "--output-file",
             str(dtmap_file),

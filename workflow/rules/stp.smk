@@ -54,7 +54,10 @@ rule gen_geom_config:
     run:
         from dbetto import utils as dbetto_utils
 
-        gconfig = dbetto_utils.load_dict(input[0])
+        # read through the metadata database, so that $_ paths are expanded
+        gconfig = config.metadata.simprod.config.geom[
+            config.experiment + "-geom-config"
+        ].to_dict()
         sconfig = mutils.get_simconfig(
             config, tier=wildcards.tier, simid=wildcards.simid
         )

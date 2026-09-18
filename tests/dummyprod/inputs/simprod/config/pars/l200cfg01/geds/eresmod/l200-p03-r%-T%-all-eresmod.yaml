@@ -4,7 +4,7 @@ default:
     a: 0.5
     b: 0.001
 
-V02160A:
+V00001A:
   expression: FWHMLinear
   parameters:
     a: 0.3

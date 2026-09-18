@@ -14,30 +14,43 @@ Python tests are stored in `tests/` and managed with Pytest. Julia tests are in
 
 ## Test data
 
-`tests/dummyprod/inputs/` contains a standalone metadata instance (hardware
-detector specs, channelmaps, datasets) committed directly to the repository.
+The metadata comes from two places:
 
-The dummy production uses three experiments:
+- `tests/dummyprod/inputs/`: a standalone metadata instance (hardware detector
+  specs, channelmaps, datasets, simflow configuration) committed directly to
+  this repository. It serves the **unit tests** and the tier-script tests.
+- the mock `legend-metadata` in
+  [legend-testdata](https://github.com/legend-exp/legend-testdata), fetched by
+  `legendtestdata`. It holds the hardware and the datasets of the **full-chain
+  workflow test**.
+
+The `dummyprod_testdata` fixture assembles what that test reads, in
+`tests/dummyprod/legend-metadata`: the hardware and datasets above, next to the
+`simprod` configuration committed here, which changes far more often.
+`legend-pygeom-l200` builds the geometry from it, always the same one: two
+strings of four germanium channels, every one of them the test ICPC `V99999Z`,
+surrounded by the fiber shroud and its 58 SiPM channels. Only `V00001A` and
+`V00001B` are `on`, so only those two are modelled. The test simulates both the
+pulse shape discrimination and the optics.
+
+The dummy production uses two experiments:
 
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist contains real p02 run IDs but is not intended to run an
   actual production
-- `l1000dsg01`: used by `test_l1000_workflow`, which exercises the vtx→pdf
-  pipeline; runs in CI without requiring `l200data`. Currently uses l200-p03
-  runs (`l200-p03-r000-phy`, `l200-p03-r001-phy`) because l1000 hardware and
-  crystal metadata are not yet in `dummyprod`
-- `l200cfg01`: used by `test_l200_workflow` (`needs_nersc` marker), which runs
-  the full vtx→cvt pipeline requiring access to `l200data` — run manually at
-  NERSC with `pixi run -e test test-l200-workflow`
+- `l200cfg01`: the LEGEND-200 experiment. `test_l200_workflow` runs it in CI on
+  the mock metadata; `test_l200_nersc_workflow` (`needs_nersc`) runs the same
+  experiment against `l200data` at NERSC
 
 `legend_testdata` (from `legendtestdata`) is still available as a pytest fixture
 for tests that require LH5 data files or other binary assets from the testdata
 repository (e.g. `test_reboost.py`, `test_hpge_pars.py`).
 
-Large binary files that the Snakemake configs reference (e.g. optical maps) are
+Large binary files that the unit-test configs reference (e.g. optical maps) are
 **gitignored** and populated at the start of every test session by the
 `dummyprod_optmap` autouse fixture in `conftest.py`, which copies them from
-`legend_testdata`. Do not commit empty placeholder files for these assets.
+`legend_testdata`. Do not commit empty placeholder files for these assets. The
+full-chain config reads them straight from the linked testdata instead.
 
 `tests/scripts/conftest.py` is distinct from `tests/conftest.py`. It contains
 session-scoped integration fixtures that build the full vtx→cvt pipeline step by
@@ -75,32 +88,31 @@ real `generated*` dirs.
   same `make_steps` is unsatisfiable without the switch); both-skip is rejected
   at build time.
 
-## Integration tests (`test_workflow.py`)
+## Full-chain tests (`test_workflow.py`)
 
-The remage-driven workflow tests form a progression:
+- Each test uses a separate output directory and a separate `experiment` to
+  avoid Snakemake cache cross-contamination.
+- Remember: the `legend` experiment name is reserved for generic unit tests.
+- The metadata directory for the experiment to be tested is taken from
+  `legend-testdata` (through `pylegendtestdata`), inside `data/metadata`.
+- The `legend-metadata/inputs/simprod/config` module is instead stored here, in
+  `dummyprod/inputs/simprod/config`. It contains metadata for all tested
+  experiments. This part of the metadata stays here because it changes
+  frequently, and we want to avoid having to change `legend-testdata` every
+  time.
+- The `simprod/config` module is injected in the mock test metadata folder taken
+  from `legend-testdata`.
+- During test execution, Snakemake tracks which targets are up-to-date, so there
+  is no need to clean the generated directory when only a higher tier fails. A
+  full clean is advisable once in a while to verify the pipeline works
+  end-to-end from scratch.
 
-1. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage,
-   experiment `l1000dsg01`; runs in CI. **Requires pixi** (remage is only in the
-   pixi environment): `pixi run -e test test-l1000-workflow`. The `l1000dsg01`
-   hit settings enable the `simulate_psd_with_psl` tier setting (the live name
-   of what used to be the unread `has_detailed_psd` key), so this test also
-   exercises the PSL-based "detailed" PSD path: the realistic pulse-shape
-   library is built in the par tier, consumed by the hit tier into a
-   `psd/pulse_lib` sub-table, and read back by the evt tier into
-   `geds/psd/pulse_lib`.
-2. **`test_l200_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
-   pipeline, experiment `l200cfg01`, requires `l200data`, NERSC-only. Run with:
-   `pixi run -e test test-l200-workflow`
+Current full-chain tests:
 
-Each test uses a separate output directory to avoid Snakemake cache
-cross-contamination.
-
-Adding a new test detector requires consistent entries across diodes, crystals,
-channelmaps, statuses, and OPV configs. Dummy detector files should be sourced
-from `pylegendtestdata` templates (one per type: V, B, C, P), renamed to the
-wanted detector name. The real metadata in `./inputs/` can serve as reference
-for realistic values and structure.
-
-Snakemake tracks which targets are up-to-date, so there is no need to clean the
-generated directory when only a higher tier fails. A full clean is advisable
-once in a while to verify the pipeline works end-to-end from scratch.
+1. **`test_l200_workflow`** (`needs_remage`) — runs vtx→pdf with real remage on
+   the mock `legend-metadata`, experiment `l200cfg01`; runs in CI. **Requires
+   pixi** (remage is only in the pixi environment):
+   `pixi run -e test test-l200-workflow`.
+2. **`test_l200_nersc_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
+   pipeline, same experiment, requires `l200data`, NERSC-only. Run with:
+   `pixi run -e test test-l200-nersc-workflow`

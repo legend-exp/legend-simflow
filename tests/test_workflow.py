@@ -37,7 +37,7 @@ def _assert_psd_psl_in_hit(generated: Path) -> None:
     """Check the PSL-based detailed PSD output in the hit tier.
 
     A ``psd/pulse_lib`` sub-table must be produced for the modelable detector
-    ``V05261B`` (it has a realistic pulse-shape library and drift-time map), and
+    ``V00001A`` (it has a realistic pulse-shape library and drift-time map), and
     its A/E values must be at least partly finite, proving the detailed path
     actually ran rather than falling back to the all-NaN default.
     """
@@ -47,24 +47,24 @@ def _assert_psd_psl_in_hit(generated: Path) -> None:
     saw_psd_psl = False
     saw_finite_aoe = False
     for f in hit_files:
-        if "hit/V05261B" not in lh5.ls(f, "hit/"):
+        if "hit/V00001A" not in lh5.ls(f, "hit/"):
             continue
-        if "hit/V05261B/psd/pulse_lib" not in lh5.ls(f, "hit/V05261B/psd/"):
+        if "hit/V00001A/psd/pulse_lib" not in lh5.ls(f, "hit/V00001A/psd/"):
             continue
         saw_psd_psl = True
         fields = {
-            x.removeprefix("hit/V05261B/psd/pulse_lib/")
-            for x in lh5.ls(f, "hit/V05261B/psd/pulse_lib/")
+            x.removeprefix("hit/V00001A/psd/pulse_lib/")
+            for x in lh5.ls(f, "hit/V00001A/psd/pulse_lib/")
         }
         missing = _HIT_PSD_PSL_FIELDS - fields
         assert not missing, f"hit psd_psl fields {missing} missing in {f}; got {fields}"
-        aoe = lh5.read_as("hit/V05261B/psd/pulse_lib/aoe", str(f), library="np")
+        aoe = lh5.read_as("hit/V00001A/psd/pulse_lib/aoe", str(f), library="np")
         if np.any(np.isfinite(aoe)):
             saw_finite_aoe = True
 
-    assert saw_psd_psl, "no hit file contains a hit/V05261B/psd/pulse_lib sub-table"
+    assert saw_psd_psl, "no hit file contains a hit/V00001A/psd/pulse_lib sub-table"
     assert saw_finite_aoe, (
-        "hit/V05261B/psd/pulse_lib/aoe is all-NaN across all hit files; the "
+        "hit/V00001A/psd/pulse_lib/aoe is all-NaN across all hit files; the "
         "PSL-based detailed PSD path did not compute real A/E values"
     )
 
@@ -97,7 +97,7 @@ def _assert_psd_psl_in_evt(generated: Path) -> None:
 
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
-def test_l1000_workflow():
+def test_l200_workflow():
     output = smkapi.OutputSettings(verbose=False, show_failed_logs=True)
 
     with smkapi.SnakemakeApi(output) as api:
@@ -105,7 +105,7 @@ def test_l1000_workflow():
             snakefile=dummyprod / "workflow/Snakefile",
             workdir=dummyprod,
             config_settings=smkapi.ConfigSettings(
-                configfiles=(dummyprod / "simflow-config-l1000.yaml",),
+                configfiles=(dummyprod / "simflow-config-l200.yaml",),
             ),
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),
@@ -113,10 +113,10 @@ def test_l1000_workflow():
         dag = wf_api.dag()
         dag.execute_workflow()
 
-    # the l1000dsg01 hit settings enable simulate_psd_with_psl, so the detailed
+    # the l200cfg01 hit settings enable simulate_psd_with_psl, so the detailed
     # (PSL-based) PSD must be produced in the hit tier and read back in the evt
     # tier
-    generated = dummyprod / "generated-l1000"
+    generated = dummyprod / "generated-l200"
     _assert_psd_psl_in_hit(generated)
     _assert_psd_psl_in_evt(generated)
 
@@ -124,7 +124,7 @@ def test_l1000_workflow():
 @pytest.mark.needs_nersc
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
-def test_l200_workflow():
+def test_l200_nersc_workflow():
     output = smkapi.OutputSettings(show_failed_logs=True)
 
     with smkapi.SnakemakeApi(output) as api:
@@ -132,7 +132,7 @@ def test_l200_workflow():
             snakefile=dummyprod / "workflow/Snakefile",
             workdir=dummyprod,
             config_settings=smkapi.ConfigSettings(
-                configfiles=(dummyprod / "simflow-config-l200.yaml",),
+                configfiles=(dummyprod / "simflow-config-l200-nersc.yaml",),
             ),
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),

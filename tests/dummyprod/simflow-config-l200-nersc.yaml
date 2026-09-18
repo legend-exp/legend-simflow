@@ -9,18 +9,9 @@ benchmark:
   n_primaries:
     stp: 1000
 
-make_steps:
-  - vtx
-  - stp
-  - par
-  - hit
-  - opt
-  - evt
-  - cvt
-  - pdf
-
 paths:
   generated: $_/generated-l200
+  l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/v2.1.5
   benchmarks: $_/generated-l200/benchmarks
   log: $_/generated-l200/log
 
@@ -42,5 +33,5 @@ paths:
   pdf_releases: $_/generated-l200/releases
 
 nersc:
-  dvs_ro: false
-  scratch: false
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow

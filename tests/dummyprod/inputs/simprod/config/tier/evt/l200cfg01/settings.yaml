@@ -1,4 +1,4 @@
-add_random_coincidences: true
+add_random_coincidences: false
 geds_energy_thr_kev: 25
 spms_energy_thr_pe: 0
 lar_veto_multiplicity_thr: 4

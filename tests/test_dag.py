@@ -30,7 +30,7 @@ from snakemake.exceptions import MissingInputException, WorkflowError
 
 dummyprod = Path(__file__).parent / "dummyprod"
 default_config = dummyprod / "simflow-config.yaml"
-l1000_config = dummyprod / "simflow-config-l1000.yaml"
+l200_config = dummyprod / "simflow-config-l200.yaml"
 all_cores = os.cpu_count() or 1
 
 # the file-producing rule of each tier, used to assert tier (de)selection
@@ -86,12 +86,15 @@ def _metadata_paths(
 ) -> dict:
     """Copy the dummyprod metadata under *base* with overridden tier settings.
 
-    ``settings_by_tier`` maps a tier name to the settings keys to overwrite for
-    *experiment* (e.g. ``{"evt": {"skip_opt": True}}``). Editing the copy keeps
-    the committed metadata untouched.
+    The `l200cfg01` experiment runs on the metadata assembled by the
+    ``dummyprod_testdata`` fixture, the other ones on the metadata committed
+    here. ``settings_by_tier`` maps a tier name to the settings keys to
+    overwrite for *experiment* (e.g. ``{"evt": {"skip_opt": True}}``). Editing
+    the copy keeps the committed metadata untouched.
     """
-    meta = base / "inputs"
-    shutil.copytree(dummyprod / "inputs", meta)
+    source = "legend-metadata" if experiment == "l200cfg01" else "inputs"
+    meta = base / source
+    shutil.copytree(dummyprod / source, meta, symlinks=False)
     for tier, overlay in settings_by_tier.items():
         f = meta / "simprod/config/tier" / tier / experiment / "settings.yaml"
         data = yaml.safe_load(f.read_text())
@@ -216,20 +219,20 @@ STEPS_TO_HIT = ["vtx", "stp", "par", "opt", "hit"]
 def test_simulate_psd_with_psl_toggles_psl_rules(tmp_path):
     """The hit-tier `simulate_psd_with_psl` setting gates the PSL build chain."""
     on = dag_rule_names(
-        l1000_config,
+        l200_config,
         overrides(
             tmp_path / "on",
             make_steps=STEPS_TO_HIT,
-            experiment="l1000dsg01",
+            experiment="l200cfg01",
             settings_by_tier={"hit": {"simulate_psd_with_psl": True}},
         ),
     )
     off = dag_rule_names(
-        l1000_config,
+        l200_config,
         overrides(
             tmp_path / "off",
             make_steps=STEPS_TO_HIT,
-            experiment="l1000dsg01",
+            experiment="l200cfg01",
             settings_by_tier={"hit": {"simulate_psd_with_psl": False}},
         ),
     )
@@ -242,20 +245,20 @@ def test_simulate_psd_with_psl_toggles_psl_rules(tmp_path):
 def test_simulate_psd_toggles_dtmap_rules(tmp_path):
     """The hit-tier `simulate_psd` setting gates the drift-time map build chain."""
     on = dag_rule_names(
-        l1000_config,
+        l200_config,
         overrides(
             tmp_path / "on",
             make_steps=STEPS_TO_HIT,
-            experiment="l1000dsg01",
+            experiment="l200cfg01",
             settings_by_tier={"hit": {"simulate_psd": True}},
         ),
     )
     off = dag_rule_names(
-        l1000_config,
+        l200_config,
         overrides(
             tmp_path / "off",
             make_steps=STEPS_TO_HIT,
-            experiment="l1000dsg01",
+            experiment="l200cfg01",
             settings_by_tier={"hit": {"simulate_psd": False}},
         ),
     )
@@ -276,11 +279,11 @@ def test_skip_opt_drops_opt_tier(tmp_path):
     """
     steps = ["vtx", "stp", "par", "hit", "evt"]  # note: no opt
     rules = dag_rule_names(
-        l1000_config,
+        l200_config,
         overrides(
             tmp_path / "skip",
             make_steps=steps,
-            experiment="l1000dsg01",
+            experiment="l200cfg01",
             settings_by_tier={"evt": {"skip_opt": True}},
         ),
     )
@@ -289,11 +292,11 @@ def test_skip_opt_drops_opt_tier(tmp_path):
 
     with pytest.raises(MissingInputException):
         dag_rule_names(
-            l1000_config,
+            l200_config,
             overrides(
                 tmp_path / "noskip",
                 make_steps=steps,
-                experiment="l1000dsg01",
+                experiment="l200cfg01",
                 settings_by_tier={"evt": {"skip_opt": False}},
             ),
         )
@@ -303,11 +306,11 @@ def test_skip_hit_drops_hit_tier(tmp_path):
     """The evt-tier `skip_hit` setting drops the hit tier from the DAG."""
     steps = ["vtx", "stp", "par", "opt", "evt"]  # note: no hit
     rules = dag_rule_names(
-        l1000_config,
+        l200_config,
         overrides(
             tmp_path / "skip",
             make_steps=steps,
-            experiment="l1000dsg01",
+            experiment="l200cfg01",
             settings_by_tier={"evt": {"skip_hit": True}},
         ),
     )
@@ -316,11 +319,11 @@ def test_skip_hit_drops_hit_tier(tmp_path):
 
     with pytest.raises(MissingInputException):
         dag_rule_names(
-            l1000_config,
+            l200_config,
             overrides(
                 tmp_path / "noskip",
                 make_steps=steps,
-                experiment="l1000dsg01",
+                experiment="l200cfg01",
                 settings_by_tier={"evt": {"skip_hit": False}},
             ),
         )
@@ -330,11 +333,11 @@ def test_skip_opt_and_hit_are_mutually_exclusive(tmp_path):
     """Skipping both the opt and hit tiers is rejected at DAG-build time."""
     with pytest.raises(WorkflowError, match="skip_opt and skip_hit"):
         dag_rule_names(
-            l1000_config,
+            l200_config,
             overrides(
                 tmp_path,
                 make_steps=["vtx", "stp", "par", "evt"],
-                experiment="l1000dsg01",
+                experiment="l200cfg01",
                 settings_by_tier={"evt": {"skip_opt": True, "skip_hit": True}},
             ),
         )

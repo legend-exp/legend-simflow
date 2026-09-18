@@ -2,6 +2,6 @@ default:
   sigma: 40.0
   tau: 150.0
 
-V02160A:
+V00001A:
   sigma: 50.0
   tau: 120.0

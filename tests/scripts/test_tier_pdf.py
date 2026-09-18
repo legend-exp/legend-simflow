@@ -318,7 +318,7 @@ def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
         monkeypatch,
         legend_cvt_path,
         simid=_SIMID_L1000,
-        config_template="simflow-config-l1000.yaml",
+        config_template="simflow-config-l200.yaml",
     )
 
     assert pdf_file.exists(), "pdf output file was not created"
