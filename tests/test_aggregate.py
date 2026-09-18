@@ -365,15 +365,38 @@ def test_usability_harvesting(config):
     assert usability["l200-p02-r000-phy"] == {
         "V99000A": {
             "usability": "on",
+            "daq_rawid": 1234568,
             "psd_usability": "valid",
             "crystal_metadata_usability": "valid",
         },
         "B99000A": {
             "usability": "off",
+            "daq_rawid": 1234569,
             "psd_usability": "missing",
             "crystal_metadata_usability": "valid",
         },
     }
+
+
+@pytest.mark.parametrize(
+    "rc_runid", ["l200-p03-r000-phy", {"l200-p02-r000-phy": "l200-p03-r000-phy"}]
+)
+def test_usability_harvesting_includes_rc_runs(config, monkeypatch, rc_runid):
+    """The RC source runs are cached too, from a single runid or a mapping."""
+    evt_settings = AttrsDict(
+        {**get_tier_settings(config, "evt"), "random_coincidence_runid": rc_runid}
+    )
+    monkeypatch.setattr(agg_mod, "get_tier_settings", lambda *_: evt_settings)
+
+    usability = agg.gen_list_of_all_usabilities(config)
+
+    assert "l200-p02-r000-phy" in usability
+    assert "l200-p03-r000-phy" in usability
+    assert usability["l200-p03-r000-phy"]
+    assert all(
+        isinstance(entry["daq_rawid"], int)
+        for entry in usability["l200-p03-r000-phy"].values()
+    )
 
 
 def test_psd_usability_unknown_value(config, monkeypatch, caplog):
