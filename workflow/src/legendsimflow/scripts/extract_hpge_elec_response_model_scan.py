@@ -30,7 +30,7 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import utils
+from legendsimflow import nersc, utils
 from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
@@ -173,12 +173,19 @@ def main() -> None:
         log_config = metadata.simprod.config.logging
         log = ldfs.utils.build_log(log_config, args.log_file)
 
-        log_script_invocation(log, "extract-hpge-elecmod-scan", parser, args)
+        # the LH5 inputs are large, read them through the NERSC read-only mount
+        ideal_psl_scan = nersc.dvs_ro(config, args.ideal_psl_scan)
+        superpulses = nersc.dvs_ro(config, args.superpulses)
     else:
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
         )
         log = logging.getLogger(__name__)
+
+        ideal_psl_scan = args.ideal_psl_scan
+        superpulses = args.superpulses
+
+    log_script_invocation(log, "extract-hpge-elecmod-scan", parser, args)
 
     hpge = args.hpge_detector
     pars_file = args.pars_file
@@ -192,12 +199,12 @@ def main() -> None:
     log.info(
         "extracting electronics model from superpulses %s in %s ...",
         hpge,
-        args.superpulses,
+        superpulses,
     )
 
-    log.info("... reading data superpulses from %s ...", args.superpulses)
+    log.info("... reading data superpulses from %s ...", superpulses)
     data_superpulses = read_superpulses(
-        args.superpulses, args.hpge_detector, dt_range_tuning=settings.dt_range_tuning
+        superpulses, args.hpge_detector, dt_range_tuning=settings.dt_range_tuning
     )
 
     if not data_superpulses:
@@ -218,23 +225,21 @@ def main() -> None:
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
-        for slope_group in lh5.ls(
-            args.ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"
-        ):
+        for slope_group in lh5.ls(ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"):
             slope = slope_group.split("/")[-1]
             output[slope] = {}
 
             log.debug("... reading ideal waveforms from %s ...", slope)
 
             for depv_group in lh5.ls(
-                args.ideal_psl_scan, f"{args.hpge_detector}/psl_scan/{slope}/"
+                ideal_psl_scan, f"{args.hpge_detector}/psl_scan/{slope}/"
             ):
                 depv = depv_group.split("/")[-1]
 
                 with perf_block("read_ideal_wfs()"):
                     ideal_psl = lh5.read(
                         f"{args.hpge_detector}/psl_scan/{slope}/{depv}",
-                        args.ideal_psl_scan,
+                        ideal_psl_scan,
                     )
 
                     # Prepare ideal waveforms
@@ -331,7 +336,7 @@ def main() -> None:
 
     step_info = {
         k: float(v.view_as())
-        for k, v in lh5.read(f"{args.hpge_detector}/info", args.ideal_psl_scan).items()
+        for k, v in lh5.read(f"{args.hpge_detector}/info", ideal_psl_scan).items()
     }
 
     output["info"] = step_info
