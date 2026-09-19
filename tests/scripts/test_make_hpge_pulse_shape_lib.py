@@ -53,7 +53,6 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
-    """Run the Julia pulse shape library script and verify the output LH5 structure."""
     psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-scan-lib.lh5"
 
     subprocess.run(
@@ -73,14 +72,11 @@ def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
             "--opv",
             "4200",
             "--ssd-settings",
-            str(
-                testprod
-                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/settings.yaml"
-            ),
+            str(testprod / "inputs/simprod/config/pars/legend/geds/ssd/settings.yaml"),
             "--scan-settings",
             str(
                 testprod
-                / "inputs/simprod/config/pars/l1000dsg01/geds/ssd/scan_settings.yaml"
+                / "inputs/simprod/config/pars/legend/geds/ssd/scan_settings.yaml"
             ),
             "--output-file",
             str(psl_file),

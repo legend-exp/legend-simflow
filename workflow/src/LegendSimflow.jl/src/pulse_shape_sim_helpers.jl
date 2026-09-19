@@ -416,6 +416,21 @@ profile, and s is the slope factor.
 
 This means, the non-constant fraction of the impurity profile is
 scaled by a factor s, while the constant offset I(0) is preserved.
+
+# Arguments
+- `pars`: the `impurity_curve.parameters` block of the crystal metadata, for one
+  of the boule models: `a` (impurity density at the seed end), `b` (linear term,
+  per mm), `c` (quadratic term, per mm^2), and `n`, `l`, `m` (amplitude, offset
+  and scale of the exponential term, the last two in mm). Densities are in the
+  units the metadata uses, 1e9 e/cm^3. `z` is the distance from the seed end of
+  the boule, in mm. Only the keys present are used, so the same call works for
+  the linear, parabolic and exponential variants.
+- `slope`: the scaling factor s, dimensionless.
+
+# Returns
+A new `PropDict` with the same keys and units as `pars`: `b`, `c` and `n` scaled
+by `(1 + s)`, and `a` shifted so the density at the seed end stays put. `pars` is
+left untouched.
 """
 function adjust_impurity_pars(pars::PropDict, slope::Real)
 
