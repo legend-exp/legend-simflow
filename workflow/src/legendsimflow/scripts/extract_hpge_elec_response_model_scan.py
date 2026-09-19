@@ -72,6 +72,27 @@ DEFAULT_SETTINGS = {
     }
 )
 def main() -> None:
+    """Fit the electronics response over a grid of pulse-shape simulation parameters.
+
+    The ideal (noise-free) waveform library ``--ideal-lib`` holds, for each
+    detector, the groups ``psl_scan/<slope>/<depv>``, one per point of a grid
+    of impurity-curve slope and depletion voltage, plus an ``info`` group
+    with the grid definition (``slope_min``, ``slope_step``, ``dep_min``,
+    ``dep_step``): the group names carry the grid indices, not the physical
+    values. ``--superpulses`` and ``--settings`` are the data superpulses and
+    the fit configuration used for a single-point fit.
+
+    Every grid point is fitted separately, and the parameters are written to
+    the YAML file ``--pars-file`` following the same grid layout: entry
+    ``[<slope>][<depv>]`` holds the detector name, the ``angle`` the
+    superpulses were taken at, the fitted Gaussian width ``sigma`` and
+    exponential time constant ``tau`` in ns, and the residual ``rms`` of the
+    fit (plus the A/E of data and simulation if plots are produced). The
+    ``info`` entry repeats the grid definition and ``best_fit`` is a copy of
+    the point with the smallest ``rms``, with the indices it was found at
+    added as ``slope`` and ``depv``. Diagnostic plots, one set per grid point,
+    go to ``--plot-file``.
+    """
     parser = argparse.ArgumentParser(
         description="Extract the HPGe electronics model for a LEGEND run."
     )
