@@ -52,7 +52,7 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
 
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
-def test_make_hpge_pulse_shape_lib_scan_l1000(tmp_path):
+def test_make_hpge_pulse_shape_lib_scan(tmp_path):
     psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-scan-lib.lh5"
 
     subprocess.run(

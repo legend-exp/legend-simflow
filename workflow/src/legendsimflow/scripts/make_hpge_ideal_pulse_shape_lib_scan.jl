@@ -50,7 +50,59 @@ end
 """
     main()
 
-Generate ideal HPGe waveform maps for specified detector and save to LH5 file.
+Scan the ideal HPGe pulse shape library over the impurity profile and the
+depletion voltage, and write it to an LH5 file.
+
+For each scaling factor of the impurity profile (the `slope` of the scan) the
+crystal impurity parameters are rescaled with [`adjust_impurity_pars`](@ref)
+and the detector is simulated again. For each depletion voltage of the scan the
+impurities are then rescaled to match it, and the waveform map is computed at
+every crystal axis angle.
+
+# Inputs
+
+Command line arguments:
+
+- `--detector`: HPGe detector name, e.g. `V05261B`
+- `--metadata`: path to legend-metadata, source of the detector and crystal
+  parameters
+- `--opv`: operational voltage in V; read from the metadata when absent
+- `--ssd-settings`: YAML file with the SSD simulation settings
+  (`grid_size_in_mm`, `ssd_refinement_limits`, `padding`), see
+  [`setup_hpge_simulation`](@ref). Built-in defaults are used when the file is
+  absent
+- `--scan-settings`: YAML file with the scan grid, given as two Julia ranges
+  written `"start:step:stop"`: `depv_shift`, the depletion voltage relative to
+  the operational voltage in V, and `slope`, dimensionless. Built-in defaults
+  are used when the file is absent
+- `--output-file`: path of the output LH5 file, which must not exist yet
+
+# Output
+
+A single LH5 file holding one group named after the detector:
+
+```
+<detector>/
+├── psl_scan/
+│   ├── slope_1/                  # one group per impurity slope, in scan order
+│   │   ├── dep_1/                # one group per depletion voltage
+│   │   │   ├── r                 # radial axis, in m
+│   │   │   ├── z                 # axial axis, in m
+│   │   │   ├── dt                # waveform sampling period, 1 ns
+│   │   │   ├── waveform_000_deg  # [time, n_z, n_r], normalized to 1
+│   │   │   └── waveform_045_deg
+│   │   └── dep_2/ ...
+│   └── slope_2/ ...
+└── info/
+    ├── slope_min                 # first slope of the scan
+    ├── slope_step
+    ├── dep_min                   # first depletion voltage of the scan, in V
+    └── dep_step                  # in V
+```
+
+The groups are numbered from 1 in scan order, so the values behind `slope_i`
+and `dep_j` are `slope_min + (i - 1) * slope_step` and
+`dep_min + (j - 1) * dep_step`.
 """
 function main()
     T = Float64
