@@ -7,6 +7,7 @@ from pathlib import Path
 import lh5
 import numpy as np
 import pytest
+import yaml
 from snakemake import api as smkapi
 
 dummyprod = Path(__file__).parent / "dummyprod"
@@ -91,6 +92,32 @@ def _assert_psd_psl_in_evt(generated: Path) -> None:
     assert saw_psd_psl, "no evt file contains an evt/geds/psd/pulse_lib sub-table"
 
 
+def _assert_aoemeanmod(generated: Path) -> None:
+    """Check the A/E mean energy dependence extracted from the electron gun.
+
+    One model file per run must hold, for the modelled detectors and for both
+    PSD methods, a finite linear model of the A/E mean versus energy. The
+    electron-gun `stp` files and the geometry they were simulated on are
+    temporary, so only the `par` outputs survive the run.
+    """
+    for runid in ("l200-p03-r000-phy", "l200-p03-r001-phy"):
+        model_file = generated / f"pars/hpge/aoemeanmod/{runid}-model.yaml"
+        assert model_file.exists(), f"no A/E mean model produced for {runid}"
+        assert (
+            generated / f"pars/hpge/aoemeanmod/plots/{runid}-fit-results.pdf"
+        ).exists()
+
+        models = yaml.safe_load(model_file.read_text())
+        assert set(models) == {"V00001A", "V00001B"}
+        for det, methods in models.items():
+            # the l200cfg01 hit settings enable both PSD methods
+            assert set(methods) == {"single_template", "psl"}, det
+            for model in methods.values():
+                assert np.isfinite(list(model["pars"].values())).all()
+                # the A/E band of single-site events is centred around 1
+                assert model["pars"]["b"] == pytest.approx(1.0, abs=0.1)
+
+
 # NOTE: the dry-run DAG-structure tests (DAG resolution, simlist scheduling,
 # make_steps tier selection, PSD switches) live in test_dag.py.
 
@@ -119,6 +146,7 @@ def test_l200_workflow():
     generated = dummyprod / "generated-l200"
     _assert_psd_psl_in_hit(generated)
     _assert_psd_psl_in_evt(generated)
+    _assert_aoemeanmod(generated)
 
 
 @pytest.mark.needs_nersc

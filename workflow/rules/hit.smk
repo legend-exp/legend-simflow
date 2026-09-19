@@ -10,22 +10,9 @@ _hit_resources = (
     else {}
 )
 
-# gates the whole pre-correction -> fit -> merge -> final-hit-input chain (see
-# smk_build_tier_hit_extra_input below). Off by default: the final hit is built
-# once, with per-detector corrections falling back to the aoemeanmod_default in
-# the hit tier settings.
-_two_pass_aoe_corr = get_tier_settings(config, "hit").get(
-    "two_pass_aoe_correction", False
-)
-
 
 def smk_hit_inputs(wc):
-    """Inputs shared by both hit-tier builds (pass-1 pre-correction and pass-2 final).
-
-    Factored out so the pre-correction rule can reuse them verbatim via
-    ``use rule ... with:``. The two builds differ only in output path and, for
-    the final build, the optional ``aoemean_file`` input.
-    """
+    """Inputs of the hit-tier build."""
     hit_settings = get_tier_settings(config, "hit")
     return {
         "geom": patterns.geom_gdml_filename(config, tier="stp", simid=wc.simid),
@@ -46,6 +33,7 @@ def smk_hit_inputs(wc):
             simulate_psd_with_psl=hit_settings.get("simulate_psd_with_psl", False),
         ),
         "hpge_psdcuts": aggregate.gen_list_of_psdcuts(config, wc.simid),
+        "hpge_aoemeanmods": aggregate.gen_list_of_aoemeanmods(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         "simstat_part_file": patterns.simstat_part_filename(config, simid=wc.simid),
@@ -53,18 +41,6 @@ def smk_hit_inputs(wc):
         "psd_usability": rules.cache_detector_usabilities.output.psd_usability,
         "crystal_metadata_usability": rules.cache_detector_usabilities.output.crystal_metadata_usability,
     }
-
-
-def smk_build_tier_hit_extra_input(wc):
-    """The final hit build's only extra input: the merged A/E correction, toggle-gated.
-
-    Returning ``{}`` (not ``{"aoemean_file": []}``) when off is load-bearing: an
-    absent named input is mapped to ``None`` by ``snakemake_argparse_bridge``,
-    whereas an empty-list value would stringify to the literal ``"[]"``.
-    """
-    if _two_pass_aoe_corr:
-        return {"aoemean_file": patterns.output_aoemeanmod_merged_filename(config)}
-    return {}
 
 
 rule gen_all_tier_hit:
@@ -105,10 +81,9 @@ rule build_tier_hit:
     The `stp` data format is preserved: detector tables are stored separately
     in the output file below `/hit/{detector_name}`.
 
-    When the `two_pass_aoe_correction` hit-tier setting is enabled, this final
-    build additionally consumes the merged A/E energy-dependence correction
-    (`merge_hpge_aoemean_energy_dependence_pars`), computed from a pre-correction pass (see
-    `build_tier_hit_precorr`).
+    The simulated A/E is corrected for its energy dependence with the per-run
+    models produced by `extract_hpge_aoemean_energy_dependence`; detectors
+    without a model fall back to the `aoemeanmod_default` hit-tier setting.
 
     Uses wildcards `simid` and `jobid`.
     """
@@ -116,7 +91,6 @@ rule build_tier_hit:
         "Producing output file for job hit.{wildcards.simid}.{wildcards.jobid}"
     input:
         unpack(smk_hit_inputs),
-        unpack(smk_build_tier_hit_extra_input),
     output:
         patterns.output_simjob_filename(config, tier="hit"),
     log:
@@ -127,24 +101,6 @@ rule build_tier_hit:
         **_hit_resources,
     script:
         "../src/legendsimflow/scripts/tier/hit.py"
-
-
-# pass 1 of the two-pass A/E energy correction: identical post-processing to
-# build_tier_hit but with no correction applied (input overridden to drop the
-# aoemean_file, which also breaks the would-be dependency cycle) and a temporary
-# output. Only enters the DAG when two_pass_aoe_correction is enabled, i.e. when
-# extract_hpge_aoemean_energy_dependence requests these files.
-use rule build_tier_hit as build_tier_hit_precorr with:
-    message:
-        "Producing pre-correction hit output for job hit.{wildcards.simid}.{wildcards.jobid}"
-    input:
-        unpack(smk_hit_inputs),
-    output:
-        temp(patterns.output_simjob_precorr_hit_filename(config)),
-    log:
-        patterns.log_filename(config, tier="hit_precorr"),
-    benchmark:
-        patterns.benchmark_filename(config, tier="hit_precorr")
 
 
 rule plot_tier_hit_observables:

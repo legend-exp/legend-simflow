@@ -46,6 +46,58 @@ PSD_USABILITY_CODE = {
 }
 
 
+# electron kinetic energies (keV) simulated to extract the A/E mean energy
+# dependence (see electron_gun_primaries). The range matches the one over which
+# the correction is determined in data, i.e. the Compton bands of
+# pygama.pargen.AoE_cal.CalAoE.energy_correction (900 to 2350 keV): outside it
+# the data is not corrected either, so extrapolating there would be misleading
+ELECTRON_GUN_ENERGIES_IN_KEV: tuple[int, ...] = (900, 1250, 1600, 1950, 2350)
+
+
+def electron_gun_macro_template(config: SimflowConfig) -> Path:
+    """The path to the remage macro template of the electron-gun simulations.
+
+    Always ``simprod/config/pars/{experiment}/geds/aoemeanmod/template.mac``.
+    It should be the same template used for the production simulations, so
+    that the physics settings match.
+
+    Raises :class:`~legendsimflow.exceptions.SimflowConfigError` if the file
+    does not exist.
+    """
+    path = (
+        Path(config.paths.config)
+        / "pars"
+        / config.experiment
+        / "geds/aoemeanmod/template.mac"
+    )
+    if not path.is_file():
+        msg = f"the electron-gun macro template {path} does not exist"
+        raise SimflowConfigError(msg)
+    return path
+
+
+def electron_gun_primaries(config: SimflowConfig) -> int:
+    """The number of electrons simulated at each electron-gun energy.
+
+    The A/E mean energy-dependence correction (see
+    ``extract_hpge_aoemean_energy_dependence``) is extracted from simulations
+    of mono-energetic electrons, uniformly generated in the bulk of all the
+    germanium detectors of the production geometry, at each energy in
+    ``ELECTRON_GUN_ENERGIES_IN_KEV``. This is the number of primaries of each
+    of those simulations, read from the ``primaries`` key of
+    ``simprod/config/pars/{experiment}/geds/aoemeanmod/settings.yaml``.
+
+    Raises :class:`~legendsimflow.exceptions.SimflowConfigError` if the key is
+    missing.
+    """
+    block = f"simprod.config.pars.{config.experiment}.geds.aoemeanmod.settings"
+    settings = get_par_settings(config, "aoemeanmod")
+    if "primaries" not in settings:
+        msg = "required key 'primaries' not found"
+        raise SimflowConfigError(msg, block)
+    return int(settings.primaries)
+
+
 def get_simconfig(
     config: SimflowConfig,
     tier: str,

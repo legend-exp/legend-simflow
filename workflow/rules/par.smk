@@ -18,7 +18,12 @@
 from pathlib import Path
 
 from legendsimflow import aggregate, patterns
-from legendsimflow.metadata import get_par_settings
+from legendsimflow.metadata import (
+    electron_gun_macro_template,
+    electron_gun_primaries,
+    get_par_settings,
+    get_tier_settings,
+)
 
 
 rule gen_all_tier_par:
@@ -446,88 +451,129 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
-# default set of simulation IDs to fit the A/E energy-dependence correction from
-_AOE_CORR_DEFAULT_SIMID_REGEX = "sis*_z*_slot*_Pb212_to_Pb208"
+rule simulate_electron_gun:
+    """Simulate mono-energetic electrons in the bulk of all HPGe detectors.
 
+    The electron-gun simulations feed the A/E mean energy-dependence extraction
+    (`extract_hpge_aoemean_energy_dependence`). This rule builds the production
+    geometry in memory from the experiment's template geometry configuration
+    (it is written to GDML only because the extraction rule reads the detector
+    metadata back from it) and runs
+    remage once per electron energy (900 to 2350 keV, the range corrected in
+    data), with the macro commands of the `aoemeanmod` macro template: GPS
+    mono-energetic electrons, confined in the bulk of all the germanium
+    sensitive volumes of the geometry.
 
-def smk_extract_hpge_aoemean_energy_dependence_inputs(wildcards):
-    """Inputs for the per-detector A/E energy-correction fit.
-
-    ``simid_regex`` is resolved here (at DAG-build time) so the dependency edge
-    to the pre-correction hit files actually exists in the graph.
-    """
-    regex = get_par_settings(config, "aoemeanmod").get(
-        "simid_regex", _AOE_CORR_DEFAULT_SIMID_REGEX
-    )
-    return {
-        "hit_files": aggregate.gen_list_of_precorr_hit_outputs_matching(config, regex)
-    }
-
-
-rule extract_hpge_aoemean_energy_dependence:
-    """Fit the A/E energy-dependence correction for one HPGe detector.
-
-    Reads raw (uncorrected) A/E vs. energy from the temporary pre-correction
-    `hit` files (`build_tier_hit_precorr`) for simulation IDs matching
-    `simid_regex` (default ``sis*_z*_slot*_Pb212_to_Pb208``, overridable via the `aoemeanmod` par
-    settings) and fits the energy dependence with `pygama.pargen.AoE_cal.CalAoE`,
-    mirroring the LEGEND-200 data calibration procedure. Only built when the
-    `two_pass_aoe_correction` hit-tier setting is enabled.
-
-    Uses wildcard `hpge_detector`.
-    """
-    message:
-        "Extracting A/E energy-dependence correction for detector {wildcards.hpge_detector}"
-    input:
-        unpack(smk_extract_hpge_aoemean_energy_dependence_inputs),
-    params:
-        # track l200data so the rule reruns when it changes: the data-side
-        # validation fit discovers files dynamically and isn't listed above
-        _l200data=config.paths.get("l200data", None),
-    output:
-        pars_file=temp(patterns.output_aoemeanmod_filename(config)),
-        plot_file=patterns.plot_aoemeanmod_filename(config),
-    log:
-        patterns.log_aoemeanmod_filename(config),
-    script:
-        "../src/legendsimflow/scripts/extract_hpge_aoemean_energy_dependence.py"
-
-
-rule merge_hpge_aoemean_energy_dependence_pars:
-    """Merge the per-detector A/E energy-dependence corrections into one file.
-
-    Collect each detector's `energy_corrections` block into a single
-    detector-keyed YAML matching the schema consumed by the `hit` tier (no
-    `default` entry). Global and run-independent, unlike the currmod/elecmod
-    merges.
+    The `stp` output files (one per energy) and the geometry are temporary:
+    they are deleted once the extraction has run for all runs.
 
     No wildcards are used.
     """
     message:
-        "Merging A/E energy-dependence corrections"
+        "Simulating the electron gun"
     input:
-        lambda wc: aggregate.gen_list_of_aoemeanmods(
-            config, cache=smk_load_hpge_cache()
-        ),
+        geom_config=patterns.geom_template_config_filename(config),
+        template=electron_gun_macro_template(config),
     params:
-        # materialize the HPGe list here so the run: block can map file indices
-        # back to detector names
-        hpges=lambda wc: aggregate.gen_list_of_all_modelable_hpges(
-            smk_load_hpge_cache()
-        ),
+        # rerun when the requested statistics change
+        _primaries=electron_gun_primaries(config),
     output:
-        patterns.output_aoemeanmod_merged_filename(config),
-    run:
-        import dbetto
+        # read back by the extraction rule, which needs the detector metadata
+        geom=temp(patterns.output_electron_gun_geom_filename(config)),
+        stp_files=temp(aggregate.gen_list_of_electron_gun_stp_outputs(config)),
+    log:
+        patterns.log_electron_gun_stp_filename(config),
+    benchmark:
+        patterns.benchmark_electron_gun_stp_filename(config)
+    threads: 1
+    script:
+        "../src/legendsimflow/scripts/simulate_electron_gun.py"
 
-        # NOTE: this is guaranteed to be sorted as in the input file list
-        hpges = params.hpges
 
-        out_dict = {}
-        for i, f in enumerate(input):
-            out_dict[hpges[i]] = dbetto.utils.load_dict(f)["energy_corrections"]
+def smk_extract_hpge_aoemean_energy_dependence_inputs(wildcards):
+    """Inputs of the per-run A/E mean energy-dependence extraction.
 
-        dbetto.utils.write_dict(out_dict, output[0])
+    The electron-gun ``stp`` files (all energies and jobs) and the geometry they
+    were simulated with, the HPGe modeling status cache and the PSD inputs of
+    the run (drift-time maps, current-pulse model, realistic pulse-shape
+    library), gated by the same hit-tier settings as in ``smk_hit_inputs``.
+    """
+    hit_settings = get_tier_settings(config, "hit")
+
+    inputs = {
+        "electron_stp_files": aggregate.gen_list_of_electron_gun_stp_outputs(config),
+        "geom": patterns.output_electron_gun_geom_filename(config),
+        "is_modelable": rules.cache_modelable_hpges.output.is_modelable,
+    }
+    if hit_settings.get("simulate_psd", True):
+        inputs["hpge_dtmap"] = patterns.output_dtmap_merged_filename(
+            config, runid=wildcards.runid
+        )
+        inputs["hpge_currmod"] = patterns.output_currmod_merged_filename(
+            config, runid=wildcards.runid
+        )
+    if hit_settings.get("simulate_psd_with_psl", False):
+        inputs["hpge_realistic_psl"] = patterns.output_realistic_psl_merged_filename(
+            config, runid=wildcards.runid
+        )
+    return inputs
+
+
+# realistic-PSL-based PSD simulation keeps a detector's PSL waveforms in
+# memory, as in the hit tier (see hit.smk)
+_aoemeanmod_resources = (
+    {"mem_mb": 2300}
+    if get_tier_settings(config, "hit").get("simulate_psd_with_psl", False)
+    else {}
+)
+
+
+rule extract_hpge_aoemean_energy_dependence:
+    """Extract the A/E mean energy dependence of the HPGe detectors of a run.
+
+    Post-process the electron-gun simulations (`simulate_electron_gun`) for
+    every modelable HPGe detector of the run with the same PSD routines as
+    `build_tier_hit` (drift-time maps, current-pulse model and realistic
+    pulse-shape library of the run, no correction and no dead-layer model),
+    keeping only the events that stopped the whole electron. The A/E
+    distribution at each energy is fitted with the peak shape used on
+    LEGEND-200 data (a Gaussian plus a low-side tail) and its position is the
+    mean of the Gaussian. The five positions are fitted with a linear function
+    of the energy, with the same model and procedure used on data, which is the
+    A/E mean model applied by the `hit` tier.
+
+    Two YAML files are produced. The model file, consumed by `build_tier_hit`,
+    maps each detector to its `single_template` and `psl` models
+    (`expression`, `pars`, `errs`), in the same format as the
+    `aoemeanmod_default` hit-tier setting. The statistics file maps each
+    detector to:
+
+    | Key                  | Type    | Description                                                                                          |
+    | -------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+    | `<PSD method>`       | mapping | Arrays over the electron energies: `energy_in_keV`, `n_events`, `mu`, `mu_err`, `sigma`, `chi2_ndf`. |
+
+    A validation PDF shows, for each detector, the raw A/E distributions at
+    each energy with the fitted peak shape drawn over them, and the positions
+    with the fitted linear model.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Extracting the A/E mean energy dependence in {wildcards.runid}"
+    input:
+        unpack(smk_extract_hpge_aoemean_energy_dependence_inputs),
+    output:
+        pars_file=patterns.output_aoemeanmod_filename(config),
+        stats_file=patterns.output_aoemeanmod_stats_filename(config),
+        plot_file=patterns.plot_aoemeanmod_filename(config),
+    log:
+        patterns.log_aoemeanmod_filename(config),
+    benchmark:
+        patterns.benchmark_aoemeanmod_filename(config)
+    resources:
+        **_aoemeanmod_resources,
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_aoemean_energy_dependence.py"
 
 
 # whether superpulses are built one file per (run, detector) instead of a single
