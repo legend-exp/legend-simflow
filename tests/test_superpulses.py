@@ -463,6 +463,41 @@ def test_read_superpulses(test_make_superpulse, tmp_path):
     assert all(isinstance(v, Superpulse) for v in result.values())
 
 
+def test_read_superpulses_drift_time_range_and_order(test_make_superpulse, tmp_path):
+    output_path = str(tmp_path / "test_superpulses_multislice.lh5")
+
+    superpulses = {}
+    for drift_time_range in ((500.0, 700.0), (900.0, 1100.0), (1300.0, 1500.0)):
+        sl = Slice(test_make_superpulse.slice.energy_range, drift_time_range)
+        superpulses[sl] = Superpulse(
+            charge_wf=test_make_superpulse.charge_wf,
+            current_wf=test_make_superpulse.current_wf,
+            charge_time_axis=test_make_superpulse.charge_time_axis,
+            current_time_axis=test_make_superpulse.current_time_axis,
+            slice=sl,
+            detector=test_make_superpulse.detector,
+            n_events_preliminary=test_make_superpulse.n_events_preliminary,
+            n_events_final=test_make_superpulse.n_events_final,
+        )
+
+    write_superpulses(superpulses, output_path, detector="V03422A")
+
+    # the drift time bounds are inclusive and the slices come back in
+    # descending drift time
+    result = read_superpulses(
+        output_path, detector="V03422A", dt_range_tuning=(600.0, 1400.0)
+    )
+    assert [sl.drift_time_center for sl in result] == [1400.0, 1000.0, 600.0]
+
+    result = read_superpulses(
+        output_path, detector="V03422A", dt_range_tuning=(601.0, 1399.0)
+    )
+    assert [sl.drift_time_center for sl in result] == [1000.0]
+
+    result = read_superpulses(output_path, detector="V03422A")
+    assert [sl.drift_time_center for sl in result] == [1400.0, 1000.0, 600.0]
+
+
 def test_plot(test_make_superpulse):
     # Just test that the plotting functions run without error on a valid superpulse
     # Detailed tests of the plot contents would require image comparison which is beyond scope here
