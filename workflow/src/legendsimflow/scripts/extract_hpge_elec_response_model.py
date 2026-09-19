@@ -36,7 +36,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
-from legendsimflow import utils
+from legendsimflow import nersc, utils
 from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
@@ -157,6 +157,10 @@ def main() -> None:
     log = ldfs.utils.build_log(metadata.simprod.config.logging, args.log_file)
     log_script_invocation(log, "extract-hpge-elecmod", parser, args)
 
+    # the LH5 inputs are large, read them through the NERSC read-only mount
+    ideal_lib_file = nersc.dvs_ro(config, args.ideal_lib)
+    superpulses = nersc.dvs_ro(config, args.superpulses)
+
     runid = args.runid
     hpge = args.hpge_detector
     pars_file = args.pars_file
@@ -192,13 +196,13 @@ def main() -> None:
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
-    log.info("... reading ideal library from %s ...", args.ideal_lib)
+    log.info("... reading ideal library from %s ...", ideal_lib_file)
 
-    ideal_lib = lh5.read(args.hpge_detector, args.ideal_lib)
+    ideal_lib = lh5.read(args.hpge_detector, ideal_lib_file)
 
-    log.info("... reading data superpulses from %s ...", args.superpulses)
+    log.info("... reading data superpulses from %s ...", superpulses)
     data_superpulses = read_superpulses(
-        args.superpulses, args.hpge_detector, dt_range_tuning=settings.dt_range_tuning
+        superpulses, args.hpge_detector, dt_range_tuning=settings.dt_range_tuning
     )
 
     msg = f"Selected {data_superpulses}"
@@ -308,7 +312,7 @@ def main() -> None:
 
     if args.uniformity_plot_file is not None:
         fig, _ = plot_current_superpulses_fwhm_and_amplitude(
-            args.superpulses,
+            superpulses,
             args.hpge_detector,
             dt_range_tuning=dt_range_fit,
         )
