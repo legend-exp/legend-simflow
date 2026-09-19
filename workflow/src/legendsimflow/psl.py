@@ -251,6 +251,7 @@ def convolve_elecmod_scan(
                 dtype=np.float32,
                 kernel_t0_idx=-2 * kernel_start,
             )
+
             _, mean_aoe = get_avg_aoe(
                 [realistic_dict[k] for k in realistic_dict if "waveform" in k]
             )
@@ -265,8 +266,8 @@ def convolve_elecmod_scan(
                 realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
             )
             dt_maps[slope][depv] = {
-                "000": realistic_dict["drift_time_000_deg"].view_as("np"),
-                "045": realistic_dict["drift_time_045_deg"].view_as("np"),
+                0: realistic_dict["drift_time_000_deg"].view_as("np"),
+                45: realistic_dict["drift_time_045_deg"].view_as("np"),
             }
 
     return psls, dt_maps
