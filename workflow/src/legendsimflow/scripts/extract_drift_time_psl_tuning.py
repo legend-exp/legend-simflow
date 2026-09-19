@@ -41,8 +41,6 @@ from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
 from legendsimflow.scripts import log_script_invocation
 
-N_MAX = 10000
-
 
 def mask_with_units(data: ak.Array, mask: ak.Array) -> ak.Array:
     """Mask an awkward array with units attached, preserving the units."""
@@ -125,7 +123,6 @@ def get_rz(det_loc, chunk: ak.Array) -> tuple[ak.Array, ak.Array]:
 
 
 ECUT = 1500
-N_MAX = 10000
 
 
 @snakemake_compatible(
@@ -138,6 +135,7 @@ N_MAX = 10000
         "psl_file": "input.psl_file",
         "log_file": "log[0]",
         "simflow_config": "config",
+        "max_events": "params.max_events",
     }
 )
 def main() -> None:
@@ -157,6 +155,12 @@ def main() -> None:
     parser.add_argument("--geom-file", required=True, help="input geom file")
     parser.add_argument("--simflow-config", help="simflow config file")
     parser.add_argument("--log-file", help="log file")
+    parser.add_argument(
+        "--max-events",
+        type=int,
+        default=None,
+        help="stop after this many events pass the energy cut (default: use all)",
+    )
 
     args = parser.parse_args()
     det = args.hpge_detector
@@ -212,11 +216,15 @@ def main() -> None:
     print(sens_tables.keys())
     geom_meta = sens_tables[det]
 
+    buffer_len = 200000
+    if args.max_events is not None:
+        buffer_len = min(args.max_events, buffer_len)
+
     iterator = LH5Iterator(
         files,
         stp_table_name,
         i_start=0,
-        buffer_len=200000,
+        buffer_len=buffer_len,
     )
 
     # extract necessary geometry information
@@ -256,10 +264,14 @@ def main() -> None:
         )
 
     # loop over steps
+    n_read = 0
+    n_used = 0
+
     for lgdo_chunk in iterator:
         chunk = lgdo_chunk.view_as("ak", with_units=True)
 
         # remove events with energy below ECUT
+        n_read += len(chunk)
         chunk = mask_with_units(chunk, ak.sum(chunk.edep, axis=-1) > ECUT)
 
         # cluster steps
@@ -333,6 +345,20 @@ def main() -> None:
             dt_file,
             uid=geom_meta.uid,
         )
+
+        # the drift-time loop above is the expensive part, so stop as soon as
+        # the distributions hold enough events to be fitted
+        n_used += len(energy_true)
+        if args.max_events is not None and n_used >= args.max_events:
+            break
+
+    log.info(
+        "computed drift times for %d events above %d keV, out of %d read",
+        n_used,
+        ECUT,
+        n_read,
+    )
+
     # write info block
     lh5.write(info, f"/{det}/info", dt_file, wo_mode="append")
 
