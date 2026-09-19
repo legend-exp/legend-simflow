@@ -14,7 +14,7 @@ from scipy.stats import norm
 from legendsimflow.scripts import (
     build_superpulses_from_data,
     extract_hpge_elec_response_model,
-    extract_hpge_elec_response_model_scan
+    extract_hpge_elec_response_model_scan,
 )
 from legendsimflow.superpulses import lookup_superpulse_inputs
 
@@ -179,12 +179,10 @@ def test_extract_electronics_model_cli_with_data(
 
 @pytest.fixture
 def test_make_ideal_psl_scan(tmp_path):
-
     out = {}
-    for sidx,slope in enumerate(np.linspace(-1.0, 1.0, 3)):
+    for sidx, _slope in enumerate(np.linspace(-1.0, 1.0, 3)):
         out[f"slope_{sidx}"] = {}
-        for didx,depv in enumerate(np.linspace(500,800, 3)):
-
+        for didx, _depv in enumerate(np.linspace(500, 800, 3)):
             t = np.arange(5000)
             wfs = []
             # Gaussian PDF
@@ -197,22 +195,29 @@ def test_make_ideal_psl_scan(tmp_path):
 
             ideal_psl = str(tmp_path / "outputs" / "l200-p16-r008-ssc-ideal_psl.lh5")
 
-            out[f"slope_{sidx}"][f"dep_{didx}"]  = Struct({"waveform_000_deg": Array(wfs), "dt": Scalar(1.0)})
-    
+            out[f"slope_{sidx}"][f"dep_{didx}"] = Struct(
+                {"waveform_000_deg": Array(wfs), "dt": Scalar(1.0)}
+            )
+
     info = {}
     info["slope_min"] = Scalar(-1.0)
-    info["slope_step"] = Scalar(2.0/3)
+    info["slope_step"] = Scalar(2.0 / 3)
     info["dep_min"] = Scalar(500)
-    info["dep_step"] = Scalar(300/3)
+    info["dep_step"] = Scalar(300 / 3)
 
     output = {"psl_scan": Struct(out), "info": Struct(info)}
 
-    lh5.write(Struct(output), f"V03422A", ideal_psl, wo_mode="of")
+    lh5.write(Struct(output), "V03422A", ideal_psl, wo_mode="of")
 
     return ideal_psl
 
+
 def test_extract_electronics_model_scan_cli_with_data(
-    test_make_ssc_data, tmp_path, monkeypatch, test_make_ideal_psl_scan, test_superpulse_cli
+    test_make_ssc_data,
+    tmp_path,
+    monkeypatch,
+    test_make_ideal_psl_scan,
+    test_superpulse_cli,
 ):
     # test first with defaults (legend)
 

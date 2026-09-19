@@ -304,7 +304,9 @@ def get_ideal_wfs_all_slices(
     )
     # Keep the documented descending drift-time order, truncating when requested.
     ideal_wfs_slice = dict(
-        sorted_wfs[:max_num_superpulses] if max_num_superpulses is not None else sorted_wfs
+        sorted_wfs[:max_num_superpulses]
+        if max_num_superpulses is not None
+        else sorted_wfs
     )
 
     return {
