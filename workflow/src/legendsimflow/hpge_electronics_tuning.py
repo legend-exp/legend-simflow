@@ -231,12 +231,17 @@ def get_ideal_wfs_all_slices(
     ideal_pulse_shape_lib: Struct,
     data_superpulses: dict[Slice, Superpulse],
     angle: str = "000",
+    *,
+    max_num_superpulses: int | None = None,
 ) -> dict:
     """Select ideal waveforms per drift-time slice.
 
     Reads the ideal pulse-shape library, flattens the (r, z) grid,
     and selects waveforms whose drift time falls in each data
     superpulse slice.
+
+    Also sorts the slices by drift time and optionally truncates to the
+    maximum number of slices to keep based on those with the highest drift time.
 
     Parameters
     ----------
@@ -247,6 +252,9 @@ def get_ideal_wfs_all_slices(
         Data superpulses keyed by slice.
     angle
         Crystal axis angle tag, e.g. ``"000"``.
+    max_num_superpulses
+        Maximum number of slices to keep, sorted by drift time.
+        If ``None`` (default), all slices are kept.
 
     Returns
     -------
@@ -287,6 +295,19 @@ def get_ideal_wfs_all_slices(
         raise RuntimeError(msg)
 
     log.info("prepared %d slices", len(ideal_wfs_slice))
+
+    # sort the superpulses based on drift time
+    sorted_wfs = sorted(
+        ideal_wfs_slice.items(),
+        key=lambda item: item[0].drift_time_center,
+        reverse=True,
+    )
+    # Keep the documented descending drift-time order, truncating when requested.
+    ideal_wfs_slice = dict(
+        sorted_wfs[:max_num_superpulses]
+        if max_num_superpulses is not None
+        else sorted_wfs
+    )
 
     return {
         "ideal_wfs_slice": ideal_wfs_slice,

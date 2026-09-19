@@ -806,8 +806,13 @@ def write_superpulses(
 def read_superpulses(
     path: str,
     detector: str,
+    *,
+    dt_range_tuning: tuple[float, float] | None = None,
 ) -> dict[Slice, Superpulse]:
     """Read superpulses written by :func:`write_superpulses`.
+
+    Can also (optionally) filter the slices by drift time range for tuning. Superpulses outside the range are dropped.
+    The returned dictionary is sorted by drift time center in descending order.
 
     Parameters
     ----------
@@ -815,6 +820,9 @@ def read_superpulses(
         Path to the LH5 file.
     detector
         Detector name (top-level group), e.g. ``"V03422A"``.
+    dt_range_tuning
+        Optional tuple of (min, max) drift time in ns. Only superpulses with
+        drift time center within this range are returned. Default: None (no filtering).
 
     Returns
     -------
@@ -858,8 +866,22 @@ def read_superpulses(
 
         superpulses[sl] = sp
 
-    log.info("read %d slices for %s from %s", len(superpulses), detector, path)
-    return superpulses
+    log.debug("read %d slices for %s from %s", len(superpulses), detector, path)
+
+    if dt_range_tuning is not None:
+        superpulses = {
+            sl: sp
+            for sl, sp in superpulses.items()
+            if dt_range_tuning[0] <= sl.drift_time_center <= dt_range_tuning[1]
+        }
+
+    return dict(
+        sorted(
+            ((k, v) for k, v in superpulses.items()),
+            key=lambda x: x[0].drift_time_center,
+            reverse=True,
+        )
+    )
 
 
 def plot_wfs_and_superpulse(
@@ -1148,6 +1170,7 @@ def plot_superpulses(
             va="bottom",
             ha="right",
         )
+
     ax.set_title(f"{detector} - Average {curve} pulses  |  E = [{e_lo}, {e_hi}] keV")
     ax.set_xlabel("Time [ns]")
     ax.set_ylabel(ylabel)
