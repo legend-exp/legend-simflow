@@ -89,7 +89,7 @@ A single LH5 file holding one group named after the detector:
 │   │   │   ├── r                 # radial axis, in m
 │   │   │   ├── z                 # axial axis, in m
 │   │   │   ├── dt                # waveform sampling period, 1 ns
-│   │   │   ├── waveform_000_deg  # [time, n_z, n_r], normalized to 1
+│   │   │   ├── waveform_000_deg  # normalized to 1, see below for the shape
 │   │   │   └── waveform_045_deg
 │   │   └── dep_2/ ...
 │   └── slope_2/ ...
@@ -103,6 +103,10 @@ A single LH5 file holding one group named after the detector:
 The groups are numbered from 1 in scan order, so the values behind `slope_i`
 and `dep_j` are `slope_min + (i - 1) * slope_step` and
 `dep_min + (j - 1) * dep_step`.
+
+The waveform arrays are indexed `[time, z, r]` in Julia. Julia writes them in
+column-major order, so a row-major reader such as `h5py` or `lgdo` sees the
+reversed shape `(n_r, n_z, n_time)`.
 """
 function main()
     T = Float64
