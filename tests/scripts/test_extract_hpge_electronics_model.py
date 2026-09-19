@@ -233,7 +233,7 @@ def test_extract_electronics_model_scan_cli_with_data(
             "extract-hpge-electronics-model-scan",
             "--superpulses",
             test_superpulse_cli,
-            "--ideal-lib",
+            "--ideal-psl-scan",
             test_make_ideal_psl_scan,
             "--hpge-detector",
             "V03422A",

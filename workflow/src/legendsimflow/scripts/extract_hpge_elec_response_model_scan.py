@@ -62,7 +62,7 @@ DEFAULT_SETTINGS = {
 @snakemake_compatible(
     mapping={
         "hpge_detector": "wildcards.hpge_detector",
-        "ideal_lib": "input.ideal_psl",
+        "ideal_psl_scan": "input.ideal_psl_scan",
         "superpulses": "input.superpulses",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
@@ -104,11 +104,11 @@ def main() -> None:
         help="HPGe detector name",
     )
     parser.add_argument(
-        "--ideal-lib",
+        "--ideal-psl-scan",
         type=str,
         default=None,
         required=False,
-        help="Path to ideal psl file",
+        help="path to the LH5 file with the ideal PSL scan grid",
     )
     parser.add_argument(
         "--superpulses",
@@ -199,25 +199,28 @@ def main() -> None:
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
-        for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/psl_scan/"):
+        for slope_group in lh5.ls(
+            args.ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"
+        ):
             slope = slope_group.split("/")[-1]
             output[slope] = {}
 
             log.debug("... reading ideal waveforms from %s ...", slope)
 
             for depv_group in lh5.ls(
-                args.ideal_lib, f"{args.hpge_detector}/psl_scan/{slope}/"
+                args.ideal_psl_scan, f"{args.hpge_detector}/psl_scan/{slope}/"
             ):
                 depv = depv_group.split("/")[-1]
 
                 with perf_block("read_ideal_wfs()"):
-                    ideal_lib = lh5.read(
-                        f"{args.hpge_detector}/psl_scan/{slope}/{depv}", args.ideal_lib
+                    ideal_psl = lh5.read(
+                        f"{args.hpge_detector}/psl_scan/{slope}/{depv}",
+                        args.ideal_psl_scan,
                     )
 
                     # Prepare ideal waveforms
                     ideal_wfs = get_ideal_wfs_all_slices(
-                        ideal_lib,
+                        ideal_psl,
                         data_superpulses,
                         angle=settings.angle,
                         max_num_superpulses=settings.max_num_superpulses,
@@ -309,7 +312,7 @@ def main() -> None:
 
     step_info = {
         k: float(v.view_as())
-        for k, v in lh5.read(f"{args.hpge_detector}/info", args.ideal_lib).items()
+        for k, v in lh5.read(f"{args.hpge_detector}/info", args.ideal_psl_scan).items()
     }
 
     output["info"] = step_info
