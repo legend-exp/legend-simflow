@@ -18,7 +18,6 @@
 
 import argparse
 import logging
-import time
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -26,6 +25,7 @@ import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
+import reboost
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
@@ -193,9 +193,7 @@ def main() -> None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)
 
-    time_read = 0
-    time_fit = 0
-    time_plot = 0
+    perf_block, print_perf, _ = reboost.make_profiler()
 
     output = {}
     with (
@@ -212,19 +210,18 @@ def main() -> None:
             ):
                 depv = depv_group.split("/")[-1]
 
-                t0 = time.time()
-                ideal_lib = lh5.read(
-                    f"{args.hpge_detector}/psl_scan/{slope}/{depv}", args.ideal_lib
-                )
+                with perf_block("read_ideal_wfs()"):
+                    ideal_lib = lh5.read(
+                        f"{args.hpge_detector}/psl_scan/{slope}/{depv}", args.ideal_lib
+                    )
 
-                # Prepare ideal waveforms
-                ideal_wfs = get_ideal_wfs_all_slices(
-                    ideal_lib,
-                    data_superpulses,
-                    angle=settings.angle,
-                    max_num_superpulses=settings.max_num_superpulses,
-                )
-                time_read += time.time() - t0
+                    # Prepare ideal waveforms
+                    ideal_wfs = get_ideal_wfs_all_slices(
+                        ideal_lib,
+                        data_superpulses,
+                        angle=settings.angle,
+                        max_num_superpulses=settings.max_num_superpulses,
+                    )
 
                 if not ideal_wfs["ideal_wfs_slice"]:
                     log.warning(
@@ -236,23 +233,23 @@ def main() -> None:
                     continue
 
                 # Run fit
-                t0 = time.time()
                 log.info(
                     "starting fit (sigma0=%.1f, tau0=%.1f) ...",
                     settings.sigma_start,
                     settings.tau_start,
                 )
-                result = fit_electronics_parameters(
-                    **ideal_wfs,
-                    data_superpulses=data_superpulses,
-                    sigma_start=settings.sigma_start,
-                    tau_start=settings.tau_start,
-                    sigma_limits=tuple(settings.sigma_limits),
-                    tau_limits=tuple(settings.tau_limits),
-                    comparison_window=comparison_window,
-                    weight_power=settings.get("weight_power", 0.0),
-                    max_calls=settings.max_calls,
-                )
+                with perf_block("fit_electronics_parameters()"):
+                    result = fit_electronics_parameters(
+                        **ideal_wfs,
+                        data_superpulses=data_superpulses,
+                        sigma_start=settings.sigma_start,
+                        tau_start=settings.tau_start,
+                        sigma_limits=tuple(settings.sigma_limits),
+                        tau_limits=tuple(settings.tau_limits),
+                        comparison_window=comparison_window,
+                        weight_power=settings.get("weight_power", 0.0),
+                        max_calls=settings.max_calls,
+                    )
 
                 # Write output
                 output[slope][depv] = {
@@ -262,43 +259,40 @@ def main() -> None:
                     "tau": result["tau"],
                     "rms": result["best_rms"],
                 }
-                time_fit += time.time() - t0
 
                 # plots
                 if pdf is not None:
-                    t0 = time.time()
-                    fig, _ = plot_convergence(result)
-                    decorate(fig)
-                    pdf.savefig(fig)
-                    plt.close(fig)
+                    with perf_block("plots()"):
+                        fig, _ = plot_convergence(result)
+                        decorate(fig)
+                        pdf.savefig(fig)
+                        plt.close(fig)
 
-                    fig, _, data_amax, mc_amax = plot_best_fit(
-                        result,
-                        data_superpulses,
-                        comparison_window=comparison_window,
-                        plot_window=plot_window,
-                        detector_name=args.hpge_detector,
-                    )
-                    output[slope][depv]["aoe_data"] = data_amax
-                    output[slope][depv]["aoe_mc"] = mc_amax
+                        fig, _, data_amax, mc_amax = plot_best_fit(
+                            result,
+                            data_superpulses,
+                            comparison_window=comparison_window,
+                            plot_window=plot_window,
+                            detector_name=args.hpge_detector,
+                        )
+                        output[slope][depv]["aoe_data"] = data_amax
+                        output[slope][depv]["aoe_mc"] = mc_amax
 
-                    decorate(fig)
-                    pdf.savefig(fig)
-                    plt.close(fig)
+                        decorate(fig)
+                        pdf.savefig(fig)
+                        plt.close(fig)
 
-                    fig, _, _, _ = plot_best_fit(
-                        result,
-                        data_superpulses,
-                        comparison_window=comparison_window,
-                        plot_window=plot_window,
-                        plot_charge=True,
-                        detector_name=args.hpge_detector,
-                    )
-                    decorate(fig)
-                    pdf.savefig(fig)
-                    plt.close(fig)
-
-                    time_plot += time.time() - t0
+                        fig, _, _, _ = plot_best_fit(
+                            result,
+                            data_superpulses,
+                            comparison_window=comparison_window,
+                            plot_window=plot_window,
+                            plot_charge=True,
+                            detector_name=args.hpge_detector,
+                        )
+                        decorate(fig)
+                        pdf.savefig(fig)
+                        plt.close(fig)
 
     # get the global best fit pars
 
@@ -326,10 +320,7 @@ def main() -> None:
         msg = "Something went badly wrong, no best fit parameters found!"
         raise RuntimeError(msg)
 
-    log.info("finished took:")
-    log.info("... reading ideal waveforms: %.1f s", time_read)
-    log.info("... fitting electronics parameters: %.1f s", time_fit)
-    log.info("... plotting: %.1f s", time_plot)
+    print_perf()
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
