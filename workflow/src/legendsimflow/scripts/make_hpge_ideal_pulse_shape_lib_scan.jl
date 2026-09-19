@@ -26,13 +26,10 @@ const DEFAULT_REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
 # nr of pixels for padding around the map to avoid grid edge effects (default; can be overridden via metadata settings file)
 const DEFAULT_PADDING = 3
 
-const LOW_DEPV_SHIFT = -1000.0
-const HIGH_DEPV_SHIFT = -20.0
-const DEPV_STEP = 20.0
-
-const LOW_SLOPE = -0.9
-const HIGH_SLOPE = 3.0
-const SLOPE_STEP = 0.2
+# scan grid, as ranges of depletion-voltage shift in V and of dimensionless
+# impurity-profile scaling factor; overridable via the scan settings file
+const DEFAULT_DEPV_SHIFTS = -1000.0:20.0:-20.0
+const DEFAULT_SLOPES = -0.9:0.2:3.0
 
 using LegendHDF5IO
 using ArgParse
@@ -41,6 +38,14 @@ using Printf
 using Unitful
 using LegendSimflow
 using SolidStateDetectors
+
+"""Parse a `"start:step:stop"` scan range from the settings file."""
+function parse_range(str::AbstractString)
+    parts = split(str, ':')
+    length(parts) == 3 || error("expected a \"start:step:stop\" range, got \"$str\"")
+    vals = parse.(Float64, parts)
+    return vals[1]:vals[2]:vals[3]
+end
 
 """
     main()
@@ -108,13 +113,9 @@ function main()
     scan_settings = parsed_args["scan-settings"]
     scan_cfg = (!isnothing(scan_settings) && isfile(scan_settings)) ? readprops(scan_settings) : PropDict()
 
-    low_depv_shift = get(scan_cfg, :low_depv_shift, LOW_DEPV_SHIFT)
-    high_depv_shift = get(scan_cfg, :high_depv_shift, HIGH_DEPV_SHIFT)
-    depv_step = get(scan_cfg, :depv_step, DEPV_STEP)
-
-    low_slope = get(scan_cfg, :low_slope, LOW_SLOPE)
-    high_slope = get(scan_cfg, :high_slope, HIGH_SLOPE)
-    slope_step = get(scan_cfg, :slope_step, SLOPE_STEP)
+    depv_shifts =
+        haskey(scan_cfg, :depv_shift) ? parse_range(scan_cfg.depv_shift) : DEFAULT_DEPV_SHIFTS
+    slopes = haskey(scan_cfg, :slope) ? parse_range(scan_cfg.slope) : DEFAULT_SLOPES
 
 
     # loop over slopes
@@ -126,18 +127,19 @@ function main()
 
     time_drift = 0
 
-    for (sidx, slope) in enumerate(low_slope:slope_step:high_slope)
+    for (sidx, slope) in enumerate(slopes)
 
         t0 = time()
         xtal.impurity_curve.parameters = adjust_impurity_pars(base_xtal.impurity_curve.parameters, slope)
 
-        sim, _ = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + low_depv_shift)
+        sim, _ =
+            setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + first(depv_shifts))
 
         time_setup += time() - t0
 
         output[Symbol("slope_$sidx")] = Dict{Symbol,Any}()
 
-        for (didx, depv_shift) in enumerate(low_depv_shift:depv_step:high_depv_shift)
+        for (didx, depv_shift) in enumerate(depv_shifts)
             depv = opv_val + depv_shift
 
             t0 = time()
@@ -189,7 +191,12 @@ function main()
     output = dict_to_namedtuple(output)
     output = (
         psl_scan = output,
-        info = (slope_min = low_slope, slope_step = slope_step, dep_min = low_depv_shift+opv_val, dep_step = depv_step)
+        info = (
+            slope_min = first(slopes),
+            slope_step = step(slopes),
+            dep_min = opv_val + first(depv_shifts),
+            dep_step = step(depv_shifts)
+        )
     )
 
     lh5open(output_file, "cw") do f

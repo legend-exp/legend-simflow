@@ -64,6 +64,28 @@ imported modules under `workflow/rules/`.
 - `templates`: template Simflow configuration files that users copy and adapt
   when setting up a new production
 
+## Language
+
+Applies to code, documentation, docstrings, code comments, commit messages, PR
+descriptions and issue comments. The audience is physicists, not software
+engineers. Clarity first, brevity second: when they conflict, choose clarity.
+
+- Plain language. Prefer the physics term to the CS term: "energy deposition",
+  not "payload"; "detector table", not "data structure"
+- Avoid CS jargon that has an everyday equivalent: leverage, instantiate,
+  orchestrate, performant, seamless, robust, utilize, boilerplate. Say what
+  happens to the data instead
+- Plain words over inflated ones: "before", not "prior to"; "about", not "with
+  regard to". Normal formal register is fine, the target is inflation
+- An unavoidable technical term is introduced once, with a short definition in
+  parentheses
+- Short, direct sentences, active voice, present tense. Split sentences above
+  ~30 words
+- No filler: "it is worth noting", "in order to", chains of "additionally",
+  "furthermore", "moreover". Do not close every section with a summary sentence
+- Spell out units, coordinate conventions and physical assumptions. This is what
+  a reader needs and the code cannot state it
+
 ## Testing
 
 See [`tests/AGENTS.md`](tests/AGENTS.md).
@@ -80,10 +102,8 @@ style, and Snakemake rule docstring conventions.
 
 ## Code Conventions
 
-See [`workflow/AGENTS.md`](workflow/AGENTS.md).
-
-- For plotting code, always call `legendsimflow.plot.decorate(fig)` before any
-  `savefig`/`pdf.savefig` call.
+These apply also to test code style. See
+[`workflow/AGENTS.md`](workflow/AGENTS.md).
 
 ## Git Workflow
 

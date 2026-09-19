@@ -40,6 +40,10 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
   docstrings.
 - All new pages must appear in a toctree — orphan pages cause build warnings
 - API reference is auto-generated; do not write it by hand
+- When updating documentation for something that has changed behavior, do not
+  mention the old behavior, just document the feature as is
+- In documenting a new feature in a general library or tool that was prompted by
+  a specific application in a consumer software, do not mention that consumer
 
 ## Python docstring conventions
 
