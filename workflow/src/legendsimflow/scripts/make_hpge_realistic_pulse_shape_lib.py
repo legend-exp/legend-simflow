@@ -31,7 +31,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from reboost import units
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import psl, utils
+from legendsimflow import nersc, psl, utils
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 
@@ -94,14 +94,17 @@ def main():
     config = utils.init_simflow_context(args.simflow_config, workflow=None).config
     metadata = config.metadata
 
+    elecmod_file = nersc.dvs_ro(config, args.electronics_model_file)
+    ideal_psl_file = nersc.dvs_ro(config, args.input_file)
+
     log_file = args.log_file
 
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "realistic-psl", parser, args)
 
-    electronics_model = dbetto.utils.load_dict(args.electronics_model_file)
+    electronics_model = dbetto.utils.load_dict(elecmod_file)
     if args.detector not in electronics_model:
-        msg = f"Detector {args.detector} not found in '{args.electronics_model_file}'"
+        msg = f"Detector {args.detector} not found in '{elecmod_file}'"
         raise KeyError(msg)
     try:
         detector_model = electronics_model[args.detector]
@@ -111,12 +114,12 @@ def main():
         missing_key = str(e)
         msg = (
             f"missing key {missing_key} in electronics-model parameters for detector "
-            f"{args.detector} in {args.electronics_model_file}"
+            f"{args.detector} in {elecmod_file}"
         )
         raise KeyError(msg) from e
 
     # 1. Load data
-    ideal_map_obj = lh5.read(args.detector, args.input_file)
+    ideal_map_obj = lh5.read(args.detector, ideal_psl_file)
     dt = ideal_map_obj["dt"].value * units.units_convfact(ideal_map_obj["dt"], "ns")
 
     # 2. Setup Physics Kernel (mu=0, sigma=sigma ns, tau=tau ns)

@@ -68,7 +68,7 @@ dependencies = [
     "pygama >=2.3.6",
     "pylegendmeta >=1.7.2",
     "pyyaml",
-    "reboost >=1,<2",
+    "reboost >=1.2,<2",
     "revertex >=0.1.2",
     "ruamel.yaml",
     "snakemake >=9.19,<9.20",
@@ -144,7 +144,7 @@ mplhep = ">=1.0"
 legend-pygeom-hpges = ">=0.9,<0.10"
 pyg4ometry = "*"
 pygama = ">=2.3.6,<2.4"
-reboost = ">=1,<2"
+reboost = ">=1.2,<2"
 # software OpenGL (llvmpipe, through EGL) for the head-less stp geometry rendering
 mesalib = "*"
 
@@ -185,6 +185,7 @@ tier-pdf = { cmd = "python -m legendsimflow.scripts.tier.pdf" }
 
 extract-hpge-obs-models = { cmd = "python -m legendsimflow.scripts.pars.extract_hpge_observables_models" }
 extract-hpge-currmod = { cmd = "python -m legendsimflow.scripts.extract_hpge_current_pulse_model" }
+extract-drift-time-psl-tuning = { cmd = "python -m legendsimflow.scripts.extract_drift_time_psl_tuning" }
 
 [tool.pixi.tasks.prod]
 cmd = "snakemake --verbose --logger {{ logger }} --workflow-profile workflow/profiles/{{ profile }}"

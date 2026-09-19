@@ -21,12 +21,14 @@ from collections.abc import Mapping
 
 import awkward as ak
 import hist
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from dspeed.processors import moving_window_multi
 from lgdo import Array, Scalar
 from matplotlib.figure import Figure
 from reboost import units
+from reboost.hpge import make_hpge_pulse_shape_library, make_hpge_rz_field
 from scipy.signal import convolve, fftconvolve
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,101 @@ DT_DATA: float = 16.0
 # more than enough for the ~1% A/E it feeds and halves the library footprint
 WF_DTYPE: np.dtype = np.dtype(np.float32)
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
+
+
+def load_ideal_psl_scan(
+    psl_file: str,
+) -> tuple[dict[str, dict[str, np.ndarray]], dict[str, np.ndarray]]:
+    """Load the ideal pulse-shape library scan."""
+    dets = lh5.ls(psl_file, "/")
+
+    assert len(dets) == 1
+    det = dets[0]
+
+    output = {}
+
+    slopes = lh5.ls(psl_file, f"{det}/psl_scan/")
+
+    for slope_group in slopes:
+        slope = slope_group.split("/")[-1]
+
+        depv_groups = lh5.ls(psl_file, f"{slope_group}/")
+        output[slope] = {}
+
+        for depv in depv_groups:
+            depv_name = depv.split("/")[-1]
+            output[slope][depv_name] = lh5.read(
+                f"{det}/psl_scan/{slope}/{depv_name}",
+                psl_file,
+            )
+
+    info = lh5.read(f"{det}/info", psl_file)
+
+    return output, info
+
+
+def convolve_elecmod_scan(
+    ideal_psls: dict,
+    sigma: float,
+    tau: float,
+    alignment_idx=1000,
+    n_samples=4001,
+    mw_pars=MW_PARS,
+    dt_data=16,
+    angle="000",
+):
+    """Convolve ideal PSLs from scan, with the electronics model."""
+    kernel_start = -100
+
+    psls = {}
+    dt_maps = {}
+
+    rf_kernel = build_electronics_response_kernel(
+        1.0,
+        mu_bandwidth=0,
+        sigma_bandwidth=sigma,
+        tau_rc=tau,
+        kernel_start=kernel_start,
+    )
+
+    for slope, depv_psls in ideal_psls.items():
+        psls[slope] = {}
+        dt_maps[slope] = {}
+
+        for depv, ideal_psl in depv_psls.items():
+            realistic_dict = make_realistic_pulse_shape_lib(
+                ideal_psl,
+                rf_kernel,
+                alignment_idx,
+                n_samples,
+                mw_pars=mw_pars,
+                dt_data=dt_data,
+                dtype=np.float32,
+                kernel_t0_idx=-2 * kernel_start,
+            )
+
+            _, mean_aoe = get_avg_aoe(
+                [realistic_dict[k] for k in realistic_dict if "waveform" in k]
+            )
+
+            for key in realistic_dict:
+                if "waveform" in key:
+                    realistic_dict[key] = Array(
+                        realistic_dict[key].view_as("np") / mean_aoe
+                    )
+
+            psls[slope][depv] = make_hpge_pulse_shape_library(
+                realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
+            )
+            # drift_time_crystal_axes() interpolates these on the (r, z) grid
+            dt_maps[slope][depv] = {
+                axis: make_hpge_rz_field(
+                    realistic_dict, f"drift_time_{axis:03d}_deg", bounds_error=False
+                )
+                for axis in (0, 45)
+            }
+
+    return psls, dt_maps
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
