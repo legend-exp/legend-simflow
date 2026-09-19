@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
-from pathlib import Path
+import logging
 
 import awkward as ak
 import dbetto
@@ -130,7 +130,7 @@ N_MAX = 10000
 
 @snakemake_compatible(
     mapping={
-        "stp_file": "input.simid",
+        "stp_files": "input.stp_files",
         "hpge_detector": "wildcards.hpge_detector",
         "drift_time_file": "output",
         "elecmod": "input.elecmod",
@@ -142,7 +142,9 @@ N_MAX = 10000
 )
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the hit tier.")
-    parser.add_argument("--stp-file", required=True, help="Input stp tier directory.")
+    parser.add_argument(
+        "--stp-files", nargs="+", required=True, help="Input stp files."
+    )
     parser.add_argument(
         "--drift-time-file", required=True, help="output drift time file"
     )
@@ -152,29 +154,46 @@ def main() -> None:
     )
     parser.add_argument("--elecmod", required=True, help="HPGe electronics model file.")
 
-    parser.add_argument("--det", required=True, help="detector")
     parser.add_argument("--geom-file", required=True, help="input geom file")
-    parser.add_argument("--simflow-config", required=True, help="simflow config file")
-    parser.add_argument("--log-file", required=True, help="log file")
+    parser.add_argument("--simflow-config", help="simflow config file")
+    parser.add_argument("--log-file", help="log file")
 
     args = parser.parse_args()
     det = args.hpge_detector
+    log_file = args.log_file
+    files = args.stp_files
 
     # get file paths
-    config = utils.init_simflow_context(args.simflow_config, workflow=None).config
-    stp_file = nersc.dvs_ro(config, args.stp_file)
-    gdml_file = nersc.dvs_ro(config, args.geom_file)
-    log_file = args.log_file
+    if args.simflow_config is not None:
+        config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+        dt_file, move2cfs = nersc.make_on_scratch(config, args.drift_time_file)
+        metadata = config.metadata
 
-    dt_file, move2cfs = nersc.make_on_scratch(config, args.drift_time_file)
+        log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+        log_script_invocation(log, "extract-drift-time-psl-tuning", parser, args)
+
+        files = [nersc.dvs_ro(config, s) for s in files]
+        gdml_file = nersc.dvs_ro(config, args.geom_file)
+
+    else:
+        dt_file = args.drift_time_file
+
+        def move2cfs():
+            return None
+
+        metadata = None
+
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+        )
+        log = logging.getLogger(__name__)
+
+        gdml_file = args.geom_file
 
     # other setup
-    metadata = config.metadata
     u = pint.UnitRegistry()
 
     # setup logging
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
-    log_script_invocation(log, "extract-drift-time-psl-tuning", parser, args)
     perf_block, print_perf, _ = reboost.make_profiler()
 
     # get the geometry
@@ -183,7 +202,6 @@ def main() -> None:
         sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
     # get the files
-    files = list(Path(stp_file).glob("*.lh5"))
     det_loc = lh5.read("detector_origins", files[0])
     det_loc = {
         k: [v[field].value for field in ("xloc", "yloc", "zloc")] * u.m
@@ -191,6 +209,7 @@ def main() -> None:
     }
 
     stp_table_name = f"stp/{det}"
+    print(sens_tables.keys())
     geom_meta = sens_tables[det]
 
     iterator = LH5Iterator(
@@ -205,7 +224,14 @@ def main() -> None:
         geom_meta.metadata, registry=None, allow_cylindrical_asymmetry=False
     )
 
-    fccd = mutils.get_sanitized_fccd(metadata, det)
+    if metadata is not None:
+        fccd = mutils.get_sanitized_fccd(metadata, det)
+    else:
+        msg = (
+            f"No metadata found in config file. Using default FCCD of 1.0 mm for {det}."
+        )
+        log.info(msg)
+        fccd = 1.0
 
     with perf_block("load_psl()"):
         ideal_psls, info = psl.load_ideal_psl_scan(args.psl_file)
@@ -274,6 +300,7 @@ def main() -> None:
 
                 for depv in depv_psls:
                     dt_maps = psl_dt_maps[slope][depv]
+                    print(dt_maps)
                     psl_temp = depv_psls[depv]
 
                     _drift_time = reboost.hpge.drift_time_crystal_axes(
