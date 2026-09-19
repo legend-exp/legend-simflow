@@ -6,21 +6,24 @@ from pathlib import Path
 import dbetto.utils
 import lh5
 import numpy as np
+import pytest
 from lgdo import Array, Scalar, Struct
-from pytest import fixture
 from scipy.stats import norm
 
 from legendsimflow.scripts import extract_drift_time_psl_tuning
 
+# a germanium detector of the mock array built by the legend_gdml_path fixture
+DETECTOR = "V00001A"
 
-@fixture
+
+@pytest.fixture
 def make_psl_scan(tmp_path):
     out = {}
     ideal_psl = str(tmp_path / "outputs" / "l200-p16-r008-ssc-ideal_psl.lh5")
 
-    for sidx, slope in enumerate(np.linspace(-1.0, 1.0, 3)):
+    for sidx, _slope in enumerate(np.linspace(-1.0, 1.0, 3)):
         out[f"slope_{sidx}"] = {}
-        for didx, depv in enumerate(np.linspace(500, 800, 3)):
+        for didx, _depv in enumerate(np.linspace(500, 800, 3)):
             t = np.arange(5000)
             wfs = []
             # Gaussian PDF
@@ -55,19 +58,19 @@ def make_psl_scan(tmp_path):
 
     output = {"psl_scan": Struct(out), "info": Struct(info)}
 
-    lh5.write(Struct(output), "V05261B", ideal_psl, wo_mode="of")
+    lh5.write(Struct(output), DETECTOR, ideal_psl, wo_mode="of")
 
     return ideal_psl
 
 
-@fixture
+@pytest.fixture
 def make_elecmod(tmp_path):
-    out = {"best_fit": {"sigma": 10, "tau": 50}}
+    out = {DETECTOR: {"sigma": 10, "tau": 50}}
     dbetto.utils.write_dict(out, tmp_path / "elecmod.yaml")
     return tmp_path / "elecmod.yaml"
 
 
-# @mark.needs_remage
+@pytest.mark.needs_remage
 def test_drift_time_cli(
     tmp_path,
     monkeypatch,
@@ -84,9 +87,9 @@ def test_drift_time_cli(
             "--stp-files",
             str(legend_stp_path),
             "--drift-time-file",
-            str(tmp_path / "outputs" / "V03422A_drift_times.lh5"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_drift_times.lh5"),
             "--hpge-detector",
-            "V05261B",
+            DETECTOR,
             "--psl-file",
             str(make_psl_scan),
             "--elecmod",
