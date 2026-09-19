@@ -74,24 +74,43 @@ DEFAULT_SETTINGS = {
 def main() -> None:
     """Fit the electronics response over a grid of pulse-shape simulation parameters.
 
-    The ideal (noise-free) waveform library ``--ideal-lib`` holds, for each
-    detector, the groups ``psl_scan/<slope>/<depv>``, one per point of a grid
-    of impurity-curve slope and depletion voltage, plus an ``info`` group
-    with the grid definition (``slope_min``, ``slope_step``, ``dep_min``,
-    ``dep_step``): the group names carry the grid indices, not the physical
-    values. ``--superpulses`` and ``--settings`` are the data superpulses and
-    the fit configuration used for a single-point fit.
+    The ideal (noise-free) waveform library ``--ideal-psl-scan`` holds one
+    group per point of a grid of impurity-curve slope and depletion voltage.
+    The group names carry the grid indices; the physical values follow from
+    the start and the step listed in ``info``::
 
-    Every grid point is fitted separately, and the parameters are written to
-    the YAML file ``--pars-file`` following the same grid layout: entry
-    ``[<slope>][<depv>]`` holds the detector name, the ``angle`` the
-    superpulses were taken at, the fitted Gaussian width ``sigma`` and
-    exponential time constant ``tau`` in ns, and the residual ``rms`` of the
-    fit (plus the A/E of data and simulation if plots are produced). The
-    ``info`` entry repeats the grid definition and ``best_fit`` is a copy of
-    the point with the smallest ``rms``, with the indices it was found at
-    added as ``slope`` and ``depv``. Diagnostic plots, one set per grid point,
-    go to ``--plot-file``.
+        <detector>
+        |-- psl_scan
+        |   |-- slope_0
+        |   |   |-- dep_0        # waveform_<angle>_deg, dt, ...
+        |   |   `-- dep_1
+        |   `-- slope_1
+        |       `-- ...
+        `-- info                 # slope_min, slope_step, dep_min, dep_step
+
+    ``--superpulses`` and ``--settings`` are the data superpulses and the fit
+    configuration of a single-point fit.
+
+    Each grid point is fitted on its own and the results keep the same layout
+    in the YAML file ``--pars-file``::
+
+        slope_0:
+          dep_0:
+            detector: V03422A
+            angle: "000"       # azimuth of the superpulses, in degrees
+            sigma: 12.3        # Gaussian width, in ns
+            tau: 47.1          # exponential time constant, in ns
+            rms: 0.0021        # residual of the fit
+            aoe_data: 1.4      # A/E of data and simulation, only with plots
+            aoe_mc: 1.3
+          dep_1: ...
+        info: ...              # copy of the grid definition above
+        best_fit:              # copy of the point with the smallest rms,
+          ...                  # with the indices it was found at
+          slope: slope_1
+          depv: dep_0
+
+    Diagnostic plots, one set per grid point, go to ``--plot-file``.
     """
     parser = argparse.ArgumentParser(
         description="Extract the HPGe electronics model for a LEGEND run."
