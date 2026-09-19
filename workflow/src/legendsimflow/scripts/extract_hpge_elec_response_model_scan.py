@@ -181,13 +181,14 @@ def main() -> None:
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
         for slope_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/psl_scan/"):
-
             slope = slope_group.split("/")[-1]
             output[slope] = {}
 
             log.debug("... reading ideal waveforms from %s ...", slope)
 
-            for depv_group in lh5.ls(args.ideal_lib, f"{args.hpge_detector}/psl_scan/{slope}/"):
+            for depv_group in lh5.ls(
+                args.ideal_lib, f"{args.hpge_detector}/psl_scan/{slope}/"
+            ):
                 depv = depv_group.split("/")[-1]
 
                 t0 = time.time()
@@ -204,9 +205,14 @@ def main() -> None:
                 )
                 time_read += time.time() - t0
 
-                if not ideal_wfs["ideal_wfs_slice"].keys():
-                    msg = "no ideal waveforms matched any data superpulse slice"
-                    raise RuntimeError(msg)
+                if not ideal_wfs["ideal_wfs_slice"]:
+                    log.warning(
+                        "no ideal waveforms matched any data superpulse slice for "
+                        "slope %s, depv %s, skipping this scan point",
+                        slope,
+                        depv,
+                    )
+                    continue
 
                 # Run fit
                 t0 = time.time()
@@ -275,7 +281,6 @@ def main() -> None:
 
     # get the global best fit pars
 
-
     best_rms = float("inf")
     best_pars = None
 
@@ -283,11 +288,14 @@ def main() -> None:
         for depv, info in slope_dict.items():
             if info["rms"] < best_rms:
                 best_rms = info["rms"]
-                best_pars = info
+                best_pars = dict(info)
                 best_pars["slope"] = slope
                 best_pars["depv"] = depv
 
-    step_info = {k: float(v.view_as()) for k,v in lh5.read(f"{args.hpge_detector}/info", args.ideal_lib).items()}
+    step_info = {
+        k: float(v.view_as())
+        for k, v in lh5.read(f"{args.hpge_detector}/info", args.ideal_lib).items()
+    }
 
     output["info"] = step_info
 
