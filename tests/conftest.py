@@ -119,16 +119,6 @@ def fresh_config():
     return make_config()
 
 
-class mock_workflow_class:
-    def __init__(self):
-        self.overwrite_configfiles = [config_filename]
-
-
-@pytest.fixture(scope="module")
-def mock_workflow():
-    return mock_workflow_class()
-
-
 @pytest.fixture(scope="session")
 def test_l200data():
     return Path(__file__).parent / "l200data"
