@@ -28,9 +28,8 @@ from dspeed.processors import moving_window_multi
 from lgdo import Array, Scalar
 from matplotlib.figure import Figure
 from reboost import units
+from reboost.hpge import make_hpge_pulse_shape_library, make_hpge_rz_field
 from scipy.signal import convolve, fftconvolve
-
-from legendsimflow import reboost as reboost_utils
 
 logger = logging.getLogger(__name__)
 
@@ -122,12 +121,15 @@ def convolve_elecmod_scan(
                         realistic_dict[key].view_as("np") / mean_aoe
                     )
 
-            psls[slope][depv] = reboost_utils.load_hpge_pulse_shape_library(
+            psls[slope][depv] = make_hpge_pulse_shape_library(
                 realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
             )
+            # drift_time_crystal_axes() interpolates these on the (r, z) grid
             dt_maps[slope][depv] = {
-                0: realistic_dict["drift_time_000_deg"].view_as("np"),
-                45: realistic_dict["drift_time_045_deg"].view_as("np"),
+                axis: make_hpge_rz_field(
+                    realistic_dict, f"drift_time_{axis:03d}_deg", bounds_error=False
+                )
+                for axis in (0, 45)
             }
 
     return psls, dt_maps

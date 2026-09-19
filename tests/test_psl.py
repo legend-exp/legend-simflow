@@ -5,11 +5,13 @@ import matplotlib as mpl
 mpl.use("Agg")
 
 import awkward as ak
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from lgdo import Array, Scalar
+from lgdo import Array, Scalar, Struct
 from matplotlib.figure import Figure
+from reboost.hpge import HPGePulseShapeLibrary, HPGeRZField
 
 from legendsimflow import psl
 
@@ -479,3 +481,66 @@ def test_make_realistic_pulse_shape_lib_drift_time_origin():
     drift = out["drift_time_000_deg"].view_as("np")[0]
     assert np.all(np.diff(drift) > 0)
     assert np.all((drift - steps >= 0) & (drift - steps <= 3 * psl.MW_PARS["length"]))
+
+
+def _ideal_scan(n_r=4, n_z=5, n_samples=1000, slopes=("slope_0", "slope_1")):
+    """Two slopes by two depletion voltages, each with both crystal axes."""
+    rng = np.random.default_rng(3)
+    return {
+        slope: {
+            depv: Struct(
+                {
+                    "r": Array(np.linspace(0.0, 0.03, n_r), attrs={"units": "m"}),
+                    "z": Array(np.linspace(0.0, 0.04, n_z), attrs={"units": "m"}),
+                    "waveform_000_deg": Array(rng.random((n_r, n_z, n_samples))),
+                    "waveform_045_deg": Array(rng.random((n_r, n_z, n_samples))),
+                    "dt": Scalar(10, attrs={"units": "ns"}),
+                }
+            )
+            for depv in ("dep_0", "dep_1")
+        }
+        for slope in slopes
+    }
+
+
+def test_load_ideal_psl_scan(tmp_path):
+    scan = _ideal_scan()
+    psl_file = str(tmp_path / "ideal-psl.lh5")
+    info = Struct({"slope_min": Scalar(-1.0), "dep_min": Scalar(500.0)})
+    lh5.write(
+        Struct({"psl_scan": Struct(scan), "info": info}),
+        "V00001A",
+        psl_file,
+        wo_mode="of",
+    )
+
+    loaded, loaded_info = psl.load_ideal_psl_scan(psl_file)
+
+    # the slope/depletion-voltage nesting survives the round trip
+    assert set(loaded) == set(scan)
+    assert set(loaded["slope_0"]) == {"dep_0", "dep_1"}
+    assert loaded_info["slope_min"].value == -1.0
+
+    entry = loaded["slope_0"]["dep_0"]
+    assert entry["r"].attrs["units"] == "m"
+    assert entry["waveform_000_deg"].view_as("np").shape == (4, 5, 1000)
+
+
+def test_convolve_elecmod_scan():
+    psls, dt_maps = psl.convolve_elecmod_scan(
+        _ideal_scan(), sigma=50, tau=100, alignment_idx=500, n_samples=1000
+    )
+
+    assert set(psls) == set(dt_maps) == {"slope_0", "slope_1"}
+    assert set(psls["slope_0"]) == {"dep_0", "dep_1"}
+
+    assert isinstance(psls["slope_0"]["dep_0"], HPGePulseShapeLibrary)
+
+    # drift_time_crystal_axes() needs interpolators keyed by the crystal-axis
+    # angle, not the gridded values
+    maps = dt_maps["slope_0"]["dep_0"]
+    assert set(maps) == {0, 45}
+    for dt_map in maps.values():
+        assert isinstance(dt_map, HPGeRZField)
+        assert dt_map.φ_units == "ns"
+        assert dt_map.values.shape == (4, 5)

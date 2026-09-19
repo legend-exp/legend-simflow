@@ -28,8 +28,10 @@ import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
+import reboost.hpge
 import reboost.hpge.surface
 import reboost.hpge.utils
+import reboost.math
 from lgdo import Table
 from lh5 import LH5Iterator
 from reboost import units
@@ -178,6 +180,8 @@ def main() -> None:
 
         files = [nersc.dvs_ro(config, s) for s in files]
         gdml_file = nersc.dvs_ro(config, args.geom_file)
+        psl_file = nersc.dvs_ro(config, args.psl_file)
+        elecmod_file = nersc.dvs_ro(config, args.elecmod)
 
     else:
         dt_file = args.drift_time_file
@@ -193,6 +197,8 @@ def main() -> None:
         log = logging.getLogger(__name__)
 
         gdml_file = args.geom_file
+        psl_file = args.psl_file
+        elecmod_file = args.elecmod
 
     # other setup
     u = pint.UnitRegistry()
@@ -213,7 +219,6 @@ def main() -> None:
     }
 
     stp_table_name = f"stp/{det}"
-    print(sens_tables.keys())
     geom_meta = sens_tables[det]
 
     buffer_len = 200000
@@ -242,10 +247,10 @@ def main() -> None:
         fccd = 1.0
 
     with perf_block("load_psl()"):
-        ideal_psls, info = psl.load_ideal_psl_scan(args.psl_file)
-        electronics_model = dbetto.utils.load_dict(args.elecmod)
+        ideal_psls, info = psl.load_ideal_psl_scan(psl_file)
+        electronics_model = dbetto.utils.load_dict(elecmod_file)
         if det not in electronics_model:
-            msg = f"Detector {det} not found in '{args.elecmod}'"
+            msg = f"Detector {det} not found in '{elecmod_file}'"
             raise KeyError(msg)
         try:
             detector_model = electronics_model[det]
@@ -255,7 +260,7 @@ def main() -> None:
             missing_key = str(e)
             msg = (
                 f"missing key {missing_key} in electronics-model parameters for detector "
-                f"{det} in {args.elecmod}"
+                f"{det} in {elecmod_file}"
             )
             raise KeyError(msg) from e
 
@@ -293,7 +298,7 @@ def main() -> None:
                 surface_type="nplus",
             )
 
-            _activeness = reboost.math.functions.piecewise_linear_activeness(
+            _activeness = reboost.math.piecewise_linear_activeness(
                 _distance_to_nplus,
                 fccd_in_mm=fccd,
                 dlf=0.5,
@@ -312,7 +317,6 @@ def main() -> None:
 
                 for depv in depv_psls:
                     dt_maps = psl_dt_maps[slope][depv]
-                    print(dt_maps)
                     psl_temp = depv_psls[depv]
 
                     _drift_time = reboost.hpge.drift_time_crystal_axes(
@@ -324,7 +328,7 @@ def main() -> None:
                     )
                     _r, _z = get_rz(det_loc[det], chunk_new)
 
-                    drift_times[slope][depv] = reboost.hpge.psd.maximum_current(
+                    drift_times[slope][depv] = reboost.hpge.maximum_current(
                         edep_active,
                         _drift_time,
                         times=None,
@@ -341,7 +345,7 @@ def main() -> None:
 
         write_hit_table_chunk(
             out,
-            f"/{det}/",
+            f"dt/{det}",
             dt_file,
             uid=geom_meta.uid,
         )

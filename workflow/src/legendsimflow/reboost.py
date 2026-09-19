@@ -19,7 +19,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import awkward as ak
-import lgdo
 import lh5
 import numpy as np
 import pyg4ometry
@@ -27,9 +26,7 @@ import pygeomtools
 import reboost.hpge
 import reboost.math
 import reboost.units
-from dbetto import AttrsDict
-from numpy.typing import ArrayLike, DTypeLike
-from reboost.hpge.utils import HPGePulseShapeLibrary
+from numpy.typing import ArrayLike
 
 from legendsimflow import nersc, utils
 
@@ -46,72 +43,6 @@ def get_senstables(
     if det_type is not None:
         return [k for k, v in sensvols.items() if v.detector_type == det_type]
     return list(sensvols.keys())
-
-
-def load_hpge_pulse_shape_library(
-    data: lgdo.Struct,
-    field: str,
-    out_of_bounds_val: float = np.nan,
-    dtype: DTypeLike | None = None,
-) -> HPGePulseShapeLibrary:
-    """Create the pulse shape library, holding simulated waveforms.
-
-    Reads from an Struct with the following data structure: ::
-
-        FILENAME/
-        └── OBJ · struct{r,z,dt,t0,FIELD}
-            ├── r · array<1>{real} ── {'units': 'UNITS'}
-            ├── z · array<1>{real} ── {'units': 'UNITS'}
-            ├── dt · real ── {'units': 'UNITS'}
-            ├── t0 · real ── {'units': 'UNITS'}
-            └── FIELD · array<3>{real} ── {'units': 'UNITS'}
-
-    The conventions follow those used for :func:`load_hpge_rz_field`.
-    For the FIELD the first and second dimensions are `r` and `z`, respectively, with the last
-    dimension representing the waveform. dt and t0 define the timestamps for the waveforms.
-
-
-    Parameters
-    ----------
-    data
-        Struct containing the data for the PSL.
-    field
-        name of the HDF5 dataset holding the waveforms.
-    out_of_bounds_val
-        value to use to replace NaNs in the field values.
-    dtype
-        if not ``None``, the waveforms are cast to this data type after reading.
-        ``float32`` halves the memory taken by the library and is enough for a
-        A/E estimate at the percent level.
-    """
-    t0 = data["t0"].value
-    dt = data["dt"].value
-
-    t0_u = data["t0"].attrs["units"]
-    dt_u = data["dt"].attrs["units"]
-
-    if t0_u != dt_u:
-        msg = "t0 and dt must have the same units"
-        raise ValueError(msg)
-
-    tu = t0_u
-
-    data = AttrsDict(
-        {
-            k: np.nan_to_num(
-                data[k].view_as("np", with_units=(k != field)), nan=out_of_bounds_val
-            )
-            for k in ("r", "z", field)
-        }
-    )
-
-    times = t0 + np.arange(np.shape(data[field])[2]) * dt
-
-    waveforms = data[field] if dtype is None else np.asarray(data[field], dtype=dtype)
-
-    return HPGePulseShapeLibrary(
-        waveforms, data.r.u, data.z.u, tu, data.r.m, data.z.m, times
-    )
 
 
 def load_hpge_realistic_psl(
