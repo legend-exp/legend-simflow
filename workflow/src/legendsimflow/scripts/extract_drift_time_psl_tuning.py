@@ -99,8 +99,6 @@ def _apply_cluster(clusters: ak.Array, data: ak.Array, mode: str = "sum") -> ak.
     msg = f"Mode {mode} not recognised. Must be 'sum' or 'mean'."
     raise ValueError(msg)
 
-    return units.attach_units(data_cluster, unit)
-
 
 def get_rz(det_loc, chunk: ak.Array) -> tuple[ak.Array, ak.Array]:
     """Extract the r and z coordinates of a chunk of events, given the detector location."""
@@ -185,7 +183,7 @@ def main() -> None:
         sens_tables = pygeomtools.detectors.get_all_senstables(geom)
 
     # get the files
-    files = Path(stp_file).glob("*.lh5")
+    files = list(Path(stp_file).glob("*.lh5"))
     det_loc = lh5.read("detector_origins", files[0])
     det_loc = {
         k: [v[field].value for field in ("xloc", "yloc", "zloc")] * u.m
@@ -211,10 +209,24 @@ def main() -> None:
 
     with perf_block("load_psl()"):
         ideal_psls, info = psl.load_ideal_psl_scan(args.psl_file)
-        elecmod_pars = dbetto.utils.load_dict(args.elecmod)["best_fit"]
+        electronics_model = dbetto.utils.load_dict(args.elecmod)
+        if det not in electronics_model:
+            msg = f"Detector {det} not found in '{args.elecmod}'"
+            raise KeyError(msg)
+        try:
+            detector_model = electronics_model[det]
+            sigma_conv = detector_model["sigma"]
+            tau_conv = detector_model["tau"]
+        except KeyError as e:
+            missing_key = str(e)
+            msg = (
+                f"missing key {missing_key} in electronics-model parameters for detector "
+                f"{det} in {args.elecmod}"
+            )
+            raise KeyError(msg) from e
 
         realistic_psl, psl_dt_maps = psl.convolve_elecmod_scan(
-            ideal_psls, sigma=elecmod_pars["sigma"], tau=elecmod_pars["tau"]
+            ideal_psls, sigma=sigma_conv, tau=tau_conv
         )
 
     # loop over steps
@@ -269,7 +281,7 @@ def main() -> None:
                         chunk_new.yloc,
                         chunk_new.zloc,
                         dt_maps,
-                        coord_offset=det_loc,
+                        coord_offset=det_loc[det],
                     )
                     _r, _z = get_rz(det_loc[det], chunk_new)
 
@@ -292,7 +304,7 @@ def main() -> None:
             out,
             f"/{det}/",
             dt_file,
-            geom_meta.uid,
+            uid=geom_meta.uid,
         )
     # write info block
     lh5.write(info, f"/{det}/info", dt_file, wo_mode="append")
