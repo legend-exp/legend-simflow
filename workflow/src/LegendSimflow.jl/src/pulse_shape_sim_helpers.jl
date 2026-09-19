@@ -400,7 +400,55 @@ function find_valid_spawn_position(
     return spawn_positions[best_idx]
 end
 
+"""
+    adjust_impurity_pars(pars::PropDict, slope::Real)
 
+Adjust the impurity parameters in a `PropDict` `pars` by a given `slope`.
+
+The impurity profile is scaled according to
+
+```math
+I^*(z) = (1 + s) \\times (I(z) - I(0)) + I(0),
+```
+
+where I(z) is the original impurity profile, I^*(z) is the adjusted
+profile, and s is the slope factor.
+
+This means, the non-constant fraction of the impurity profile is
+scaled by a factor s, while the constant offset I(0) is preserved.
+
+# Arguments
+- `pars`: the `impurity_curve.parameters` block of the crystal metadata, for one
+  of the boule models: `a` (impurity density at the seed end), `b` (linear term,
+  per mm), `c` (quadratic term, per mm^2), and `n`, `l`, `m` (amplitude, offset
+  and scale of the exponential term, the last two in mm). Densities are in the
+  units the metadata uses, 1e9 e/cm^3. `z` is the distance from the seed end of
+  the boule, in mm. Only the keys present are used, so the same call works for
+  the linear, parabolic and exponential variants.
+- `slope`: the scaling factor s, dimensionless.
+
+# Returns
+A new `PropDict` with the same keys and units as `pars`: `b`, `c` and `n` scaled
+by `(1 + s)`, and `a` shifted so the density at the seed end stays put. `pars` is
+left untouched.
+"""
+function adjust_impurity_pars(pars::PropDict, slope::Real)
+
+    pars_new = deepcopy(pars)
+    a_new = pars.a
+
+    if :n in keys(pars)
+        a_new+=(-slope)*pars.n*exp(-pars.l/pars.m)
+    end
+    pars_new.a=a_new
+
+    for par in [:b, :c, :n]
+        if par in keys(pars)
+            pars_new[par] = (1+slope)*pars[par]
+        end
+    end
+    return pars_new
+end
 
 """
     setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, refinement_limits, threshold)
@@ -409,15 +457,17 @@ Set up and run the full SSD simulation for an HPGe detector: builds the simulati
 applies the ADL charge drift model, calculates electric potential, electric field,
 checks depletion voltage, and calculates weighting potential.
 
-When a measured depletion voltage is available in the metadata
-(`characterization.l200_site.depletion_voltage_in_V`) and `recompute_corrections`
-is set, the crystal impurity profile is tuned so the *simulated* depletion
-voltage reproduces the *measured* one: any pre-existing impurity-curve
-corrections (`impurity_curve.corrections.scale`/`offset`) are reset to identity,
-the raw (uncorrected) depletion voltage is estimated, and the impurity density is
-then rescaled to match the measurement. The run aborts if the simulated and
-measured depletion voltages still differ by more than `threshold`. The resulting
-scaling factor and the raw/corrected depletion voltages are returned in `info`.
+When a target depletion voltage is available and `recompute_corrections` is set,
+the crystal impurity profile is tuned so the *simulated* depletion voltage
+reproduces the target one: any pre-existing impurity-curve corrections
+(`impurity_curve.corrections.scale`/`offset`) are reset to identity, the raw
+(uncorrected) depletion voltage is estimated, and the impurity density is then
+rescaled to match the target. The target is the `vdep` argument, or, when that is
+not given, the value measured at the LNGS site
+(`characterization.l200_site.depletion_voltage_in_V` in the metadata). The run
+aborts if the simulated and target depletion voltages still differ by more than
+`threshold`. The resulting scaling factor and the raw/corrected depletion
+voltages are returned in `info`.
 
 # Arguments
 - `meta_path`: Path to legend-metadata
@@ -429,6 +479,8 @@ scaling factor and the raw/corrected depletion voltages are returned in `info`.
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
 - `medium`: Detector environment medium (default: "LAr")
 - `temperature`: Detector environment temperature in K (default: 87 K)
+- `vdep`: depletion voltage in V the impurity profile is tuned to (default: the
+  value measured at the LNGS site, read from the metadata)
 - `recompute_corrections`: when `true` (default), rescale the crystal impurity
   profile so the simulated depletion voltage matches the measured one (see
   above); when `false`, keep the impurity corrections as stored in the metadata.
@@ -440,8 +492,9 @@ scaling factor and the raw/corrected depletion voltages are returned in `info`.
     - `:impurity_scaling_factor`: dimensionless scaling factor applied to the
       impurities to match the measured depletion voltage (`nothing` when no
       rescaling was performed)
-    - `:measured_depletion_voltage_in_V`: measured depletion voltage from
-      `legend-metadata` (`nothing` when absent)
+    - `:measured_depletion_voltage_in_V`: depletion voltage the impurities were
+      tuned to, i.e. `vdep` or the value measured at the LNGS site (`nothing`
+      when neither is available)
     - `:simulated_depletion_voltage_raw_in_V`: simulated depletion voltage
       before the impurity rescaling
     - `:simulated_depletion_voltage_in_V`: simulated depletion voltage after
@@ -450,16 +503,26 @@ scaling factor and the raw/corrected depletion voltages are returned in `info`.
 """
 function setup_hpge_simulation(meta_path::String,
     meta::PropDict, xtal::PropDict,
-    opv_val::Real, T::Any, refinement_limits::AbstractVector; threshold::Real = 200, medium::String = "LAr",
+    opv_val::Real,
+    T::Any,
+    refinement_limits::AbstractVector;
+    threshold::Real = 200,
+    medium::String = "LAr",
     temperature::Real = 87.0,
+    vdep::Union{Real,Nothing} = nothing,
     recompute_corrections::Bool = true)::Tuple{Simulation,Dict}
 
-    vdep = meta.characterization.l200_site.depletion_voltage_in_V
+    # depletion voltage the impurity profile is tuned to: the one given by the
+    # caller, or the value measured at the LNGS site when none is given
+    vdep_target = vdep
+    if vdep_target === nothing
+        vdep_meta = meta.characterization.l200_site.depletion_voltage_in_V
+        vdep_target = (vdep_meta isa PropDicts.MissingProperty) ? nothing : vdep_meta
+    end
 
     rescale_impurities =
         recompute_corrections &&
-        !(vdep isa PropDicts.MissingProperty) &&
-        vdep !== nothing
+        vdep_target !== nothing
 
     scale = nothing
 
@@ -494,11 +557,11 @@ function setup_hpge_simulation(meta_path::String,
 
     if rescale_impurities
 
-        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep,
+        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep_target,
             check_for_depletion = false,
             reconverge_electric_potential = false)
 
-        @info "Rescaled impurities to match $vdep (at opv $opv_val) with scale: $scale"
+        @info "Rescaled impurities to match $vdep_target (at opv $opv_val) with scale: $scale"
     end
 
     adjust_bias_and_electric_potential!(sim, opv_val*u"V",
@@ -517,7 +580,7 @@ function setup_hpge_simulation(meta_path::String,
     end
     @info "Simulated depletion voltage is $dep"
 
-    if !(vdep isa PropDicts.MissingProperty) && vdep !== nothing && abs(vdep * u"V" - dep) > threshold * u"V"
+    if (vdep_target !== nothing && abs(vdep_target * u"V" - dep) > threshold * u"V")
         error("Difference between measured and simulated depletion is larger than $threshold V!")
     end
 
@@ -532,7 +595,7 @@ function setup_hpge_simulation(meta_path::String,
     # normalize into a serialization-ready provenance dict with explicit names:
     # strip Unitful voltages to plain numbers (in V) and map missing measured
     # depletion voltage to `nothing`
-    vdep_meas = (vdep isa PropDicts.MissingProperty || vdep === nothing) ? nothing : Float64(vdep)
+    vdep_meas = (vdep_target === nothing) ? nothing : Float64(vdep_target)
 
     return sim,
     Dict(

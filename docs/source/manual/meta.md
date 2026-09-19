@@ -669,6 +669,30 @@ cutting script runtime from many minutes to seconds.
 
 :::
 
+(psl-scan-settings-meta)=
+
+### Pulse shape scan settings
+
+The grid scanned by the pulse shape library scan, which simulates a detector
+over a range of impurity profiles and depletion voltages. Each key is a Julia
+range written `"start:step:stop"`, quoted so that it is read as a string. When
+the file is absent the script falls back to built-in defaults.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/ssd/scan_settings.yaml
+
+depv_shift: "-1000:20:-20"
+slope: "-0.9:0.2:3.0"
+```
+
+| Key          | Type  | Default          | Description                                                                                                                                                                                                                      |
+| ------------ | ----- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `depv_shift` | range | `"-1000:20:-20"` | Depletion voltages to simulate, in V, relative to the operational voltage of the detector. The impurity density is rescaled to reach each of them.                                                                               |
+| `slope`      | range | `"-0.9:0.2:3.0"` | Scaling factors applied to the non-constant part of the impurity profile, dimensionless. A value of 0 leaves the profile as stored in the metadata; the impurity density at the seed end of the boule is preserved in all cases. |
+
+The scan cost is the product of the two range lengths, so the defaults above are
+$50 \times 20 = 1000$ detector simulations.
+
 (eresmod-metadata-dir)=
 
 ### Energy resolution model defaults
