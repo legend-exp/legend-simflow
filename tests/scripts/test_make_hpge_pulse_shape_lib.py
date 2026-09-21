@@ -53,7 +53,7 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
     assert "V00001A" in top_keys, f"Expected group 'V00001A' in LH5, got: {top_keys}"
 
 
-# @pytest.mark.needs_julia
+@pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_scan(tmp_path):
     psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-scan-lib.lh5"
@@ -87,7 +87,7 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
         check=True,
         cwd=repo_root,
     )
-    
+
     assert validate_ssd_scan_grid(str(psl_file), "V05261B")
     assert psl_file.exists(), "Pulse shape library LH5 file was not created"
 
@@ -100,7 +100,7 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
 
     # the scan grid is pinned by scan_settings.yaml, slope "-1:1:0" and
     # depv_shift "-500:450:-50", so both dimensions are two points wide
-    assert names("V05261B/") == {"psl_scan", "info"}
+    assert names("V05261B/") == {"psl_scan", "grid_info"}
     assert names("V05261B/psl_scan/") == {"slope_1", "slope_2"}
     assert names("V05261B/psl_scan/slope_1/") == {"dep_1", "dep_2"}
     assert names("V05261B/psl_scan/slope_1/dep_1/") == {
@@ -109,6 +109,7 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
         "dt",
         "waveform_000_deg",
         "waveform_045_deg",
+        "impurity_scale",
     }
 
     def waveform(slope, dep):
@@ -128,5 +129,5 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
 
     # info holds the first point of each range, the depletion voltage as an
     # absolute value rather than a shift
-    assert lh5.read("V05261B/info/dep_min", psl_file).value == 4200 - 500
-    assert lh5.read("V05261B/info/slope_min", psl_file).value == -1
+    assert lh5.read("V05261B/grid_info/dep_min", psl_file).value == 4200 - 500
+    assert lh5.read("V05261B/grid_info/slope_min", psl_file).value == -1

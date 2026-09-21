@@ -52,17 +52,17 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
             │   ├── dep_step · real
             │   ├── slope_min · real
             │   └── slope_step · real
-            └── psl_scan · struct{slope_0, slope_1 , ..., slope_M}
-                ├── slope_0 · struct{dep_0,dep_1,... dep_N}
-                |   ├── dep_0 · struct{...}
+            └── psl_scan · struct{slope_1, slope_2 , ..., slope_M}
+                ├── slope_1 · struct{dep_1,dep_2,... dep_N}
                 |   ├── dep_1 · struct{...}
+                |   ├── dep_2 · struct{...}
                 |   :
                 |   :
                 |   └── dep_N · struct{...}
                 :
                 :
                 |
-                └──  slope_M · struct{dep_0, dep_1 , ..., dep_N}
+                └──  slope_M · struct{dep_1, dep_2 , ..., dep_N}
 
     This structure can either be implemented in YAML or LH5 files. In the case of YAML
     files the structure is implemented as a nested dictionary.
@@ -93,7 +93,9 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
         msg = f"Missing 'grid_info' group in {detector} of {file}"
         log.info(msg)
         return False
-    grid_info_fields = [f.split("/")[-1] for f in list_func(file, f"{detector}/grid_info/")]
+    grid_info_fields = [
+        f.split("/")[-1] for f in list_func(file, f"{detector}/grid_info/")
+    ]
     required_grid_info_fields = {"dep_min", "dep_step", "slope_min", "slope_step"}
     missing_fields = required_grid_info_fields - set(grid_info_fields)
 

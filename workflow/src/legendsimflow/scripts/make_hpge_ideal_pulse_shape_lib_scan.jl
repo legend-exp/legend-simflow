@@ -90,6 +90,7 @@ A single LH5 file holding one group named after the detector:
 │   │   │   ├── r                 # radial axis, in m
 │   │   │   ├── z                 # axial axis, in m
 │   │   │   ├── dt                # waveform sampling period, 1 ns
+|   |   |   ├── impurity_scale    # scaling factor applied to the impurity profile
 │   │   │   ├── waveform_000_deg  # normalized to 1, see below for the shape
 │   │   │   └── waveform_045_deg
 │   │   └── dep_2/ ...
@@ -198,7 +199,7 @@ function main()
             t0 = time()
             xtal.impurity_curve.parameters = adjust_impurity_pars(base_xtal.impurity_curve.parameters, slope)
 
-            sim, _ =
+            sim, impurity_info =
                 setup_hpge_simulation(
                     meta_path,
                     meta,
@@ -209,18 +210,20 @@ function main()
                     vdep = opv_val + first(depv_shifts)
                 )
 
+            impurity_scale = impurity_info[:impurity_scaling_factor]
+
             time_setup += time() - t0
 
             for (didx, depv_shift) in enumerate(depv_shifts)
                 depv = opv_val + depv_shift
 
                 t0 = time()
-                adjust_impurity_and_electric_potential_to_match_depletion!(sim,
+                impurity_scale_tmp = adjust_impurity_and_electric_potential_to_match_depletion!(sim,
                     depv,
                     check_for_depletion = false,
                     reconverge_electric_potential = false
                 )
-
+                impurity_scale *= impurity_scale_tmp
                 calculate_electric_field!(sim)
                 time_rescale += time() - t0
 
@@ -236,6 +239,7 @@ function main()
                         point[key] = result[key]
                     end
                 end
+                point[:impurity_scale] = impurity_scale
                 time_drift += time() - t0
 
                 t0 = time()
@@ -264,6 +268,11 @@ function main()
         setdatatype!(f.data_store[det], NamedTuple{(:psl_scan, :info)})
         return time_write += time() - t0
     end
+
+    time_setup = round(time_setup, digits = 1)
+    time_rescale = round(time_rescale, digits = 1)
+    time_drift = round(time_drift, digits = 1)
+    time_write = round(time_write, digits = 1)
 
     @info "Timing summary:"
     @info "  Setup time: $(time_setup) seconds"
