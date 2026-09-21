@@ -35,7 +35,7 @@ import reboost.math
 from lgdo import Table
 from lh5 import LH5Iterator
 from reboost import units
-from reboost.io import write_hit_table_chunk
+from reboost.io import _exists
 from reboost.shape.cluster import apply_cluster, cluster_by_step_length
 from snakemake_argparse_bridge import snakemake_compatible
 
@@ -140,7 +140,37 @@ ECUT = 1500
         "max_events": "params.max_events",
     }
 )
+
 def main() -> None:
+    """Extract the drift times over a grid of pulse shape library (PSL) parameters for a given HPGe detector.
+
+    The output file ``--drift-time-file`` contains the drift time for a subset of events, 
+    per point of a grid of impurity-curve slope and depletion voltages.
+
+    The output format has the same group structure as the input ``--psl-file``.
+
+    The group names carry the grid indices; the physical values follow from
+    the start and the step listed in ``info``::
+
+        <detector>
+        |-- psl_scan
+        |   |-- slope_0
+        |   |   |-- dep_0        # drift_time
+        |   |   `-- dep_1
+        |   `-- slope_1
+        |       `-- ...
+        |-- energy
+        `-- info                 # slope_min, slope_step, dep_min, dep_step
+
+    In addition, the output file contains the energy of each event in the ``energy`` field.
+
+    This script:
+    - Loads the input GDML file (``--geom-file``) to extract the geometry of the HPGe detector.
+    - Loads the ideal pulse shape library (PSL) from ``--psl-file`` and convolves it with the electronics model from ``--elecmod``.
+    - Iterates over the input stp files (``--stp-files``), selecting only a maximum of ``--max-events``. 
+    - Computes the event energies, filters events below a threshold, and computes the drift times for each event.
+
+    """
     parser = argparse.ArgumentParser(description="Build the hit tier.")
     parser.add_argument(
         "--stp-files", nargs="+", required=True, help="Input stp files."
@@ -328,7 +358,7 @@ def main() -> None:
                     )
                     _r, _z = get_rz(det_loc[det], chunk_new)
 
-                    drift_times[slope][depv] = reboost.hpge.maximum_current(
+                    drift_times[slope][depv] = {"drift_time":reboost.hpge.maximum_current(
                         edep_active,
                         _drift_time,
                         times=None,
@@ -337,18 +367,16 @@ def main() -> None:
                         template=psl_temp,
                         return_mode="max_time",
                     )
+                    }
 
         if drift_times == {}:
             out = Table(ak.Array({"energy": energy_true}))
         else:
-            out = Table(ak.Array({"energy": energy_true, "drift_time": drift_times}))
+            out = Table(ak.Array({"energy": energy_true, "psl_scan": drift_times}))
 
-        write_hit_table_chunk(
-            out,
-            f"dt/{det}",
-            dt_file,
-            uid=geom_meta.uid,
-        )
+        wo_mode = "append" if _exists(file, name) else "append_column"
+        lh5.write(out, det, dt_file, wo_mode=wo_mode)
+    
 
         # the drift-time loop above is the expensive part, so stop as soon as
         # the distributions hold enough events to be fitted
