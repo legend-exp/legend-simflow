@@ -94,16 +94,17 @@ def main() -> None:
     Each grid point is fitted on its own and the results keep the same layout
     in the YAML file ``--pars-file``::
 
-        slope_0:
-          dep_0:
-            detector: V03422A
-            angle: "000"       # azimuth of the superpulses, in degrees
-            sigma: 12.3        # Gaussian width, in ns
-            tau: 47.1          # exponential time constant, in ns
-            rms: 0.0021        # residual of the fit
-            aoe_data: 1.4      # A/E of data and simulation, only with plots
-            aoe_mc: 1.3
-          dep_1: ...
+        psl_scan:
+            slope_0:
+            dep_0:
+                detector: V03422A
+                angle: "000"       # azimuth of the superpulses, in degrees
+                sigma: 12.3        # Gaussian width, in ns
+                tau: 47.1          # exponential time constant, in ns
+                rms: 0.0021        # residual of the fit
+                aoe_data: 1.4      # A/E of data and simulation, only with plots
+                aoe_mc: 1.3
+            dep_1: ...
         info: ...              # copy of the grid definition above
         best_fit:              # copy of the point with the smallest rms,
           ...                  # with the indices it was found at
@@ -221,13 +222,13 @@ def main() -> None:
 
     perf_block, print_perf, _ = reboost.make_profiler()
 
-    output = {}
+    psl_scan = {}
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
         for slope_group in lh5.ls(ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"):
             slope = slope_group.split("/")[-1]
-            output[slope] = {}
+            psl_scan[slope] = {}
 
             log.debug("... reading ideal waveforms from %s ...", slope)
 
@@ -279,7 +280,7 @@ def main() -> None:
                     )
 
                 # Write output
-                output[slope][depv] = {
+                psl_scan[slope][depv] = {
                     "detector": args.hpge_detector,
                     "angle": settings.angle,
                     "sigma": result["sigma"],
@@ -302,8 +303,8 @@ def main() -> None:
                             plot_window=plot_window,
                             detector_name=args.hpge_detector,
                         )
-                        output[slope][depv]["aoe_data"] = data_amax
-                        output[slope][depv]["aoe_mc"] = mc_amax
+                        psl_scan[slope][depv]["aoe_data"] = data_amax
+                        psl_scan[slope][depv]["aoe_mc"] = mc_amax
 
                         decorate(fig)
                         pdf.savefig(fig)
@@ -326,7 +327,7 @@ def main() -> None:
     best_rms = float("inf")
     best_pars = None
 
-    for slope, slope_dict in output.items():
+    for slope, slope_dict in psl_scan.items():
         for depv, info in slope_dict.items():
             if info["rms"] < best_rms:
                 best_rms = info["rms"]
@@ -339,7 +340,7 @@ def main() -> None:
         for k, v in lh5.read(f"{args.hpge_detector}/info", ideal_psl_scan).items()
     }
 
-    output["info"] = step_info
+    output = {"psl_scan": psl_scan, "info": step_info}
 
     if best_pars is not None:
         output["best_fit"] = best_pars

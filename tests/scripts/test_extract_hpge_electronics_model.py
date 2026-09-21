@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import dbetto
 import lh5
 import numpy as np
 import pytest
@@ -19,12 +20,13 @@ from legendsimflow.scripts import (
 from legendsimflow.superpulses import lookup_superpulse_inputs
 
 l200data = Path(__file__).parent.parent / "l200data" / "v3.0.0"
+DETECTOR = "V03422A"
 
 
 def test_lookup_inputs(test_make_ssc_data):
     meta = LegendMetadata(test_make_ssc_data / "inputs")
     raw_files, evt_files, dsp_config, tab_map, _ = lookup_superpulse_inputs(
-        l200data, meta, "l200-p16-r008-ssc", "V03422A", evt_tier_name="pet"
+        l200data, meta, "l200-p16-r008-ssc", DETECTOR, evt_tier_name="pet"
     )
 
     assert len(raw_files) == 1
@@ -37,7 +39,7 @@ def test_lookup_inputs(test_make_ssc_data):
     assert raw_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
     assert evt_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_evt.lh5"
 
-    assert tab_map["V03422A"] == 1108804
+    assert tab_map[DETECTOR] == 1108804
 
 
 @pytest.fixture
@@ -56,18 +58,18 @@ def test_superpulse_cli(test_make_ssc_data, tmp_path, monkeypatch):
             "--runid",
             "l200-p16-r008-ssc",
             "--detector",
-            "V03422A",
+            DETECTOR,
             "--output-file",
-            str(tmp_path / "outputs" / "V03422A_superpulses.lh5"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_superpulses.lh5"),
             "--plot-file",
-            str(tmp_path / "outputs" / "V03422A_superpulses.pdf"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_superpulses.pdf"),
             "--simflow-config",
             str(config_path),
         ],
     )
     build_superpulses_from_data.main()
     Path(tmp_path / "outputs").mkdir(parents=True, exist_ok=True)
-    return str(tmp_path / "outputs" / "V03422A_superpulses.lh5")
+    return str(tmp_path / "outputs" / f"{DETECTOR}_superpulses.lh5")
 
 
 @pytest.fixture
@@ -85,7 +87,7 @@ def test_make_ideal_psl(tmp_path):
     ideal_psl = str(tmp_path / "outputs" / "l200-p16-r008-ssc-ideal_psl.lh5")
 
     output = Struct({"waveform_000_deg": Array(wfs), "dt": Scalar(1.0)})
-    lh5.write(output, "V03422A", ideal_psl, wo_mode="of")
+    lh5.write(output, DETECTOR, ideal_psl, wo_mode="of")
 
     return ideal_psl
 
@@ -108,9 +110,9 @@ def test_extract_electronics_model_cli_with_data(
             "--runid",
             "l200-p16-r008-ssc",
             "--hpge-detector",
-            "V03422A",
+            DETECTOR,
             "--pars-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_pars.yaml"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--simflow-config",
             str(config_path),
         ],
@@ -118,7 +120,7 @@ def test_extract_electronics_model_cli_with_data(
 
     extract_hpge_elec_response_model.main()
 
-    pars_file = tmp_path / "outputs" / "V03422A_electronics_pars.yaml"
+    pars_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"
     assert pars_file.exists()
     pars = yaml.safe_load(pars_file.read_text())
 
@@ -153,9 +155,9 @@ def test_extract_electronics_model_cli_with_data(
             "--superpulses",
             test_superpulse_cli,
             "--pars-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_pars.yaml"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--plot-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_tuning.pdf"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning.pdf"),
             "--simflow-config",
             str(config_path),
         ],
@@ -163,7 +165,7 @@ def test_extract_electronics_model_cli_with_data(
 
     extract_hpge_elec_response_model.main()
 
-    pars_file = tmp_path / "outputs" / "V03422A_electronics_pars.yaml"
+    pars_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"
     assert pars_file.exists()
     pars = yaml.safe_load(pars_file.read_text())
 
@@ -173,7 +175,7 @@ def test_extract_electronics_model_cli_with_data(
     assert isinstance(pars["sigma"], (int, float))
     assert isinstance(pars["tau"], (int, float))
 
-    plot_file = tmp_path / "outputs" / "V03422A_electronics_tuning.pdf"
+    plot_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning.pdf"
     assert plot_file.exists()
 
 
@@ -207,7 +209,7 @@ def test_make_ideal_psl_scan(tmp_path):
 
     output = {"psl_scan": Struct(out), "info": Struct(info)}
 
-    lh5.write(Struct(output), "V03422A", ideal_psl, wo_mode="of")
+    lh5.write(Struct(output), DETECTOR, ideal_psl, wo_mode="of")
 
     return ideal_psl
 
@@ -236,19 +238,35 @@ def test_extract_electronics_model_scan_cli_with_data(
             "--ideal-psl-scan",
             test_make_ideal_psl_scan,
             "--hpge-detector",
-            "V03422A",
+            DETECTOR,
             "--pars-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_pars_scan.yaml"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars_scan.yaml"),
             "--simflow-config",
             str(config_path),
+            "--plot-file",
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning_scan.pdf"),
         ],
     )
 
     extract_hpge_elec_response_model_scan.main()
-    pars_file = tmp_path / "outputs" / "V03422A_electronics_pars_scan.yaml"
+
+    pars_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_pars_scan.yaml"
     assert pars_file.exists()
-    pars = yaml.safe_load(pars_file.read_text())
+
+    plot_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning_scan.pdf"
+    assert plot_file.exists()
+
+    # check written pars
+    pars = dbetto.AttrsDict(yaml.safe_load(pars_file.read_text()))
 
     assert "best_fit" in pars
     assert "info" in pars
-    assert isinstance(pars, dict)
+
+    # check the returned structure
+    psl_scan = lh5.read(DETECTOR, str(test_make_ideal_psl_scan))
+
+    assert set(psl_scan.psl_scan.keys()) == set(pars.psl_scan.keys())
+    assert all(
+        set(psl_scan.psl_scan[s].keys()) == set(pars.psl_scan[s].keys())
+        for s in psl_scan.psl_scan
+    )
