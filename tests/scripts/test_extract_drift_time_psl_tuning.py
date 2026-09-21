@@ -96,7 +96,34 @@ def test_drift_time_cli(
             str(make_elecmod),
             "--geom-file",
             str(legend_gdml_path),
+            "--max-events",
+            "1000",
         ],
     )
 
     extract_drift_time_psl_tuning.main()
+
+    # output must exist
+    assert Path(tmp_path / "outputs" / f"{DETECTOR}_drift_times.lh5").exists()
+
+    # check lh5 structure
+
+    out = lh5.read(DETECTOR, str(tmp_path / "outputs" / f"{DETECTOR}_drift_times.lh5"))
+
+    assert "energy" in out
+    assert "psl_scan" in out
+
+    assert all(
+        len(out.psl_scan[s][d].view_as("ak")) == len(out.energy.view_as("ak"))
+        for s in out.psl_scan
+        for d in out.psl_scan[s]
+    )
+
+    # check the grid is the same as the input psl scan
+    psl_scan = lh5.read(DETECTOR, str(make_psl_scan))
+
+    assert set(psl_scan.psl_scan.keys()) == set(out.psl_scan.keys())
+    assert all(
+        set(psl_scan.psl_scan[s].keys()) == set(out.psl_scan[s].keys())
+        for s in psl_scan.psl_scan
+    )
