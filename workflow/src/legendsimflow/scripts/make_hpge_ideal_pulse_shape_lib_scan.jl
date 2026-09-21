@@ -32,6 +32,7 @@ const DEFAULT_DEPV_SHIFTS = -1000.0:20.0:-20.0
 const DEFAULT_SLOPES = -0.9:0.2:3.0
 
 using LegendHDF5IO
+using LegendHDF5IO: setdatatype!
 using ArgParse
 using PropDicts
 using Printf
@@ -148,7 +149,9 @@ function main()
     meta_path = parsed_args["metadata"]
     output_file = parsed_args["output-file"]
 
-    isfile(output_file) && error("Output file already exists")
+    # an interrupted run leaves a partial file behind, since the file is now
+    # opened when the scan starts; start from scratch instead of refusing
+    isfile(output_file) && rm(output_file)
 
     # extract the metadata
     raw_opv = parsed_args["opv"]
@@ -174,92 +177,99 @@ function main()
     slopes = haskey(scan_cfg, :slope) ? parse_range(scan_cfg.slope) : DEFAULT_SLOPES
 
 
-    # loop over slopes
-    output = Dict{Symbol,Any}()
     base_xtal = deepcopy(xtal)
 
     time_setup = 0
     time_rescale = 0
-
     time_drift = 0
+    time_write = 0
 
-    for (sidx, slope) in enumerate(slopes)
+    output_dir = dirname(output_file)
+    if !isdir(output_dir)
+        @info "Creating output directory: $output_dir"
+        mkpath(output_dir)
+    end
+
+    # every scan point is written as soon as it is computed and then dropped,
+    # so only one pulse shape library is held in memory at a time
+    lh5open(output_file, "cw") do f
+        for (sidx, slope) in enumerate(slopes)
+
+            t0 = time()
+            xtal.impurity_curve.parameters = adjust_impurity_pars(base_xtal.impurity_curve.parameters, slope)
+
+            sim, _ =
+                setup_hpge_simulation(
+                    meta_path,
+                    meta,
+                    xtal,
+                    opv_val,
+                    T,
+                    ref_limits,
+                    vdep = opv_val + first(depv_shifts)
+                )
+
+            time_setup += time() - t0
+
+            for (didx, depv_shift) in enumerate(depv_shifts)
+                depv = opv_val + depv_shift
+
+                t0 = time()
+                adjust_impurity_and_electric_potential_to_match_depletion!(sim,
+                    depv,
+                    check_for_depletion = false,
+                    reconverge_electric_potential = false
+                )
+
+                calculate_electric_field!(sim)
+                time_rescale += time() - t0
+
+                t0 = time()
+                point = nothing
+                for a in CRYSTAL_AXIS_ANGLES
+                    result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
+
+                    key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
+                    if point === nothing
+                        point = Dict{Symbol,Any}(pairs(result))
+                    else
+                        point[key] = result[key]
+                    end
+                end
+                time_drift += time() - t0
+
+                t0 = time()
+                f["$det/psl_scan/slope_$sidx/dep_$didx"] = (; point...)
+                time_write += time() - t0
+            end
+        end
 
         t0 = time()
-        xtal.impurity_curve.parameters = adjust_impurity_pars(base_xtal.impurity_curve.parameters, slope)
+        f["$det/info"] = (
+            slope_min = first(slopes),
+            slope_step = step(slopes),
+            dep_min = opv_val + first(depv_shifts),
+            dep_step = step(depv_shifts)
+        )
 
-        sim, _ =
-            setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = opv_val + first(depv_shifts))
-
-        time_setup += time() - t0
-
-        output[Symbol("slope_$sidx")] = Dict{Symbol,Any}()
-
-        for (didx, depv_shift) in enumerate(depv_shifts)
-            depv = opv_val + depv_shift
-
-            t0 = time()
-            scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim,
-                depv,
-                check_for_depletion = false,
-                reconverge_electric_potential = false
-            )
-
-            calculate_electric_field!(sim)
-            time_rescale += time() - t0
-
-            output[Symbol("slope_$sidx")][Symbol("dep_$didx")] = nothing
-
-            t0 = time()
-            for a in CRYSTAL_AXIS_ANGLES
-                result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
-
-                key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
-                if output[Symbol("slope_$sidx")][Symbol("dep_$(didx)")] === nothing
-                    output[Symbol("slope_$sidx")][Symbol("dep_$(didx)")] = Dict{Symbol,Any}(pairs(result))
-                else
-                    output[Symbol("slope_$sidx")][Symbol("dep_$(didx)")][key] = result[key]
-                end
-            end
-
-            time_drift += time() - t0
+        # writing point by point leaves every group above a point without a
+        # datatype attribute, which makes the file unreadable as LH5. Label them
+        # by hand: only the field names go into the attribute
+        dep_names = Tuple(Symbol("dep_$didx") for didx in eachindex(depv_shifts))
+        slope_names = Tuple(Symbol("slope_$sidx") for sidx in eachindex(slopes))
+        for sidx in eachindex(slopes)
+            setdatatype!(f.data_store["$det/psl_scan/slope_$sidx"], NamedTuple{dep_names})
         end
+        setdatatype!(f.data_store["$det/psl_scan"], NamedTuple{slope_names})
+        setdatatype!(f.data_store[det], NamedTuple{(:psl_scan, :info)})
+        return time_write += time() - t0
     end
 
     @info "Timing summary:"
     @info "  Setup time: $(time_setup) seconds"
     @info "  Rescale time: $(time_rescale) seconds"
     @info "  Drift time: $(time_drift) seconds"
-
-    t0 = time()
-    @info "Saving to disk..."
-    output_dir = dirname(output_file)
-    if !isdir(output_dir)
-        @info "Creating output directory: $output_dir"
-        mkpath(output_dir)
-    end
-    # reformat
-
-    dict_to_namedtuple(d::AbstractDict) =
-        (; (k => v isa AbstractDict ? dict_to_namedtuple(v) : v for (k, v) in d)...)
-
-
-    output = dict_to_namedtuple(output)
-    output = (
-        psl_scan = output,
-        info = (
-            slope_min = first(slopes),
-            slope_step = step(slopes),
-            dep_min = opv_val + first(depv_shifts),
-            dep_step = step(depv_shifts)
-        )
-    )
-
-    lh5open(output_file, "cw") do f
-        return f[det] = output
-    end
-    time_write = time() - t0
-    @info "Saved to disk in $(time_write) seconds"
+    @info "  Write time: $(time_write) seconds"
 
 end
 
