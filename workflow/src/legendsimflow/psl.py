@@ -18,9 +18,11 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Mapping
+from pathlib import Path
 
 import awkward as ak
 import hist
+import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from dspeed.processors import moving_window_multi
@@ -29,13 +31,109 @@ from matplotlib.figure import Figure
 from reboost import units
 from scipy.signal import convolve, fftconvolve
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 DT_DATA: float = 16.0
 # Bit depth of the pulse-shape samples, both in memory and on disk. float32 is
 # more than enough for the ~1% A/E it feeds and halves the library footprint
 WF_DTYPE: np.dtype = np.dtype(np.float32)
 MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
+
+
+def validate_ssd_scan_grid(file: str, detector: str) -> bool:
+    """Validate the structure of a SSD scan files.
+
+    These files can contain PSLs, electronics model parameters or other observables and have a common structure: ::
+
+        /
+        └── DETECTOR · struct{info,psl_scan}
+            ├── grid_info · struct{dep_min,dep_step,slope_min,slope_step}
+            │   ├── dep_min · real
+            │   ├── dep_step · real
+            │   ├── slope_min · real
+            │   └── slope_step · real
+            └── psl_scan · struct{slope_0, slope_1 , ..., slope_M}
+                ├── slope_0 · struct{dep_0,dep_1,... dep_N}
+                |   ├── dep_0 · struct{...}
+                |   ├── dep_1 · struct{...}
+                |   :
+                |   :
+                |   └── dep_N · struct{...}
+                :
+                :
+                |
+                └──  slope_M · struct{dep_0, dep_1 , ..., dep_N}
+
+    This structure can either be implemented in YAML or LH5 files. In the case of YAML
+    files the structure is implemented as a nested dictionary.
+    In the case of LH5 files the structure is implemented as above.
+
+    This represents a 2D scan of the simulation over `M` slopes and `N`
+    depletion voltage parameters. For each combination an arbitrary data object.
+    This format only defines the grid structure the only requirement on the underlying data
+    structs is that they should all have the same structure.
+
+    Parameters
+    ----------
+    file
+        Path to the LH5 file to validate.
+    detector
+        Name of the detector to validate in the file.
+    """
+    suffix = Path(file).suffix
+
+    if suffix == ".lh5":
+
+        def list_func(file, field):
+            return lh5.ls(file, field)
+
+    fields = list_func(file, f"{detector}/")
+
+    if f"{detector}/info" not in fields:
+        msg = f"Missing 'info' group in {detector} of {file}"
+        log.info(msg)
+        return False
+    grid_info_fields = [f.split("/")[-1] for f in list_func(file, f"{detector}/info/")]
+    required_grid_info_fields = {"dep_min", "dep_step", "slope_min", "slope_step"}
+    missing_fields = required_grid_info_fields - set(grid_info_fields)
+
+    if missing_fields:
+        msg = f"Missing fields in 'info' of {detector} in {file}: {missing_fields}"
+        log.info(msg)
+        return False
+
+    if f"{detector}/psl_scan" not in fields:
+        msg = f"Missing 'psl_scan' group in {detector} of {file}"
+        raise ValueError(msg)
+    slope_fields = list_func(file, f"{detector}/psl_scan/")
+    dep_fields = [
+        [d.split("/")[-1] for d in list_func(file, f"{slope}/")]
+        for slope in slope_fields
+    ]
+
+    if not all(dep == dep_fields[0] for dep in dep_fields):
+        msg = f"Missing 'dep' groups in some slopes of {detector} in {file}"
+        log.info(msg)
+        return False
+
+    return True
+
+
+def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
+    """Compare two pulse-shape library scan files.
+
+    This function compares the structure and content of two lh5 files containing pulse-shape library scans.
+    It checks for the presence of the same detector, the same slope and depletion voltage parameters.
+
+    Parameters
+    ----------
+    file1
+        Path to the first LH5 file to compare.
+    file2
+        Path to the second LH5 file to compare.
+    detector
+        Name of the detector to compare in both lh5 files.
+    """
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
@@ -490,7 +588,7 @@ def make_realistic_pulse_shape_lib(
     keys_to_convolve = [k for k in ideal_pulse_shape_lib_obj if "waveform" in k]
 
     for key in keys_to_convolve:
-        logger.info("Processing %s...", key)
+        log.info("Processing %s...", key)
 
         # Extract and prepare data
         ideal_wfs = ideal_pulse_shape_lib_obj[key]

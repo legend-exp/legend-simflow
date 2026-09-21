@@ -8,6 +8,8 @@ import lh5
 import numpy as np
 import pytest
 
+from legendsimflow.psl import validate_ssd_scan_grid
+
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
 
@@ -51,7 +53,7 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
     assert "V00001A" in top_keys, f"Expected group 'V00001A' in LH5, got: {top_keys}"
 
 
-@pytest.mark.needs_julia
+# @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_scan(tmp_path):
     psl_file = tmp_path / "V05261B-4200V-hpge-pulse-shape-scan-lib.lh5"
@@ -85,7 +87,8 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
         check=True,
         cwd=repo_root,
     )
-
+    
+    assert validate_ssd_scan_grid(str(psl_file), "V05261B")
     assert psl_file.exists(), "Pulse shape library LH5 file was not created"
 
     top_keys = lh5.ls(psl_file)
