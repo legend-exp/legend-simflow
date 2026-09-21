@@ -8,6 +8,7 @@ import awkward as ak
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
+import pint
 import pytest
 import yaml
 from lgdo import Array, Scalar, Struct
@@ -15,6 +16,8 @@ from matplotlib.figure import Figure
 from reboost.hpge import HPGePulseShapeLibrary, HPGeRZField
 
 from legendsimflow import psl
+
+u = pint.get_application_registry()
 
 
 def test_build_electronics_response_kernel():
@@ -595,5 +598,5 @@ def test_convolve_elecmod_scan():
     assert set(maps) == {0, 45}
     for dt_map in maps.values():
         assert isinstance(dt_map, HPGeRZField)
-        assert dt_map.φ_units == "ns"
+        assert dt_map.φ_units == u.ns
         assert dt_map.values.shape == (4, 5)
