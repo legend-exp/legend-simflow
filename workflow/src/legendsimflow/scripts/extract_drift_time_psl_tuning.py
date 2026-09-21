@@ -32,7 +32,7 @@ import reboost.hpge
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math
-from lgdo import Table
+from lgdo import Struct, Table
 from lh5 import LH5Iterator
 from reboost import units
 from reboost.io import _exists
@@ -140,11 +140,10 @@ ECUT = 1500
         "max_events": "params.max_events",
     }
 )
-
 def main() -> None:
     """Extract the drift times over a grid of pulse shape library (PSL) parameters for a given HPGe detector.
 
-    The output file ``--drift-time-file`` contains the drift time for a subset of events, 
+    The output file ``--drift-time-file`` contains the drift time for a subset of events,
     per point of a grid of impurity-curve slope and depletion voltages.
 
     The output format has the same group structure as the input ``--psl-file``.
@@ -167,7 +166,7 @@ def main() -> None:
     This script:
     - Loads the input GDML file (``--geom-file``) to extract the geometry of the HPGe detector.
     - Loads the ideal pulse shape library (PSL) from ``--psl-file`` and convolves it with the electronics model from ``--elecmod``.
-    - Iterates over the input stp files (``--stp-files``), selecting only a maximum of ``--max-events``. 
+    - Iterates over the input stp files (``--stp-files``), selecting only a maximum of ``--max-events``.
     - Computes the event energies, filters events below a threshold, and computes the drift times for each event.
 
     """
@@ -358,15 +357,16 @@ def main() -> None:
                     )
                     _r, _z = get_rz(det_loc[det], chunk_new)
 
-                    drift_times[slope][depv] = {"drift_time":reboost.hpge.maximum_current(
-                        edep_active,
-                        _drift_time,
-                        times=None,
-                        r=_r,
-                        z=_z,
-                        template=psl_temp,
-                        return_mode="max_time",
-                    )
+                    drift_times[slope][depv] = {
+                        "drift_time": reboost.hpge.maximum_current(
+                            edep_active,
+                            _drift_time,
+                            times=None,
+                            r=_r,
+                            z=_z,
+                            template=psl_temp,
+                            return_mode="max_time",
+                        )
                     }
 
         if drift_times == {}:
@@ -374,9 +374,8 @@ def main() -> None:
         else:
             out = Table(ak.Array({"energy": energy_true, "psl_scan": drift_times}))
 
-        wo_mode = "append" if _exists(file, name) else "append_column"
-        lh5.write(out, det, dt_file, wo_mode=wo_mode)
-    
+        wo_mode = "append" if _exists(dt_file, det) else "append_column"
+        lh5.write(Struct(out), f"/{det}", dt_file, wo_mode=wo_mode)
 
         # the drift-time loop above is the expensive part, so stop as soon as
         # the distributions hold enough events to be fitted
@@ -392,7 +391,7 @@ def main() -> None:
     )
 
     # write info block
-    lh5.write(info, f"/{det}/info", dt_file, wo_mode="append")
+    lh5.write(info, f"{det}/info/", dt_file, wo_mode="append_column")
 
     with perf_block("move_to_cfs()"):
         move2cfs()
