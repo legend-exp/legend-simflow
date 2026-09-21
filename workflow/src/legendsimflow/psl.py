@@ -46,7 +46,7 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
     These files can contain PSLs, electronics model parameters or other observables and have a common structure: ::
 
         /
-        └── DETECTOR · struct{info,psl_scan}
+        └── DETECTOR · struct{grid_info,psl_scan}
             ├── grid_info · struct{dep_min,dep_step,slope_min,slope_step}
             │   ├── dep_min · real
             │   ├── dep_step · real
@@ -89,16 +89,16 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
 
     fields = list_func(file, f"{detector}/")
 
-    if f"{detector}/info" not in fields:
-        msg = f"Missing 'info' group in {detector} of {file}"
+    if f"{detector}/grid_info" not in fields:
+        msg = f"Missing 'grid_info' group in {detector} of {file}"
         log.info(msg)
         return False
-    grid_info_fields = [f.split("/")[-1] for f in list_func(file, f"{detector}/info/")]
+    grid_info_fields = [f.split("/")[-1] for f in list_func(file, f"{detector}/grid_info/")]
     required_grid_info_fields = {"dep_min", "dep_step", "slope_min", "slope_step"}
     missing_fields = required_grid_info_fields - set(grid_info_fields)
 
     if missing_fields:
-        msg = f"Missing fields in 'info' of {detector} in {file}: {missing_fields}"
+        msg = f"Missing fields in 'grid_info' of {detector} in {file}: {missing_fields}"
         log.info(msg)
         return False
 

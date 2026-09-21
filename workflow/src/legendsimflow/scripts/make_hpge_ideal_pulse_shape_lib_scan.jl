@@ -245,7 +245,7 @@ function main()
         end
 
         t0 = time()
-        f["$det/info"] = (
+        f["$det/grid_info"] = (
             slope_min = first(slopes),
             slope_step = step(slopes),
             dep_min = opv_val + first(depv_shifts),
