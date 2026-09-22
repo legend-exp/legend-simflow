@@ -29,7 +29,14 @@
   - Docstring length follows complexity: one line or none for tiny functions.
     Rationale goes in the commit/PR, not in docstrings or comments.
   - Prefer editing an existing function over adding one.
+  - Private functions (name starting with underscore) need only a one-line
+    docstring.
+  - Tests don't need any docstring most of the time. Add one only if there are
+    some facts that are very hard to understand from the test code and are key
+    to know.
 - Other conventions are enforced by pre-commit
+- For plotting code, always call `legendsimflow.plot.decorate(fig)` before any
+  `savefig`/`pdf.savefig` call.
 
 ## Resource constraints
 

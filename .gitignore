@@ -7,6 +7,7 @@ workflow/src/legendsimflow/_version.py
 /generated
 tests/dummyprod/generated
 tests/dummyprod/generated-l200
+tests/dummyprod/generated-l1000
 tests/dummyprod/generated-rulegraph
 tests/dummyprod/testdata
 tests/dummyprod/legend-metadata

@@ -8,6 +8,7 @@ import awkward as ak
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import yaml
 from lgdo import Array, Scalar
 from matplotlib.figure import Figure
 
@@ -251,9 +252,6 @@ def test_make_realistic_pulse_shape_lib():
     assert output["drift_time_0"].view_as("np").shape == (3,)
 
 
-_MW_PARS = {"length": 48, "num_mw": 3, "mw_type": 0}
-
-
 def test_make_realistic_pulse_shape_lib_nan_propagation():
     # Build a 2D waveform map (n_r=3, n_z=4) where one pixel is NaN
     rng = np.random.default_rng(0)
@@ -270,7 +268,7 @@ def test_make_realistic_pulse_shape_lib_nan_propagation():
 
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, kernel_t0_idx=200
+        ideal_psl, kernel, 500, 1000, kernel_t0_idx=200
     )
 
     out_wfs = output["waveform_0"].view_as("np")
@@ -307,7 +305,7 @@ def test_make_realistic_pulse_shape_lib_3d():
 
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, kernel_t0_idx=200
+        ideal_psl, kernel, 500, 1000, kernel_t0_idx=200
     )
 
     assert output["waveform_0"].view_as("np").shape == (n_r, n_z, n_samples)
@@ -331,7 +329,6 @@ def test_make_realistic_pulse_shape_lib_dtype(dtype):
         kernel,
         500,
         1000,
-        mw_pars=_MW_PARS,
         kernel_t0_idx=200,
         **kwargs,
     )
@@ -411,8 +408,6 @@ def test_process_ideal_waveforms():
         dt,
         alignment_idx,
         n_out,
-        mw_pars=psl.MW_PARS,
-        dt_data=psl.DT_DATA,
     )
 
     assert aligned.shape == (3, n_out)
@@ -473,9 +468,67 @@ def test_make_realistic_pulse_shape_lib_drift_time_origin():
         kernel,
         1000,
         2001,
-        mw_pars=psl.MW_PARS,
         kernel_t0_idx=200,
     )
     drift = out["drift_time_000_deg"].view_as("np")[0]
     assert np.all(np.diff(drift) > 0)
-    assert np.all((drift - steps >= 0) & (drift - steps <= 3 * psl.MW_PARS["length"]))
+    # 3 * 48: num_mw * length of the default moving-window average
+    assert np.all((drift - steps >= 0) & (drift - steps <= 3 * 48))
+
+
+def _scan_file(tmp_path, contents):
+    file = tmp_path / "scan.yaml"
+    file.write_text(yaml.safe_dump(contents))
+    return str(file)
+
+
+def _valid_scan():
+    point = {"r": [0.0, 0.01], "z": [0.0, 0.01]}
+    return {
+        "V99000A": {
+            "grid_info": {
+                "dep_min": 3700.0,
+                "dep_step": 450.0,
+                "slope_min": -1.0,
+                "slope_step": 1.0,
+            },
+            "psl_scan": {
+                "slope_1": {"dep_1": point, "dep_2": point},
+                "slope_2": {"dep_1": point, "dep_2": point},
+            },
+        }
+    }
+
+
+def test_validate_ssd_scan_grid(tmp_path):
+    file = _scan_file(tmp_path, _valid_scan())
+
+    assert psl.validate_ssd_scan_grid(file, "V99000A")
+    # a detector the file does not hold
+    assert not psl.validate_ssd_scan_grid(file, "V99000B")
+
+
+@pytest.mark.parametrize(
+    "break_scan",
+    [
+        lambda scan: scan["V99000A"].pop("grid_info"),
+        lambda scan: scan["V99000A"]["grid_info"].pop("dep_step"),
+        lambda scan: scan["V99000A"].pop("psl_scan"),
+        lambda scan: scan["V99000A"]["psl_scan"].clear(),
+        lambda scan: scan["V99000A"]["psl_scan"]["slope_2"].pop("dep_2"),
+    ],
+    ids=["no-grid-info", "no-dep-step", "no-psl-scan", "no-slopes", "ragged-slopes"],
+)
+def test_validate_ssd_scan_grid_rejects(tmp_path, break_scan):
+    scan = _valid_scan()
+    break_scan(scan)
+
+    assert not psl.validate_ssd_scan_grid(_scan_file(tmp_path, scan), "V99000A")
+
+
+def test_validate_ssd_scan_grid_bad_format(tmp_path):
+    file = tmp_path / "scan.txt"
+    file.write_text("")
+
+    with pytest.raises(ValueError, match=r"expected a \.lh5 file"):
+        psl.validate_ssd_scan_grid(str(file), "V99000A")

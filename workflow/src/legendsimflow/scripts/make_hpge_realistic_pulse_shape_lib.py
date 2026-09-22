@@ -39,10 +39,6 @@ ALIGNMENT_IDX = 1000  # Index to align current waveforms to Amax
 NSAMPLES_OUTPUT_CURRENT_WFS = (
     4001  # Final length of the realistic current waveforms in the map
 )
-DT_DATA = (
-    psl.DT_DATA
-)  # Time step of the original data waveforms in ns (used to scale the derivative)
-MW_PARS = psl.MW_PARS  # Parameters for the moving window average step
 
 
 @snakemake_compatible(
@@ -78,7 +74,7 @@ def main():
     parser.add_argument(
         "--dtype",
         choices=("float32", "float64"),
-        default=str(psl.WF_DTYPE),
+        default="float32",
         help="bit depth of the pulse-shape samples (default: %(default)s)",
     )
     parser.add_argument("--log-file", default=None, help="log file")
@@ -135,8 +131,6 @@ def main():
         rf_kernel,
         ALIGNMENT_IDX,
         NSAMPLES_OUTPUT_CURRENT_WFS,
-        mw_pars=MW_PARS,
-        dt_data=DT_DATA,
         dtype=np.dtype(args.dtype),
         kernel_t0_idx=-2 * kernel_start,
     )
