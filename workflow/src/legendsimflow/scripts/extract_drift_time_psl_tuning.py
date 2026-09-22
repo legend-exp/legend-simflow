@@ -23,7 +23,6 @@ import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
-import numpy as np
 import pint
 import pyg4ometry
 import pygeomhpges
@@ -34,15 +33,14 @@ import reboost.hpge.utils
 import reboost.math
 from lgdo import Struct, Table
 from lh5 import LH5Iterator
-from reboost import units
 from reboost.io import _exists
-from reboost.shape.cluster import apply_cluster, cluster_by_step_length
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
+from legendsimflow.reboost import cluster_steps, get_rz, mask_with_units
 from legendsimflow.scripts import log_script_invocation
-from legendsimflow.reboost import mask_with_units, get_rz, cluster_steps
+
 
 @snakemake_compatible(
     mapping={
@@ -55,6 +53,7 @@ from legendsimflow.reboost import mask_with_units, get_rz, cluster_steps
         "log_file": "log[0]",
         "simflow_config": "config",
         "max_events": "params.max_events",
+        "energy_cut": "params.energy_cut",
     }
 )
 def main() -> None:
@@ -112,6 +111,12 @@ def main() -> None:
         help="stop after this many events pass the energy cut (default: use all)",
     )
 
+    parser.add_argument(
+        "--energy-cut",
+        type=float,
+        default=1500.0,
+        help="energy cut in keV (default: 1500 keV)",
+    )
     args = parser.parse_args()
     det = args.hpge_detector
     log_file = args.log_file
@@ -208,9 +213,7 @@ def main() -> None:
             tau_conv = best_model["tau"]
         except KeyError as e:
             missing_key = str(e)
-            msg = (
-                f"missing key {missing_key} in electronics-model parameters in {elecmod_file}"
-            )
+            msg = f"missing key {missing_key} in electronics-model parameters in {elecmod_file}"
             raise KeyError(msg) from e
 
         realistic_psl, psl_dt_maps = psl.convolve_elecmod_scan(
@@ -226,7 +229,7 @@ def main() -> None:
 
         # remove events with energy below ECUT
         n_read += len(chunk)
-        chunk = mask_with_units(chunk, ak.sum(chunk.edep, axis=-1) > ECUT)
+        chunk = mask_with_units(chunk, ak.sum(chunk.edep, axis=-1) > args.energy_cut)
 
         log.info("... cluster steps")
         # cluster steps
@@ -259,9 +262,10 @@ def main() -> None:
             energy_true = ak.sum(edep_active, axis=-1)
 
             # cut sub threshold events
-            chunk_new = mask_with_units(chunk_new, energy_true > ECUT)
-            edep_active = edep_active[energy_true > ECUT]
-            
+            chunk_new = mask_with_units(chunk_new, energy_true > args.energy_cut)
+            edep_active = edep_active[energy_true > args.energy_cut]
+            energy_true = energy_true[energy_true > args.energy_cut]
+
         # now get drift times
         log.info("... get drift times")
 
@@ -308,13 +312,17 @@ def main() -> None:
         # the distributions hold enough events to be fitted
         n_used += len(energy_true)
         if args.max_events is not None and n_used >= args.max_events:
-            log.info("... we have now gathered %d events and we only needed %d so we are stopping",n_used, args.max_events)
+            log.info(
+                "... we have now gathered %d events and we only needed %d so we are stopping",
+                n_used,
+                args.max_events,
+            )
             break
 
     log.info(
         "computed drift times for %d events above %d keV, out of %d read",
         n_used,
-        ECUT,
+        args.energy_cut,
         n_read,
     )
 
