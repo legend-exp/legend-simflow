@@ -154,7 +154,7 @@ def main() -> None:
         elecmod_file = args.elecmod
 
     # other setup
-    u = pint.UnitRegistry()
+    u = pint.get_application_registry()
 
     # setup logging
     perf_block, print_perf, _ = reboost.make_profiler()
