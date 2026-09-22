@@ -37,6 +37,7 @@ from legendsimflow.hpge_electronics_tuning import (
     plot_scan_maps,
 )
 from legendsimflow.plot import decorate
+from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
     read_superpulses,
@@ -92,20 +93,21 @@ def main() -> None:
     Each grid point is fitted on its own and the results keep the same layout
     in the YAML file ``--pars-file``::
 
-        psl_scan:
-            slope_0:
-            dep_0:
-                detector: V03422A
-                angle: "000"       # azimuth of the superpulses, in degrees
-                sigma: 12.3        # Gaussian width, in ns
-                tau: 47.1          # exponential time constant, in ns
-                rms: 0.0021        # residual of the fit
-            dep_1: ...
-        grid_info: ...              # copy of the grid definition above
-        best_fit:              # copy of the point with the smallest rms,
-          ...                  # with the indices it was found at
-          slope: slope_1
-          depv: dep_0
+        <detector>:
+            psl_scan:
+                slope_0:
+                dep_0:
+                    detector: V03422A
+                    angle: "000"       # azimuth of the superpulses, in degrees
+                    sigma: 12.3        # Gaussian width, in ns
+                    tau: 47.1          # exponential time constant, in ns
+                    rms: 0.0021        # residual of the fit
+                dep_1: ...
+            grid_info: ...              # copy of the grid definition above
+            best_fit:              # copy of the point with the smallest rms,
+            ...                  # with the indices it was found at
+            slope: slope_1
+            depv: dep_0
 
     ``--plot-file`` holds the colour maps of the residual, of sigma and of tau
     over the whole grid, drawn by :func:`.hpge_electronics_tuning.plot_scan_maps`.
@@ -309,10 +311,10 @@ def main() -> None:
                 best_pars["slope"] = slope
                 best_pars["depv"] = depv
 
-    output = {"psl_scan": psl_scan, "grid_info": step_info}
+    output = {args.hpge_detector: {"psl_scan": psl_scan, "grid_info": step_info}}
 
     if best_pars is not None:
-        output["best_fit"] = best_pars
+        output[args.hpge_detector]["best_fit"] = best_pars
     else:
         msg = "Something went badly wrong, no best fit parameters found!"
         raise RuntimeError(msg)
@@ -321,6 +323,10 @@ def main() -> None:
 
     dbetto.utils.write_dict(output, pars_file)
     log.info("... results written to %s", args.pars_file)
+
+    if not validate_ssd_scan_grid(pars_file, args.hpge_detector):
+        msg = f"Output file {pars_file} does not conform to the expected scan grid format."
+        raise RuntimeError(msg)
 
 
 if __name__ == "__main__":

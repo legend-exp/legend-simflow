@@ -21,13 +21,13 @@ from pathlib import Path
 import awkward as ak
 import lh5
 import numpy as np
+import pint
 import pyg4ometry
 import pygeomtools
 import reboost.hpge
 import reboost.math
 import reboost.units
 from numpy.typing import ArrayLike
-from pint import Quantity
 from reboost.shape import apply_cluster, cluster_by_step_length
 
 from legendsimflow import nersc, utils
@@ -215,7 +215,7 @@ def _apply_cluster(clusters: ak.Array, data: ak.Array, mode: str = "sum") -> ak.
     raise ValueError(msg)
 
 
-def get_rz(det_loc: Quantity, chunk: ak.Array) -> tuple[ak.Array, ak.Array]:
+def get_rz(det_loc: pint.Quantity, chunk: ak.Array) -> tuple[ak.Array, ak.Array]:
     """Compute the cylindrical coordinates of each step in the detector frame.
 
     `det_loc` is the position of the detector origin in the global frame. The
