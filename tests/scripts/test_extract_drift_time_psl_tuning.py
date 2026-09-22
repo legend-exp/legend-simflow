@@ -65,7 +65,7 @@ def make_psl_scan(tmp_path):
 
 @pytest.fixture
 def make_elecmod(tmp_path):
-    out = {DETECTOR: {"sigma": 10, "tau": 50}}
+    out = {"best_fit": {"sigma": 10, "tau": 50}}
     dbetto.utils.write_dict(out, tmp_path / "elecmod.yaml")
     return tmp_path / "elecmod.yaml"
 
