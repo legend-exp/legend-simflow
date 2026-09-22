@@ -337,10 +337,10 @@ def main() -> None:
 
     step_info = {
         k: float(v.view_as())
-        for k, v in lh5.read(f"{args.hpge_detector}/info", ideal_psl_scan).items()
+        for k, v in lh5.read(f"{args.hpge_detector}/grid_info", ideal_psl_scan).items()
     }
 
-    output = {"psl_scan": psl_scan, "info": step_info}
+    output = {"psl_scan": psl_scan, "grid_info": step_info}
 
     if best_pars is not None:
         output["best_fit"] = best_pars
