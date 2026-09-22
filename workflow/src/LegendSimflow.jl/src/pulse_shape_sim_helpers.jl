@@ -655,6 +655,8 @@ function compute_ideal_pulse_shape_lib(
     # Simulation parameters
     sim_energy = 2039u"keV"
     waveform_length = max_nsteps
+    # the germanium detectors are read out through a single contact
+    contact_id = 1
 
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
@@ -691,12 +693,12 @@ function compute_ideal_pulse_shape_lib(
             max_nsteps = max_nsteps,
             verbose = false)
 
-        SolidStateDetectors.get_signals!(e, sim)
+        SolidStateDetectors.get_signal!(e, sim, contact_id, Δt = time_step)
 
         if only_holes
-            wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
+            wf = get_electron_and_hole_contribution(e, sim, contact_id).hole_contribution
         else
-            wf = e.waveforms[1]
+            wf = e.waveforms[contact_id]
         end
 
         wf_signals_threaded[i] = ustrip(add_baseline_and_extend_tail(wf, 0, waveform_length).signal)
