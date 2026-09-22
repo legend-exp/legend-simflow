@@ -31,13 +31,15 @@ import reboost.hpge
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math
-from lgdo import Struct, Table
+from lgdo import Scalar, Struct, Table
 from lh5 import LH5Iterator
+from lh5.io import read_n_rows
 from reboost.io import _exists
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
+from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.reboost import cluster_steps, get_rz, mask_with_units
 from legendsimflow.scripts import log_script_invocation
 
@@ -83,6 +85,9 @@ def main() -> None:
     ``psl_scan`` it carries an ``energy`` array with the energy each event
     deposits in the active volume, in keV, in the same order as the drift
     times.
+
+    The file also contains the ``grid_info`` structure with the grid definition, and a ``weight``
+    scalar with the fraction of the total available MC statistics that were used for the output files.
     """
     parser = argparse.ArgumentParser(
         description="Compute event drift times over a scan of pulse-shape libraries."
@@ -319,15 +324,25 @@ def main() -> None:
             )
             break
 
+    n_tot = sum([read_n_rows(f"{det}/stp", stp_file) for stp_file in files])
     log.info(
-        "computed drift times for %d events above %d keV, out of %d read",
+        "computed drift times for %d events above %d keV, out of %d read out of a possible %d events",
         n_used,
         args.energy_cut,
         n_read,
+        n_tot,
     )
+    # save a weight (used for normalisation)
+    weight = n_read / n_tot
+    lh5.write(Scalar(weight), f"{det}/weight", dt_file, wo_mode="append_column")
 
     # write the grid definition
     lh5.write(grid_info, f"{det}/grid_info/", dt_file, wo_mode="append_column")
+
+    is_valid = validate_ssd_scan_grid(dt_file, det)
+    if not is_valid:
+        msg = f"output file {dt_file} does not have a valid scan grid"
+        raise ValueError(msg)
 
     with perf_block("move_to_cfs()"):
         move2cfs()

@@ -12,6 +12,7 @@ from legendmeta import LegendMetadata
 from lgdo import Array, Scalar, Struct
 from scipy.stats import norm
 
+from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.scripts import (
     build_superpulses_from_data,
     extract_hpge_elec_response_model,
@@ -257,7 +258,7 @@ def test_extract_electronics_model_scan_cli_with_data(
     assert plot_file.exists()
 
     # check written pars
-    pars = dbetto.AttrsDict(yaml.safe_load(pars_file.read_text()))
+    pars = dbetto.AttrsDict(yaml.safe_load(pars_file.read_text()))[DETECTOR]
 
     assert "best_fit" in pars
     assert "grid_info" in pars
@@ -270,3 +271,5 @@ def test_extract_electronics_model_scan_cli_with_data(
         set(psl_scan.psl_scan[s].keys()) == set(pars.psl_scan[s].keys())
         for s in psl_scan.psl_scan
     )
+
+    assert validate_ssd_scan_grid(pars_file, DETECTOR)

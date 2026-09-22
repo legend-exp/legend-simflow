@@ -10,6 +10,7 @@ import pytest
 from lgdo import Array, Scalar, Struct
 from scipy.stats import norm
 
+from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.scripts import extract_drift_time_psl_tuning
 
 # a germanium detector of the mock array built by the legend_gdml_path fixture
@@ -97,7 +98,7 @@ def test_drift_time_cli(
             "--geom-file",
             str(legend_gdml_path),
             "--max-events",
-            "1000",
+            "100",
         ],
     )
 
@@ -112,6 +113,8 @@ def test_drift_time_cli(
 
     assert "energy" in out
     assert "psl_scan" in out
+    assert "grid_info" in out
+    assert "weight" in out
 
     assert all(
         len(out.psl_scan[s][d].view_as("ak")) == len(out.energy.view_as("ak"))
@@ -126,4 +129,8 @@ def test_drift_time_cli(
     assert all(
         set(psl_scan.psl_scan[s].keys()) == set(out.psl_scan[s].keys())
         for s in psl_scan.psl_scan
+    )
+
+    assert validate_ssd_scan_grid(
+        str(tmp_path / "outputs" / f"{DETECTOR}_drift_times.lh5"), DETECTOR
     )
