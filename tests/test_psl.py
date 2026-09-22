@@ -8,6 +8,7 @@ import awkward as ak
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import yaml
 from lgdo import Array, Scalar
 from matplotlib.figure import Figure
 
@@ -473,3 +474,61 @@ def test_make_realistic_pulse_shape_lib_drift_time_origin():
     assert np.all(np.diff(drift) > 0)
     # 3 * 48: num_mw * length of the default moving-window average
     assert np.all((drift - steps >= 0) & (drift - steps <= 3 * 48))
+
+
+def _scan_file(tmp_path, contents):
+    file = tmp_path / "scan.yaml"
+    file.write_text(yaml.safe_dump(contents))
+    return str(file)
+
+
+def _valid_scan():
+    point = {"r": [0.0, 0.01], "z": [0.0, 0.01]}
+    return {
+        "V99000A": {
+            "grid_info": {
+                "dep_min": 3700.0,
+                "dep_step": 450.0,
+                "slope_min": -1.0,
+                "slope_step": 1.0,
+            },
+            "psl_scan": {
+                "slope_1": {"dep_1": point, "dep_2": point},
+                "slope_2": {"dep_1": point, "dep_2": point},
+            },
+        }
+    }
+
+
+def test_validate_ssd_scan_grid(tmp_path):
+    file = _scan_file(tmp_path, _valid_scan())
+
+    assert psl.validate_ssd_scan_grid(file, "V99000A")
+    # a detector the file does not hold
+    assert not psl.validate_ssd_scan_grid(file, "V99000B")
+
+
+@pytest.mark.parametrize(
+    "break_scan",
+    [
+        lambda scan: scan["V99000A"].pop("grid_info"),
+        lambda scan: scan["V99000A"]["grid_info"].pop("dep_step"),
+        lambda scan: scan["V99000A"].pop("psl_scan"),
+        lambda scan: scan["V99000A"]["psl_scan"].clear(),
+        lambda scan: scan["V99000A"]["psl_scan"]["slope_2"].pop("dep_2"),
+    ],
+    ids=["no-grid-info", "no-dep-step", "no-psl-scan", "no-slopes", "ragged-slopes"],
+)
+def test_validate_ssd_scan_grid_rejects(tmp_path, break_scan):
+    scan = _valid_scan()
+    break_scan(scan)
+
+    assert not psl.validate_ssd_scan_grid(_scan_file(tmp_path, scan), "V99000A")
+
+
+def test_validate_ssd_scan_grid_bad_format(tmp_path):
+    file = tmp_path / "scan.txt"
+    file.write_text("")
+
+    with pytest.raises(ValueError, match=r"expected a \.lh5 file"):
+        psl.validate_ssd_scan_grid(str(file), "V99000A")
