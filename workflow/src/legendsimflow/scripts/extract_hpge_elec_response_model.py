@@ -36,7 +36,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
-from legendsimflow import utils
+from legendsimflow import nersc, utils
 from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
@@ -157,6 +157,10 @@ def main() -> None:
     log = ldfs.utils.build_log(metadata.simprod.config.logging, args.log_file)
     log_script_invocation(log, "extract-hpge-elecmod", parser, args)
 
+    # the LH5 inputs are large, read them through the NERSC read-only mount
+    ideal_lib_file = nersc.dvs_ro(config, args.ideal_lib)
+    superpulses = nersc.dvs_ro(config, args.superpulses)
+
     runid = args.runid
     hpge = args.hpge_detector
     pars_file = args.pars_file
@@ -192,26 +196,13 @@ def main() -> None:
         return
 
     log.info("extracting electronics model from superpulses %s in %s ...", hpge, runid)
-    log.info("... reading ideal library from %s ...", args.ideal_lib)
+    log.info("... reading ideal library from %s ...", ideal_lib_file)
 
-    ideal_lib = lh5.read(args.hpge_detector, args.ideal_lib)
+    ideal_lib = lh5.read(args.hpge_detector, ideal_lib_file)
 
-    log.info("... reading data superpulses from %s ...", args.superpulses)
-    data_superpulses = read_superpulses(args.superpulses, args.hpge_detector)
-    data_superpulses = {
-        sl: sp
-        for sl, sp in data_superpulses.items()
-        if settings.dt_range_tuning[0]
-        <= sl.drift_time_center
-        <= settings.dt_range_tuning[1]
-    }
-
-    data_superpulses = dict(
-        sorted(
-            ((k, v) for k, v in data_superpulses.items()),
-            key=lambda x: x[0].drift_time_center,
-            reverse=True,
-        )
+    log.info("... reading data superpulses from %s ...", superpulses)
+    data_superpulses = read_superpulses(
+        superpulses, args.hpge_detector, dt_range_tuning=settings.dt_range_tuning
     )
 
     msg = f"Selected {data_superpulses}"
@@ -232,25 +223,18 @@ def main() -> None:
     # Prepare ideal waveforms
     log.info("... selecting ideal waveforms per slice ...")
     ideal_wfs = get_ideal_wfs_all_slices(
-        ideal_lib, data_superpulses, angle=settings.angle
+        ideal_lib,
+        data_superpulses,
+        angle=settings.angle,
+        max_num_superpulses=settings.max_num_superpulses,
     )
 
-    if settings.max_num_superpulses < len(ideal_wfs["ideal_wfs_slice"]):
-        ideal_wfs["ideal_wfs_slice"] = dict(
-            sorted(
-                ((k, v) for k, v in ideal_wfs["ideal_wfs_slice"].items()),
-                key=lambda x: x[0].drift_time_center,
-                reverse=True,
-            )[0 : settings.max_num_superpulses]
-        )
-
-    slices_used = ideal_wfs["ideal_wfs_slice"].keys()
-    if not slices_used:
+    if not ideal_wfs["ideal_wfs_slice"].keys():
         msg = "no ideal waveforms matched any data superpulse slice"
         raise RuntimeError(msg)
     dt_range_fit = (
-        min(sl.drift_time_range[0] for sl in slices_used),
-        max(sl.drift_time_range[1] for sl in slices_used),
+        min(sl.drift_time_range[0] for sl in ideal_wfs["ideal_wfs_slice"]),
+        max(sl.drift_time_range[1] for sl in ideal_wfs["ideal_wfs_slice"]),
     )
 
     # Run fit
@@ -328,7 +312,7 @@ def main() -> None:
 
     if args.uniformity_plot_file is not None:
         fig, _ = plot_current_superpulses_fwhm_and_amplitude(
-            args.superpulses,
+            superpulses,
             args.hpge_detector,
             dt_range_tuning=dt_range_fit,
         )

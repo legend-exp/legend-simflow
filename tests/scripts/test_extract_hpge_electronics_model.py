@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import dbetto
 import lh5
 import numpy as np
 import pytest
@@ -14,16 +15,18 @@ from scipy.stats import norm
 from legendsimflow.scripts import (
     build_superpulses_from_data,
     extract_hpge_elec_response_model,
+    extract_hpge_elec_response_model_scan,
 )
 from legendsimflow.superpulses import lookup_superpulse_inputs
 
 l200data = Path(__file__).parent.parent / "l200data" / "v3.0.0"
+DETECTOR = "V03422A"
 
 
 def test_lookup_inputs(test_make_ssc_data):
     meta = LegendMetadata(test_make_ssc_data / "inputs")
     raw_files, evt_files, dsp_config, tab_map, _ = lookup_superpulse_inputs(
-        l200data, meta, "l200-p16-r008-ssc", "V03422A", evt_tier_name="pet"
+        l200data, meta, "l200-p16-r008-ssc", DETECTOR, evt_tier_name="pet"
     )
 
     assert len(raw_files) == 1
@@ -36,7 +39,7 @@ def test_lookup_inputs(test_make_ssc_data):
     assert raw_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
     assert evt_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_evt.lh5"
 
-    assert tab_map["V03422A"] == 1108804
+    assert tab_map[DETECTOR] == 1108804
 
 
 @pytest.fixture
@@ -55,18 +58,18 @@ def test_superpulse_cli(test_make_ssc_data, tmp_path, monkeypatch):
             "--runid",
             "l200-p16-r008-ssc",
             "--detector",
-            "V03422A",
+            DETECTOR,
             "--output-file",
-            str(tmp_path / "outputs" / "V03422A_superpulses.lh5"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_superpulses.lh5"),
             "--plot-file",
-            str(tmp_path / "outputs" / "V03422A_superpulses.pdf"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_superpulses.pdf"),
             "--simflow-config",
             str(config_path),
         ],
     )
     build_superpulses_from_data.main()
     Path(tmp_path / "outputs").mkdir(parents=True, exist_ok=True)
-    return str(tmp_path / "outputs" / "V03422A_superpulses.lh5")
+    return str(tmp_path / "outputs" / f"{DETECTOR}_superpulses.lh5")
 
 
 @pytest.fixture
@@ -84,7 +87,7 @@ def test_make_ideal_psl(tmp_path):
     ideal_psl = str(tmp_path / "outputs" / "l200-p16-r008-ssc-ideal_psl.lh5")
 
     output = Struct({"waveform_000_deg": Array(wfs), "dt": Scalar(1.0)})
-    lh5.write(output, "V03422A", ideal_psl, wo_mode="of")
+    lh5.write(output, DETECTOR, ideal_psl, wo_mode="of")
 
     return ideal_psl
 
@@ -107,9 +110,9 @@ def test_extract_electronics_model_cli_with_data(
             "--runid",
             "l200-p16-r008-ssc",
             "--hpge-detector",
-            "V03422A",
+            DETECTOR,
             "--pars-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_pars.yaml"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--simflow-config",
             str(config_path),
         ],
@@ -117,7 +120,7 @@ def test_extract_electronics_model_cli_with_data(
 
     extract_hpge_elec_response_model.main()
 
-    pars_file = tmp_path / "outputs" / "V03422A_electronics_pars.yaml"
+    pars_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"
     assert pars_file.exists()
     pars = yaml.safe_load(pars_file.read_text())
 
@@ -152,9 +155,9 @@ def test_extract_electronics_model_cli_with_data(
             "--superpulses",
             test_superpulse_cli,
             "--pars-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_pars.yaml"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--plot-file",
-            str(tmp_path / "outputs" / "V03422A_electronics_tuning.pdf"),
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning.pdf"),
             "--simflow-config",
             str(config_path),
         ],
@@ -162,7 +165,7 @@ def test_extract_electronics_model_cli_with_data(
 
     extract_hpge_elec_response_model.main()
 
-    pars_file = tmp_path / "outputs" / "V03422A_electronics_pars.yaml"
+    pars_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"
     assert pars_file.exists()
     pars = yaml.safe_load(pars_file.read_text())
 
@@ -172,6 +175,98 @@ def test_extract_electronics_model_cli_with_data(
     assert isinstance(pars["sigma"], (int, float))
     assert isinstance(pars["tau"], (int, float))
 
-    plot_file = tmp_path / "outputs" / "V03422A_electronics_tuning.pdf"
-    print(plot_file)
+    plot_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning.pdf"
     assert plot_file.exists()
+
+
+@pytest.fixture
+def test_make_ideal_psl_scan(tmp_path):
+    out = {}
+    for sidx, _slope in enumerate(np.linspace(-1.0, 1.0, 3)):
+        out[f"slope_{sidx}"] = {}
+        for didx, _depv in enumerate(np.linspace(500, 800, 3)):
+            t = np.arange(5000)
+            wfs = []
+            # Gaussian PDF
+            for mu in np.linspace(0, 1990, 200):
+                wfs.append(np.cumsum(norm.pdf(t, loc=mu, scale=100)))
+                wfs[-1] /= wfs[-1][-1]  # normalize to 1 at the end of the waveform
+
+            wfs = np.array(wfs).reshape(20, 10, 5000)
+            Path(tmp_path / "outputs").mkdir(parents=True, exist_ok=True)
+
+            ideal_psl = str(tmp_path / "outputs" / "l200-p16-r008-ssc-ideal_psl.lh5")
+
+            out[f"slope_{sidx}"][f"dep_{didx}"] = Struct(
+                {"waveform_000_deg": Array(wfs), "dt": Scalar(1.0)}
+            )
+
+    info = {}
+    info["slope_min"] = Scalar(-1.0)
+    info["slope_step"] = Scalar(2.0 / 3)
+    info["dep_min"] = Scalar(500)
+    info["dep_step"] = Scalar(300 / 3)
+
+    output = {"psl_scan": Struct(out), "grid_info": Struct(info)}
+
+    lh5.write(Struct(output), DETECTOR, ideal_psl, wo_mode="of")
+
+    return ideal_psl
+
+
+def test_extract_electronics_model_scan_cli_with_data(
+    test_make_ssc_data,
+    tmp_path,
+    monkeypatch,
+    test_make_ideal_psl_scan,
+    test_superpulse_cli,
+):
+    # test first with defaults (legend)
+
+    config_path = tmp_path / "simflow-config.yaml"
+    raw_cfg = yaml.safe_load((test_make_ssc_data / "simflow-config.yaml").read_text())
+    raw_cfg["paths"]["metadata"] = str(test_make_ssc_data / "inputs")
+    config_path.write_text(yaml.safe_dump(raw_cfg))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "extract-hpge-electronics-model-scan",
+            "--superpulses",
+            test_superpulse_cli,
+            "--ideal-psl-scan",
+            test_make_ideal_psl_scan,
+            "--hpge-detector",
+            DETECTOR,
+            "--pars-file",
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars_scan.yaml"),
+            "--simflow-config",
+            str(config_path),
+            "--plot-file",
+            str(tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning_scan.pdf"),
+        ],
+    )
+
+    extract_hpge_elec_response_model_scan.main()
+
+    pars_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_pars_scan.yaml"
+    assert pars_file.exists()
+
+    plot_file = tmp_path / "outputs" / f"{DETECTOR}_electronics_tuning_scan.pdf"
+    assert plot_file.exists()
+
+    # check written pars
+    pars = dbetto.AttrsDict(yaml.safe_load(pars_file.read_text()))
+
+    assert "best_fit" in pars
+    assert "grid_info" in pars
+
+    # check the returned structure
+    psl_scan = lh5.read(DETECTOR, str(test_make_ideal_psl_scan))
+
+    assert set(psl_scan.psl_scan.keys()) == set(pars.psl_scan.keys())
+    assert all(
+        set(psl_scan.psl_scan[s].keys()) == set(pars.psl_scan[s].keys())
+        for s in psl_scan.psl_scan
+    )

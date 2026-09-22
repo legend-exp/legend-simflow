@@ -49,14 +49,14 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
             │   ├── dep_step · real
             │   ├── slope_min · real
             │   └── slope_step · real
-            └── psl_scan · struct{slope_1, slope_2, ..., slope_M}
-                ├── slope_1 · struct{dep_1, dep_2, ..., dep_N}
+            └── psl_scan · struct{slope_0, slope_1, ..., slope_M}
+                ├── slope_0 · struct{dep_0, dep_1, ..., dep_N}
+                │   ├── dep_0 · struct{...}
                 │   ├── dep_1 · struct{...}
-                │   ├── dep_2 · struct{...}
                 │   :
                 │   └── dep_N · struct{...}
                 :
-                └── slope_M · struct{dep_1, dep_2, ..., dep_N}
+                └── slope_M · struct{dep_0, dep_1, ..., dep_N}
 
     The top-level group is named after the detector. A file can hold more than
     one detector, each validated on its own.
@@ -66,16 +66,15 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
     case of LH5 files the structure is implemented as above, in the case of
     text files as a nested dictionary.
 
-    This represents a 2D scan of the simulation over `M` slopes and `N`
+    This represents a 2D scan of the simulation over `M + 1` slopes and `N + 1`
     depletion voltage parameters, with an arbitrary data object for each
     combination. This format only defines the grid structure: the only
     requirement on the underlying data structs is that they should all have the
     same structure.
 
-    The groups are numbered from 1 in scan order, so the values behind `slope_i`
-    and `dep_j` are `slope_min + (i - 1) * slope_step` and
-    `dep_min + (j - 1) * dep_step`, with `grid_info` giving the grid in physical
-    units:
+    The groups are numbered from 0 in scan order, so the values behind `slope_i`
+    and `dep_j` are `slope_min + i * slope_step` and `dep_min + j * dep_step`,
+    with `grid_info` giving the grid in physical units:
 
     - `dep_min` and `dep_step` are depletion voltages in V. They are stored as
       absolute values, while the scan settings that generate them are given as

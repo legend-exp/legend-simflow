@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import matplotlib as mpl
+
+mpl.use("Agg")
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from lgdo import Array, Scalar
@@ -9,6 +14,7 @@ from legendsimflow.hpge_electronics_tuning import (
     build_cost_function,
     compute_rms_in_slice,
     get_ideal_wfs_all_slices,
+    plot_scan_maps,
     select_ideal_wfs_in_slice,
 )
 from legendsimflow.superpulses import Slice, Superpulse
@@ -260,3 +266,79 @@ def test_get_ideal_wfs_all_slices():
 
     assert "alignment_idx" in ideal_wfs
     assert "nsamples_output" in ideal_wfs
+
+
+def _make_scan(skip=()):
+    """Fit results on a 3 x 4 grid, groups numbered from 0."""
+    scan = {}
+    for i in range(3):
+        scan[f"slope_{i}"] = {}
+        for j in range(4):
+            if (i, j) in skip:
+                continue
+            scan[f"slope_{i}"][f"dep_{j}"] = {
+                "rms": 0.001 * (1 + i + j),
+                "sigma": 10.0 + i,
+                "tau": 50.0 + j,
+            }
+    return scan
+
+
+GRID_INFO = {
+    "slope_min": -0.9,
+    "slope_step": 0.2,
+    "dep_min": 3000.0,
+    "dep_step": 20.0,
+}
+
+
+def test_plot_scan_maps_axes_are_physical():
+    fig, axes = plot_scan_maps(_make_scan(), GRID_INFO, detector_name="V99")
+
+    assert len(axes) == 3
+
+    # cell edges sit half a step outside the first and last centre
+    assert axes[0].get_xlim() == pytest.approx((2990.0, 3070.0))
+    assert axes[0].get_ylim() == pytest.approx((-1.0, -0.4))
+
+    assert axes[0].get_ylabel() == "Impurity scaling factor"
+    assert all(ax.get_xlabel() == "Depletion voltage [V]" for ax in axes)
+    assert "V99" in fig._suptitle.get_text()
+
+    plt.close(fig)
+
+
+def test_plot_scan_maps_axes_follow_the_group_index():
+    """Dropping the first depletion voltage must shift the axis, not the grid."""
+    fig, axes = plot_scan_maps(_make_scan(skip=[(i, 0) for i in range(3)]), GRID_INFO)
+
+    assert axes[0].get_xlim() == pytest.approx((3010.0, 3070.0))
+
+    plt.close(fig)
+
+
+def test_plot_scan_maps_marks_lowest_residual():
+    fig, axes = plot_scan_maps(_make_scan(), GRID_INFO)
+
+    # rms grows with both indices, so the minimum is the first grid point
+    for ax in axes:
+        (marker,) = ax.lines
+        assert marker.get_xdata() == pytest.approx([3000.0])
+        assert marker.get_ydata() == pytest.approx([-0.9])
+
+    plt.close(fig)
+
+
+def test_plot_scan_maps_leaves_skipped_points_blank():
+    fig, axes = plot_scan_maps(_make_scan(skip=((1, 2),)), GRID_INFO)
+
+    grid = axes[0].collections[0].get_array().reshape(3, 4)
+    assert np.ma.is_masked(grid[1, 2])
+    assert grid.count() == 11
+
+    plt.close(fig)
+
+
+def test_plot_scan_maps_empty_raises():
+    with pytest.raises(ValueError, match="no fitted grid points"):
+        plot_scan_maps({}, GRID_INFO)

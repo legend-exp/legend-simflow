@@ -7,6 +7,7 @@ from pathlib import Path
 import awkward as ak
 import legenddataflowscripts
 import lh5
+import matplotlib as mpl
 import numpy as np
 import pytest
 import yaml
@@ -23,6 +24,17 @@ from legendsimflow.utils import apply_path_defaults
 l200data = Path(__file__).parent / "l200data" / "v3.0.0"
 dummyprod = Path(__file__).parent / "dummyprod"
 config_filename = dummyprod / "simflow-config.yaml"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _default_matplotlib_style():
+    """Run the tests with the matplotlib defaults.
+
+    Without this, a personal ``matplotlibrc`` (colors, layout engine, savefig
+    options) leaks into the test run and makes plotting tests fail only on some
+    machines.
+    """
+    mpl.rcdefaults()
 
 
 @pytest.fixture(scope="session")
