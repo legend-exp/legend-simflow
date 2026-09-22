@@ -125,7 +125,7 @@ end
     @test hasproperty(wf_map, :dt)
     @test wf_map.dt == 1.0 .* u"ns"
 
-    @test size(wf_map.waveform_000_deg) == (5000, length(wf_map.z), length(wf_map.r))
+    @test size(wf_map.waveform_000_deg) == (4000, length(wf_map.z), length(wf_map.r))
 
 end
 
