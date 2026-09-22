@@ -648,8 +648,8 @@ function compute_ideal_pulse_shape_lib(
 
     # Simulation parameters
     sim_energy = 2039u"keV"
-    max_nsteps = 5000
-    waveform_length = 5000
+    max_nsteps = 4000
+    waveform_length = 4000
     time_step = 1u"ns"
 
     radius = meta.geometry.radius_in_mm / 1000
@@ -670,12 +670,22 @@ function compute_ideal_pulse_shape_lib(
 
     # count completed iterations across threads, so progress is reported in order
     n_done = Threads.Atomic{Int}(0)
+    ivf = SolidStateDetectors.interpolated_vectorfield(sim.electric_field)
 
     @threads for i in 1:n
         p = find_valid_spawn_position(in_idx[i], spawn_positions, sim.detector; verbose = false)
 
         e = SSD.Event([p], [sim_energy])
-        simulate!(e, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
+
+        e.drift_paths = SolidStateDetectors._drift_charges(sim.detector,
+            sim.point_types.grid,
+            sim.point_types,
+            e.locations,
+            e.energies,
+            ivf,
+            Δt = time_step)
+
+        SolidStateDetectors.get_signals!(e, sim)
 
         if only_holes
             wf = get_electron_and_hole_contribution(e, sim, 1).hole_contribution
@@ -782,12 +792,23 @@ function compute_drift_time_map(
 
     # count completed iterations across threads, so progress is reported in order
     n_done = Threads.Atomic{Int}(0)
+    ivf = SolidStateDetectors.interpolated_vectorfield(sim.electric_field)
 
     @threads for i in 1:n_points
         pos = find_valid_spawn_position(inside_detector_idx[i], spawn_positions, sim.detector; verbose = false)
 
         event = SSD.Event([pos], [2039u"keV"])
-        simulate!(event, sim, Δt = time_step, max_nsteps = max_nsteps, verbose = false)
+
+        event.drift_paths = SolidStateDetectors._drift_charges(
+            sim.detector,
+            sim.point_types.grid,
+            sim.point_types,
+            event.locations,
+            event.energies,
+            ivf,
+            1.0u"ns"
+        )
+        SolidStateDetectors.get_signals!(event, sim)
 
         wf = get_electron_and_hole_contribution(event, sim, 1).hole_contribution
         drift_times[i] = argmax(diff(ustrip(wf.signal)))
