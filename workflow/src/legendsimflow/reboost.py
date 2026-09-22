@@ -162,6 +162,87 @@ def load_hpge_dtmaps(
     return dt_map
 
 
+
+def mask_with_units(data: ak.Array, mask: ak.Array) -> ak.Array:
+    """Mask an awkward array with units attached, preserving the units."""
+    u = {field: units.get_unit_str(data[field]) for field in data.fields}
+    data = data[mask]
+
+    for field in data.fields:
+        data[field] = units.attach_units(data[field], u[field])
+
+    return data
+
+
+def cluster_steps(chunk: ak.Array, **kwargs) -> ak.Array:
+    """Group nearby steps of each event into clusters.
+
+    Positions are averaged over the steps of a cluster and energies are summed.
+    Keyword arguments are passed on to
+    :func:`reboost.shape.cluster.cluster_by_step_length`.
+    """
+    clusters = cluster_by_step_length(
+        ak.ones_like(chunk.trackid),
+        chunk.xloc,
+        chunk.yloc,
+        chunk.zloc,
+        units.units_conv_ak(chunk.dist_to_surf, "mm"),
+        **kwargs,
+    )
+
+    xc = _apply_cluster(clusters, chunk.xloc, mode="mean")
+    yc = _apply_cluster(clusters, chunk.yloc, mode="mean")
+    zc = _apply_cluster(clusters, chunk.zloc, mode="mean")
+    ec = _apply_cluster(clusters, chunk.edep, mode="sum")
+    dc = _apply_cluster(clusters, chunk.dist_to_surf, mode="mean")
+
+    return ak.Array(
+        {"xloc": xc, "yloc": yc, "zloc": zc, "dist_to_surf": dc, "edep": ec}
+    )
+
+
+def _apply_cluster(clusters: ak.Array, data: ak.Array, mode: str = "sum") -> ak.Array:
+    """Sum or average `data` over each cluster, keeping its units."""
+    unit = units.get_unit_str(data)
+
+    data_cluster = apply_cluster(clusters, data)
+    if mode == "sum":
+        return units.attach_units(ak.sum(data_cluster, axis=-1), unit)
+    if mode == "mean":
+        return units.attach_units(ak.mean(data_cluster, axis=-1), unit)
+    msg = f"Mode {mode} not recognised. Must be 'sum' or 'mean'."
+    raise ValueError(msg)
+
+
+def get_rz(det_loc: pint.Quantity, chunk: ak.Array) -> tuple[ak.Array, ak.Array]:
+    """Compute the cylindrical coordinates of each step in the detector frame.
+
+    `det_loc` is the position of the detector origin in the global frame. The
+    returned radius `r` and height `z`, both in mm, are measured from that
+    origin, with `z` along the symmetry axis of the crystal.
+    """
+    det_loc_pint = reboost.units.pg4_to_pint(det_loc)
+
+    # Use reboost.units to get conversion factors for chunk coordinates
+    # This handles the case when chunk has units attached (with_units=True)
+    xloc_conv = reboost.units.units_convfact(chunk.xloc, det_loc_pint.units)
+    yloc_conv = reboost.units.units_convfact(chunk.yloc, det_loc_pint.units)
+    zloc_conv = reboost.units.units_convfact(chunk.zloc, det_loc_pint.units)
+
+    # Unwrap LGDO/pint if present
+    xloc, _ = reboost.units.unwrap_lgdo(chunk.xloc)
+    yloc, _ = reboost.units.unwrap_lgdo(chunk.yloc)
+    zloc, _ = reboost.units.unwrap_lgdo(chunk.zloc)
+
+    _x = xloc * xloc_conv - det_loc_pint[0].m
+    _y = yloc * yloc_conv - det_loc_pint[1].m
+
+    _z = reboost.units.attach_units(1000 * (zloc * zloc_conv - det_loc_pint[2].m), "mm")
+    _r = reboost.units.attach_units(1000 * np.sqrt(_x**2 + _y**2), "mm")
+
+    return _r, _z
+
+
 def extract_psd_observables(
     chunk: ak.Array,
     edep_active: ak.Array,

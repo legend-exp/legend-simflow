@@ -27,14 +27,17 @@ import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from dspeed.processors import moving_window_multi
-from lgdo import Array, Scalar
+from lgdo import Array, Scalar, Struct
 from matplotlib.figure import Figure
 from numpy.typing import DTypeLike
 from reboost import units
-from reboost.hpge import make_hpge_pulse_shape_library, make_hpge_rz_field
+from reboost.hpge import (
+    HPGePulseShapeLibrary,
+    HPGeRZField,
+    make_hpge_pulse_shape_library,
+    make_hpge_rz_field,
+)
 from scipy.signal import convolve, fftconvolve
-
-from legendsimflow import reboost as reboost_utils
 
 log = logging.getLogger(__name__)
 
@@ -184,8 +187,28 @@ def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
 
 def load_ideal_psl_scan(
     psl_file: str,
-) -> tuple[dict[str, dict[str, np.ndarray]], dict[str, np.ndarray]]:
-    """Load the ideal pulse-shape library scan."""
+) -> tuple[dict[str, dict[str, Struct]], Struct]:
+    """Read a scan of ideal pulse-shape libraries from an LH5 file.
+
+    The file must hold exactly one detector, laid out on the two-dimensional
+    grid of impurity-curve slope and depletion voltage described in
+    :func:`validate_ssd_scan_grid`. Each grid point holds an ideal pulse-shape
+    library in the format expected by :func:`make_realistic_pulse_shape_lib`.
+
+    Parameters
+    ----------
+    psl_file
+        Path to the LH5 file holding the scan.
+
+    Returns
+    -------
+    ideal_psls
+        Ideal pulse-shape libraries, keyed first by slope group and then by
+        depletion-voltage group.
+    grid_info
+        Contents of the ``grid_info`` group, i.e. the start value and the step
+        of each grid axis.
+    """
     dets = lh5.ls(psl_file, "/")
 
     assert len(dets) == 1
@@ -208,22 +231,70 @@ def load_ideal_psl_scan(
                 psl_file,
             )
 
-    info = lh5.read(f"{det}/info", psl_file)
+    grid_info = lh5.read(f"{det}/grid_info", psl_file)
 
-    return output, info
+    return output, grid_info
 
 
 def convolve_elecmod_scan(
-    ideal_psls: dict,
+    ideal_psls: Mapping[str, Mapping[str, Mapping[str, Array | Scalar]]],
     sigma: float,
     tau: float,
-    alignment_idx=1000,
-    n_samples=4001,
-    mw_pars=None,
-    dt_data=16,
-    angle="000",
-):
-    """Convolve ideal PSLs from scan, with the electronics model."""
+    alignment_idx: int = 1000,
+    n_samples: int = 4001,
+    mw_pars: Mapping[str, int] | None = None,
+    dt_data: float = 16,
+    angle: str = "000",
+) -> tuple[
+    dict[str, dict[str, HPGePulseShapeLibrary]],
+    dict[str, dict[str, dict[int, HPGeRZField]]],
+]:
+    """Turn a scan of ideal pulse-shape libraries into realistic ones.
+
+    Runs :func:`make_realistic_pulse_shape_lib` at every point of the grid
+    returned by :func:`load_ideal_psl_scan`, with the electronics response
+    kernel built by :func:`build_electronics_response_kernel` from the same
+    `sigma` and `tau` at every point. The waveforms of each library are then
+    divided by their average A/E (see :func:`get_avg_aoe`), so that the
+    normalization does not depend on the grid point.
+
+    Parameters
+    ----------
+    ideal_psls
+        Ideal pulse-shape libraries, keyed first by slope group and then by
+        depletion-voltage group, as returned by :func:`load_ideal_psl_scan`.
+    sigma
+        Standard deviation of the Gaussian modelling the digitizer bandwidth,
+        in ns.
+    tau
+        Decay constant of the exponential modelling the preamplifier response,
+        in ns.
+    alignment_idx
+        Sample index where the current peak is placed after alignment.
+    n_samples
+        Length of the realistic current waveforms.
+    mw_pars
+        Moving-window-average parameters, see
+        :func:`make_realistic_pulse_shape_lib`. Defaults to the settings of the
+        LEGEND-200 production DSP chain.
+    dt_data
+        Data sampling time step in ns. Defaults to the LEGEND-200 digitizer
+        period.
+    angle
+        Crystal-axis angle, in degrees, whose waveforms end up in the
+        pulse-shape libraries. The drift-time maps always cover both axes.
+
+    Returns
+    -------
+    psls
+        Realistic pulse-shape libraries, keyed first by slope group and then by
+        depletion-voltage group.
+    dt_maps
+        Drift-time maps in ns over the (r, z) plane, keyed first by slope
+        group, then by depletion-voltage group, then by crystal-axis angle in
+        degrees. This is the layout
+        :func:`reboost.hpge.drift_time_crystal_axes` expects.
+    """
     kernel_start = -100
 
     psls = {}
@@ -738,7 +809,7 @@ def make_realistic_pulse_shape_lib(
     keys_to_convolve = [k for k in ideal_pulse_shape_lib_obj if "waveform" in k]
 
     for key in keys_to_convolve:
-        log.info("Processing %s...", key)
+        log.debug("Processing %s...", key)
 
         # Extract and prepare data
         ideal_wfs = ideal_pulse_shape_lib_obj[key]
