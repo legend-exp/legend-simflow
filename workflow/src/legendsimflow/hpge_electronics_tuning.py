@@ -397,6 +397,11 @@ def fit_electronics_parameters(
     m.limits["sigma"] = sigma_limits
     m.limits["tau"] = tau_limits
 
+    # Minuit's default. Strategy 0 skips the Hessian refinement and roughly
+    # halves the number of cost evaluations, but the fit then comes out less
+    # stable, so the slower setting is worth it
+    m.strategy = 1
+
     m.migrad(ncall=max_calls)
     if not m.valid:
         log.warning("MIGRAD did not converge")
