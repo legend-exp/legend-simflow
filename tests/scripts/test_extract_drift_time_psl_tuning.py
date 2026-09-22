@@ -50,13 +50,13 @@ def make_psl_scan(tmp_path):
                 }
             )
 
-    info = {}
-    info["slope_min"] = Scalar(-1.0)
-    info["slope_step"] = Scalar(2.0 / 3)
-    info["dep_min"] = Scalar(500)
-    info["dep_step"] = Scalar(300 / 3)
+    grid_info = {}
+    grid_info["slope_min"] = Scalar(-1.0)
+    grid_info["slope_step"] = Scalar(2.0 / 3)
+    grid_info["dep_min"] = Scalar(500)
+    grid_info["dep_step"] = Scalar(300 / 3)
 
-    output = {"psl_scan": Struct(out), "info": Struct(info)}
+    output = {"psl_scan": Struct(out), "grid_info": Struct(grid_info)}
 
     lh5.write(Struct(output), DETECTOR, ideal_psl, wo_mode="of")
 

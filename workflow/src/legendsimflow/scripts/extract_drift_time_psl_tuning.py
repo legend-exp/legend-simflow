@@ -42,90 +42,7 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
 from legendsimflow.scripts import log_script_invocation
-
-
-def mask_with_units(data: ak.Array, mask: ak.Array) -> ak.Array:
-    """Mask an awkward array with units attached, preserving the units."""
-    u = {field: units.get_unit_str(data[field]) for field in data.fields}
-    data = data[mask]
-
-    for field in data.fields:
-        data[field] = units.attach_units(data[field], u[field])
-
-    return data
-
-
-def cluster_steps(chunk: ak.Array, **kwargs) -> ak.Array:
-    """Cluster steps in a chunk of events, returning a new chunk with clustered steps."""
-    clusters = cluster_by_step_length(
-        ak.ones_like(chunk.trackid),
-        chunk.xloc,
-        chunk.yloc,
-        chunk.zloc,
-        units.units_conv_ak(chunk.dist_to_surf, "mm"),
-        **kwargs,
-    )
-
-    xc = _apply_cluster(clusters, chunk.xloc, mode="mean")
-    yc = _apply_cluster(clusters, chunk.yloc, mode="mean")
-    zc = _apply_cluster(clusters, chunk.zloc, mode="mean")
-    ec = _apply_cluster(clusters, chunk.edep, mode="sum")
-    dc = _apply_cluster(clusters, chunk.dist_to_surf, mode="mean")
-
-    return ak.Array(
-        {"xloc": xc, "yloc": yc, "zloc": zc, "dist_to_surf": dc, "edep": ec}
-    )
-
-
-def _apply_cluster(clusters: ak.Array, data: ak.Array, mode: str = "sum") -> ak.Array:
-    """Apply clustering to a data array, returning the clustered data.
-
-    Parameters
-    ----------
-    clusters
-        The cluster indices for each step in the data array.
-    data
-        The data array to be clustered.
-    mode
-        The mode of clustering to apply. Can be "sum" or "mean". Defaults to "sum".
-    """
-    unit = units.get_unit_str(data)
-
-    data_cluster = apply_cluster(clusters, data)
-    if mode == "sum":
-        return units.attach_units(ak.sum(data_cluster, axis=-1), unit)
-    if mode == "mean":
-        return units.attach_units(ak.mean(data_cluster, axis=-1), unit)
-    msg = f"Mode {mode} not recognised. Must be 'sum' or 'mean'."
-    raise ValueError(msg)
-
-
-def get_rz(det_loc, chunk: ak.Array) -> tuple[ak.Array, ak.Array]:
-    """Extract the r and z coordinates of a chunk of events, given the detector location."""
-    det_loc_pint = reboost.units.pg4_to_pint(det_loc)
-
-    # Use reboost.units to get conversion factors for chunk coordinates
-    # This handles the case when chunk has units attached (with_units=True)
-    xloc_conv = reboost.units.units_convfact(chunk.xloc, det_loc_pint.units)
-    yloc_conv = reboost.units.units_convfact(chunk.yloc, det_loc_pint.units)
-    zloc_conv = reboost.units.units_convfact(chunk.zloc, det_loc_pint.units)
-
-    # Unwrap LGDO/pint if present
-    xloc, _ = reboost.units.unwrap_lgdo(chunk.xloc)
-    yloc, _ = reboost.units.unwrap_lgdo(chunk.yloc)
-    zloc, _ = reboost.units.unwrap_lgdo(chunk.zloc)
-
-    _x = xloc * xloc_conv - det_loc_pint[0].m
-    _y = yloc * yloc_conv - det_loc_pint[1].m
-
-    _z = reboost.units.attach_units(1000 * (zloc * zloc_conv - det_loc_pint[2].m), "mm")
-    _r = reboost.units.attach_units(1000 * np.sqrt(_x**2 + _y**2), "mm")
-
-    return _r, _z
-
-
-ECUT = 1500
-
+from legendsimflow.reboost import mask_with_units, get_rz, cluster_steps
 
 @snakemake_compatible(
     mapping={
@@ -141,36 +58,36 @@ ECUT = 1500
     }
 )
 def main() -> None:
-    """Extract the drift times over a grid of pulse shape library (PSL) parameters for a given HPGe detector.
+    """Compute event drift times over a scan of pulse-shape libraries.
 
-    The output file ``--drift-time-file`` contains the drift time for a subset of events,
-    per point of a grid of impurity-curve slope and depletion voltages.
+    The scan covers a two-dimensional grid of impurity-curve slope and
+    depletion voltage, in the format described in
+    :func:`legendsimflow.psl.validate_ssd_scan_grid`. The steps are:
 
-    The output format has the same group structure as the input ``--psl-file``.
+    1. Read the geometry of the HPGe detector from the GDML file
+       (``--geom-file``).
+    2. Read the ideal pulse-shape libraries of the scan from ``--psl-file``
+       (:func:`legendsimflow.psl.load_ideal_psl_scan`) and convolve each of
+       them with the electronics response built from the parameters in
+       ``--elecmod`` (:func:`legendsimflow.psl.convolve_elecmod_scan`).
+    3. Read the steps from ``--stp-files`` in chunks, cluster them, and keep
+       the events depositing more than 1500 keV in the active volume.
+    4. For each grid point, interpolate the drift time of every cluster
+       (:func:`reboost.hpge.drift_time_crystal_axes`) and take the drift time
+       of the event as the one of maximum current
+       (:func:`reboost.hpge.maximum_current`).
 
-    The group names carry the grid indices; the physical values follow from
-    the start and the step listed in ``info``::
+    Processing stops once ``--max-events`` events have passed the energy cut.
 
-        <detector>
-        |-- psl_scan
-        |   |-- slope_0
-        |   |   |-- dep_0        # drift_time
-        |   |   `-- dep_1
-        |   `-- slope_1
-        |       `-- ...
-        |-- energy
-        `-- info                 # slope_min, slope_step, dep_min, dep_step
-
-    In addition, the output file contains the energy of each event in the ``energy`` field.
-
-    This script:
-    - Loads the input GDML file (``--geom-file``) to extract the geometry of the HPGe detector.
-    - Loads the ideal pulse shape library (PSL) from ``--psl-file`` and convolves it with the electronics model from ``--elecmod``.
-    - Iterates over the input stp files (``--stp-files``), selecting only a maximum of ``--max-events``.
-    - Computes the event energies, filters events below a threshold, and computes the drift times for each event.
-
+    The output file ``--drift-time-file`` follows the same scan format as the
+    input, with a ``drift_time`` array in ns at each grid point. Next to
+    ``psl_scan`` it carries an ``energy`` array with the energy each event
+    deposits in the active volume, in keV, in the same order as the drift
+    times.
     """
-    parser = argparse.ArgumentParser(description="Build the hit tier.")
+    parser = argparse.ArgumentParser(
+        description="Compute event drift times over a scan of pulse-shape libraries."
+    )
     parser.add_argument(
         "--stp-files", nargs="+", required=True, help="Input stp files."
     )
@@ -179,7 +96,9 @@ def main() -> None:
     )
     parser.add_argument("--hpge-detector", required=True, help="HPGe detector name")
     parser.add_argument(
-        "--psl-file", required=True, help="HPGe realistic pulse shape library file."
+        "--psl-file",
+        required=True,
+        help="scan of ideal HPGe pulse-shape libraries.",
     )
     parser.add_argument("--elecmod", required=True, help="HPGe electronics model file.")
 
@@ -276,20 +195,21 @@ def main() -> None:
         fccd = 1.0
 
     with perf_block("load_psl()"):
-        ideal_psls, info = psl.load_ideal_psl_scan(psl_file)
+        log.info("... load psls")
+
+        ideal_psls, grid_info = psl.load_ideal_psl_scan(psl_file)
         electronics_model = dbetto.utils.load_dict(elecmod_file)
-        if det not in electronics_model:
-            msg = f"Detector {det} not found in '{elecmod_file}'"
+        if "best_fit" not in electronics_model:
+            msg = f"`best_fit` not found in '{elecmod_file}'"
             raise KeyError(msg)
         try:
-            detector_model = electronics_model[det]
-            sigma_conv = detector_model["sigma"]
-            tau_conv = detector_model["tau"]
+            best_model = electronics_model["best_fit"]
+            sigma_conv = best_model["sigma"]
+            tau_conv = best_model["tau"]
         except KeyError as e:
             missing_key = str(e)
             msg = (
-                f"missing key {missing_key} in electronics-model parameters for detector "
-                f"{det} in {elecmod_file}"
+                f"missing key {missing_key} in electronics-model parameters in {elecmod_file}"
             )
             raise KeyError(msg) from e
 
@@ -308,11 +228,13 @@ def main() -> None:
         n_read += len(chunk)
         chunk = mask_with_units(chunk, ak.sum(chunk.edep, axis=-1) > ECUT)
 
+        log.info("... cluster steps")
         # cluster steps
         with perf_block("cluster_steps()"):
             chunk_new = cluster_steps(
                 chunk, surf_cut=2, threshold_in_mm=1, threshold_surf_in_mm=0.05
             )
+        log.info("... compute energy")
 
         # add some clustering
         with perf_block("activeness"):
@@ -336,7 +258,12 @@ def main() -> None:
             edep_active = chunk_new.edep * _activeness
             energy_true = ak.sum(edep_active, axis=-1)
 
+            # cut sub threshold events
+            chunk_new = mask_with_units(chunk_new, energy_true > ECUT)
+            edep_active = edep_active[energy_true > ECUT]
+            
         # now get drift times
+        log.info("... get drift times")
 
         with perf_block("drift_time"):
             drift_times = {}
@@ -381,6 +308,7 @@ def main() -> None:
         # the distributions hold enough events to be fitted
         n_used += len(energy_true)
         if args.max_events is not None and n_used >= args.max_events:
+            log.info("... we have now gathered %d events and we only needed %d so we are stopping",n_used, args.max_events)
             break
 
     log.info(
@@ -390,8 +318,8 @@ def main() -> None:
         n_read,
     )
 
-    # write info block
-    lh5.write(info, f"{det}/info/", dt_file, wo_mode="append_column")
+    # write the grid definition
+    lh5.write(grid_info, f"{det}/grid_info/", dt_file, wo_mode="append_column")
 
     with perf_block("move_to_cfs()"):
         move2cfs()
