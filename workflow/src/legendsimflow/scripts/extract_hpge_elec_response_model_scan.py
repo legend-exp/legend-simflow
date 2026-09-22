@@ -34,8 +34,7 @@ from legendsimflow import nersc, utils
 from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
-    plot_best_fit,
-    plot_convergence,
+    plot_scan_maps,
 )
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
@@ -50,7 +49,6 @@ DEFAULT_SETTINGS = {
     "sigma_limits": (0.0, 200.0),
     "tau_limits": (0.0, 200.0),
     "comparison_window": (-500.0, 500.0),
-    "plot_window": (-600.0, 600.0),
     "weight_power": 2.0,
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
@@ -102,8 +100,6 @@ def main() -> None:
                 sigma: 12.3        # Gaussian width, in ns
                 tau: 47.1          # exponential time constant, in ns
                 rms: 0.0021        # residual of the fit
-                aoe_data: 1.4      # A/E of data and simulation, only with plots
-                aoe_mc: 1.3
             dep_1: ...
         grid_info: ...              # copy of the grid definition above
         best_fit:              # copy of the point with the smallest rms,
@@ -111,7 +107,8 @@ def main() -> None:
           slope: slope_1
           depv: dep_0
 
-    Diagnostic plots, one set per grid point, go to ``--plot-file``.
+    ``--plot-file`` holds the colour maps of the residual, of sigma and of tau
+    over the whole grid, drawn by :func:`.hpge_electronics_tuning.plot_scan_maps`.
     """
     parser = argparse.ArgumentParser(
         description="Extract the HPGe electronics model for a LEGEND run."
@@ -214,13 +211,17 @@ def main() -> None:
 
     # loop over slope and depv
     comparison_window = tuple(settings.comparison_window)
-    plot_window = tuple(settings.plot_window)
 
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
         plot_dir.mkdir(parents=True, exist_ok=True)
 
     perf_block, print_perf, _ = reboost.make_profiler()
+
+    step_info = {
+        k: float(v.view_as())
+        for k, v in lh5.read(f"{args.hpge_detector}/grid_info", ideal_psl_scan).items()
+    }
 
     psl_scan = {}
     with (
@@ -288,39 +289,12 @@ def main() -> None:
                     "rms": result["best_rms"],
                 }
 
-                # plots
-                if pdf is not None:
-                    with perf_block("plots()"):
-                        fig, _ = plot_convergence(result)
-                        decorate(fig)
-                        pdf.savefig(fig)
-                        plt.close(fig)
-
-                        fig, _, data_amax, mc_amax = plot_best_fit(
-                            result,
-                            data_superpulses,
-                            comparison_window=comparison_window,
-                            plot_window=plot_window,
-                            detector_name=args.hpge_detector,
-                        )
-                        psl_scan[slope][depv]["aoe_data"] = data_amax
-                        psl_scan[slope][depv]["aoe_mc"] = mc_amax
-
-                        decorate(fig)
-                        pdf.savefig(fig)
-                        plt.close(fig)
-
-                        fig, _, _, _ = plot_best_fit(
-                            result,
-                            data_superpulses,
-                            comparison_window=comparison_window,
-                            plot_window=plot_window,
-                            plot_charge=True,
-                            detector_name=args.hpge_detector,
-                        )
-                        decorate(fig)
-                        pdf.savefig(fig)
-                        plt.close(fig)
+        if pdf is not None:
+            with perf_block("plots()"):
+                fig, _ = plot_scan_maps(psl_scan, step_info, detector_name=hpge)
+                decorate(fig)
+                pdf.savefig(fig)
+                plt.close(fig)
 
     # get the global best fit pars
 
@@ -334,11 +308,6 @@ def main() -> None:
                 best_pars = dict(info)
                 best_pars["slope"] = slope
                 best_pars["depv"] = depv
-
-    step_info = {
-        k: float(v.view_as())
-        for k, v in lh5.read(f"{args.hpge_detector}/grid_info", ideal_psl_scan).items()
-    }
 
     output = {"psl_scan": psl_scan, "grid_info": step_info}
 

@@ -22,12 +22,13 @@ superpulses across drift-time slices.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 import numpy as np
 from iminuit import Minuit
 from lgdo import Struct
 from matplotlib import pyplot as plt
+from matplotlib.colors import LogNorm
 from numpy.typing import NDArray
 from reboost import units
 from scipy.interpolate import interp1d
@@ -648,3 +649,128 @@ def plot_best_fit(
     )
 
     return fig, axes, data_amax, mc_amax
+
+
+def _grid_index(group: str) -> int:
+    """Read the grid index off a ``slope_<i>`` or ``dep_<j>`` group name."""
+    return int(group.rsplit("_", 1)[1])
+
+
+def plot_scan_maps(
+    psl_scan: Mapping[str, Mapping[str, Mapping[str, float]]],
+    grid_info: Mapping[str, float],
+    detector_name: str | None = None,
+) -> tuple:
+    """Colour maps of the fit results over the pulse-shape scan grid.
+
+    Three panels, one each for the residual, the Gaussian sigma and the
+    exponential tau, drawn against the depletion voltage in V and the
+    dimensionless impurity scaling factor. The point with the smallest
+    residual is marked in every panel. Grid points with no fit are left blank.
+
+    Sigma and tau describe the electronics, so they should not depend on the
+    crystal. Structure in those two panels that follows the residual means the
+    fit is absorbing a mismatch of the detector simulation into the electronics
+    response, and the point of smallest residual is then not a measurement of
+    the impurity profile.
+
+    Parameters
+    ----------
+    psl_scan
+        Fit results as written to the parameter file,
+        ``{slope_group: {depv_group: {"rms": ..., "sigma": ..., "tau": ...}}}``.
+    grid_info
+        Grid definition, with keys ``slope_min``, ``slope_step``, ``dep_min``
+        and ``dep_step``. The value of a group is ``min + index * step``, with
+        the index taken from the group name relative to the smallest index in
+        the scan.
+    detector_name
+        Detector name for the figure title.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    axes : array of matplotlib.axes.Axes
+    """
+    slope_idx = sorted(_grid_index(k) for k in psl_scan)
+    depv_idx = sorted({_grid_index(k) for pars in psl_scan.values() for k in pars})
+
+    if not slope_idx or not depv_idx:
+        msg = "no fitted grid points to plot"
+        raise ValueError(msg)
+
+    slopes = (
+        grid_info["slope_min"]
+        + (np.array(slope_idx) - slope_idx[0]) * grid_info["slope_step"]
+    )
+    depvs = (
+        grid_info["dep_min"]
+        + (np.array(depv_idx) - depv_idx[0]) * grid_info["dep_step"]
+    )
+
+    row = {idx: i for i, idx in enumerate(slope_idx)}
+    col = {idx: j for j, idx in enumerate(depv_idx)}
+
+    panels = {
+        "rms": ("Fit residual", "viridis_r"),
+        "sigma": (r"$\sigma$ [ns]", "plasma"),
+        "tau": (r"$\tau$ [ns]", "plasma"),
+    }
+
+    maps = {k: np.full((len(slope_idx), len(depv_idx)), np.nan) for k in panels}
+    for slope_group, depv_groups in psl_scan.items():
+        i = row[_grid_index(slope_group)]
+        for depv_group, pars in depv_groups.items():
+            j = col[_grid_index(depv_group)]
+            for key, grid in maps.items():
+                grid[i, j] = pars[key]
+
+    # pcolormesh wants the cell edges, the grid is regular so they follow from
+    # the step
+    def edges(centers: NDArray, step: float) -> NDArray:
+        return np.append(centers - step / 2, centers[-1] + step / 2)
+
+    x_edges = edges(depvs, grid_info["dep_step"])
+    y_edges = edges(slopes, grid_info["slope_step"])
+
+    fig, axes = plt.subplots(
+        1, 3, figsize=(16, 4.5), sharey=True, constrained_layout=True
+    )
+
+    for ax, (key, (label, cmap)) in zip(axes, panels.items(), strict=True):
+        grid = maps[key]
+        # the residual varies over orders of magnitude across the grid while the
+        # structure that matters sits close to the minimum
+        finite = grid[np.isfinite(grid)]
+        norm = LogNorm() if key == "rms" and finite.size and finite.min() > 0 else None
+        mesh = ax.pcolormesh(x_edges, y_edges, grid, cmap=cmap, norm=norm)
+        fig.colorbar(mesh, ax=ax, label=label)
+        ax.set_xlabel("Depletion voltage [V]")
+
+    axes[0].set_ylabel("Impurity scaling factor")
+
+    if np.any(np.isfinite(maps["rms"])):
+        i, j = np.unravel_index(np.nanargmin(maps["rms"]), maps["rms"].shape)
+        for ax in axes:
+            ax.plot(
+                depvs[j],
+                slopes[i],
+                marker="*",
+                markersize=14,
+                markerfacecolor="none",
+                markeredgecolor="#b2182b",
+                markeredgewidth=1.5,
+            )
+        best = (
+            f"best: {depvs[j]:.0f} V, scaling {slopes[i]:.2f}"
+            f"  |  residual = {maps['rms'][i, j]:.5f}"
+            rf"  |  $\sigma$ = {maps['sigma'][i, j]:.2f} ns"
+            rf", $\tau$ = {maps['tau'][i, j]:.2f} ns"
+        )
+    else:
+        best = "no valid fit on the grid"
+
+    det = f"{detector_name} | " if detector_name else ""
+    fig.suptitle(f"{det}{best}", fontsize=13)
+
+    return fig, axes
