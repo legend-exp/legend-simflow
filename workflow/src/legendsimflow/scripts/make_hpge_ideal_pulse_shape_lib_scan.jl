@@ -80,31 +80,20 @@ Command line arguments:
 
 # Output
 
-A single LH5 file holding one group named after the detector:
+A single LH5 file holding one group named after the detector, laid out as an
+SSD scan grid. The layout, its `grid_info` group and the numbering of the scan
+points are specified in `legendsimflow.psl.validate_ssd_scan_grid`.
+
+Each scan point `psl_scan/slope_i/dep_j` holds:
 
 ```
-<detector>/
-├── psl_scan/
-│   ├── slope_1/                  # one group per impurity slope, in scan order
-│   │   ├── dep_1/                # one group per depletion voltage
-│   │   │   ├── r                 # radial axis, in m
-│   │   │   ├── z                 # axial axis, in m
-│   │   │   ├── dt                # waveform sampling period, 1 ns
-|   |   |   ├── impurity_scale    # scaling factor applied to the impurity profile
-│   │   │   ├── waveform_000_deg  # normalized to 1, see below for the shape
-│   │   │   └── waveform_045_deg
-│   │   └── dep_2/ ...
-│   └── slope_2/ ...
-└── info/
-    ├── slope_min                 # first slope of the scan
-    ├── slope_step
-    ├── dep_min                   # first depletion voltage of the scan, in V
-    └── dep_step                  # in V
+├── r                 # radial axis, in m
+├── z                 # axial axis, in m
+├── dt                # waveform sampling period, 1 ns
+├── impurity_scale    # scaling factor applied to the impurity profile
+├── waveform_000_deg  # normalized to 1, see below for the shape
+└── waveform_045_deg
 ```
-
-The groups are numbered from 1 in scan order, so the values behind `slope_i`
-and `dep_j` are `slope_min + (i - 1) * slope_step` and
-`dep_min + (j - 1) * dep_step`.
 
 The waveform arrays are indexed `[time, z, r]` in Julia. Julia writes them in
 column-major order, so a row-major reader such as `h5py` or `lgdo` sees the
@@ -265,7 +254,7 @@ function main()
             setdatatype!(f.data_store["$det/psl_scan/slope_$sidx"], NamedTuple{dep_names})
         end
         setdatatype!(f.data_store["$det/psl_scan"], NamedTuple{slope_names})
-        setdatatype!(f.data_store[det], NamedTuple{(:psl_scan, :info)})
+        setdatatype!(f.data_store[det], NamedTuple{(:psl_scan, :grid_info)})
         return time_write += time() - t0
     end
 

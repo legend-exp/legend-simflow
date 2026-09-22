@@ -210,8 +210,6 @@ def build_cost_function(
                 dt,
                 alignment_idx,
                 nsamples_output,
-                mw_pars=psl.MW_PARS,
-                dt_data=psl.DT_DATA,
             )
             sim_avg = np.mean(processed, axis=0)
             sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
@@ -558,8 +556,6 @@ def plot_best_fit(
             dt,
             alignment_idx,
             nsamples_output,
-            mw_pars=psl.MW_PARS,
-            dt_data=psl.DT_DATA,
             return_mode="charge" if plot_charge else "current",
         )
 

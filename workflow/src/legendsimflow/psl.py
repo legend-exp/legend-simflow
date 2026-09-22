@@ -21,6 +21,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
+import dbetto
 import hist
 import lh5
 import matplotlib.pyplot as plt
@@ -28,22 +29,18 @@ import numpy as np
 from dspeed.processors import moving_window_multi
 from lgdo import Array, Scalar
 from matplotlib.figure import Figure
+from numpy.typing import DTypeLike
 from reboost import units
 from scipy.signal import convolve, fftconvolve
 
 log = logging.getLogger(__name__)
 
-DT_DATA: float = 16.0
-# Bit depth of the pulse-shape samples, both in memory and on disk. float32 is
-# more than enough for the ~1% A/E it feeds and halves the library footprint
-WF_DTYPE: np.dtype = np.dtype(np.float32)
-MW_PARS: dict[str, int] = {"length": 48, "num_mw": 3, "mw_type": 0}
-
 
 def validate_ssd_scan_grid(file: str, detector: str) -> bool:
-    """Validate the structure of a SSD scan files.
+    """Validate the structure of an SSD scan file.
 
-    These files can contain PSLs, electronics model parameters or other observables and have a common structure: ::
+    These files can contain PSLs, electronics model parameters or other
+    observables and have a common structure::
 
         /
         └── DETECTOR · struct{grid_info,psl_scan}
@@ -52,52 +49,89 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
             │   ├── dep_step · real
             │   ├── slope_min · real
             │   └── slope_step · real
-            └── psl_scan · struct{slope_1, slope_2 , ..., slope_M}
-                ├── slope_1 · struct{dep_1,dep_2,... dep_N}
-                |   ├── dep_1 · struct{...}
-                |   ├── dep_2 · struct{...}
-                |   :
-                |   :
-                |   └── dep_N · struct{...}
+            └── psl_scan · struct{slope_1, slope_2, ..., slope_M}
+                ├── slope_1 · struct{dep_1, dep_2, ..., dep_N}
+                │   ├── dep_1 · struct{...}
+                │   ├── dep_2 · struct{...}
+                │   :
+                │   └── dep_N · struct{...}
                 :
-                :
-                |
-                └──  slope_M · struct{dep_1, dep_2 , ..., dep_N}
+                └── slope_M · struct{dep_1, dep_2, ..., dep_N}
 
-    This structure can either be implemented in YAML or LH5 files. In the case of YAML
-    files the structure is implemented as a nested dictionary.
-    In the case of LH5 files the structure is implemented as above.
+    The top-level group is named after the detector. A file can hold more than
+    one detector, each validated on its own.
+
+    This structure can either be implemented in LH5 files or in the text
+    formats read by :func:`dbetto.utils.load_dict`, i.e. YAML and JSON. In the
+    case of LH5 files the structure is implemented as above, in the case of
+    text files as a nested dictionary.
 
     This represents a 2D scan of the simulation over `M` slopes and `N`
-    depletion voltage parameters. For each combination an arbitrary data object.
-    This format only defines the grid structure the only requirement on the underlying data
-    structs is that they should all have the same structure.
+    depletion voltage parameters, with an arbitrary data object for each
+    combination. This format only defines the grid structure: the only
+    requirement on the underlying data structs is that they should all have the
+    same structure.
+
+    The groups are numbered from 1 in scan order, so the values behind `slope_i`
+    and `dep_j` are `slope_min + (i - 1) * slope_step` and
+    `dep_min + (j - 1) * dep_step`, with `grid_info` giving the grid in physical
+    units:
+
+    - `dep_min` and `dep_step` are depletion voltages in V. They are stored as
+      absolute values, while the scan settings that generate them are given as
+      shifts relative to the operational voltage of the detector, see
+      :ref:`psl-scan-settings-meta`.
+    - `slope_min` and `slope_step` are dimensionless scaling factors applied to
+      the non-constant part of the impurity profile.
 
     Parameters
     ----------
     file
-        Path to the LH5 file to validate.
+        Path to the LH5, YAML or JSON file to validate.
     detector
         Name of the detector to validate in the file.
     """
     suffix = Path(file).suffix
+    # the text formats dbetto can read, i.e. YAML and JSON
+    text_suffixes = {
+        ext for exts in dbetto.utils.__file_extensions__.values() for ext in exts
+    }
 
     if suffix == ".lh5":
 
-        def list_func(file, field):
-            return lh5.ls(file, field)
+        def list_fields(group: str) -> list[str]:
+            return lh5.ls(file, f"{group}/")
 
-    fields = list_func(file, f"{detector}/")
+    elif suffix in text_suffixes:
+        contents = dbetto.utils.load_dict(file)
+
+        def list_fields(group: str) -> list[str]:
+            node = contents
+            for part in group.split("/"):
+                if not isinstance(node, Mapping):
+                    return []
+                node = node.get(part, {})
+            return (
+                [f"{group}/{key}" for key in node] if isinstance(node, Mapping) else []
+            )
+
+    else:
+        msg = (
+            f"Cannot validate '{file}': expected a .lh5 file or one of "
+            f"{sorted(text_suffixes)}"
+        )
+        raise ValueError(msg)
+
+    fields = list_fields(detector)
 
     if f"{detector}/grid_info" not in fields:
         msg = f"Missing 'grid_info' group in {detector} of {file}"
         log.info(msg)
         return False
-    grid_info_fields = [
-        f.split("/")[-1] for f in list_func(file, f"{detector}/grid_info/")
-    ]
+
+    grid_info_fields = {f.split("/")[-1] for f in list_fields(f"{detector}/grid_info")}
     required_grid_info_fields = {"dep_min", "dep_step", "slope_min", "slope_step"}
-    missing_fields = required_grid_info_fields - set(grid_info_fields)
+    missing_fields = required_grid_info_fields - grid_info_fields
 
     if missing_fields:
         msg = f"Missing fields in 'grid_info' of {detector} in {file}: {missing_fields}"
@@ -106,14 +140,20 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
 
     if f"{detector}/psl_scan" not in fields:
         msg = f"Missing 'psl_scan' group in {detector} of {file}"
-        raise ValueError(msg)
-    slope_fields = list_func(file, f"{detector}/psl_scan/")
+        log.info(msg)
+        return False
+
+    slope_fields = list_fields(f"{detector}/psl_scan")
+    if not slope_fields:
+        msg = f"No slope groups in 'psl_scan' of {detector} in {file}"
+        log.info(msg)
+        return False
+
     dep_fields = [
-        [d.split("/")[-1] for d in list_func(file, f"{slope}/")]
-        for slope in slope_fields
+        [d.split("/")[-1] for d in list_fields(slope)] for slope in slope_fields
     ]
 
-    if not all(dep == dep_fields[0] for dep in dep_fields):
+    if not all(dep and dep == dep_fields[0] for dep in dep_fields):
         msg = f"Missing 'dep' groups in some slopes of {detector} in {file}"
         log.info(msg)
         return False
@@ -124,8 +164,9 @@ def validate_ssd_scan_grid(file: str, detector: str) -> bool:
 def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
     """Compare two pulse-shape library scan files.
 
-    This function compares the structure and content of two lh5 files containing pulse-shape library scans.
-    It checks for the presence of the same detector, the same slope and depletion voltage parameters.
+    This function compares the structure and content of two LH5 files
+    containing pulse-shape library scans. It checks for the presence of the
+    same detector, the same slope and depletion voltage parameters.
 
     Parameters
     ----------
@@ -134,8 +175,9 @@ def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
     file2
         Path to the second LH5 file to compare.
     detector
-        Name of the detector to compare in both lh5 files.
+        Name of the detector to compare in both LH5 files.
     """
+    raise NotImplementedError
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
@@ -143,7 +185,6 @@ def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
 
     Estimated as the mode of the distribution of
     the maximum amplitude of each waveform.
-
 
     Parameters
     ----------
@@ -413,10 +454,10 @@ def process_ideal_waveforms(
     dt: float,
     alignment_idx: int,
     nsamples_output: int,
-    mw_pars: dict[str, int],
-    dt_data: float,
+    mw_pars: Mapping[str, int] | None = None,
+    dt_data: float = 16.0,
     return_mode: str = "current",
-    dtype: np.dtype = WF_DTYPE,
+    dtype: DTypeLike = np.float32,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply electronics response and DSP chain to ideal charge waveforms.
 
@@ -436,13 +477,17 @@ def process_ideal_waveforms(
     nsamples_output
         Length of the output waveforms.
     mw_pars
-        MWA parameters: ``length``, ``num_mw``, ``mw_type``.
+        MWA parameters: ``length``, ``num_mw``, ``mw_type``. Defaults to the
+        settings of the LEGEND-200 production DSP chain.
     dt_data
-        Data sampling time step in ns.
+        Data sampling time step in ns. Defaults to the LEGEND-200 digitizer
+        period.
     return_mode
         Whether to extract the "current" or the "charge" waveform.
     dtype
-        Floating-point type used throughout the processing chain.
+        Floating-point type used throughout the processing chain. float32 is
+        more than enough for the ~1% A/E it feeds and halves the library
+        footprint.
 
     Returns
     -------
@@ -453,6 +498,9 @@ def process_ideal_waveforms(
         alignment, shape ``(n_wfs,)``.
 
     """
+    if mw_pars is None:
+        mw_pars = {"length": 48, "num_mw": 3, "mw_type": 0}
+
     convolved = ak.to_numpy(
         apply_electronics_response(
             np.asarray(wfs, dtype=dtype), rf_kernel.astype(dtype, copy=False)
@@ -499,9 +547,9 @@ def make_realistic_pulse_shape_lib(
     rf_kernel: np.ndarray,
     alignment_idx: int,
     nsamples_output_current_wfs: int,
-    mw_pars: dict[str, float | int],
-    dt_data: float = 1.0,
-    dtype: np.dtype = WF_DTYPE,
+    mw_pars: Mapping[str, int] | None = None,
+    dt_data: float = 16.0,
+    dtype: DTypeLike = np.float32,
     *,
     kernel_t0_idx: int,
 ) -> dict[str, Array | Scalar]:
@@ -534,19 +582,22 @@ def make_realistic_pulse_shape_lib(
     nsamples_output_current_wfs
         The total length of the resulting aligned current waveforms
     mw_pars
-        Dictionary of parameters for the moving window average step, with keys:
+        Parameters for the moving window average step, with keys:
 
         - length: The length of the moving window (in samples)
         - num_mw: The number of moving windows to use in the moving window
           average
         - mw_type: The type of moving window to apply (see
           ``dspeed.processors.moving_window_multi`` for details)
+
+        Defaults to the settings of the LEGEND-200 production DSP chain.
     dt_data
         The time step of the original data waveforms (in ns), used to scale
-        the derivative.
+        the derivative. Defaults to the LEGEND-200 digitizer period.
     dtype
         Floating-point type of the waveform and drift-time samples, both in
-        memory and in the output library.
+        memory and in the output library. float32 is more than enough for the
+        ~1% A/E it feeds and halves the library footprint.
     kernel_t0_idx
         Index of ``t=0`` in `rf_kernel`, ``-2 * kernel_start`` for
         :func:`build_electronics_response_kernel`.

@@ -5,25 +5,17 @@ authors = ["Luigi Pertoldi <gipert@pm.me>", "Toby Dixon <toby.dixon.23@ucl.ac.uk
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
-BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 LegendDataManagement = "9feedd95-f0e0-423f-a8dc-de0970eae6b3"
 LegendHDF5IO = "c9265ca6-b027-5446-b1a4-febfa8dd10b0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-PProf = "e4faabce-9ead-11e9-39d9-4379958e3056"
-Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-ProfileView = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
 PropDicts = "4dc08600-4268-439e-8673-d706fafbb426"
 SolidStateDetectors = "71e43887-2bd9-5f77-aebd-47f656f0a3f0"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
-BenchmarkTools = "1.8.0"
 LegendDataManagement = "=0.6.7"
 LegendHDF5IO = "=0.1.18"
-PProf = "3.2.0"
-Plots = "1.41.7"
-ProfileView = "1.10.3"
 SolidStateDetectors = "=0.11.4"
 
 [extras]

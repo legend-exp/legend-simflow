@@ -693,6 +693,10 @@ slope: "-0.9:0.2:3.0"
 The scan cost is the product of the two range lengths, so the defaults above are
 $50 \times 20 = 1000$ detector simulations.
 
+`depv_shift` is relative, but the scan file stores the resulting depletion
+voltages as absolute values in V. See
+{func}`legendsimflow.psl.validate_ssd_scan_grid` for the layout of that file.
+
 (eresmod-metadata-dir)=
 
 ### Energy resolution model defaults

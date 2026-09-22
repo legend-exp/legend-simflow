@@ -251,9 +251,6 @@ def test_make_realistic_pulse_shape_lib():
     assert output["drift_time_0"].view_as("np").shape == (3,)
 
 
-_MW_PARS = {"length": 48, "num_mw": 3, "mw_type": 0}
-
-
 def test_make_realistic_pulse_shape_lib_nan_propagation():
     # Build a 2D waveform map (n_r=3, n_z=4) where one pixel is NaN
     rng = np.random.default_rng(0)
@@ -270,7 +267,7 @@ def test_make_realistic_pulse_shape_lib_nan_propagation():
 
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, kernel_t0_idx=200
+        ideal_psl, kernel, 500, 1000, kernel_t0_idx=200
     )
 
     out_wfs = output["waveform_0"].view_as("np")
@@ -307,7 +304,7 @@ def test_make_realistic_pulse_shape_lib_3d():
 
     kernel = psl.build_electronics_response_kernel(1, 0, 100, 100)
     output = psl.make_realistic_pulse_shape_lib(
-        ideal_psl, kernel, 500, 1000, mw_pars=_MW_PARS, kernel_t0_idx=200
+        ideal_psl, kernel, 500, 1000, kernel_t0_idx=200
     )
 
     assert output["waveform_0"].view_as("np").shape == (n_r, n_z, n_samples)
@@ -331,7 +328,6 @@ def test_make_realistic_pulse_shape_lib_dtype(dtype):
         kernel,
         500,
         1000,
-        mw_pars=_MW_PARS,
         kernel_t0_idx=200,
         **kwargs,
     )
@@ -411,8 +407,6 @@ def test_process_ideal_waveforms():
         dt,
         alignment_idx,
         n_out,
-        mw_pars=psl.MW_PARS,
-        dt_data=psl.DT_DATA,
     )
 
     assert aligned.shape == (3, n_out)
@@ -473,9 +467,9 @@ def test_make_realistic_pulse_shape_lib_drift_time_origin():
         kernel,
         1000,
         2001,
-        mw_pars=psl.MW_PARS,
         kernel_t0_idx=200,
     )
     drift = out["drift_time_000_deg"].view_as("np")[0]
     assert np.all(np.diff(drift) > 0)
-    assert np.all((drift - steps >= 0) & (drift - steps <= 3 * psl.MW_PARS["length"]))
+    # 3 * 48: num_mw * length of the default moving-window average
+    assert np.all((drift - steps >= 0) & (drift - steps <= 3 * 48))

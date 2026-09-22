@@ -209,8 +209,6 @@ def cost_fixture():
         dt,
         alignment_idx,
         n_out,
-        mw_pars=psl.MW_PARS,
-        dt_data=psl.DT_DATA,
     )
     data_wf = np.mean(processed, axis=0)
     data_time = (np.arange(n_out) - alignment_idx) * dt

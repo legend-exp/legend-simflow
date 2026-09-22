@@ -677,14 +677,15 @@ function compute_ideal_pulse_shape_lib(
 
         e = SSD.Event([p], [sim_energy])
 
-        e.drift_paths = SolidStateDetectors._drift_charges(sim.detector, 
-                            sim.point_types.grid, 
-                            sim.point_types,  
-                            e.locations, 
-                            e.energies, 
-                            ivf, 
-                            time_step)
-        
+        e.drift_paths = SolidStateDetectors._drift_charges(sim.detector,
+            sim.point_types.grid,
+            sim.point_types,
+            e.locations,
+            e.energies,
+            ivf,
+            time_step,
+            max_nsteps = max_nsteps)
+
         SolidStateDetectors.get_signals!(e, sim)
 
         if only_holes
@@ -806,7 +807,8 @@ function compute_drift_time_map(
             event.locations,
             event.energies,
             ivf,
-            1.0u"ns"
+            time_step,
+            max_nsteps = max_nsteps
         )
         SolidStateDetectors.get_signals!(event, sim)
 
