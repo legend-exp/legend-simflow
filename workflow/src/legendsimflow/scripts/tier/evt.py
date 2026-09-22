@@ -60,6 +60,7 @@ VALID_PSD = encode_psd_usability("valid")
         ),
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
+        "daq_rawid_file": "input.daq_rawid",
         "jobid": "wildcards.jobid",
         "simid": "wildcards.simid",
         "evt_file": "output[0]",
@@ -88,6 +89,11 @@ def main() -> None:
         "--usability-file",
         required=True,
         help="detector usability YAML file",
+    )
+    parser.add_argument(
+        "--daq-rawid-file",
+        required=True,
+        help="detector DAQ rawid YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
     parser.add_argument(
@@ -155,6 +161,7 @@ def main() -> None:
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
+    daq_rawid_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.daq_rawid_file)))
 
     # get the psd settings
     tier_hit_settings = get_tier_settings(config, "hit")
@@ -352,6 +359,14 @@ def main() -> None:
                 rc_index_lookup = spms_pars.build_rc_evt_index_lookup(
                     rc_evt_files, mode=rc_mode
                 )
+
+            # the RC channels carry the DAQ rawids of the run they are drawn
+            # from: map them to the simulation uids through the channel names
+            rc_uid_of_rawid = {
+                rawid: det2uid["opt"][name]
+                for name, rawid in daq_rawid_map[rc_runid or runid].items()
+                if name in det2uid["opt"]
+            }
             # state is reset per partition so RC events are drawn independently
             # for each run slice
             rc_file_state: dict = {}
@@ -632,16 +647,17 @@ def main() -> None:
                             len(unified_tcm),
                             rc_index_lookup,
                         )
-                    # FIXME: this assertion fails because we haven't thought about
-                    # cases when there is a DAQ recabling without hardware changes.
-                    # right now this fails with p18 because SiPMs were recabled.
-                    #
-                    # assert rawid alignment: RC and simulation must use the same
-                    # channel ordering (both are ascending by UID)
-                    # assert ak.to_list(rc_chunk.rawid[0]) == on_spms_uids, (
-                    #     "RC rawid does not match simulation spms/rawid: "
-                    #     f"{rc_chunk.rawid[0].to_list()} != {on_spms_uids}"
-                    # )
+                    try:
+                        rc_chunk = spms_pars.reorder_rc_channels(
+                            rc_chunk, rc_uid_of_rawid, on_spms_uids
+                        )
+                    except ValueError as e:
+                        msg = (
+                            f"RC data of {rc_runid or runid} does not match the "
+                            f"non-OFF SiPM channels of {runid}"
+                        )
+                        raise RuntimeError(msg) from e
+
                     out_table.add_field(
                         "spms/rc_energy",
                         VectorOfVectors(ak.values_astype(rc_chunk.npe, np.float32)),

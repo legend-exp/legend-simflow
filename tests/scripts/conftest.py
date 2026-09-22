@@ -468,6 +468,8 @@ def legend_evt_path(
         str(legend_simstat_part_path),
         "--usability-file",
         str(legend_detector_usabilities_path / "usability.yaml"),
+        "--daq-rawid-file",
+        str(legend_detector_usabilities_path / "daq_rawid.yaml"),
         "--jobid",
         "0000",
         "--evt-file",
