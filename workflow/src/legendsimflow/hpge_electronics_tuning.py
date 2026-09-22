@@ -682,8 +682,7 @@ def plot_scan_maps(
     grid_info
         Grid definition, with keys ``slope_min``, ``slope_step``, ``dep_min``
         and ``dep_step``. The value of a group is ``min + index * step``, with
-        the index taken from the group name relative to the smallest index in
-        the scan.
+        the index read from the group name.
     detector_name
         Detector name for the figure title.
 
@@ -699,14 +698,8 @@ def plot_scan_maps(
         msg = "no fitted grid points to plot"
         raise ValueError(msg)
 
-    slopes = (
-        grid_info["slope_min"]
-        + (np.array(slope_idx) - slope_idx[0]) * grid_info["slope_step"]
-    )
-    depvs = (
-        grid_info["dep_min"]
-        + (np.array(depv_idx) - depv_idx[0]) * grid_info["dep_step"]
-    )
+    slopes = grid_info["slope_min"] + np.array(slope_idx) * grid_info["slope_step"]
+    depvs = grid_info["dep_min"] + np.array(depv_idx) * grid_info["dep_step"]
 
     row = {idx: i for i, idx in enumerate(slope_idx)}
     col = {idx: j for j, idx in enumerate(depv_idx)}

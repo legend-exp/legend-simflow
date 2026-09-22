@@ -101,9 +101,9 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
     # the scan grid is pinned by scan_settings.yaml, slope "-1:1:0" and
     # depv_shift "-500:450:-50", so both dimensions are two points wide
     assert names("V05261B/") == {"psl_scan", "grid_info"}
-    assert names("V05261B/psl_scan/") == {"slope_1", "slope_2"}
-    assert names("V05261B/psl_scan/slope_1/") == {"dep_1", "dep_2"}
-    assert names("V05261B/psl_scan/slope_1/dep_1/") == {
+    assert names("V05261B/psl_scan/") == {"slope_0", "slope_1"}
+    assert names("V05261B/psl_scan/slope_0/") == {"dep_0", "dep_1"}
+    assert names("V05261B/psl_scan/slope_0/dep_0/") == {
         "r",
         "z",
         "dt",
@@ -120,10 +120,10 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
     # writing the same detector over and over. equal_nan is required: a quarter
     # of every map is the NaN padding outside the detector, and without it
     # array_equal is False even for a map compared against itself
-    assert not np.array_equal(waveform(1, 1), waveform(2, 1), equal_nan=True), (
+    assert not np.array_equal(waveform(0, 0), waveform(1, 0), equal_nan=True), (
         "the impurity slope does not change the waveforms"
     )
-    assert not np.array_equal(waveform(1, 1), waveform(1, 2), equal_nan=True), (
+    assert not np.array_equal(waveform(0, 0), waveform(0, 1), equal_nan=True), (
         "the depletion voltage does not change the waveforms"
     )
 

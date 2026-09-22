@@ -183,7 +183,7 @@ function main()
     # every scan point is written as soon as it is computed and then dropped,
     # so only one pulse shape library is held in memory at a time
     lh5open(output_file, "cw") do f
-        for (sidx, slope) in enumerate(slopes)
+        for (sidx, slope) in zip(0:(length(slopes) - 1), slopes)
 
             t0 = time()
             xtal.impurity_curve.parameters = adjust_impurity_pars(base_xtal.impurity_curve.parameters, slope)
@@ -203,7 +203,7 @@ function main()
 
             time_setup += time() - t0
 
-            for (didx, depv_shift) in enumerate(depv_shifts)
+            for (didx, depv_shift) in zip(0:(length(depv_shifts) - 1), depv_shifts)
                 depv = opv_val + depv_shift
 
                 t0 = time()
@@ -248,9 +248,9 @@ function main()
         # writing point by point leaves every group above a point without a
         # datatype attribute, which makes the file unreadable as LH5. Label them
         # by hand: only the field names go into the attribute
-        dep_names = Tuple(Symbol("dep_$didx") for didx in eachindex(depv_shifts))
-        slope_names = Tuple(Symbol("slope_$sidx") for sidx in eachindex(slopes))
-        for sidx in eachindex(slopes)
+        dep_names = Tuple(Symbol("dep_$didx") for didx in 0:(length(depv_shifts) - 1))
+        slope_names = Tuple(Symbol("slope_$sidx") for sidx in 0:(length(slopes) - 1))
+        for sidx in 0:(length(slopes) - 1)
             setdatatype!(f.data_store["$det/psl_scan/slope_$sidx"], NamedTuple{dep_names})
         end
         setdatatype!(f.data_store["$det/psl_scan"], NamedTuple{slope_names})

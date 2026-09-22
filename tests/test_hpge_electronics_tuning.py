@@ -268,12 +268,12 @@ def test_get_ideal_wfs_all_slices():
     assert "nsamples_output" in ideal_wfs
 
 
-def _make_scan(index_base, skip=()):
-    """Fit results on a 3 x 4 grid, named from *index_base* (0 or 1)."""
+def _make_scan(skip=()):
+    """Fit results on a 3 x 4 grid, groups numbered from 0."""
     scan = {}
-    for i in range(index_base, index_base + 3):
+    for i in range(3):
         scan[f"slope_{i}"] = {}
-        for j in range(index_base, index_base + 4):
+        for j in range(4):
             if (i, j) in skip:
                 continue
             scan[f"slope_{i}"][f"dep_{j}"] = {
@@ -292,10 +292,8 @@ GRID_INFO = {
 }
 
 
-@pytest.mark.parametrize("index_base", [0, 1])
-def test_plot_scan_maps_axes_are_physical(index_base):
-    """Group indices may be 0- or 1-based, the axes must not shift with them."""
-    fig, axes = plot_scan_maps(_make_scan(index_base), GRID_INFO, detector_name="V99")
+def test_plot_scan_maps_axes_are_physical():
+    fig, axes = plot_scan_maps(_make_scan(), GRID_INFO, detector_name="V99")
 
     assert len(axes) == 3
 
@@ -310,8 +308,17 @@ def test_plot_scan_maps_axes_are_physical(index_base):
     plt.close(fig)
 
 
+def test_plot_scan_maps_axes_follow_the_group_index():
+    """Dropping the first depletion voltage must shift the axis, not the grid."""
+    fig, axes = plot_scan_maps(_make_scan(skip=[(i, 0) for i in range(3)]), GRID_INFO)
+
+    assert axes[0].get_xlim() == pytest.approx((3010.0, 3070.0))
+
+    plt.close(fig)
+
+
 def test_plot_scan_maps_marks_lowest_residual():
-    fig, axes = plot_scan_maps(_make_scan(0), GRID_INFO)
+    fig, axes = plot_scan_maps(_make_scan(), GRID_INFO)
 
     # rms grows with both indices, so the minimum is the first grid point
     for ax in axes:
@@ -323,7 +330,7 @@ def test_plot_scan_maps_marks_lowest_residual():
 
 
 def test_plot_scan_maps_leaves_skipped_points_blank():
-    fig, axes = plot_scan_maps(_make_scan(0, skip=((1, 2),)), GRID_INFO)
+    fig, axes = plot_scan_maps(_make_scan(skip=((1, 2),)), GRID_INFO)
 
     grid = axes[0].collections[0].get_array().reshape(3, 4)
     assert np.ma.is_masked(grid[1, 2])

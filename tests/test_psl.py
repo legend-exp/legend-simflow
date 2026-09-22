@@ -493,8 +493,8 @@ def _valid_scan():
                 "slope_step": 1.0,
             },
             "psl_scan": {
-                "slope_1": {"dep_1": point, "dep_2": point},
-                "slope_2": {"dep_1": point, "dep_2": point},
+                "slope_0": {"dep_0": point, "dep_1": point},
+                "slope_1": {"dep_0": point, "dep_1": point},
             },
         }
     }
@@ -515,7 +515,7 @@ def test_validate_ssd_scan_grid(tmp_path):
         lambda scan: scan["V99000A"]["grid_info"].pop("dep_step"),
         lambda scan: scan["V99000A"].pop("psl_scan"),
         lambda scan: scan["V99000A"]["psl_scan"].clear(),
-        lambda scan: scan["V99000A"]["psl_scan"]["slope_2"].pop("dep_2"),
+        lambda scan: scan["V99000A"]["psl_scan"]["slope_1"].pop("dep_1"),
     ],
     ids=["no-grid-info", "no-dep-step", "no-psl-scan", "no-slopes", "ragged-slopes"],
 )
