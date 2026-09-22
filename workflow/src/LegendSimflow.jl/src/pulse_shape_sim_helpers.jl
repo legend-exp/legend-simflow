@@ -608,7 +608,8 @@ end
 
 
 """
-    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, grid_size, padding)
+    compute_ideal_pulse_shape_lib(sim, meta, T, angle_deg, only_holes, grid_size, padding;
+                                  time_step, max_nsteps)
 
 Compute a 2D pulse_shape_library (r, z ideal_waveform) at a specified azimuthal angle.
 
@@ -627,6 +628,9 @@ edge effects (see `extend_pulse_shape_lib()`).
 - `grid_size`: Grid spacing in meters
 - `padding`: Number of pixel layers used to pad the map and avoid grid edge
   effects (see `extend_pulse_shape_lib()`)
+- `time_step`: Drift time step, also the sampling period of the waveforms
+- `max_nsteps`: Maximum number of drift steps per charge carrier. A carrier
+  that has not reached an electrode after `time_step * max_nsteps` is dropped
 
 # Returns
 - `NamedTuple`: Contains `:r`, `:z`, `:dt` axes and `:waveform_XXX_deg` 3D array
@@ -639,7 +643,9 @@ function compute_ideal_pulse_shape_lib(
     angle_deg::Real,
     only_holes::Bool,
     grid_size::Real,
-    padding::Int
+    padding::Int;
+    time_step::Unitful.Time = 1u"ns",
+    max_nsteps::Int = 4000
 )::NamedTuple
     @info "Computing waveform map at angle $angle_deg deg..."
 
@@ -648,9 +654,7 @@ function compute_ideal_pulse_shape_lib(
 
     # Simulation parameters
     sim_energy = 2039u"keV"
-    max_nsteps = 4000
     waveform_length = 4000
-    time_step = 1u"ns"
 
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
@@ -684,7 +688,8 @@ function compute_ideal_pulse_shape_lib(
             e.energies,
             ivf,
             time_step,
-            max_nsteps = max_nsteps)
+            max_nsteps = max_nsteps,
+            verbose = false)
 
         SolidStateDetectors.get_signals!(e, sim)
 
@@ -808,7 +813,8 @@ function compute_drift_time_map(
             event.energies,
             ivf,
             time_step,
-            max_nsteps = max_nsteps
+            max_nsteps = max_nsteps,
+            verbose = false
         )
         SolidStateDetectors.get_signals!(event, sim)
 
