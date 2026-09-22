@@ -324,7 +324,7 @@ def main() -> None:
             )
             break
 
-    n_tot = sum([read_n_rows(f"{det}/stp", stp_file) for stp_file in files])
+    n_tot = sum([read_n_rows(f"stp/{det}", stp_file) for stp_file in files])
     log.info(
         "computed drift times for %d events above %d keV, out of %d read out of a possible %d events",
         n_used,
