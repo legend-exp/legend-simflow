@@ -645,7 +645,7 @@ function compute_ideal_pulse_shape_lib(
     grid_size::Real,
     padding::Int;
     time_step::Unitful.Time = 1u"ns",
-    max_nsteps::Int = 4000
+    max_nsteps::Int = 5000
 )::NamedTuple
     @info "Computing waveform map at angle $angle_deg deg..."
 
@@ -654,7 +654,7 @@ function compute_ideal_pulse_shape_lib(
 
     # Simulation parameters
     sim_energy = 2039u"keV"
-    waveform_length = 4000
+    waveform_length = max_nsteps
 
     radius = meta.geometry.radius_in_mm / 1000
     height = meta.geometry.height_in_mm / 1000
