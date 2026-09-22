@@ -105,7 +105,7 @@ def main() -> None:
                 aoe_data: 1.4      # A/E of data and simulation, only with plots
                 aoe_mc: 1.3
             dep_1: ...
-        info: ...              # copy of the grid definition above
+        grid_info: ...              # copy of the grid definition above
         best_fit:              # copy of the point with the smallest rms,
           ...                  # with the indices it was found at
           slope: slope_1

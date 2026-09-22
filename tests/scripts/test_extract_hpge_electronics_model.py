@@ -207,7 +207,7 @@ def test_make_ideal_psl_scan(tmp_path):
     info["dep_min"] = Scalar(500)
     info["dep_step"] = Scalar(300 / 3)
 
-    output = {"psl_scan": Struct(out), "info": Struct(info)}
+    output = {"psl_scan": Struct(out), "grid_info": Struct(info)}
 
     lh5.write(Struct(output), DETECTOR, ideal_psl, wo_mode="of")
 
@@ -260,7 +260,7 @@ def test_extract_electronics_model_scan_cli_with_data(
     pars = dbetto.AttrsDict(yaml.safe_load(pars_file.read_text()))
 
     assert "best_fit" in pars
-    assert "info" in pars
+    assert "grid_info" in pars
 
     # check the returned structure
     psl_scan = lh5.read(DETECTOR, str(test_make_ideal_psl_scan))
