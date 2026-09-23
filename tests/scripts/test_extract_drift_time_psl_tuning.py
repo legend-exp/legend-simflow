@@ -117,7 +117,7 @@ def test_drift_time_cli(
     assert "weight" in out
 
     assert all(
-        len(out.psl_scan[s][d].view_as("ak")) == len(out.energy.view_as("ak"))
+        len(out.psl_scan[s][d].drift_time.view_as("ak")) == len(out.energy.view_as("ak"))
         for s in out.psl_scan
         for d in out.psl_scan[s]
     )
