@@ -185,10 +185,10 @@ def compare_psl_scans(file1: str, file2: str, detector: str) -> bool:
     raise NotImplementedError
 
 
-def load_ideal_psl_scan(
+def lookup_ideal_psl_scan_groups(
     psl_file: str,
-) -> tuple[dict[str, dict[str, Struct]], Struct]:
-    """Read a scan of ideal pulse-shape libraries from an LH5 file.
+) -> tuple[dict[str, dict[str, str]], Struct]:
+    """Lookup the groups for a scan of ideal pulse-shape libraries from an LH5 file.
 
     The file must hold exactly one detector, laid out on the two-dimensional
     grid of impurity-curve slope and depletion voltage described in
@@ -202,8 +202,8 @@ def load_ideal_psl_scan(
 
     Returns
     -------
-    ideal_psls
-        Ideal pulse-shape libraries, keyed first by slope group and then by
+    ideal_psls_groups
+        Group names for ideal pulse-shape libraries, keyed first by slope group and then by
         depletion-voltage group.
     grid_info
         Contents of the ``grid_info`` group, i.e. the start value and the step
@@ -226,18 +226,15 @@ def load_ideal_psl_scan(
 
         for depv in depv_groups:
             depv_name = depv.split("/")[-1]
-            output[slope][depv_name] = lh5.read(
-                f"{det}/psl_scan/{slope}/{depv_name}",
-                psl_file,
-            )
+            output[slope][depv_name] = f"{det}/psl_scan/{slope}/{depv_name}"
 
     grid_info = lh5.read(f"{det}/grid_info", psl_file)
 
     return output, grid_info
 
 
-def convolve_elecmod_scan(
-    ideal_psls: Mapping[str, Mapping[str, Mapping[str, Array | Scalar]]],
+def convolve_elecmod(
+    ideal_psl: Struct,
     sigma: float,
     tau: float,
     alignment_idx: int = 1000,
@@ -246,23 +243,21 @@ def convolve_elecmod_scan(
     dt_data: float = 16,
     angle: str = "000",
 ) -> tuple[
-    dict[str, dict[str, HPGePulseShapeLibrary]],
-    dict[str, dict[str, dict[int, HPGeRZField]]],
+    dict[str, HPGePulseShapeLibrary],
+    dict[str, dict[int, HPGeRZField]],
 ]:
     """Turn a scan of ideal pulse-shape libraries into realistic ones.
 
-    Runs :func:`make_realistic_pulse_shape_lib` at every point of the grid
-    returned by :func:`load_ideal_psl_scan`, with the electronics response
-    kernel built by :func:`build_electronics_response_kernel` from the same
-    `sigma` and `tau` at every point. The waveforms of each library are then
+    Runs :func:`make_realistic_pulse_shape_lib` for the `ideal_psl`
+    with the electronics response kernel built by :func:`build_electronics_response_kernel`.
+    The waveforms of each library are then
     divided by their average A/E (see :func:`get_avg_aoe`), so that the
     normalization does not depend on the grid point.
 
     Parameters
     ----------
     ideal_psls
-        Ideal pulse-shape libraries, keyed first by slope group and then by
-        depletion-voltage group, as returned by :func:`load_ideal_psl_scan`.
+        Ideal pulse-shape library
     sigma
         Standard deviation of the Gaussian modelling the digitizer bandwidth,
         in ns.
@@ -287,18 +282,13 @@ def convolve_elecmod_scan(
     Returns
     -------
     psls
-        Realistic pulse-shape libraries, keyed first by slope group and then by
-        depletion-voltage group.
+        Realistic pulse-shape library.
     dt_maps
-        Drift-time maps in ns over the (r, z) plane, keyed first by slope
-        group, then by depletion-voltage group, then by crystal-axis angle in
+        Drift-time maps in ns over the (r, z) plane keyed by crystal-axis angle in
         degrees. This is the layout
         :func:`reboost.hpge.drift_time_crystal_axes` expects.
     """
     kernel_start = -100
-
-    psls = {}
-    dt_maps = {}
 
     rf_kernel = build_electronics_response_kernel(
         1.0,
@@ -308,44 +298,38 @@ def convolve_elecmod_scan(
         kernel_start=kernel_start,
     )
 
-    for slope, depv_psls in ideal_psls.items():
-        psls[slope] = {}
-        dt_maps[slope] = {}
+    realistic_dict = make_realistic_pulse_shape_lib(
+        ideal_psl,
+        rf_kernel,
+        alignment_idx,
+        n_samples,
+        mw_pars=mw_pars,
+        dt_data=dt_data,
+        dtype=np.float32,
+        kernel_t0_idx=-2 * kernel_start,
+    )
 
-        for depv, ideal_psl in depv_psls.items():
-            realistic_dict = make_realistic_pulse_shape_lib(
-                ideal_psl,
-                rf_kernel,
-                alignment_idx,
-                n_samples,
-                mw_pars=mw_pars,
-                dt_data=dt_data,
-                dtype=np.float32,
-                kernel_t0_idx=-2 * kernel_start,
-            )
+    _, mean_aoe = get_avg_aoe(
+        [realistic_dict[k] for k in realistic_dict if "waveform" in k]
+    )
 
-            _, mean_aoe = get_avg_aoe(
-                [realistic_dict[k] for k in realistic_dict if "waveform" in k]
-            )
+    for key in realistic_dict:
+        if "waveform" in key:
+            realistic_dict[key] = Array(realistic_dict[key].view_as("np") / mean_aoe)
 
-            for key in realistic_dict:
-                if "waveform" in key:
-                    realistic_dict[key] = Array(
-                        realistic_dict[key].view_as("np") / mean_aoe
-                    )
+    realistic_dict = make_hpge_pulse_shape_library(
+        realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
+    )
 
-            psls[slope][depv] = make_hpge_pulse_shape_library(
-                realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
-            )
-            # drift_time_crystal_axes() interpolates these on the (r, z) grid
-            dt_maps[slope][depv] = {
-                axis: make_hpge_rz_field(
-                    realistic_dict, f"drift_time_{axis:03d}_deg", bounds_error=False
-                )
-                for axis in (0, 45)
-            }
+    # drift_time_crystal_axes() interpolates these on the (r, z) grid
+    dt_map = {
+        axis: make_hpge_rz_field(
+            realistic_dict, f"drift_time_{axis:03d}_deg", bounds_error=False
+        )
+        for axis in (0, 45)
+    }
 
-    return psls, dt_maps
+    return realistic_dict, dt_map
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:

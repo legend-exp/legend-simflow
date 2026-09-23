@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 
+import dbetto
 import numpy as np
 from iminuit import Minuit
 from lgdo import Struct
@@ -37,6 +38,37 @@ from legendsimflow import psl
 from legendsimflow.superpulses import Slice, Superpulse
 
 log = logging.getLogger(__name__)
+
+
+def load_elecmod(file: str, key: str) -> tuple[float, float]:
+    """Read the electronics parameters from a parameter file.
+
+    Parameters
+    ----------
+    file
+        Path to the parameter file.
+    key
+        Key in the parameter file, e.g. ``"best_fit"``.
+
+    Returns
+    -------
+    sigma, tau
+        Electronics parameters in ns.
+
+    """
+    electronics_model = dbetto.utils.load_dict(file)
+    if key not in electronics_model:
+        msg = f"`{key}` not found in '{file}'"
+        raise KeyError(msg)
+    try:
+        model = electronics_model[key]
+        sigma_conv = model["sigma"]
+        tau_conv = model["tau"]
+    except KeyError as e:
+        missing_key = str(e)
+        msg = f"missing key {missing_key} in electronics-model parameters in {file}"
+        raise KeyError(msg) from e
+    return sigma_conv, tau_conv
 
 
 def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArray:

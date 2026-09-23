@@ -19,7 +19,6 @@ import argparse
 import logging
 
 import awkward as ak
-import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
@@ -31,14 +30,14 @@ import reboost.hpge
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math
-from lgdo import Scalar, Struct, Table
+from lgdo import Array, Scalar, Struct
 from lh5 import LH5Iterator
 from lh5.io import read_n_rows
-from reboost.io import _exists
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
+from legendsimflow.hpge_electronics_tuning import load_elecmod
 from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.reboost import cluster_steps, get_rz, mask_with_units
 from legendsimflow.scripts import log_script_invocation
@@ -204,30 +203,11 @@ def main() -> None:
         log.info(msg)
         fccd = 1.0
 
-    with perf_block("load_psl()"):
-        log.info("... load psls")
-
-        ideal_psls, grid_info = psl.load_ideal_psl_scan(psl_file)
-        electronics_model = dbetto.utils.load_dict(elecmod_file)
-        if "best_fit" not in electronics_model:
-            msg = f"`best_fit` not found in '{elecmod_file}'"
-            raise KeyError(msg)
-        try:
-            best_model = electronics_model["best_fit"]
-            sigma_conv = best_model["sigma"]
-            tau_conv = best_model["tau"]
-        except KeyError as e:
-            missing_key = str(e)
-            msg = f"missing key {missing_key} in electronics-model parameters in {elecmod_file}"
-            raise KeyError(msg) from e
-
-        realistic_psl, psl_dt_maps = psl.convolve_elecmod_scan(
-            ideal_psls, sigma=sigma_conv, tau=tau_conv
-        )
-
+    log.info("... extracting stps and energies")
     # loop over steps
     n_read = 0
     n_used = 0
+    stps = []
 
     for lgdo_chunk in iterator:
         chunk = lgdo_chunk.view_as("ak", with_units=True)
@@ -274,47 +254,10 @@ def main() -> None:
         # now get drift times
         log.info("... get drift times")
 
-        with perf_block("drift_time"):
-            drift_times = {}
+        chunk_new["energy_true"] = energy_true
+        chunk_new["edep_active"] = edep_active
 
-            for slope, depv_psls in realistic_psl.items():
-                drift_times[slope] = {}
-
-                for depv in depv_psls:
-                    dt_maps = psl_dt_maps[slope][depv]
-                    psl_temp = depv_psls[depv]
-
-                    _drift_time = reboost.hpge.drift_time_crystal_axes(
-                        chunk_new.xloc,
-                        chunk_new.yloc,
-                        chunk_new.zloc,
-                        dt_maps,
-                        coord_offset=det_loc[det],
-                    )
-                    _r, _z = get_rz(det_loc[det], chunk_new)
-
-                    drift_times[slope][depv] = {
-                        "drift_time": reboost.hpge.maximum_current(
-                            edep_active,
-                            _drift_time,
-                            times=None,
-                            r=_r,
-                            z=_z,
-                            template=psl_temp,
-                            return_mode="max_time",
-                        )
-                    }
-
-        if drift_times == {}:
-            out = Table(ak.Array({"energy": energy_true}))
-        else:
-            out = Table(ak.Array({"energy": energy_true, "psl_scan": drift_times}))
-
-        wo_mode = "append" if _exists(dt_file, det) else "append_column"
-        lh5.write(Struct(out), f"/{det}", dt_file, wo_mode=wo_mode)
-
-        # the drift-time loop above is the expensive part, so stop as soon as
-        # the distributions hold enough events to be fitted
+        stps.append(chunk_new)
         n_used += len(energy_true)
         if args.max_events is not None and n_used >= args.max_events:
             log.info(
@@ -323,6 +266,60 @@ def main() -> None:
                 args.max_events,
             )
             break
+
+    stps = ak.concatenate(stps)
+
+    lh5.write(
+        Struct({"energy", Array(stps.energy_true)}),
+        f"/{det}/energy",
+        dt_file,
+        wo_mode="of",
+    )
+
+    log.info("... start extraction of drift times for %d events", n_used)
+
+    sigma, tau = load_elecmod(elecmod_file)
+
+    # lookup the psl scan groups and grid info
+    psl_groups, grid_info = psl.lookup_ideal_psl_scan_groups(psl_file)
+
+    for slope, depv_psls in psl_groups.items():
+        for depv in depv_psls:
+            with perf_block("read_psl"):
+                ideal_psl = lh5.read(depv_psls[depv], psl_file)
+
+                realistic_psl, dt_maps = psl.convolve_elecmod(
+                    ideal_psl, sigma=sigma, tau=tau
+                )
+
+            with perf_block("drift_time"):
+                _drift_time = reboost.hpge.drift_time_crystal_axes(
+                    stps.xloc,
+                    stps.yloc,
+                    stps.zloc,
+                    dt_maps,
+                    coord_offset=det_loc[det],
+                )
+                _r, _z = get_rz(det_loc[det], stps)
+
+                drift_time = {
+                    "drift_time": reboost.hpge.maximum_current(
+                        stps.edep_active,
+                        _drift_time,
+                        times=None,
+                        r=_r,
+                        z=_z,
+                        template=realistic_psl,
+                        return_mode="max_time",
+                    )
+                }
+                out = Array(drift_time)
+                lh5.write(
+                    out,
+                    f"/{det}/psl_scan/{slope}/{depv}",
+                    dt_file,
+                    wo_mode="append_column",
+                )
 
     n_tot = sum([read_n_rows(f"stp/{det}", stp_file) for stp_file in files])
     log.info(
