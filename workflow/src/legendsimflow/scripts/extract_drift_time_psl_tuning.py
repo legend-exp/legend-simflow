@@ -30,7 +30,7 @@ import reboost.hpge
 import reboost.hpge.surface
 import reboost.hpge.utils
 import reboost.math
-from lgdo import Array, Scalar, Struct
+from lgdo import Array, Scalar
 from lh5 import LH5Iterator
 from lh5.io import read_n_rows
 from snakemake_argparse_bridge import snakemake_compatible
@@ -250,7 +250,6 @@ def main() -> None:
             edep_active = edep_active[energy_true > args.energy_cut]
             energy_true = energy_true[energy_true > args.energy_cut]
 
-
         chunk_new["energy_true"] = energy_true
         chunk_new["edep_active"] = edep_active
 
@@ -277,7 +276,9 @@ def main() -> None:
 
     sigma, tau = load_elecmod(elecmod_file, "best_fit")
 
-    log.info(f"... extracted electronics pars sigma ({sigma}), tau ({tau})")
+    msg = f"... extracted electronics pars sigma ({sigma}), tau ({tau})"
+    log.info(msg)
+
     # lookup the psl scan groups and grid info
     psl_groups, grid_info = psl.lookup_ideal_psl_scan_groups(psl_file)
 
@@ -301,14 +302,14 @@ def main() -> None:
                 _r, _z = get_rz(det_loc[det], stps)
 
                 drift_time = reboost.hpge.maximum_current(
-                        stps.edep_active,
-                        _drift_time,
-                        times=None,
-                        r=_r,
-                        z=_z,
-                        template=realistic_psl,
-                        return_mode="max_time",
-                    )
+                    stps.edep_active,
+                    _drift_time,
+                    times=None,
+                    r=_r,
+                    z=_z,
+                    template=realistic_psl,
+                    return_mode="max_time",
+                )
                 out = Array(drift_time)
                 lh5.write(
                     out,
