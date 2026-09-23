@@ -243,8 +243,8 @@ def convolve_elecmod(
     dt_data: float = 16,
     angle: str = "000",
 ) -> tuple[
-    dict[str, HPGePulseShapeLibrary],
-    dict[str, dict[int, HPGeRZField]],
+    HPGePulseShapeLibrary,
+    dict[int, HPGeRZField],
 ]:
     """Turn a scan of ideal pulse-shape libraries into realistic ones.
 
