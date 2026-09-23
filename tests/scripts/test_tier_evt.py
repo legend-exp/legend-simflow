@@ -148,8 +148,7 @@ def test_evt_script_cli(
     spms_mult = _read("evt/spms/multiplicity")
     assert np.all(spms_mult >= 0), "spms/multiplicity contains negative values"
 
-    # trigger/timestamp is the time since the primary decay, which can be hours
-    # long: float32 would round it to about 0.1 ms
+    # float64: time since the primary decay, can be hours
     timestamp = _read("evt/trigger/timestamp")
     assert timestamp.dtype == np.float64, (
         f"trigger/timestamp dtype should be float64, got {timestamp.dtype}"
