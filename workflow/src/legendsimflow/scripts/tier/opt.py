@@ -259,8 +259,10 @@ def main() -> None:
             with perf_block("write_hit_table_chunk()"):
                 out_table = reboost.init_hit_table(lgdo_chunk)
 
+                # relative to the hit t0, subtracted in float64
+                pe_times = pe_times - out_table.t0.view_as("ak")
                 out_table.add_field(
-                    "time",
+                    "dt",
                     VectorOfVectors(
                         ak.values_astype(pe_times, np.float32), attrs={"units": "ns"}
                     ),

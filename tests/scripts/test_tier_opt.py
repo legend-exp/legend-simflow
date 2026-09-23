@@ -65,12 +65,14 @@ def test_opt_script_cli(
     )
 
     expected_fields = {
-        "energy", "evtid", "is_saturated", "period", "run", "t0", "time", "usability",
+        "dt", "energy", "evtid", "is_saturated", "period", "run", "t0", "usability",
     }  # fmt: skip
     spms_fields = {f.removeprefix("hit/spms/") for f in lh5.ls(opt_file, "hit/spms/")}
     assert not (expected_fields - spms_fields), (
         f"fields {expected_fields - spms_fields} missing from hit/spms"
     )
+    # renamed to dt: readers of the old field must fail
+    assert "time" not in spms_fields, "legacy field 'time' still in hit/spms"
 
     def _field(table: str, name: str, f: Path = opt_file) -> np.ndarray:
         return lh5.read_as(f"hit/{table}/{name}", f, library="np")
@@ -85,6 +87,11 @@ def test_opt_script_cli(
 
     is_sat = _field("spms", "is_saturated")
     assert is_sat.dtype == np.bool_, f"unexpected is_saturated dtype {is_sat.dtype}"
+
+    # relative to the hit t0: a few microseconds at most
+    dt = lh5.read("hit/spms/dt", opt_file).flattened_data.nda
+    assert len(dt) > 0, "no photoelectrons in the opt file"
+    assert np.all(np.abs(dt) < 1e5), f"dt is not relative to t0: max {np.max(dt)} ns"
 
     # --- run 2: per-SiPM mode with tiny partition → check usability codes ---
     part_file = tmp_path / "partitions_small.yaml"
@@ -102,6 +109,11 @@ def test_opt_script_cli(
     hit_tables = {t.removeprefix("hit/") for t in lh5.ls(opt_per_sipm, "hit/")}
     for sipm in (_SIPM_ON, _SIPM_AC, _SIPM_OFF):
         assert sipm in hit_tables, f"expected hit/{sipm} not found; got {hit_tables}"
+        fields = {
+            f.removeprefix(f"hit/{sipm}/") for f in lh5.ls(opt_per_sipm, f"hit/{sipm}/")
+        }
+        assert "dt" in fields, f"'dt' missing from hit/{sipm}"
+        assert "time" not in fields, f"legacy field 'time' still in hit/{sipm}"
 
     assert np.all(_field(_SIPM_ON, "usability", opt_per_sipm) == 0), (
         f"{_SIPM_ON} usability should be 0 (on)"

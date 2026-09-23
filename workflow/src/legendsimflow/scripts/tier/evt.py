@@ -411,7 +411,8 @@ def main() -> None:
             timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
             out_table.add_field(
                 "trigger/timestamp",
-                Array(np.asarray(timestamp, dtype=np.float32), attrs={"units": "ns"}),
+                # float64: time since the primary decay, can be hours
+                Array(np.asarray(timestamp, dtype=np.float64), attrs={"units": "ns"}),
             )
 
             # HPGe table
@@ -613,7 +614,10 @@ def main() -> None:
                 hit_idx = ak.where(is_empty_opt, empty_hit_idx, hit_idx)
                 out_table.add_field("spms/hit_idx", VectorOfVectors(hit_idx))
 
-                time = _read_hits(tcm, "opt", "time")
+                # relative to the trigger, t0 difference taken in float64
+                dt = _read_hits(tcm, "opt", "dt")
+                lar_hit_t0 = _read_hits(tcm, "opt", "t0")
+                time = dt + (lar_hit_t0 - timestamp)
                 time_sel = time[pesel][chansel]
                 # fill in empty arrays for events with no LAr edep
                 time_sel = ak.where(is_empty_opt, empty_time, time_sel)
