@@ -36,7 +36,7 @@ def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
     """Warm the heavy imports and the Numba kernels the workflow calls."""
     # importing these pays their one-off cost (Matplotlib font cache, ...) and
     # compiles their vectorized kernels
-    import dspeed.processors
+    import dspeed.utils
     import lh5.compression
     import matplotlib
     import numpy as np
@@ -56,12 +56,11 @@ def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
     # dspeed.processors/lh5.compression expose their members lazily (PEP 562), so
     # a plain import leaves their eager @guvectorize kernels (e.g.
     # moving_window_multi, used by the parallel realistic-PSL rule) uncompiled and
-    # the parallel jobs race the cache and segfault. The precompile task this
-    # replaced used `import *` to force every name to load and compile; `import *`
-    # is illegal inside a function, so reproduce it by materializing __all__.
-    for _module in (dspeed.processors, lh5.compression):
-        for _name in _module.__all__:
-            getattr(_module, _name)
+    # the parallel jobs race the cache and segfault. Load every member to compile
+    # them.
+    dspeed.utils.precompile_numba()
+    for _name in lh5.compression.__all__:
+        getattr(lh5.compression, _name)
 
     # lazily-compiled kernels must be called once, with the exact runtime type
     # signature (Numba caches per signature). These are the only cache=True
