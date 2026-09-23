@@ -62,6 +62,7 @@ def drift_time_observables(
         ``[peak, percentile]`` in ns.
     """
     x = np.asarray(drift_times, dtype=float)
+
     finite = np.isfinite(x)
     x = x[finite]
     w = None if weights is None else np.asarray(weights, dtype=float)[finite]
@@ -74,7 +75,7 @@ def drift_time_observables(
 
     cdf = np.cumsum(hist)
     q = edges[np.searchsorted(cdf, percentile / 100 * cdf[-1])]
-    return np.array([peak + 0.5, q])
+    return np.array([peak + 0.5, q]), density, edges
 
 
 def drift_time_cost(

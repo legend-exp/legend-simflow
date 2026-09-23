@@ -19,6 +19,7 @@ import argparse
 import logging
 
 import awkward as ak
+import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
@@ -37,7 +38,6 @@ from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
-from legendsimflow.hpge_electronics_tuning import load_elecmod
 from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.reboost import cluster_steps, get_rz, mask_with_units
 from legendsimflow.scripts import log_script_invocation
@@ -220,7 +220,7 @@ def main() -> None:
         # cluster steps
         with perf_block("cluster_steps()"):
             chunk_new = cluster_steps(
-                chunk, surf_cut=2, threshold_in_mm=1, threshold_surf_in_mm=0.05
+                chunk, surf_cut=2, threshold_in_mm=2, threshold_surf_in_mm=0.05
             )
 
         # add some clustering
@@ -274,16 +274,23 @@ def main() -> None:
 
     log.info("... start extraction of drift times for %d events", n_used)
 
-    sigma, tau = load_elecmod(elecmod_file, "best_fit")
+    elecmod = dbetto.utils.load_dict(elecmod_file)[det]
+    sigma = elecmod["best_fit"]["sigma"]
+    tau = elecmod["best_fit"]["tau"]
 
     msg = f"... extracted electronics pars sigma ({sigma}), tau ({tau})"
     log.info(msg)
 
     # lookup the psl scan groups and grid info
     psl_groups, grid_info = psl.lookup_ideal_psl_scan_groups(psl_file)
+    idx = 0
 
     for slope, depv_psls in psl_groups.items():
         for depv in depv_psls:
+            if idx % 50 == 0:
+                msg = f"... processing PSL {idx}"
+                log.info(msg)
+
             with perf_block("read_psl"):
                 ideal_psl = lh5.read(depv_psls[depv], psl_file)
 
@@ -317,6 +324,7 @@ def main() -> None:
                     dt_file,
                     wo_mode="append_column",
                 )
+                idx += 1
 
     n_tot = sum([read_n_rows(f"stp/{det}", stp_file) for stp_file in files])
     log.info(
