@@ -209,6 +209,7 @@ def main() -> None:
     n_used = 0
     stps = []
 
+    log.info("... gathering steps")
     for lgdo_chunk in iterator:
         chunk = lgdo_chunk.view_as("ak", with_units=True)
 
@@ -216,13 +217,11 @@ def main() -> None:
         n_read += len(chunk)
         chunk = mask_with_units(chunk, ak.sum(chunk.edep, axis=-1) > args.energy_cut)
 
-        log.info("... cluster steps")
         # cluster steps
         with perf_block("cluster_steps()"):
             chunk_new = cluster_steps(
                 chunk, surf_cut=2, threshold_in_mm=1, threshold_surf_in_mm=0.05
             )
-        log.info("... compute energy")
 
         # add some clustering
         with perf_block("activeness"):
@@ -251,8 +250,6 @@ def main() -> None:
             edep_active = edep_active[energy_true > args.energy_cut]
             energy_true = energy_true[energy_true > args.energy_cut]
 
-        # now get drift times
-        log.info("... get drift times")
 
         chunk_new["energy_true"] = energy_true
         chunk_new["edep_active"] = edep_active
@@ -270,7 +267,7 @@ def main() -> None:
     stps = ak.concatenate(stps)
 
     lh5.write(
-        Struct({"energy", Array(stps.energy_true)}),
+        Array(stps.energy_true),
         f"/{det}/energy",
         dt_file,
         wo_mode="of",
@@ -278,8 +275,9 @@ def main() -> None:
 
     log.info("... start extraction of drift times for %d events", n_used)
 
-    sigma, tau = load_elecmod(elecmod_file)
+    sigma, tau = load_elecmod(elecmod_file, "best_fit")
 
+    log.info(f"... extracted electronics pars sigma ({sigma}), tau ({tau})")
     # lookup the psl scan groups and grid info
     psl_groups, grid_info = psl.lookup_ideal_psl_scan_groups(psl_file)
 
@@ -302,8 +300,7 @@ def main() -> None:
                 )
                 _r, _z = get_rz(det_loc[det], stps)
 
-                drift_time = {
-                    "drift_time": reboost.hpge.maximum_current(
+                drift_time = reboost.hpge.maximum_current(
                         stps.edep_active,
                         _drift_time,
                         times=None,
@@ -312,11 +309,10 @@ def main() -> None:
                         template=realistic_psl,
                         return_mode="max_time",
                     )
-                }
                 out = Array(drift_time)
                 lh5.write(
                     out,
-                    f"/{det}/psl_scan/{slope}/{depv}",
+                    f"/{det}/psl_scan/{slope}/{depv}/drift_time",
                     dt_file,
                     wo_mode="append_column",
                 )
