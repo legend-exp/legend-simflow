@@ -256,7 +256,9 @@ def _hpge_is_modelable(
     usability: str,
     skip: Mapping[str, str],
     operational_voltage: int | None,
-    min_voltage_above_depletion: int,
+    tune_impurity_curve: bool,
+    psd_usability: str,
+    min_voltage_above_depletion: int | None,
 ) -> bool:
     """Whether the HPGe `name` is valid for drift-time-map modeling.
 
@@ -271,23 +273,31 @@ def _hpge_is_modelable(
     if name in skip:
         return False
 
-    # detectors not operated far enough above their depletion voltage are not
-    # modeled (off detectors have no operational voltage)
+    # off detectors have no operational voltage
     if operational_voltage is None:
         return False
 
-    # detectors without a depletion voltage in the metadata are not modeled
     try:
         diode = config.metadata.hardware.detectors.germanium.diodes[name]
-        depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
     except (KeyError, AttributeError, FileNotFoundError):
         return False
 
-    if depletion_voltage is None:
-        return False
+    if tune_impurity_curve:
+        # the impurity tuning needs valid PSD data, not the depletion voltage
+        if psd_usability != "valid":
+            return False
+    else:
+        # detectors without a depletion voltage in the metadata are not modeled
+        try:
+            depletion_voltage = diode.characterization.l200_site.depletion_voltage_in_V
+        except AttributeError:
+            return False
 
-    if operational_voltage < depletion_voltage + min_voltage_above_depletion:
-        return False
+        if depletion_voltage is None:
+            return False
+
+        if operational_voltage < depletion_voltage + min_voltage_above_depletion:
+            return False
 
     # detectors without an impurity curve in the crystal metadata cannot be
     # modeled
@@ -325,11 +335,19 @@ def gen_hpge_modeling_status(
 
     A detector ``is_modelable`` when all of the following hold: it is ``ON``
     (i.e. not OFF or AC), it is not listed in the validity-based skip metadata
-    ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it is operated
-    at least ``min_voltage_above_depletion_in_V`` (default 100 V, configurable
-    via the ``modeling`` par settings) above its depletion voltage
-    (``characterization.l200_site.depletion_voltage_in_V`` in the diode
-    metadata), and its crystal metadata provides an impurity curve.
+    ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it has an
+    operational voltage, and its crystal metadata provides an impurity curve.
+    Further criteria depend on the ``tune_impurity_curve`` hit-tier setting
+    (default ``True``):
+
+    - ``True``: the PSD status (``analysis.psd.status.low_aoe`` in the channel
+      map, ``valid`` if absent) is ``valid``.
+    - ``False``: the detector is operated at least
+      ``min_voltage_above_depletion_in_V`` (default 100 V, configurable via the
+      ``modeling`` par settings) above its depletion voltage
+      (``characterization.l200_site.depletion_voltage_in_V`` in the diode
+      metadata).
+
     ``operational_voltage_in_V`` is ``None`` for detectors with no operational
     voltage (e.g. off detectors).
 
@@ -344,11 +362,14 @@ def gen_hpge_modeling_status(
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
-    # minimum operational-voltage margin above depletion required to consider an
-    # HPGe modelable; overridable per experiment via the modeling par settings
-    min_voltage_above_depletion = get_par_settings(config, "modeling").get(
-        "min_voltage_above_depletion_in_V", 100
+    tune_impurity_curve = get_tier_settings(config, "hit").get(
+        "tune_impurity_curve", True
     )
+    min_voltage_above_depletion = None
+    if not tune_impurity_curve:
+        min_voltage_above_depletion = get_par_settings(config, "modeling").get(
+            "min_voltage_above_depletion_in_V", 100
+        )
 
     status = {}
     for _, hpge in chmap.group("system").geds.items():
@@ -360,6 +381,12 @@ def gen_hpge_modeling_status(
         except KeyError:
             operational_voltage = None
 
+        # same convention as gen_list_of_all_usabilities()
+        try:
+            psd_usability = chmap[name].analysis.psd.status.low_aoe
+        except AttributeError:
+            psd_usability = "valid"
+
         status[name] = {
             "is_modelable": _hpge_is_modelable(
                 config,
@@ -367,6 +394,8 @@ def gen_hpge_modeling_status(
                 chmap[name].analysis.usability,
                 skip,
                 operational_voltage,
+                tune_impurity_curve,
+                psd_usability,
                 min_voltage_above_depletion,
             ),
             "operational_voltage_in_V": operational_voltage,
