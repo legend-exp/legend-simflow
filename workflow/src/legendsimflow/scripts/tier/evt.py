@@ -411,8 +411,7 @@ def main() -> None:
             timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
             out_table.add_field(
                 "trigger/timestamp",
-                # float64: this is the time since the primary decay, which can be
-                # hours long
+                # float64: time since the primary decay, can be hours
                 Array(np.asarray(timestamp, dtype=np.float64), attrs={"units": "ns"}),
             )
 
@@ -615,10 +614,7 @@ def main() -> None:
                 hit_idx = ak.where(is_empty_opt, empty_hit_idx, hit_idx)
                 out_table.add_field("spms/hit_idx", VectorOfVectors(hit_idx))
 
-                # opt stores the photoelectron times relative to the LAr hit t0.
-                # shift them to be relative to the trigger timestamp, like in
-                # data. the difference of the two t0 values (both since the
-                # primary decay) must be taken in float64
+                # relative to the trigger, t0 difference taken in float64
                 dt = _read_hits(tcm, "opt", "dt")
                 lar_hit_t0 = _read_hits(tcm, "opt", "t0")
                 time = dt + (lar_hit_t0 - timestamp)
