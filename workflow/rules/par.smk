@@ -18,6 +18,7 @@
 from pathlib import Path
 
 from legendsimflow import aggregate, patterns
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_par_settings
 
 
@@ -27,6 +28,17 @@ rule gen_all_tier_par:
         aggregate.gen_list_of_all_par_outputs(config),
         lambda wc: aggregate.gen_list_of_all_plots_outputs(
             config, tier="par", cache=smk_load_hpge_cache() if _simulate_psd else None
+        ),
+        lambda wc: (
+            patterns.output_drift_time_scan_filename(
+                config,
+                keep_list=True,
+                hpge_detector=aggregate.gen_list_of_all_modelable_hpges(
+                    smk_load_hpge_cache()
+                ),
+            )
+            if _tune_impurity
+            else []
         ),
 
 
@@ -534,6 +546,11 @@ rule merge_hpge_aoemean_energy_dependence_pars:
 # file per detector accumulating all runs; drives both the producer rule below
 # and the consumer `extract_electronics_model_pars`
 _build_per_runid = get_par_settings(config, "superpulses").get("build_per_runid", False)
+if _build_per_runid and _tune_impurity:
+    raise SimflowConfigError(
+        "build_per_runid is not supported with tune_impurity_curve",
+        "pars.superpulses.settings",
+    )
 
 
 rule build_superpulses_from_data:
@@ -586,6 +603,135 @@ rule build_superpulses_from_data:
         patterns.log_superpulses_filename(config, build_per_runid=_build_per_runid),
     script:
         "../src/legendsimflow/scripts/build_superpulses_from_data.py"
+
+
+def smk_hpge_scan_voltage(wildcards):
+    """Return the operational voltage of a detector, required equal in all runs."""
+    opvs = {
+        dets[wildcards.hpge_detector]["operational_voltage_in_V"]
+        for dets in smk_load_hpge_cache().values()
+        if wildcards.hpge_detector in dets
+    }
+    if len(opvs) != 1:
+        msg = (
+            f"detector {wildcards.hpge_detector} has operational voltages "
+            f"{sorted(opvs)} across runs, the impurity-curve scan needs a single one"
+        )
+        raise SimflowConfigError(msg)
+    return opvs.pop()
+
+
+rule build_hpge_psl_scan:
+    """Produce ideal HPGe pulse-shape libraries over an impurity-curve grid.
+
+    Run the same Julia simulation as `build_hpge_pulse_shape_library`, at the
+    detector operational voltage, for every point of a grid in impurity-profile
+    slope and depletion voltage. The grid is read from
+    `simprod/config/pars/{experiment}/geds/ssd/scan_settings.yaml`. The output
+    LH5 file holds, under the detector group, one ideal library per grid point
+    and the grid description, in the format checked by
+    {func}`legendsimflow.psl.validate_ssd_scan_grid`.
+
+    Uses wildcard `hpge_detector`.
+    """
+    message:
+        "Generating pulse-shape library scan for HPGe detector {wildcards.hpge_detector}"
+    input:
+        unpack(smk_hpge_psd_simulation_inputs),
+        scan_settings=Path(config.paths.metadata)
+        / f"simprod/config/pars/{config.experiment}/geds/ssd/scan_settings.yaml",
+    params:
+        opv=smk_hpge_scan_voltage,
+    output:
+        patterns.output_psl_scan_filename(config),
+    log:
+        patterns.log_psl_scan_filename(config),
+    benchmark:
+        patterns.benchmark_psl_scan_filename(config)
+    threads: 4
+    # NOTE: not using the `script` directive here since Snakemake has no nice
+    # way to handle package dependencies nor Project.toml
+    shell:
+        "julia --project=workflow/src/LegendSimflow.jl --threads {threads}"
+        "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib_scan.jl"
+        "    --detector {wildcards.hpge_detector}"
+        f"   --metadata {config.paths.metadata}"
+        "    --ssd-settings {input.ssd_settings}"
+        "    --scan-settings {input.scan_settings}"
+        "    --opv {params.opv}"
+        "    --output-file {output} &> {log}"
+
+
+rule extract_elecmod_scan:
+    """Fit the HPGe electronics-response model at each impurity-curve grid point.
+
+    Repeat the fit of `extract_electronics_model_pars` against the data
+    superpulses for every ideal library of `build_hpge_psl_scan`. The output
+    YAML is keyed by detector and holds the fit result per grid point
+    (`psl_scan`), the grid description (`grid_info`) and the point with the
+    smallest RMS (`best_fit`).
+
+    Uses wildcard `hpge_detector`.
+    """
+    message:
+        "Extracting electronics model scan for detector {wildcards.hpge_detector}"
+    input:
+        ideal_psl_scan=rules.build_hpge_psl_scan.output[0],
+        superpulses=patterns.output_superpulses_filename(config),
+    output:
+        pars_file=patterns.output_elecmod_scan_filename(config),
+        plot_file=patterns.plot_elecmod_scan_filename(config),
+    log:
+        patterns.log_elecmod_scan_filename(config),
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_elec_response_model_scan.py"
+
+
+_impurity_settings = get_par_settings(config, "impurity")
+
+
+rule extract_drift_time_scan:
+    """Compute simulated HPGe drift times at each impurity-curve grid point.
+
+    Take the `stp` files of the simulation IDs matching `simid_regex` (from the
+    `impurity` par settings, fnmatch syntax) and compute the drift time of each
+    event with every library of `build_hpge_psl_scan`, convolved with the
+    best-fit electronics response of `extract_elecmod_scan`. Only events above
+    `energy_cut_in_keV` (default 1500 keV) are used, at most `max_events`
+    (default all).
+
+    Uses wildcard `hpge_detector`.
+    """
+    message:
+        "Extracting drift-time scan for detector {wildcards.hpge_detector}"
+    input:
+        stp_files=lambda wc: [
+            f
+            for s in aggregate.gen_list_of_all_simids_matching(
+                config, _impurity_settings["simid_regex"]
+            )
+            for f in aggregate.gen_list_of_simid_outputs(config, tier="stp", simid=s)
+        ],
+        geom=lambda wc: patterns.geom_gdml_filename(
+            config,
+            tier="stp",
+            simid=aggregate.gen_list_of_all_simids_matching(
+                config, _impurity_settings["simid_regex"]
+            )[0],
+        ),
+        psl_file=rules.build_hpge_psl_scan.output[0],
+        elecmod=rules.extract_elecmod_scan.output.pars_file,
+    params:
+        max_events=_impurity_settings.get("max_events", None),
+        energy_cut=_impurity_settings.get("energy_cut_in_keV", 1500),
+    output:
+        patterns.output_drift_time_scan_filename(config),
+    log:
+        patterns.log_drift_time_scan_filename(config),
+    benchmark:
+        patterns.benchmark_drift_time_scan_filename(config)
+    script:
+        "../src/legendsimflow/scripts/extract_drift_time_psl_tuning.py"
 
 
 rule extract_electronics_model_pars:

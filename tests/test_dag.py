@@ -250,7 +250,9 @@ def test_simulate_psd_toggles_dtmap_rules(tmp_path):
             tmp_path / "on",
             make_steps=STEPS_TO_HIT,
             experiment="l200cfg01",
-            settings_by_tier={"hit": {"simulate_psd": True}},
+            settings_by_tier={
+                "hit": {"simulate_psd": True, "tune_impurity_curve": False}
+            },
         ),
     )
     off = dag_rule_names(
@@ -259,7 +261,9 @@ def test_simulate_psd_toggles_dtmap_rules(tmp_path):
             tmp_path / "off",
             make_steps=STEPS_TO_HIT,
             experiment="l200cfg01",
-            settings_by_tier={"hit": {"simulate_psd": False}},
+            settings_by_tier={
+                "hit": {"simulate_psd": False, "tune_impurity_curve": False}
+            },
         ),
     )
     assert on >= STD_PSD_RULES
