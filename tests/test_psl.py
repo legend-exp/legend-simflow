@@ -559,7 +559,7 @@ def _ideal_scan(n_r=4, n_z=5, n_samples=1000, slopes=("slope_0", "slope_1")):
     }
 
 
-def test_load_ideal_psl_scan(tmp_path):
+def test_lookup_ideal_psl_scan(tmp_path):
     scan = _ideal_scan()
     psl_file = str(tmp_path / "ideal-psl.lh5")
     grid_info = Struct({"slope_min": Scalar(-1.0), "dep_min": Scalar(500.0)})
@@ -570,33 +570,28 @@ def test_load_ideal_psl_scan(tmp_path):
         wo_mode="of",
     )
 
-    loaded, loaded_grid_info = psl.load_ideal_psl_scan(psl_file)
+    loaded_groups, loaded_grid_info = psl.lookup_ideal_psl_scan_groups(psl_file)
 
     # the slope/depletion-voltage nesting survives the round trip
-    assert set(loaded) == set(scan)
-    assert set(loaded["slope_0"]) == {"dep_0", "dep_1"}
+    assert set(loaded_groups) == set(scan)
+    assert set(loaded_groups["slope_0"]) == {"dep_0", "dep_1"}
     assert loaded_grid_info["slope_min"].value == -1.0
 
-    entry = loaded["slope_0"]["dep_0"]
-    assert entry["r"].attrs["units"] == "m"
-    assert entry["waveform_000_deg"].view_as("np").shape == (4, 5, 1000)
+    entry = loaded_groups["slope_0"]["dep_0"]
+    assert entry == f"V00001A/psl_scan/slope_0/dep_0"
 
 
 def test_convolve_elecmod_scan():
-    psls, dt_maps = psl.convolve_elecmod_scan(
-        _ideal_scan(), sigma=50, tau=100, alignment_idx=500, n_samples=1000
+
+    realistic_psl, dt_maps = psl.convolve_elecmod(
+        _ideal_scan()["slope_0"]["dep_0"], sigma=50, tau=100, alignment_idx=500, n_samples=1000
     )
 
-    assert set(psls) == set(dt_maps) == {"slope_0", "slope_1"}
-    assert set(psls["slope_0"]) == {"dep_0", "dep_1"}
 
-    assert isinstance(psls["slope_0"]["dep_0"], HPGePulseShapeLibrary)
+    assert isinstance(realistic_psl, HPGePulseShapeLibrary)
 
-    # drift_time_crystal_axes() needs interpolators keyed by the crystal-axis
-    # angle, not the gridded values
-    maps = dt_maps["slope_0"]["dep_0"]
-    assert set(maps) == {0, 45}
-    for dt_map in maps.values():
+    assert set(dt_maps) == {0, 45}
+    for dt_map in dt_maps.values():
         assert isinstance(dt_map, HPGeRZField)
         assert dt_map.φ_units == u.ns
         assert dt_map.values.shape == (4, 5)

@@ -317,7 +317,7 @@ def convolve_elecmod(
         if "waveform" in key:
             realistic_dict[key] = Array(realistic_dict[key].view_as("np") / mean_aoe)
 
-    realistic_dict = make_hpge_pulse_shape_library(
+    realistic_psl = make_hpge_pulse_shape_library(
         realistic_dict, field=f"waveform_{angle}_deg", dtype=np.float32
     )
 
@@ -329,7 +329,7 @@ def convolve_elecmod(
         for axis in (0, 45)
     }
 
-    return realistic_dict, dt_map
+    return realistic_psl, dt_map
 
 
 def get_avg_aoe(waveforms: list[np.ndarray]) -> tuple[hist.Hist, float]:
