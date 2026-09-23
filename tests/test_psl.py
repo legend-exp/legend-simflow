@@ -578,15 +578,17 @@ def test_lookup_ideal_psl_scan(tmp_path):
     assert loaded_grid_info["slope_min"].value == -1.0
 
     entry = loaded_groups["slope_0"]["dep_0"]
-    assert entry == f"V00001A/psl_scan/slope_0/dep_0"
+    assert entry == "V00001A/psl_scan/slope_0/dep_0"
 
 
 def test_convolve_elecmod_scan():
-
     realistic_psl, dt_maps = psl.convolve_elecmod(
-        _ideal_scan()["slope_0"]["dep_0"], sigma=50, tau=100, alignment_idx=500, n_samples=1000
+        _ideal_scan()["slope_0"]["dep_0"],
+        sigma=50,
+        tau=100,
+        alignment_idx=500,
+        n_samples=1000,
     )
-
 
     assert isinstance(realistic_psl, HPGePulseShapeLibrary)
 
