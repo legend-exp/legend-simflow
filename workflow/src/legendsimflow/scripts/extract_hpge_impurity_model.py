@@ -23,28 +23,27 @@ from pathlib import Path
 
 import awkward as ak
 import dbetto
+import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
+import matplotlib.pyplot as plt
 import numpy as np
 from lgdo import Struct
 from matplotlib.backends.backend_pdf import PdfPages
 from numpy.typing import ArrayLike
-from snakemake_argparse_bridge import snakemake_compatible
-from matplotlib import colors as mcolors
-from matplotlib import colormaps
-from matplotlib import cm
-import matplotlib.pyplot as plt
-
-from legendsimflow.metadata import get_simconfig
-from legendsimflow import drift_time, utils
-from legendsimflow.scripts import log_script_invocation
 from scipy.interpolate import griddata
+from snakemake_argparse_bridge import snakemake_compatible
+
+from legendsimflow import drift_time, utils
+from legendsimflow.metadata import get_simconfig
+from legendsimflow.plot import decorate
+from legendsimflow.scripts import log_script_invocation
 
 DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns
     "wf_weight": 0.5,  # arb
-    "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.5},
+    "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
 }
 
 
@@ -72,10 +71,12 @@ def get_drift_times_mc(dt_files, det, simid_mapping, run_norms):
 
     for run in simid_mapping:
         files = [file for file in dt_files if simid_mapping[run] in file]
-        if len(files) !=1:
-            msg = f"Only one drift time file should be present per simid not {len(files)}"
+        if len(files) != 1:
+            msg = (
+                f"Only one drift time file should be present per simid not {len(files)}"
+            )
             raise RuntimeError(msg)
-            
+
         drift_times = lh5.read(det, files)
         weight = ak.full_like(drift_times.energy.view_as("ak"), run_norms[run])
 
@@ -89,7 +90,12 @@ def get_drift_time_obs_mc(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Get the drift time observables from the MC."""
     energy = [m.energy.view_as("ak") for m in mc]
-    weights =  ak.concatenate([w[(e > ranges[0]) & (e<ranges[1])] for w,e in zip(weights,energy)])
+    weights = ak.concatenate(
+        [
+            w[(e > ranges[0]) & (e < ranges[1])]
+            for w, e in zip(weights, energy, strict=True)
+        ]
+    )
     depv = []
     obs1 = []
     obs2 = []
@@ -100,7 +106,6 @@ def get_drift_time_obs_mc(
         slope = _get_grid_value(slope_idx, grid_info)
 
         for dep_str in mc[0].psl_scan[slope_str]:
-
             dep_idx = int(dep_str.split("_")[-1])
             dep = _get_grid_value(dep_idx, grid_info, name="dep")
 
@@ -109,10 +114,10 @@ def get_drift_time_obs_mc(
                     out.psl_scan[slope_str][dep_str].drift_time.view_as("ak")[
                         (e > ranges[0]) & (e < ranges[1])
                     ]
-                    for e,out in zip(energy,mc)
+                    for e, out in zip(energy, mc, strict=True)
                 ]
             )
-            obs = drift_time.drift_time_observables(dt, weights=weights,**dt_kwargs)
+            obs = drift_time.drift_time_observables(dt, weights=weights, **dt_kwargs)[0]
 
             depv.append(dep)
             slopes.append(slope)
@@ -146,16 +151,25 @@ def read_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
 
     for run in runs:
         files = list(Path(path_data).glob(f"*-{run}-*.lh5"))
-        
+
         if len(files) == 0:
-            msg = f"No data files found!"
+            msg = "No data files found!"
             raise RuntimeError(msg)
-            
+
         data[run] = lh5.read(
-            "evt", files, field_mask=["coincident", "geds/energy", "geds/detector_name","geds/psd/low_aoe", "trigger", "spms/event_t0"]
+            "evt",
+            files,
+            field_mask=[
+                "coincident",
+                "geds/energy",
+                "geds/detector_name",
+                "geds/psd/low_aoe",
+                "trigger",
+                "spms/event_t0",
+            ],
         ).view_as("ak")
 
-        #TODO. some cuts
+        # TODO. some cuts
 
     return data
 
@@ -182,26 +196,46 @@ def get_drift_time(data: dict[str, ak.Array], det: str, ranges=(1500, 2500)):
     return dts[~np.isnan(dts)]
 
 
-def get_drift_time_obs(data: dict[str, ak.Array], detector: str, **kwargs):
+def get_drift_time_obs(dts, **kwargs):
     """Get the drift time observables from the data for the specified detector."""
-    dts = get_drift_time(data, detector)
-    obs = drift_time.drift_time_observables(dts, **kwargs)
+    obs, hist, edges = drift_time.drift_time_observables(
+        drift_time.remove_outliers(dts), **kwargs
+    )
 
-    return obs[0], obs[1] - obs[0]
+    return (obs[0], obs[1] - obs[0]), hist, edges
 
-def plot_surface(x,y,z,name,det,vrange =(0,1),levels=[],method = "nearest"):
+
+def plot_drift_time_obs(dts, obs, weights, edges):
+    h = hist.new.Reg(200, 0, 3200).Double().fill(dts)
+    fig, ax = plt.subplots(figsize=(6, 4))
+    h.plot(yerr=False)
+
+    h2 = hist.Hist(hist.axis.Variable(edges))
+    h2[...] = 16 * weights
+    h2.plot(yerr=False)
+
+    ax.set_xlabel("Drift time [ns]")
+    ax.set_ylabel("Counts")
+
+    ax.axvline(obs[0], label="Mode", linestyle="--", color="black")
+    ax.axvline(obs[1] + obs[0], label="Q-90", linestyle="--", color="red")
+    ax.legend()
+    return fig
+
+
+def plot_surface(x, y, z, name, det, vrange, levels, method="nearest"):
+    """Plot the cost function as a function of depletion voltage and slope."""
     xi = np.linspace(x.min(), x.max(), 500)
     yi = np.linspace(y.min(), y.max(), 500)
     X, Y = np.meshgrid(xi, yi)
-    
+
     Z = griddata((x, y), z, (X, Y), method=method)
-    
+
     fig, ax = plt.subplots()
-    
-    
+
     cmap = plt.colormaps["RdYlBu_r"].copy()
     cmap.set_over("grey")
-    
+
     im = ax.pcolormesh(
         X,
         Y,
@@ -210,16 +244,16 @@ def plot_surface(x,y,z,name,det,vrange =(0,1),levels=[],method = "nearest"):
         vmin=vrange[0],
         vmax=vrange[1],
         shading="auto",
-        rasterized=True
+        rasterized=True,
     )
-    
+
     xm = x[np.argmin(z)]
     ym = y[np.argmin(z)]
     zm = np.min(z)
-    ax.scatter([xm],[ym],color="red",s=50)
-    
-    fig.colorbar(im, ax=ax, label=name,cmap = "cividis")
-    
+    ax.scatter([xm], [ym], color="red", s=50)
+
+    fig.colorbar(im, ax=ax, label=name, cmap="cividis")
+
     # Values at which to draw contours
     cs = ax.contour(
         X,
@@ -227,15 +261,15 @@ def plot_surface(x,y,z,name,det,vrange =(0,1),levels=[],method = "nearest"):
         Z,
         levels=levels,
         colors="black",
-        
     )
-    ax.clabel(cs,  fmt="%g",fontsize=12)
+    ax.clabel(cs, fmt="%g", fontsize=12)
     ax.set_xlabel("Depletion voltage [V]")
     ax.set_ylabel("Slope [%]")
     ax.set_title(f"{det} cost function (min {np.min(z):.2f})")
     plt.show()
 
-    return xm,ym,zm
+    return fig, ax, xm, ym, zm
+
 
 @snakemake_compatible(
     mapping={
@@ -329,13 +363,14 @@ def main() -> None:
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
     # 1. load data
-    log.info(f"... loading data from runs {args.runs} and {args.data_path}")
+    msg = f"... loading data from runs {args.runs} and {args.data_path}"
+    log.info(msg)
     data = read_data(args.data_path, args.runs)
 
     # 2. get run norms (e.g. from livetime)
     log.info("... loading run norms")
     run_norms = dbetto.utils.load_dict(args.run_norms)
-   
+
     simid_mapping = get_run_mapping(get_simconfig(config, "hit", simid=None), args.runs)
 
     out = {}
@@ -343,12 +378,24 @@ def main() -> None:
 
     with PdfPages(args.plot_file) as pdf:
         for det in dets:
+            msg = f"... processing {det}"
+            log.info(msg)
             grid_info = {
                 a: f.view_as()
-                for a, f in lh5.read(f"{det}/grid_info", args.drift_time_files[0]).items()
+                for a, f in lh5.read(
+                    f"{det}/grid_info", args.drift_time_files[0]
+                ).items()
             }
             # 3. get data observables
-            data_dt_obs = get_drift_time_obs(data, det, **settings.dt_kwargs)
+            dts = get_drift_time(data, det)
+            data_dt_obs, weights, edges = get_drift_time_obs(dts, **settings.dt_kwargs)
+
+            fig = plot_drift_time_obs(dts, data_dt_obs, weights, edges)
+            decorate(fig)
+            pdf.savefig()
+            plt.close(fig)
+
+            log.info("... found data observables (%f, %f)", *data_dt_obs)
 
             # 4. get mc observables
             weights, dt_mc = get_drift_times_mc(
@@ -361,9 +408,25 @@ def main() -> None:
             dt_chi2 = get_dt_chi2(
                 data_dt_obs, (dt_obs1, dt_obs2), settings.drift_time_weight
             )
-            plot_surface(depv,slope,dt_chi2,r"$\chi^2$",det,vrange=(0,10),levels=[2,5,10],method="nearest")
+
+            fig, _, best_dep, best_slope, best_cost = plot_surface(
+                depv,
+                slope,
+                dt_chi2,
+                r"$\chi^2$",
+                det,
+                vrange=(0, 10),
+                levels=[2, 5, 10],
+                method="nearest",
+            )
+
+            decorate(fig)
             pdf.savefig()
-            
+            plt.close(fig)
+
+            msg = f"For {det} found minimum Vdep = {best_dep:1f}, slope {best_slope:.1f} with chi2 {best_cost:.2f}"
+            log.info(msg)
+
             # 5. extract electronics model parameters
 
             # elecmod = dbetto.utils.load_dict(args.elecmod)
@@ -373,9 +436,9 @@ def main() -> None:
             # find the best fit
             # best_slope, best_dep  = fit_impurities(det,wf_chi2,dt_chi2,pdf)
 
-            # out[det] = {"slope": best_slope, "depletion_voltage": best_dep}
+            out[det] = {"slope": best_slope, "depletion_voltage": best_dep}
 
-    # dbetto.utils.write_dict(out, args.pars_file)
+    dbetto.utils.write_dict(out, args.pars_file)
 
 
 if __name__ == "__main__":

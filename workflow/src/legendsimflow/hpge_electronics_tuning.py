@@ -432,7 +432,8 @@ def fit_electronics_parameters(
     # Minuit's default. Strategy 0 skips the Hessian refinement and roughly
     # halves the number of cost evaluations, but the fit then comes out less
     # stable, so the slower setting is worth it
-    m.strategy = 1
+    m.simplex(ncall=max_calls)
+    m.strategy = 2
 
     m.migrad(ncall=max_calls)
     if not m.valid:

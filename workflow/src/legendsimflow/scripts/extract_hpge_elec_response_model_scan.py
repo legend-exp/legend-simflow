@@ -232,7 +232,6 @@ def main() -> None:
         for slope_group in lh5.ls(ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"):
             slope = slope_group.split("/")[-1]
             psl_scan[slope] = {}
-
             log.debug("... reading ideal waveforms from %s ...", slope)
 
             for depv_group in lh5.ls(
@@ -290,7 +289,6 @@ def main() -> None:
                     "tau": result["tau"],
                     "rms": result["best_rms"],
                 }
-
         if pdf is not None:
             with perf_block("plots()"):
                 fig, _ = plot_scan_maps(psl_scan, step_info, detector_name=hpge)
