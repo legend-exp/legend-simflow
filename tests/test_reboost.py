@@ -4,6 +4,7 @@ import awkward as ak
 import lh5
 import numpy as np
 import reboost.hpge
+import reboost.units
 
 from legendsimflow import reboost as rutils
 from legendsimflow import spms_pars
