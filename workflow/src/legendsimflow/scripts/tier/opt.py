@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import logging
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -32,7 +33,7 @@ from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Array, VectorOfVectors
 from lh5 import LH5Iterator
-from reboost.optmap.convolve import OptmapForConvolve
+from reboost.optmap.convolve import NumdetStats, OptmapForConvolve
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
@@ -206,6 +207,8 @@ def main() -> None:
         msg = f"using optical map scaling factor {map_scaling} for {sipm}"
         log.debug(msg)
 
+        total_detected_pe_stats = NumdetStats()
+
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak")
 
@@ -215,20 +218,27 @@ def main() -> None:
                 )
 
             with perf_block("number_of_detected_photoelectrons()"):
-                _output = reboost.spms.number_of_detected_photoelectrons(
-                    chunk.xloc,
-                    chunk.yloc,
-                    chunk.zloc,
-                    scint_ph,
-                    optmap_lar,
-                    sipm,
-                    map_scaling=map_scaling,
-                    max_pes_per_hit=max_pes_per_hit,
+                # return_stats=True also silences the per-chunk warnings of
+                # reboost about steps outside the map
+                *_output, _detected_pe_stats = (
+                    reboost.spms.number_of_detected_photoelectrons(
+                        chunk.xloc,
+                        chunk.yloc,
+                        chunk.zloc,
+                        scint_ph,
+                        optmap_lar,
+                        sipm,
+                        map_scaling=map_scaling,
+                        max_pes_per_hit=max_pes_per_hit,
+                        return_stats=True,
+                    )
                 )
+            total_detected_pe_stats += _detected_pe_stats
+
             if max_pes_per_hit > 0:
                 nr_pe, is_saturated = _output
             else:
-                nr_pe = _output
+                (nr_pe,) = _output
                 is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
 
             with perf_block("photoelectron_times()"):
@@ -286,6 +296,25 @@ def main() -> None:
                     out_file,
                     uid=sipm_uid,
                 )
+
+        tot = total_detected_pe_stats.energy_looped
+        for counts, where in (
+            (
+                total_detected_pe_stats.energy_oob
+                + total_detected_pe_stats.energy_no_stats,
+                "outside the map",
+            ),
+            (
+                total_detected_pe_stats.energy_zero,
+                "in bins with zero detection probability",
+            ),
+        ):
+            pct = 100 * counts / tot if tot > 0 else 0.0
+            msg = (
+                f"optical map {sipm}: {pct:.2f}% of the energy deposited "
+                f"in {scintillator_volume_name} is {where}"
+            )
+            log.log(logging.WARNING if pct > 1 else logging.DEBUG, msg)
 
     partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
 
