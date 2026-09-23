@@ -1,0 +1,6 @@
+# scan grid as Julia ranges, "start:step:stop"
+
+# depletion voltage to simulate, as a shift from the operational voltage, in V
+depv_shift: "-500:450:-50"
+# scaling factor applied to the non-constant part of the impurity profile
+slope: "-1:1:0"
