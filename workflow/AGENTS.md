@@ -28,8 +28,7 @@
   - No helper function for a few lines used once; inline them.
   - Docstring length follows complexity: one line or none for tiny functions.
     Rationale goes in the commit/PR, not in docstrings or comments.
-  - Code comments are one line. They state what the code cannot, e.g. units or a
-    precision constraint, not the reasoning behind the change.
+  - Code comments are typically one or two lines. They state only important-to-remember facts about why this implementation was chosen, that can't be deduced by reading the code or can't be easily to verify.
   - Prefer editing an existing function over adding one.
   - Private functions (name starting with underscore) need only a one-line
     docstring.
