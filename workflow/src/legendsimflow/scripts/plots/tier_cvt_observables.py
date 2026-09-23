@@ -220,11 +220,11 @@ def _panel_light_per_event(ax):
 
 def _panel_pe_time(ax):
     h_time_sim = hist.new.Reg(
-        375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+        375, -1000, 5000, name="photoelectron time relative to trigger (ns)"
     ).Double()
     if has_rc:
         h_time_rc = hist.new.Reg(
-            375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+            375, -1000, 5000, name="photoelectron time relative to trigger (ns)"
         ).Double()
     # both spms/time and spms/rc_time are relative to the trigger
     field_mask = ["spms/time"]

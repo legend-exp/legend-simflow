@@ -210,12 +210,12 @@ single `number_of_simulated_events` scalar, which the `pdf` tier reads back as
 
 Constant fields identifying each event.
 
-| Field       | Type    | Units | Description                                                                                                                                                                                                                       |
-| ----------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `evtid`     | `Array` | —     | Event identifier.                                                                                                                                                                                                                 |
-| `period`    | `Array` | —     | Data-taking period number.                                                                                                                                                                                                        |
-| `run`       | `Array` | —     | Data-taking run number.                                                                                                                                                                                                           |
-| `timestamp` | `Array` | ns    | Delta time of the first HPGe hit (`t0`) relative to the start of the simulated Geant4 event. Used as the event's timestamp. Stored in double precision, because decays late in a chain happen hours after the start of the event. |
+| Field       | Type    | Units | Description                                                                                                                                                                                                                                                                                       |
+| ----------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evtid`     | `Array` | —     | Event identifier.                                                                                                                                                                                                                                                                                 |
+| `period`    | `Array` | —     | Data-taking period number.                                                                                                                                                                                                                                                                        |
+| `run`       | `Array` | —     | Data-taking run number.                                                                                                                                                                                                                                                                           |
+| `timestamp` | `Array` | ns    | `t0` of the first HPGe hit, or of the first SiPM hit when the `hit` tier is skipped (`skip_hit: true`), relative to the start of the simulated Geant4 event. Used as the event's timestamp. Stored in double precision, because decays late in a chain happen hours after the start of the event. |
 
 ### `geds/` — HPGe detector array
 
