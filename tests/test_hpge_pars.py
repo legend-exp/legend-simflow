@@ -368,27 +368,63 @@ def test_get_noise_maxima_and_sample(legend_testdata):
     assert a_max.ndim == 1
 
 
-def test_iter_noise_waveforms(legend_testdata):
+@pytest.mark.parametrize("dsp_output", ["waveform", "wf_blsub"])
+def test_iter_noise_waveforms(legend_testdata, dsp_output):
     raw_file = legend_testdata.get_path(
         "lh5/prod-ref-l200/generated/tier/raw/phy/p03/r001/l200-p03-r001-phy-20230322T160139Z-tier_raw.lh5"
     )
     hit_file = legend_testdata.get_path(
         "lh5/prod-ref-l200/generated/tier/hit/phy/p03/r001/l200-p03-r001-phy-20230322T160139Z-tier_hit.lh5"
     )
+    dsp_config = {
+        "processors": {
+            "bl_mean, bl_std, bl_slope, bl_intercept": {
+                "function": "linear_slope_fit",
+                "module": "dspeed.processors",
+                "args": [
+                    "waveform[0:1000]",
+                    "bl_mean",
+                    "bl_std",
+                    "bl_slope",
+                    "bl_intercept",
+                ],
+                "unit": ["ADC", "ADC", "ADC", "ADC"],
+            },
+            "wf_blsub": {
+                "function": "bl_subtract",
+                "module": "dspeed.processors",
+                "args": ["waveform", "bl_mean", "wf_blsub"],
+                "unit": "ADC",
+            },
+        }
+    }
 
+    # a small buffer, so that the DSP chain is refilled several times
     wfs = list(
         hpge_pars._iter_noise_waveforms(
             [raw_file],
             [hit_file],
             lh5_group="ch1084803/raw",
             energy_var="cuspEmax_ctc_cal",
-            dsp_config=None,
-            dsp_output="waveform",
+            dsp_config=dsp_config,
+            dsp_output=dsp_output,
+            buffer_len=2,
         )
     )
 
-    assert len(wfs) > 0
-    assert len(wfs[0]) == 1000
+    energies = lh5.read("ch1084803/hit/cuspEmax_ctc_cal", hit_file).view_as("np")
+    entries = np.flatnonzero(energies < 5)
+    assert len(entries) > 4
+
+    expected = hpge_pars.get_dsp_outputs(
+        [raw_file],
+        "ch1084803/raw",
+        entries,
+        np.zeros_like(entries),
+        dsp_config=dsp_config,
+        outputs=[dsp_output],
+    )[dsp_output].values[:, :1000]
+    np.testing.assert_array_equal(np.array(wfs), expected)
 
 
 def test_get_aoe():

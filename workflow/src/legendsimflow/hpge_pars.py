@@ -27,7 +27,7 @@ import hist
 import lh5
 import numpy as np
 from dbetto import AttrsDict, TextDB
-from dspeed import build_dsp
+from dspeed import build_dsp, build_processing_chain
 from iminuit import Minuit, cost
 from legendmeta import LegendMetadata
 from lgdo import WaveformTable
@@ -553,29 +553,35 @@ def _iter_noise_waveforms(
     threshold: float = 5,
     length: int = 1000,
     energy_var: str = "cuspEmax_cal",
+    buffer_len: int = 250,
 ):
     """Yield noise waveforms one at a time without accumulating them all in memory.
 
-    Parameters are the same as :func:`get_noise_maxima_and_sample`.
+    Parameters are the same as :func:`get_noise_maxima_and_sample`, with
+    `buffer_len` waveforms processed at a time.
     """
     for raw_file, hit_file in zip(raw_files, hit_files, strict=True):
         energies = lh5.read(
             f"{lh5_group.replace('raw', 'hit')}/{energy_var}", hit_file
         ).view_as("np")
         entries = np.flatnonzero(energies < threshold)
+        if len(entries) == 0:
+            continue
 
-        # at most 250 waveforms in memory at a time
-        for start in range(0, len(entries), 250):
-            chunk = entries[start : start + 250]
-            wfs = get_dsp_outputs(
-                [raw_file],
-                lh5_group,
-                chunk,
-                np.zeros_like(chunk),
-                dsp_config=dsp_config,
-                outputs=[dsp_output],
-            )[dsp_output].values
-            yield from wfs[:, :length].copy()
+        # one DSP chain per file, refilled with the next waveforms at each step
+        raw = lh5.LH5Iterator(
+            str(raw_file), lh5_group, entry_list=[entries], buffer_len=buffer_len
+        )
+        chain, field_mask, dsp = build_processing_chain(
+            {"processors": {}} if dsp_config is None else dsp_config,
+            next(iter(raw)),
+            outputs=[dsp_output],
+        )
+        raw.reset_field_mask(field_mask)
+
+        for tb in raw:
+            chain(tb, dsp)
+            yield from dsp[dsp_output].values.nda[: len(tb), :length].copy()
 
 
 def get_noise_maxima_and_sample(
