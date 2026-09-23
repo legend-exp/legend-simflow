@@ -17,15 +17,13 @@
 
 import lh5
 import matplotlib.pyplot as plt
-import numpy as np
 import pyg4ometry
 import pygeomhpges
-import pygeomhpges.draw
 from matplotlib.backends.backend_pdf import PdfPages
+from reboost.hpge import plot_rz_maps
 
 from legendsimflow import nersc
 from legendsimflow.plot import decorate
-from legendsimflow.psl import symmetrize
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
@@ -34,13 +32,6 @@ output_pdf = args.output[0]
 
 reg = pyg4ometry.geant4.Registry()
 natge = pygeomhpges.materials.make_natural_germanium(registry=reg)
-
-
-def save_page(pdf, make_fig):
-    fig = make_fig()
-    decorate(fig)
-    pdf.savefig(fig)
-    plt.close(fig)
 
 
 def fig(hpge):
@@ -54,70 +45,18 @@ def fig(hpge):
 
     dtmap = lh5.read(hpge, dtmap_file)
 
-    r = dtmap.r.view_as("np") * 1000  # convert to mm, units in pygeomhpges
-    zcoord = dtmap.z.view_as("np") * 1000
-
-    img_045 = symmetrize(dtmap.drift_time_045_deg.view_as("np"))
-    img_000 = symmetrize(dtmap.drift_time_000_deg.view_as("np"))
-
-    # ratio (mask invalid divisions)
-    ratio = np.divide(
-        img_000,
-        img_045,
-        out=np.full_like(img_000, np.nan),
-        where=img_045 > 0,
+    # grid in m in the file, in mm in pygeomhpges; maps keyed by crystal axis azimuth
+    fig, _ = plot_rz_maps(
+        {
+            0: dtmap.drift_time_000_deg.view_as("np"),
+            45: dtmap.drift_time_045_deg.view_as("np"),
+        },
+        dtmap.r.view_as("np") * 1000,
+        dtmap.z.view_as("np") * 1000,
+        hpge=pyobj,
+        label="drift time [ns]",
+        title=hpge,
     )
-
-    extent = (-r.max(), r.max(), zcoord.min(), zcoord.max())
-
-    vmin = np.nanmin([img_045, img_000])
-    vmax = np.nanmax([img_045, img_000])
-
-    fig, axes = plt.subplots(
-        ncols=3,
-        figsize=(12, 4),
-        sharey=True,
-    )
-
-    def plot(ax, img, title, *, cmap, vmin=None, vmax=None):
-        im = ax.imshow(
-            img,
-            origin="lower",
-            extent=extent,
-            aspect="equal",
-            cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
-        )
-        pygeomhpges.draw.plot_profile(
-            pyobj,
-            axes=ax,
-            marker=None,
-            linewidth=1,
-            color="black",
-        )
-
-        xmin, xmax = -r.max(), r.max()
-        ymin, ymax = zcoord.min(), zcoord.max()
-
-        f = 0.04
-        ax.set_xlim(xmin - f * (xmax - xmin), xmax + f * (xmax - xmin))
-        ax.set_ylim(ymin - f * (ymax - ymin), ymax + f * (ymax - ymin))
-
-        ax.set_xlabel("r (mm)")
-        ax.set_title(f"{hpge} · {title}")
-
-        return im
-
-    plot(axes[0], img_045, "<110>", cmap="viridis", vmin=vmin, vmax=vmax)
-    axes[0].set_ylabel("z (mm)")
-
-    im1 = plot(axes[1], img_000, "<100>", cmap="viridis", vmin=vmin, vmax=vmax)
-
-    im2 = plot(axes[2], ratio, "<100> / <110>", cmap="coolwarm")
-
-    fig.colorbar(im1, ax=axes[:2], label="drift time (ns)")
-    fig.colorbar(im2, ax=axes[2], label="ratio")
 
     return fig
 
@@ -128,4 +67,7 @@ fig_builders = [lambda t=t: fig(t) for t in tables]
 
 with PdfPages(output_pdf) as pdf:
     for make_fig in fig_builders:
-        save_page(pdf, make_fig)
+        fig = make_fig()
+        decorate(fig)
+        pdf.savefig(fig)
+        plt.close(fig)

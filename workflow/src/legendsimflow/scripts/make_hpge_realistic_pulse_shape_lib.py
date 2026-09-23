@@ -29,6 +29,7 @@ from lgdo import Array, Struct
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from reboost import units
+from reboost.hpge import make_hpge_pulse_shape_library, plot_psl_aoe_maps
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, psl, utils
@@ -203,7 +204,7 @@ def main():
             pdf.savefig(fig)
             plt.close(fig)
 
-            # A/E R/Z map, styled like the HPGe drift-time-map validation plot
+            # A/E over the (r, z) plane, one panel per crystal axis
             reg = pyg4ometry.geant4.Registry()
             natge = pygeomhpges.materials.make_natural_germanium(registry=reg)
             hpge_profile = pygeomhpges.make_hpge(
@@ -213,8 +214,18 @@ def main():
                 allow_cylindrical_asymmetry=False,
             )
 
-            fig = psl.plot_aoe_rz_map(
-                realistic_dict, args.detector, hpge_profile=hpge_profile
+            # the waveforms are already normalised to the mean A/E
+            fig, _ = plot_psl_aoe_maps(
+                {
+                    int(k.split("_")[1]): make_hpge_pulse_shape_library(
+                        realistic_dict, k
+                    )
+                    for k in realistic_dict
+                    if "waveform" in k
+                },
+                hpge=hpge_profile,
+                normalise=False,
+                title=args.detector,
             )
             decorate(fig)
             pdf.savefig(fig)
