@@ -226,20 +226,16 @@ def _panel_pe_time(ax):
         h_time_rc = hist.new.Reg(
             375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
         ).Double()
-    field_mask = ["spms/time", "trigger/timestamp"]
+    # both spms/time and spms/rc_time are relative to the trigger
+    field_mask = ["spms/time"]
     if has_rc:
         field_mask.append("spms/rc_time")
     it = LH5Iterator(cvt_file, "evt", buffer_len=BUFFER_LEN, field_mask=field_mask)
     for evt_chunk in it:
         evt = evt_chunk.view_as("ak")
-        t0, spms_time = ak.broadcast_arrays(evt.trigger.timestamp, evt.spms.time)
-        dt = spms_time - t0
-        h_time_sim.fill(ak.flatten(dt, axis=None))
+        h_time_sim.fill(ak.flatten(evt.spms.time, axis=None))
         if has_rc:
-            t0_rc, rc_time = ak.broadcast_arrays(
-                evt.trigger.timestamp, evt.spms.rc_time
-            )
-            h_time_rc.fill(ak.flatten(rc_time - t0_rc, axis=None))
+            h_time_rc.fill(ak.flatten(evt.spms.rc_time, axis=None))
     plot.plot_hist(h_time_sim, ax, flow="none", label="simulated")
     if has_rc:
         plot.plot_hist(h_time_rc, ax, flow="none", label="random coincidences")

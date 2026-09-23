@@ -65,7 +65,7 @@ def test_opt_script_cli(
     )
 
     expected_fields = {
-        "energy", "evtid", "is_saturated", "period", "run", "t0", "time", "usability",
+        "dt", "energy", "evtid", "is_saturated", "period", "run", "t0", "usability",
     }  # fmt: skip
     spms_fields = {f.removeprefix("hit/spms/") for f in lh5.ls(opt_file, "hit/spms/")}
     assert not (expected_fields - spms_fields), (
@@ -85,6 +85,12 @@ def test_opt_script_cli(
 
     is_sat = _field("spms", "is_saturated")
     assert is_sat.dtype == np.bool_, f"unexpected is_saturated dtype {is_sat.dtype}"
+
+    # photoelectron times relative to the hit t0: a few microseconds at most,
+    # not the time since the primary decay
+    dt = lh5.read("hit/spms/dt", opt_file).flattened_data.nda
+    assert len(dt) > 0, "no photoelectrons in the opt file"
+    assert np.all(np.abs(dt) < 1e5), f"dt is not relative to t0: max {np.max(dt)} ns"
 
     # --- run 2: per-SiPM mode with tiny partition → check usability codes ---
     part_file = tmp_path / "partitions_small.yaml"

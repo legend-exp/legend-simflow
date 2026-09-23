@@ -54,9 +54,8 @@ def fig(table):
     h_time = hist.new.Reg(
         375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
     ).Double()
-    dt = data.time - data.t0
-    h_time.fill_flattened(dt)
-    plot.plot_hist(h_time, ax, n_nans=n_nans(dt))
+    h_time.fill_flattened(data.dt)
+    plot.plot_hist(h_time, ax, n_nans=n_nans(data.dt))
 
     ax.set_ylabel("counts / 16 ns")
     ax.set_yscale("log")

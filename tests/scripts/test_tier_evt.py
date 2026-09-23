@@ -148,6 +148,20 @@ def test_evt_script_cli(
     spms_mult = _read("evt/spms/multiplicity")
     assert np.all(spms_mult >= 0), "spms/multiplicity contains negative values"
 
+    # trigger/timestamp is the time since the primary decay, which can be hours
+    # long: float32 would round it to about 0.1 ms
+    timestamp = _read("evt/trigger/timestamp")
+    assert timestamp.dtype == np.float64, (
+        f"trigger/timestamp dtype should be float64, got {timestamp.dtype}"
+    )
+
+    # spms/time is relative to the trigger timestamp
+    spms_time = lh5.read("evt/spms/time", evt_file).flattened_data.flattened_data.nda
+    assert len(spms_time) > 0, "no photoelectrons in the evt file"
+    assert np.all(np.abs(spms_time) < 1e5), (
+        f"spms/time is not relative to the trigger: max {np.max(np.abs(spms_time))} ns"
+    )
+
     # trigger/period: all p03 → code 3
     period_vals = _read("evt/trigger/period")
     assert np.all(period_vals == 3), (
