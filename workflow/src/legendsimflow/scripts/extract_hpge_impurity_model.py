@@ -33,10 +33,11 @@ from legendsimflow.impurity_tuning import (
     get_drift_time_obs,
     get_drift_time_obs_mc,
     get_drift_times_mc,
-    get_dt_chi2
-    read_data,
+    get_dt_chi2,
+    get_run_mapping,
     plot_drift_time_obs,
     plot_surface,
+    read_data,
 )
 from legendsimflow.metadata import get_simconfig
 from legendsimflow.plot import decorate
@@ -53,7 +54,7 @@ DEFAULT_SETTINGS = {
     mapping={
         "elecmod": "input.elecmod",
         "drift_time": "input.drift_time",
-        "data_files": "input.data_files",
+        "data_path": "input.data_path",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
         "settings": "input.settings",

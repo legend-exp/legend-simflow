@@ -15,29 +15,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import argparse
-import logging
 from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
-import dbetto
 import hist
-import legenddataflowscripts as ldfs
-import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from lgdo import Struct
-from matplotlib.backends.backend_pdf import PdfPages
 from numpy.typing import ArrayLike
 from scipy.interpolate import griddata
-from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import drift_time, utils
-from legendsimflow.metadata import get_simconfig
-from legendsimflow.plot import decorate
-from legendsimflow.scripts import log_script_invocation
+from legendsimflow import drift_time
 
 DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns
@@ -233,7 +223,7 @@ def plot_surface(x, y, z, name, det, vrange, levels, method="nearest"):
     fig, ax = plt.subplots()
 
     cmap = plt.colormaps["RdYlBu_r"].copy()
-    cmap.set_over("grey")
+    cmap.with_extremes(over="grey")
 
     im = ax.pcolormesh(
         X,
@@ -265,7 +255,5 @@ def plot_surface(x, y, z, name, det, vrange, levels, method="nearest"):
     ax.set_xlabel("Depletion voltage [V]")
     ax.set_ylabel("Slope [%]")
     ax.set_title(f"{det} cost function (min {np.min(z):.2f})")
-    plt.show()
 
     return fig, ax, xm, ym, zm
-

@@ -139,9 +139,11 @@ def test_l200data():
 def _get_drift_time(peak1, peak2, frac=0.5, size=1000):
     """Get a drift time distribution from two peaks with a given fraction of events in each peak."""
     n1 = int(size * frac)
+    rng = np.random.default_rng(seed=42)
+
     n2 = size - n1
-    peak1 = np.random.normal(peak1, 5, n1)
-    peak2 = np.random.normal(peak2, 5, n2)
+    peak1 = rng.normal(peak1, 100, n1)
+    peak2 = rng.normal(peak2, 100, n2)
     return np.concatenate([peak1, peak2])
 
 
