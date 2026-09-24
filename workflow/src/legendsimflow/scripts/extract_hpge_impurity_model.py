@@ -24,6 +24,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
@@ -75,6 +76,11 @@ def main() -> None:
         slope: <best fit slope>
         depletion_voltage: <best fit depletion voltage>
     ```
+
+    The simulations are required to have a specific format with one simid per run.
+
+    The normalisation is fine determined per run, before combination.
+
     """
     parser = argparse.ArgumentParser(
         description="Extract the HPGe electronics model for a LEGEND run."
@@ -101,15 +107,10 @@ def main() -> None:
         help="input path for evt tier data.",
     )
     parser.add_argument(
-        "--runs",
+        "--runids",
         required=True,
         nargs="+",
-        help="list of runs to process.",
-    )
-    parser.add_argument(
-        "--run-norms",
-        required=True,
-        help="input YAML file for the run normalisation (e.g. livetime).",
+        help="list of runids to process.",
     )
 
     parser.add_argument("--log-file", default=None, help="log file")
@@ -155,15 +156,13 @@ def main() -> None:
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
     # 1. load data
-    msg = f"... loading data from runs {args.runs} and {args.data_path}"
+    msg = f"... loading data from runs {args.runids} and {args.data_path}"
     log.info(msg)
-    data = read_data(args.data_path, args.runs)
+    data = read_data(args.data_path, args.runids)
 
-    # 2. get run norms (e.g. from livetime)
-    log.info("... loading run norms")
-    run_norms = dbetto.utils.load_dict(args.run_norms)
-
-    simid_mapping = get_run_mapping(get_simconfig(config, "hit", simid=None), args.runs)
+    simid_mapping = get_run_mapping(
+        get_simconfig(config, "hit", simid=None), args.runids
+    )
 
     out = {}
     dets = lh5.ls(args.drift_time_files[0])
@@ -180,9 +179,16 @@ def main() -> None:
             }
             # 3. get data observables
             dts = get_drift_time(data, det)
-            data_dt_obs, weights, edges = get_drift_time_obs(dts, **settings.dt_kwargs)
 
-            fig = plot_drift_time_obs(dts, data_dt_obs, weights, edges)
+            n = {run: len(dt) for run, dt in dts.items()}
+
+            data_dt_obs, weights, edges = get_drift_time_obs(
+                np.concatenate(dts.values()), **settings.dt_kwargs
+            )
+
+            fig = plot_drift_time_obs(
+                np.concatenate(dts.values()), data_dt_obs, weights, edges
+            )
             decorate(fig)
             pdf.savefig()
             plt.close(fig)
@@ -191,7 +197,7 @@ def main() -> None:
 
             # 4. get mc observables
             weights, dt_mc = get_drift_times_mc(
-                args.drift_time_files, det, simid_mapping, run_norms
+                args.drift_time_files, det, simid_mapping, n
             )
 
             depv, slope, dt_obs1, dt_obs2 = get_drift_time_obs_mc(

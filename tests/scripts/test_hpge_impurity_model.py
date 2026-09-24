@@ -116,10 +116,8 @@ def test_hpge_impurity_cli_with_data(
             str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--simflow-config",
             str(test_make_ssc_data / "simflow-config-l200-ssc.yaml"),
-            "--runs",
-            "r008",
-            "--run-norms",
-            str(tmp_path / "outputs" / "run_norms.yaml"),
+            "--runids",
+            "l200-p16-r008-ssc",
         ],
     )
 
