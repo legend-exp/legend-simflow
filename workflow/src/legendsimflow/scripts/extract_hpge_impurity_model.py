@@ -54,7 +54,7 @@ DEFAULT_SETTINGS = {
 @snakemake_compatible(
     mapping={
         "elecmod": "input.elecmod",
-        "drift_time": "input.drift_time",
+        "drift_time_files": "input.drift_time",
         "data_path": "input.data_path",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",

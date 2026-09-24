@@ -40,12 +40,15 @@ def get_run_mapping(simconfig: Mapping, runs) -> dict[str, str]:
     """Get a mapping from run to simid from the simconfig."""
     out = {}
     for simid, info in simconfig.items():
+        if not any(run in info.runlist[0] for run in runs):
+            continue
+
         if len(info["runlist"]) != 1:
             msg = f"Only one run per simid is supported. Found {len(info.runlist)} runs for simid {simid}."
             raise ValueError(msg)
 
-        if any(run in info.runlist[0] for run in runs):
-            out[info.runlist[0]] = simid
+        out[info.runlist[0]] = simid
+
     return out
 
 

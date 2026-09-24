@@ -37,7 +37,7 @@ def test_get_run_mapping(test_make_ssc_data):
     config = utils.init_simflow_context(
         test_make_ssc_data / "simflow-config-l200-ssc.yaml", workflow=None
     ).config
-    runs = ["r008"]
+    runs = ["l200-p16-r008-ssc"]
     mapping = get_run_mapping(get_simconfig(config, "hit", simid=None), runs)
 
     assert mapping == {"l200-p16-r008-ssc": "source_pos_1"}
@@ -102,7 +102,7 @@ def test_hpge_impurity_cli_with_data(
         "argv",
         [
             "extract-hpge-impurity-model",
-            "--drift-time",
+            "--drift-time-files",
             str(make_sim_drift_time),
             "--pars-file",
             str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
