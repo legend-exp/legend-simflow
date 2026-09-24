@@ -1,0 +1,43 @@
+experiment: l200cfg09
+
+runlist: []
+benchmark:
+  enabled: true
+  n_primaries:
+    stp: 1000
+
+make_steps:
+  - vtx
+  - stp
+  - par
+  - hit
+  - opt
+  - evt
+  - cvt
+  - pdf
+
+paths:
+  generated: $_/generated-l200
+  benchmarks: $_/generated-l200/benchmarks
+  log: $_/generated-l200/log
+
+  metadata: $_/legend-metadata
+  config: $_/legend-metadata/simprod/config
+  optical_maps:
+    lar: $_/testdata/remage/l200cfg01-optmap-dummy.lh5
+
+  pars: $_/generated-l200/pars
+  macros: $_/generated-l200/macros
+  tier:
+    vtx: $_/generated-l200/tier/vtx
+    stp: $_/generated-l200/tier/stp
+    opt: $_/generated-l200/tier/opt
+    hit: $_/generated-l200/tier/hit
+    evt: $_/generated-l200/tier/evt
+    cvt: $_/generated-l200/tier/cvt
+    pdf: $_/generated-l200/tier/pdf
+  pdf_releases: $_/generated-l200/releases
+
+nersc:
+  dvs_ro: false
+  scratch: false
