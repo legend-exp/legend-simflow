@@ -91,7 +91,6 @@ def get_drift_time_obs_mc(
     energy = [out.energy.view_as("ak") for out in mc]
 
     # get the correct weights
-    weights = [w for w in weights]
     weights = [
         w[(e > ranges[0]) & (e < ranges[1])]
         for e, w in zip(energy, weights, strict=True)

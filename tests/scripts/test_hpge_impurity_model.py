@@ -125,3 +125,10 @@ def test_hpge_impurity_cli_with_data(
 
     assert (tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml").exists()
     assert (tmp_path / "outputs" / f"{DETECTOR}_drift_time_obs.pdf").exists()
+
+    pars = dbetto.utils.load_dict(
+        tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"
+    )
+    assert DETECTOR in pars
+    assert "slope" in pars[DETECTOR]
+    assert "depletion_voltage" in pars[DETECTOR]
