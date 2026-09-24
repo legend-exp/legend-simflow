@@ -57,9 +57,15 @@ def _get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
     return float(grid_info[f"{name}_min"] + grid_info[f"{name}_step"] * idx)
 
 
-def get_drift_times_mc(dt_files, det, simid_mapping, run_norms):
-    drift_time_mc = []
-    weights = []
+def get_drift_times_mc(
+    dt_files: list, det: str, simid_mapping: Mapping, run_norms: Mapping
+) -> tuple[dict, dict]:
+    """Get the drift times from the MC for the specified detector and simid mapping.
+
+    This returns the output weights and drift times for each run.
+    """
+    drift_time_mc = {}
+    weights = {}
 
     for run in simid_mapping:
         files = [file for file in dt_files if simid_mapping[run] in file]
@@ -72,8 +78,8 @@ def get_drift_times_mc(dt_files, det, simid_mapping, run_norms):
         drift_times = lh5.read(det, files)
 
         weight = ak.full_like(drift_times.energy.view_as("ak"), run_norms[run])
-        weights.append(weight)
-        drift_time_mc.append(drift_times)
+        weights[run] = weight
+        drift_time_mc[run] = drift_times
 
     return weights, drift_time_mc
 
@@ -85,26 +91,27 @@ def get_drift_time_obs_mc(
     ranges=(1500, 2500),
     **dt_kwargs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Get the drift time observables from the MC."""
+    """Get the drift time observables from the MC, looping over the grid of parameters."""
     depv = []
     obs1 = []
     obs2 = []
     slopes = []
 
-    energy = [out.energy.view_as("ak") for out in mc]
+    energy = [out.energy.view_as("ak") for out in mc.values()]
 
     # get the correct weights
     weights = [
         w[(e > ranges[0]) & (e < ranges[1])]
-        for e, w in zip(energy, weights, strict=True)
+        for e, w in zip(energy, weights.values(), strict=True)
     ]
     weights = np.concatenate([w / len(w) for w in weights])
+    psl_scan = next(iter(mc.values())).psl_scan
 
-    for slope_str in mc[0].psl_scan:
+    for slope_str in psl_scan:
         slope_idx = int(slope_str.split("_")[-1])
         slope = _get_grid_value(slope_idx, grid_info)
 
-        for dep_str in mc[0].psl_scan[slope_str]:
+        for dep_str in psl_scan[slope_str]:
             dep_idx = int(dep_str.split("_")[-1])
             dep = _get_grid_value(dep_idx, grid_info, name="dep")
 
@@ -113,7 +120,7 @@ def get_drift_time_obs_mc(
                     out.psl_scan[slope_str][dep_str].drift_time.view_as("ak")[
                         (e > ranges[0]) & (e < ranges[1])
                     ]
-                    for e, out in zip(energy, mc, strict=True)
+                    for e, out in zip(energy, mc.values(), strict=True)
                 ]
             )
             obs = drift_time.drift_time_observables(dt, weights=weights, **dt_kwargs)[0]
@@ -132,7 +139,7 @@ def get_drift_time_obs_mc(
     return depv, slopes, obs1, obs2
 
 
-def get_dt_chi2(
+def get_drift_time_chi2(
     data_obs: tuple[np.ndarray, np.ndarray],
     mc_obs: tuple[np.ndarray, np.ndarray],
     weight: float,
