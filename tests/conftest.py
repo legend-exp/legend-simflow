@@ -136,6 +136,15 @@ def test_l200data():
     return Path(__file__).parent / "l200data"
 
 
+def _get_drift_time(peak1, peak2, frac=0.5, size=1000):
+    """Get a drift time distribution from two peaks with a given fraction of events in each peak."""
+    n1 = int(size * frac)
+    n2 = size - n1
+    peak1 = np.random.normal(peak1, 5, n1)
+    peak2 = np.random.normal(peak2, 5, n2)
+    return np.concatenate([peak1, peak2])
+
+
 @pytest.fixture(scope="session")
 def test_make_ssc_data():
     # first an evt file, lets make 10000 events
@@ -148,7 +157,7 @@ def test_make_ssc_data():
     hit_idx = ak.unflatten(np.arange(size), np.ones(size, dtype=int))
 
     energy_sum = rng.uniform(5, 100, size=size)
-    t0 = rng.uniform(0, 100, size=size)
+    t0 = rng.uniform(0, 20, size=size)
 
     # coincident and trigger
     is_forced = np.full(size, False, dtype=bool)
@@ -168,7 +177,9 @@ def test_make_ssc_data():
     energy = ak.unflatten(rng.uniform(-25, 5000, size=size), np.ones(size, dtype=int))
     aoe = ak.unflatten(rng.uniform(-5, 5, size=size), np.ones(size, dtype=int))
 
-    end_time = ak.unflatten(rng.uniform(100, 3000, size=size), np.ones(size, dtype=int))
+    end_time = ak.unflatten(
+        _get_drift_time(1000, 2000, size=size), np.ones(size, dtype=int)
+    )
 
     evts = ak.Array(
         {
