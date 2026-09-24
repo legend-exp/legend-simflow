@@ -274,9 +274,10 @@ def main() -> None:
 
     log.info("... start extraction of drift times for %d events", n_used)
 
-    elecmod = dbetto.utils.load_dict(elecmod_file)[det]
-    sigma = elecmod["best_fit"]["sigma"]
-    tau = elecmod["best_fit"]["tau"]
+    elecmod = dbetto.utils.load_dict(elecmod_file)
+    elecmod = elecmod.get(det, elecmod)["best_fit"]
+    sigma = elecmod["sigma"]
+    tau = elecmod["tau"]
 
     msg = f"... extracted electronics pars sigma ({sigma}), tau ({tau})"
     log.info(msg)

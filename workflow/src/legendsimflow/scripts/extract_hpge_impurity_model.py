@@ -31,10 +31,10 @@ from snakemake_argparse_bridge import snakemake_compatible
 from legendsimflow import utils
 from legendsimflow.impurity_tuning import (
     get_drift_time,
+    get_drift_time_chi2,
     get_drift_time_obs,
     get_drift_time_obs_mc,
     get_drift_times_mc,
-    get_dt_chi2,
     get_run_mapping,
     plot_drift_time_obs,
     plot_surface,
@@ -59,6 +59,7 @@ DEFAULT_SETTINGS = {
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
         "settings": "input.settings",
+        "runids": "params.runids",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -131,7 +132,7 @@ def main() -> None:
     parser.add_argument(
         "--plot-file",
         type=str,
-        required=False,
+        required=True,
         default=None,
         help="File name for diagnostic plots.",
     )
@@ -203,7 +204,7 @@ def main() -> None:
             depv, slope, dt_obs1, dt_obs2 = get_drift_time_obs_mc(
                 dt_mc, grid_info, weights, **settings.dt_kwargs
             )
-            dt_chi2 = get_dt_chi2(
+            dt_chi2 = get_drift_time_chi2(
                 data_dt_obs, (dt_obs1, dt_obs2), settings.drift_time_weight
             )
 
