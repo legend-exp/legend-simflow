@@ -164,36 +164,6 @@ def load_hpge_dtmaps(
     return dt_map
 
 
-def optmap_edep_by_voxel(
-    chunk: ak.Array, optmap: OptmapForConvolve, det: str
-) -> dict[str, float]:
-    """Sum the energy deposited in the scintillator by class of optical map voxel.
-
-    Each step in `chunk` is located in the voxel of `optmap` (edges in metres)
-    for detector `det`. The energy, in the units of the ``edep`` field, is
-    summed over all steps (``total``), over the steps outside the map
-    (``outside_map``: beyond the map edges or in voxels without statistics,
-    marked -1 in the map) and over the steps in voxels with zero detection
-    probability (``zero_prob``).
-    """
-    edep = np.asarray(ak.flatten(chunk.edep))
-    inside = np.ones(len(edep), dtype=bool)
-    idx = []
-    for field, edges in zip(("xloc", "yloc", "zloc"), optmap.edges, strict=True):
-        pos = np.asarray(ak.flatten(reboost.units.units_conv_ak(chunk[field], "m")))
-        i = np.searchsorted(edges, pos, side="right") - 1
-        inside &= (i >= 0) & (i < len(edges) - 1)
-        idx.append(np.clip(i, 0, len(edges) - 2))
-
-    weights = optmap.weights[np.where(optmap.dets == det)[0][0]][tuple(idx)]
-
-    return {
-        "total": float(edep.sum()),
-        "outside_map": float(edep[~inside | (weights < 0)].sum()),
-        "zero_prob": float(edep[inside & (weights == 0)].sum()),
-    }
-
-
 def mask_with_units(data: ak.Array, mask: ak.Array) -> ak.Array:
     """Mask an awkward array with units attached, preserving the units."""
     u = {field: reboost.units.get_unit_str(data[field]) for field in data.fields}
