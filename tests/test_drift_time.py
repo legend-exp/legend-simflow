@@ -19,17 +19,19 @@ def rng():
 def test_drift_time_observables(rng):
     x = rng.normal(1000, 100, 200_000)
 
-    peak, q = drift_time_observables(x)
+    peak, q = drift_time_observables(x)[0]
     assert peak == pytest.approx(1000, abs=5)
     assert q == pytest.approx(1000 + 100 * stats.norm.ppf(0.9), abs=2)
-    assert drift_time_observables(x, percentile=50)[1] == pytest.approx(1000, abs=2)
+    assert drift_time_observables(x, percentile=50)[0][1] == pytest.approx(1000, abs=2)
 
     # NaNs are ignored
     x_nan = np.append(x, [np.nan] * 100)
-    assert drift_time_observables(x_nan) == pytest.approx(drift_time_observables(x))
+    assert drift_time_observables(x_nan)[0] == pytest.approx(
+        drift_time_observables(x)[0]
+    )
 
     # peak at the edge of the data
-    assert drift_time_observables(np.full(100, 500.0)) == pytest.approx(
+    assert drift_time_observables(np.full(100, 500.0))[0] == pytest.approx(
         [500] * 2, abs=1
     )
 
@@ -38,11 +40,13 @@ def test_drift_time_observables_peak_threshold(rng):
     # first peak at 2/3 of the height of the second
     x = np.concatenate([rng.normal(800, 50, 40_000), rng.normal(2000, 50, 60_000)])
 
-    assert drift_time_observables(x)[0] == pytest.approx(800, abs=5)
-    assert drift_time_observables(x, peak_threshold=0.8)[0] == pytest.approx(
+    assert drift_time_observables(x)[0][0] == pytest.approx(800, abs=5)
+    assert drift_time_observables(x, peak_threshold=0.8)[0][0] == pytest.approx(
         2000, abs=5
     )
-    assert drift_time_observables(x, peak_threshold=1)[0] == pytest.approx(2000, abs=5)
+    assert drift_time_observables(x, peak_threshold=1)[0][0] == pytest.approx(
+        2000, abs=5
+    )
 
 
 def test_drift_time_observables_weights(rng):
@@ -51,8 +55,8 @@ def test_drift_time_observables_weights(rng):
     w = np.concatenate([np.ones_like(a), np.zeros_like(a)])
 
     # zero weights remove the second component
-    assert drift_time_observables(x, weights=w) == pytest.approx(
-        drift_time_observables(a), abs=1
+    assert drift_time_observables(x, weights=w)[0] == pytest.approx(
+        drift_time_observables(a)[0], abs=1
     )
 
 

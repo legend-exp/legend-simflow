@@ -100,8 +100,8 @@ def drift_time_cost(
     **obs_kwargs
         passed to :func:`drift_time_observables`.
     """
-    diff = drift_time_observables(sim_drift_times, weights=sim_weights, **obs_kwargs)
-    diff -= drift_time_observables(data_drift_times, **obs_kwargs)
+    diff = drift_time_observables(sim_drift_times, weights=sim_weights, **obs_kwargs)[0]
+    diff -= drift_time_observables(data_drift_times, **obs_kwargs)[0]
     return float(np.sum(diff**2))
 
 
