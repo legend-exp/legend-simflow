@@ -67,28 +67,36 @@ def get_drift_times_mc(dt_files, det, simid_mapping, run_norms):
             raise RuntimeError(msg)
 
         drift_times = lh5.read(det, files)
-        weight = ak.full_like(drift_times.energy.view_as("ak"), run_norms[run])
 
+        weight = ak.full_like(drift_times.energy.view_as("ak"), run_norms[run])
         weights.append(weight)
         drift_time_mc.append(drift_times)
+
     return weights, drift_time_mc
 
 
 def get_drift_time_obs_mc(
-    mc: Struct, grid_info: dict, weights: ArrayLike, ranges=(1500, 2500), **dt_kwargs
+    mc: Struct,
+    grid_info: dict,
+    weights: ArrayLike,
+    ranges=(1500, 2500),
+    **dt_kwargs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Get the drift time observables from the MC."""
-    energy = [m.energy.view_as("ak") for m in mc]
-    weights = ak.concatenate(
-        [
-            w[(e > ranges[0]) & (e < ranges[1])]
-            for w, e in zip(weights, energy, strict=True)
-        ]
-    )
     depv = []
     obs1 = []
     obs2 = []
     slopes = []
+
+    energy = [out.energy.view_as("ak") for out in mc]
+
+    # get the correct weights
+    weights = [w for w in weights]
+    weights = [
+        w[(e > ranges[0]) & (e < ranges[1])]
+        for e, w in zip(energy, weights, strict=True)
+    ]
+    weights = np.concatenate([w / len(w) for w in weights])
 
     for slope_str in mc[0].psl_scan:
         slope_idx = int(slope_str.split("_")[-1])
@@ -139,7 +147,7 @@ def read_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
     data = {}
 
     for run in runs:
-        files = list(Path(path_data).glob(f"*-{run}-*.lh5"))
+        files = list(Path(path_data).glob(f"*{run}*.lh5"))
 
         if len(files) == 0:
             msg = "No data files found!"
@@ -175,14 +183,12 @@ def get_drift_time(data: dict[str, ak.Array], det: str, ranges=(1500, 2500)):
         )
         for run, d in data.items()
     }
-    dts = np.concatenate(
-        [
-            drift_time[run][(energy[run] < ranges[1]) & (energy[run] > ranges[0])]
-            for run in energy
-        ]
-    )
+    dts = {
+        run: drift_time[run][(energy[run] < ranges[1]) & (energy[run] > ranges[0])]
+        for run in energy
+    }
 
-    return dts[~np.isnan(dts)]
+    return {run: dt[~np.isnan(dt)] for run, dt in dts.items()}
 
 
 def get_drift_time_obs(dts, **kwargs):
