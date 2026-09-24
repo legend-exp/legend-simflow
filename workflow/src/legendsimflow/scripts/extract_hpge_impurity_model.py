@@ -234,7 +234,10 @@ def main() -> None:
             # find the best fit
             # best_slope, best_dep  = fit_impurities(det,wf_chi2,dt_chi2,pdf)
 
-            out[det] = {"slope": best_slope, "depletion_voltage": best_dep}
+            out[det] = {
+                "slope": float(best_slope),
+                "depletion_voltage": float(best_dep),
+            }
 
     dbetto.utils.write_dict(out, args.pars_file)
 
