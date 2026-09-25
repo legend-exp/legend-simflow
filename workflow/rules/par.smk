@@ -36,6 +36,7 @@ rule gen_all_tier_par:
                 hpge_detector=aggregate.gen_list_of_all_modelable_hpges(
                     smk_load_hpge_cache()
                 ),
+                simid = aggregate.gen_list_of_all_simids_matching(config,_simid_regex)
             )
             if _tune_impurity
             else []
@@ -703,16 +704,13 @@ rule extract_drift_time_scan:
     Uses wildcard `hpge_detector`, `simid`
     """
     message:
-        "Extracting drift-time scan for detector {wildcards.hpge_detector}"
+        "Extracting drift-time scan for detector {wildcards.hpge_detector} and {wildcards.simid}"
     input:
-        stp_files=lambda wc: [
-            f
-            for f in aggregate.gen_list_of_simid_outputs(config, tier="stp", simid=wc.simid)
-        ],
+        stp_files=lambda wc: aggregate.gen_list_of_simid_outputs(config, tier="stp", simid = wc.simid),
         geom=lambda wc: patterns.geom_gdml_filename(
             config,
             tier="stp",
-            simid=wc.simid,
+            simid = wc.simid
         ),
         psl_file=rules.build_hpge_psl_scan.output[0],
         elecmod=rules.extract_elecmod_scan.output.pars_file,

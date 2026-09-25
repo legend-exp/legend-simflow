@@ -18,12 +18,14 @@ from pathlib import Path
 import dbetto
 from legendsimflow import aggregate, nersc, patterns
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.metadata import get_tier_settings
+from legendsimflow.metadata import get_tier_settings, get_par_settings
 
 # the HPGe modeling cache is only needed by the PSD-gated par outputs. aux.smk
 # is always included, so the flag is available to the other rule modules too
 _simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
 _tune_impurity = get_tier_settings(config, "hit").get("tune_impurity_curve", True)
+_simid_regex = get_par_settings(config, "geds/impurity").get("simid_regex", "*")
+
 if _tune_impurity and not _simulate_psd:
     raise SimflowConfigError(
         "tune_impurity_curve requires simulate_psd", "tier.hit.settings"
