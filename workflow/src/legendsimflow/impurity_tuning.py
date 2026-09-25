@@ -19,15 +19,10 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import awkward as ak
-import hist
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
-from lgdo import Struct
-from numpy.typing import NDArray
 from scipy.interpolate import griddata
-
-from legendsimflow import drift_time
 
 DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns
@@ -73,144 +68,28 @@ def get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
     idx
         The index of the grod to extract
     grid_info
-        Information on the grid, must contain `{name}_min` and {name}_step
+        Information on the grid, must contain `{name}_min` and {name}_step.
     name
         The field to extract.
     """
     return float(grid_info[f"{name}_min"] + grid_info[f"{name}_step"] * idx)
 
 
-def get_simulated_drift_times(
-    dt_files: list,
-    detector: str,
-    simid_mapping: Mapping,
-    data_stats: Mapping,
-    ranges: tuple = (1500, 2500),
-) -> tuple[dict[str, ak.Array],Struct]:
-    """Get the drift times from the MC for the specified detector and simid mapping.
-
-    This returns the drift times for each run as a dictionary of ak.Arrays and the
-    grid info. Only hits with energy in `ranges` are selected. A weight is stored
-    based on the number of events in data and simulations.
+def read_evt_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
+    """Read the evt tier data from the specified runs and return a dictionary of ak.Arrays.
 
     Parameters
     ----------
-    dt_files
-        List of simulation files containing drift times.
-    detector
-        The detector to read data for.
-    simid_mapping
-        The mapping from runs to simids (see {func}`get_simid_mapping`).
-    data_stats
-        Number of events per run in data spectrum, for normalisation.
-    ranges
-        Range to select drift times.
+    path_data
+        Path to the data files.
+    runs
+        List of runids to read data for.
+
+    Returns
+    -------
+    data
+        Dictionary of ak.Arrays containing the evt data for each run.
     """
-    drift_time_mc = {}
-    for run in simid_mapping:
-        files = [file for file in dt_files if simid_mapping[run] in file]
-        
-        if len(files) != 1:
-            msg = (
-                f"Only one drift time file should be present per simid not {len(files)}"
-            )
-            raise RuntimeError(msg)
-
-        dt_struct = lh5.read(detector, files)
-
-        out = {}
-        out["energy"] = dt_struct.energy.view_as("ak")
-        
-        for slope, depv_dict in dt_struct.psl_scan.items():
-            out[slope ] = {}
-            for dep, dts in depv_dict.items():
-
-                drift_time = dts.drift_time.view_as("ak")
-                drift_time = drift_time[(out["energy"]<ranges[1]) & (out["energy"]>ranges[0])]
-                out[slope][dep] = drift_time
-
-        # store a weight for each event based on the number of events in data and simulation
-        n_data = data_stats[run]
-        n_mc = len(out["energy"])
-        
-        if n_mc == 0:
-            n_mc = 1
-
-        weights = np.full(n_mc, n_data / n_mc)
-        out["weights"] = weights
-
-        grid_info = dt_strict.grid_info
-        drift_time_mc[run] = ak.Array(out)
-
-    return drift_time_mc, grid_info
-
-def get_simulated_drift_time_obs(
-    mc: Struct,
-    grid_info: dict,
-    **dt_kwargs,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Get the drift time observables from the MC, looping over the grid of parameters."""
-    depv = []
-    obs1 = []
-    obs2 = []
-    slopes = []
-
-    energy = [out.energy.view_as("ak") for out in mc.values()]
-
-    # get the correct weights
-    weights = [
-        w[(e > ranges[0]) & (e < ranges[1])]
-        for e, w in zip(energy, weights.values(), strict=True)
-    ]
-    weights = np.concatenate([w / len(w) for w in weights])
-    psl_scan = next(iter(mc.values())).psl_scan
-
-    for slope_str in psl_scan:
-        slope_idx = int(slope_str.split("_")[-1])
-        slope = get_grid_value(slope_idx, grid_info)
-
-        for dep_str in psl_scan[slope_str]:
-            dep_idx = int(dep_str.split("_")[-1])
-            dep = get_grid_value(dep_idx, grid_info, name="dep")
-
-            dt = ak.concatenate(
-                [
-                    out.psl_scan[slope_str][dep_str].drift_time.view_as("ak")[
-                        (e > ranges[0]) & (e < ranges[1])
-                    ]
-                    for e, out in zip(energy, mc.values(), strict=True)
-                ]
-            )
-            obs = drift_time.drift_time_observables(dt, weights=weights, **dt_kwargs)[0]
-
-            depv.append(dep)
-            slopes.append(slope)
-            obs1.append(obs[0])
-            obs2.append(obs[1] - obs[0])
-
-    depv = np.array(depv)
-    slopes = np.array(slopes)
-
-    obs1 = np.array(obs1)
-    obs2 = np.array(obs2)
-
-    return depv, slopes, obs1, obs2
-
-
-def get_drift_time_chi2(
-    data_obs: tuple[np.ndarray, np.ndarray],
-    mc_obs: tuple[np.ndarray, np.ndarray],
-    weight: float,
-) -> np.ndarray:
-    """Calculate the chi2 between the data and MC drift time observables."""
-    data_obs1, data_obs2 = data_obs
-    mc_obs1, mc_obs2 = mc_obs
-
-    return ((data_obs1 - mc_obs1) ** 2 + (data_obs2 - mc_obs2) ** 2) / weight**2
-
-
-def read_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
-    """Read the evt tier data from the specified runs and return a dictionary of ak.Arrays."""
     data = {}
 
     for run in runs:
@@ -220,7 +99,7 @@ def read_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
             msg = "No data files found!"
             raise RuntimeError(msg)
 
-        data[run] = lh5.read(
+        evt_data = lh5.read(
             "evt",
             files,
             field_mask=[
@@ -228,76 +107,25 @@ def read_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
                 "geds/energy",
                 "geds/detector_name",
                 "geds/psd/low_aoe",
+                "geds/quality",
                 "trigger",
                 "spms/event_t0",
+                "spms/energy_sum",
             ],
         ).view_as("ak")
 
-        # TODO. some cuts
+        mask = (
+            ak.all(evt_data.geds.quality.is_good_channel, axis=-1)
+            & (~evt_data.trigger.is_forced)
+            & (~evt_data.coincident.puls)
+            & (~evt_data.coincident.muon)
+            & (~evt_data.coincident.muon_offline)
+            & evt_data.geds.quality.is_bb_like
+            & (evt_data.spms.energy_sum > 10)
+        )
+        data[run] = evt_data[mask]
 
     return data
-
-
-def get_drift_time(
-    data: dict[str, ak.Array], det: str, ranges=(1500, 2500)
-) -> dict[str, NDArray]:
-    """Extract the drift time from the data for the specified detector and energy range.
-
-    Returns the drift times as a dictionary keyed by the runid with an array of
-    drift times with energy inside `ranges`.
-
-    Parameters
-    ----------
-    data
-        evt tier data per run.
-    det
-        detector to extract drift time for.
-    ranges
-        energy range to select drift times.
-    """
-    energy = {
-        run: ak.flatten(d.geds.energy[d.geds.detector_name == det])
-        for run, d in data.items()
-    }
-    drift_time = {
-        run: ak.flatten(
-            d.geds.psd.low_aoe.time[d.geds.detector_name == det] - d.spms.event_t0
-        )
-        for run, d in data.items()
-    }
-    dts = {
-        run: drift_time[run][(energy[run] < ranges[1]) & (energy[run] > ranges[0])]
-        for run in energy
-    }
-
-    return {run: dt[~np.isnan(dt)] for run, dt in dts.items()}
-
-
-def get_drift_time_obs(dts, **kwargs):
-    """Get the drift time observables from the data for the specified detector."""
-    obs, hist, edges = drift_time.drift_time_observables(
-        drift_time.remove_outliers(dts), **kwargs
-    )
-
-    return (obs[0], obs[1] - obs[0]), hist, edges
-
-
-def plot_drift_time_obs(dts, obs, weights, edges):
-    h = hist.new.Reg(200, 0, 3200).Double().fill(dts)
-    fig, ax = plt.subplots(figsize=(6, 4))
-    h.plot(yerr=False)
-
-    h2 = hist.Hist(hist.axis.Variable(edges))
-    h2[...] = 16 * weights
-    h2.plot(yerr=False)
-
-    ax.set_xlabel("Drift time [ns]")
-    ax.set_ylabel("Counts")
-
-    ax.axvline(obs[0], label="Mode", linestyle="--", color="black")
-    ax.axvline(obs[1] + obs[0], label="Q-90", linestyle="--", color="red")
-    ax.legend()
-    return fig
 
 
 def plot_cost_surface(x, y, z, name, det, vrange, levels, method="nearest"):
