@@ -25,20 +25,23 @@ import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
+import reboost
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import utils
-from legendsimflow.impurity_tuning import (
-    get_drift_time,
+from legendsimflow import nersc, utils
+from legendsimflow.drift_time import (
+    get_data_drift_time_obs,
+    get_data_drift_times,
     get_drift_time_chi2,
-    get_drift_time_obs,
-    get_simid_mapping,
     get_simulated_drift_time_obs,
     get_simulated_drift_times,
-    plot_cost_surface,
     plot_drift_time_obs,
-    read_data,
+)
+from legendsimflow.impurity_tuning import (
+    get_simid_mapping,
+    plot_cost_surface,
+    read_evt_data,
 )
 from legendsimflow.metadata import get_simconfig
 from legendsimflow.plot import decorate
@@ -54,7 +57,6 @@ DEFAULT_SETTINGS = {
 
 @snakemake_compatible(
     mapping={
-        "elecmod": "input.elecmod",
         "drift_time_files": "input.drift_time",
         "data_path": "input.data_path",
         "pars_file": "output.pars_file",
@@ -66,7 +68,7 @@ DEFAULT_SETTINGS = {
     }
 )
 def main() -> None:
-    """Extract the HPGe electronics model for a LEGEND run.
+    """Extract the HPGe impurity curve model for a LEGEND run.
 
     - This script reads the data and extracts the drift time observables from the data and MC.
     - It then calculates the chi2 between the data and MC observables and finds the best fit impurity curve scalings.
@@ -150,6 +152,12 @@ def main() -> None:
         )
         log = logging.getLogger(__name__)
 
+    data_path = nersc.dvs_ro(config, args.data_path)
+    drift_time_files = nersc.dvs_ro(config, args.drift_time_files)
+
+    # make a profiler to track performance of the script
+    perf_block, print_perf, _ = reboost.make_profiler()
+
     settings = (
         dbetto.AttrsDict(dbetto.utils.load_dict(args.settings))
         if args.settings is not None
@@ -160,69 +168,89 @@ def main() -> None:
     # 1. load data
     msg = f"... loading data from runs {args.runids} and {args.data_path}"
     log.info(msg)
-    data = read_data(args.data_path, args.runids)
+
+    with perf_block("read_evt_data()"):
+        data = read_evt_data(data_path, args.runids)
 
     simid_mapping = get_simid_mapping(
         get_simconfig(config, "hit", simid=None), args.runids
     )
 
     out = {}
-    dets = lh5.ls(args.drift_time_files[0])
+    dets = lh5.ls(drift_time_files[0])
 
     with PdfPages(args.plot_file) as pdf:
         for det in dets:
             msg = f"... processing {det}"
             log.info(msg)
-            
+
             # 3. get data observables
-            dts = get_drift_time(data, det, ranges=settings.energy_range)
+            with perf_block("get_data_drift_times()"):
+                dts = get_data_drift_times(data, det, ranges=settings.energy_range)
 
-            n = {run: len(dt) for run, dt in dts.items()}
+                n = {run: len(dt) for run, dt in dts.items()}
 
-            data_dt_obs, weights, edges = get_drift_time_obs(
-                np.concatenate(dts.values()), **settings.dt_kwargs
-            )
+                data_dt_obs, weights, edges = get_data_drift_time_obs(
+                    np.concatenate(dts.values()), **settings.dt_kwargs
+                )
 
-            fig = plot_drift_time_obs(
-                np.concatenate(dts.values()), data_dt_obs, weights, edges
-            )
-            decorate(fig)
-            pdf.savefig()
-            plt.close(fig)
+            with perf_block("plot_drift_time_obs()"):
+                fig = plot_drift_time_obs(
+                    np.concatenate(dts.values()), data_dt_obs, weights, edges
+                )
+                decorate(fig)
+                pdf.savefig()
+                plt.close(fig)
 
             log.info("... found data observables (%f, %f)", *data_dt_obs)
 
             # 4. get mc observables
-            drift_times_mc, grid_info = get_simulated_drift_times(
-                args.drift_time_files,
-                det,
-                simid_mapping,
-                n,
-                ranges=settings.energy_range,
-            )
-            log.info("... found MC drift times.")
+            with perf_block("get_simulated_drift_times()"):
+                drift_times_mc, grid_info = get_simulated_drift_times(
+                    drift_time_files,
+                    det,
+                    simid_mapping,
+                    n,
+                    ranges=settings.energy_range,
+                )
+                log.info("... found MC drift times.")
 
-            depv, slope, dt_obs1, dt_obs2 = get_simulated_drift_time_obs(
-                dt_mc, grid_info, weights, **settings.dt_kwargs
-            )
+                depv, slope, dt_obs1, dt_obs2 = get_simulated_drift_time_obs(
+                    drift_times_mc, grid_info, **settings.dt_kwargs
+                )
+                log.info(
+                    "... found MC for %d parameters between [%f -- %f] and [%f -- %f]",
+                    len(depv),
+                    dt_obs1.min(),
+                    dt_obs1.max(),
+                    dt_obs2.min(),
+                    dt_obs2.max(),
+                )
+
             dt_chi2 = get_drift_time_chi2(
                 data_dt_obs, (dt_obs1, dt_obs2), settings.drift_time_weight
             )
-
-            fig, _, best_dep, best_slope, best_cost = plot_cost_surface(
-                depv,
-                slope,
-                dt_chi2,
-                r"$\chi^2$",
-                det,
-                vrange=(0, 10),
-                levels=[2, 5, 10],
-                method="nearest",
+            log.info(
+                "... found chi2 for %d parameters between [%f -- %f]",
+                len(depv),
+                dt_chi2.min(),
+                dt_chi2.max(),
             )
+            with perf_block("plot_cost_surface()"):
+                fig, _, best_dep, best_slope, best_cost = plot_cost_surface(
+                    depv,
+                    slope,
+                    dt_chi2,
+                    r"$\chi^2$",
+                    det,
+                    vrange=(0, 10),
+                    levels=[2, 5, 10],
+                    method="nearest",
+                )
 
-            decorate(fig)
-            pdf.savefig()
-            plt.close(fig)
+                decorate(fig)
+                pdf.savefig()
+                plt.close(fig)
 
             msg = f"For {det} found minimum Vdep = {best_dep:1f}, slope {best_slope:.1f} with chi2 {best_cost:.2f}"
             log.info(msg)
@@ -242,6 +270,8 @@ def main() -> None:
             }
 
     dbetto.utils.write_dict(out, args.pars_file)
+
+    print_perf()
 
 
 if __name__ == "__main__":
