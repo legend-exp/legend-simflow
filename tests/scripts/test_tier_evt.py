@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 
+import awkward as ak
 import lh5
 import numpy as np
 import pytest
@@ -102,8 +103,15 @@ def test_evt_script_cli(
         "hit_idx",
         "time",
         "multiplicity",
+        "expected_pes",
     ):
         assert field in spms_fields, f"'spms/{field}' missing; got {spms_fields}"
+
+    # one expectation per non-OFF channel, in the rawid order
+    spms_exp = lh5.read_as("evt/spms/expected_pes", str(evt_file), library="ak")
+    spms_rawid = lh5.read_as("evt/spms/rawid", str(evt_file), library="ak")
+    assert ak.all(ak.num(spms_exp) == ak.num(spms_rawid))
+    assert ak.all(spms_exp >= 0)
 
     coincident_fields = {
         f.removeprefix("evt/coincident/") for f in lh5.ls(evt_file, "evt/coincident/")

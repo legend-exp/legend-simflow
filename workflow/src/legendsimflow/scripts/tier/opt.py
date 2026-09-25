@@ -92,6 +92,7 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
         "log_file": "log[0]",
         "optmap_per_sipm": "params.optmap_per_sipm",
         "scintillator_volume_name": "params.scintillator_volume_name",
+        "store_expected_pes": "params.store_expected_pes",
         "simflow_config": "config",
     }
 )
@@ -125,6 +126,12 @@ def main() -> None:
         help="name of the scintillator sensitive volume in the geometry",
     )
     parser.add_argument(
+        "--store-expected-pes",
+        action="store_true",
+        default=False,
+        help="also store the p.e. expectation per row, at unit channel efficiency",
+    )
+    parser.add_argument(
         "--simflow-config",
         "--config",
         dest="simflow_config",
@@ -143,6 +150,7 @@ def main() -> None:
     log_file = args.log_file
     metadata = config.metadata
     optmap_per_sipm = args.optmap_per_sipm
+    store_expected_pes = args.store_expected_pes
     scintillator_volume_name = args.scintillator_volume_name
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
@@ -230,11 +238,13 @@ def main() -> None:
                         sipm,
                         map_scaling=map_scaling,
                         max_pes_per_hit=max_pes_per_hit,
+                        return_pes_expectation_value=store_expected_pes,
                         return_stats=True,
                     )
                 )
             total_detected_pe_stats += _detected_pe_stats
 
+            expected_pes = _output.pop() if store_expected_pes else None
             if max_pes_per_hit > 0:
                 nr_pe, is_saturated = _output
             else:
@@ -281,6 +291,11 @@ def main() -> None:
                     "energy", VectorOfVectors(ak.values_astype(pe_amps, np.float32))
                 )
                 out_table.add_field("is_saturated", Array(is_saturated))
+                if expected_pes is not None:
+                    out_table.add_field(
+                        "expected_pes",
+                        Array(np.asarray(expected_pes, dtype=np.float32)),
+                    )
 
                 _, period, run, _ = mutils.parse_runid(runid)
                 field_vals = [period, run, mutils.encode_usability(usability)]
