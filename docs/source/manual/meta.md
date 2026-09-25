@@ -427,6 +427,9 @@ buffer_len: "10*MB"
   processing time.
 - `max_pes_per_hit_combined` (int) — maximum number of photoelectrons per hit
   across all SiPMs combined (used when `optmap_per_sipm: false`).
+- `store_expected_pes` (bool, optional, default `false`) — when `true`, also
+  store the `expected_pes` field in the `opt` output (see {ref}`opt-tier`) and
+  the `spms/expected_pes` field in the `evt` output.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"10*MB"`). Controls memory
   usage during processing; does not affect the output.
 

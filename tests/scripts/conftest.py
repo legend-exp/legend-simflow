@@ -324,7 +324,9 @@ def legend_opt_path(
     installed (the stp fixture already enforces this).
     """
     out_dir = tmp_path_factory.mktemp("legend_opt")
-    config_path = _l200_config(out_dir)
+    config_path = _l200_config(
+        out_dir, settings_by_tier={"opt": {"store_expected_pes": True}}
+    )
     opt_file = out_dir / "opt.lh5"
 
     optmap_path = Path(legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"))

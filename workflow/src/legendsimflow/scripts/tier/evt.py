@@ -151,6 +151,9 @@ def main() -> None:
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
+    store_expected_pes = not args.skip_opt and get_tier_settings(config, "opt").get(
+        "store_expected_pes", False
+    )
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
@@ -310,6 +313,7 @@ def main() -> None:
         empty_time = ak.Array([[[] for _ in on_spms_uids]])
         empty_is_saturated = ak.Array([[False for _ in on_spms_uids]])
         empty_hit_idx = ak.Array([[-1 for _ in on_spms_uids]])
+        empty_expected_pes = ak.Array([[0.0 for _ in on_spms_uids]])
 
         if add_random_coincidences:
             with perf_block("lookup_l200data_evts_for_rc()"):
@@ -608,6 +612,16 @@ def main() -> None:
                 out_table.add_field(
                     "spms/is_saturated", VectorOfVectors(is_saturated_sel)
                 )
+
+                if store_expected_pes:
+                    expected_pes = _read_hits(tcm, "opt", "expected_pes")[chansel]
+                    expected_pes = ak.where(
+                        is_empty_opt, empty_expected_pes, expected_pes
+                    )
+                    out_table.add_field(
+                        "spms/expected_pes",
+                        VectorOfVectors(ak.values_astype(expected_pes, np.float32)),
+                    )
 
                 hit_idx = tcm["opt"].row_in_table[chansel]
                 # fill in -1 hit index for events with no LAr edep

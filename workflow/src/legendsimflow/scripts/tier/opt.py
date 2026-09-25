@@ -159,6 +159,7 @@ def main() -> None:
         else tier_opt_settings.max_pes_per_hit_combined
     )
     buffer_len = tier_opt_settings.buffer_len
+    store_expected_pes = tier_opt_settings.get("store_expected_pes", False)
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -230,11 +231,17 @@ def main() -> None:
                         sipm,
                         map_scaling=map_scaling,
                         max_pes_per_hit=max_pes_per_hit,
+                        return_pes_expectation_value=store_expected_pes,
                         return_stats=True,
                     )
                 )
             total_detected_pe_stats += _detected_pe_stats
 
+            # reboost appends the expectation after the other outputs
+            if store_expected_pes:
+                *_output, expected_pes = _output
+            else:
+                expected_pes = None
             if max_pes_per_hit > 0:
                 nr_pe, is_saturated = _output
             else:
@@ -281,6 +288,11 @@ def main() -> None:
                     "energy", VectorOfVectors(ak.values_astype(pe_amps, np.float32))
                 )
                 out_table.add_field("is_saturated", Array(is_saturated))
+                if expected_pes is not None:
+                    out_table.add_field(
+                        "expected_pes",
+                        Array(np.asarray(expected_pes, dtype=np.float32)),
+                    )
 
                 _, period, run, _ = mutils.parse_runid(runid)
                 field_vals = [period, run, mutils.encode_usability(usability)]

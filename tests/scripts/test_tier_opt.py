@@ -73,6 +73,7 @@ def test_opt_script_cli(
     )
     # renamed to dt: readers of the old field must fail
     assert "time" not in spms_fields, "legacy field 'time' still in hit/spms"
+    assert "expected_pes" not in spms_fields, "expected_pes stored without the setting"
 
     def _field(table: str, name: str, f: Path = opt_file) -> np.ndarray:
         return lh5.read_as(f"hit/{table}/{name}", f, library="np")
@@ -104,6 +105,14 @@ def test_opt_script_cli(
         "--opt-file", str(opt_per_sipm),
         "--optmap-per-sipm",
     ])  # fmt: skip
+    settings = opt.get_tier_settings
+    monkeypatch.setattr(
+        opt,
+        "get_tier_settings",
+        lambda config, tier: AttrsDict(
+            settings(config, tier) | {"store_expected_pes": True}
+        ),
+    )
     opt.main()
 
     hit_tables = {t.removeprefix("hit/") for t in lh5.ls(opt_per_sipm, "hit/")}
@@ -114,6 +123,8 @@ def test_opt_script_cli(
         }
         assert "dt" in fields, f"'dt' missing from hit/{sipm}"
         assert "time" not in fields, f"legacy field 'time' still in hit/{sipm}"
+        assert "expected_pes" in fields, f"'expected_pes' missing from hit/{sipm}"
+        assert np.all(_field(sipm, "expected_pes", opt_per_sipm) >= 0)
 
     assert np.all(_field(_SIPM_ON, "usability", opt_per_sipm) == 0), (
         f"{_SIPM_ON} usability should be 0 (on)"
