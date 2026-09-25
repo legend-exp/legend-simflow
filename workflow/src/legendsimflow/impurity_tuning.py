@@ -24,7 +24,7 @@ import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from lgdo import Struct
-from numpy.typing import ArrayLike
+from numpy.typing import NDArray
 from scipy.interpolate import griddata
 
 from legendsimflow import drift_time
@@ -36,8 +36,21 @@ DEFAULT_SETTINGS = {
 }
 
 
-def get_run_mapping(simconfig: Mapping, runs) -> dict[str, str]:
-    """Get a mapping from run to simid from the simconfig."""
+def get_simid_mapping(simconfig: Mapping, runs: list[str]) -> dict[str, str]:
+    """Get a mapping from run to simid from the simconfig.
+
+    Only simids with a single run per simid are supported, and only
+    runs present in the `runs` list are used.
+
+    Returns a dictionary mapping runs to simids.
+
+    Parameters
+    ----------
+    simconfig
+        metadata on simflow configuration including runlists for each simid.
+    runs
+        lost of runids to use.
+    """
     out = {}
     for simid, info in simconfig.items():
         if not any(run in info.runlist[0] for run in runs):
@@ -52,43 +65,88 @@ def get_run_mapping(simconfig: Mapping, runs) -> dict[str, str]:
     return out
 
 
-def _get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
-    """Get the slope value from the grid info given the name."""
+def get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
+    """Get the slope value from the grid info given the name.
+
+    Parameters
+    ----------
+    idx
+        The index of the grod to extract
+    grid_info
+        Information on the grid, must contain `{name}_min` and {name}_step
+    name
+        The field to extract.
+    """
     return float(grid_info[f"{name}_min"] + grid_info[f"{name}_step"] * idx)
 
 
-def get_drift_times_mc(
-    dt_files: list, det: str, simid_mapping: Mapping, run_norms: Mapping
-) -> tuple[dict, dict]:
+def get_simulated_drift_times(
+    dt_files: list,
+    detector: str,
+    simid_mapping: Mapping,
+    data_stats: Mapping,
+    ranges: tuple = (1500, 2500),
+) -> tuple[dict[str, ak.Array],Struct]:
     """Get the drift times from the MC for the specified detector and simid mapping.
 
-    This returns the output weights and drift times for each run.
+    This returns the drift times for each run as a dictionary of ak.Arrays and the
+    grid info. Only hits with energy in `ranges` are selected. A weight is stored
+    based on the number of events in data and simulations.
+
+    Parameters
+    ----------
+    dt_files
+        List of simulation files containing drift times.
+    detector
+        The detector to read data for.
+    simid_mapping
+        The mapping from runs to simids (see {func}`get_simid_mapping`).
+    data_stats
+        Number of events per run in data spectrum, for normalisation.
+    ranges
+        Range to select drift times.
     """
     drift_time_mc = {}
-    weights = {}
-
     for run in simid_mapping:
         files = [file for file in dt_files if simid_mapping[run] in file]
+        
         if len(files) != 1:
             msg = (
                 f"Only one drift time file should be present per simid not {len(files)}"
             )
             raise RuntimeError(msg)
 
-        drift_times = lh5.read(det, files)
+        dt_struct = lh5.read(detector, files)
 
-        weight = ak.full_like(drift_times.energy.view_as("ak"), run_norms[run])
-        weights[run] = weight
-        drift_time_mc[run] = drift_times
+        out = {}
+        out["energy"] = dt_struct.energy.view_as("ak")
+        
+        for slope, depv_dict in dt_struct.psl_scan.items():
+            out[slope ] = {}
+            for dep, dts in depv_dict.items():
 
-    return weights, drift_time_mc
+                drift_time = dts.drift_time.view_as("ak")
+                drift_time = drift_time[(out["energy"]<ranges[1]) & (out["energy"]>ranges[0])]
+                out[slope][dep] = drift_time
 
+        # store a weight for each event based on the number of events in data and simulation
+        n_data = data_stats[run]
+        n_mc = len(out["energy"])
+        
+        if n_mc == 0:
+            n_mc = 1
 
-def get_drift_time_obs_mc(
+        weights = np.full(n_mc, n_data / n_mc)
+        out["weights"] = weights
+
+        grid_info = dt_strict.grid_info
+        drift_time_mc[run] = ak.Array(out)
+
+    return drift_time_mc, grid_info
+
+def get_simulated_drift_time_obs(
     mc: Struct,
     grid_info: dict,
-    weights: ArrayLike,
-    ranges=(1500, 2500),
     **dt_kwargs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Get the drift time observables from the MC, looping over the grid of parameters."""
@@ -109,11 +167,11 @@ def get_drift_time_obs_mc(
 
     for slope_str in psl_scan:
         slope_idx = int(slope_str.split("_")[-1])
-        slope = _get_grid_value(slope_idx, grid_info)
+        slope = get_grid_value(slope_idx, grid_info)
 
         for dep_str in psl_scan[slope_str]:
             dep_idx = int(dep_str.split("_")[-1])
-            dep = _get_grid_value(dep_idx, grid_info, name="dep")
+            dep = get_grid_value(dep_idx, grid_info, name="dep")
 
             dt = ak.concatenate(
                 [
@@ -180,8 +238,23 @@ def read_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
     return data
 
 
-def get_drift_time(data: dict[str, ak.Array], det: str, ranges=(1500, 2500)):
-    """Extract the drift time from the data for the specified detector and energy range."""
+def get_drift_time(
+    data: dict[str, ak.Array], det: str, ranges=(1500, 2500)
+) -> dict[str, NDArray]:
+    """Extract the drift time from the data for the specified detector and energy range.
+
+    Returns the drift times as a dictionary keyed by the runid with an array of
+    drift times with energy inside `ranges`.
+
+    Parameters
+    ----------
+    data
+        evt tier data per run.
+    det
+        detector to extract drift time for.
+    ranges
+        energy range to select drift times.
+    """
     energy = {
         run: ak.flatten(d.geds.energy[d.geds.detector_name == det])
         for run, d in data.items()
@@ -227,7 +300,7 @@ def plot_drift_time_obs(dts, obs, weights, edges):
     return fig
 
 
-def plot_surface(x, y, z, name, det, vrange, levels, method="nearest"):
+def plot_cost_surface(x, y, z, name, det, vrange, levels, method="nearest"):
     """Plot the cost function as a function of depletion voltage and slope."""
     xi = np.linspace(x.min(), x.max(), 500)
     yi = np.linspace(y.min(), y.max(), 500)
