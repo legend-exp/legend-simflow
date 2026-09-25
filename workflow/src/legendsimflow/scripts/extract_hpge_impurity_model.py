@@ -58,7 +58,7 @@ DEFAULT_SETTINGS = {
 @snakemake_compatible(
     mapping={
         "drift_time_files": "input.drift_time",
-        "data_path": "input.data_path",
+        "data_path": "params.data_path",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
         "settings": "input.settings",

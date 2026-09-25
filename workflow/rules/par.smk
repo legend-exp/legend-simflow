@@ -717,3 +717,22 @@ rule extract_hpge_observables_models:
         patterns.log_eresmod_filename(config),
     script:
         "../src/legendsimflow/scripts/pars/extract_hpge_observables_models.py"
+
+
+rule extract_hpge_impurity_models:
+    """Extract and store on disk parameters of the HPGe impurity curve for each detector."""
+    message:
+        "Extracting HPGe impurity models"
+    input:
+        drift_time_files=aggregate.gen_list_of_merged_drift_time_scans(config),
+        settings=get_par_settings(config, "hpge-impurity-model"),
+    output:
+        pars_file=patterns.output_impurity_model_filename(config),
+        plot_file=patterns.log_impurity_model_filename(config),
+    params:
+        data_path=config.paths.get("l200data", None),
+        runids=lambda wc: sorted(aggregate.gen_list_of_all_runids(config)),
+    log:
+        patterns.log_impurity_model_filename(config),
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_impurity_model.py"
