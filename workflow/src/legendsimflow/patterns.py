@@ -575,8 +575,7 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-<<<<<<< HEAD
-# drift-time sca
+# drift-time scan
 
 
 def output_merged_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
@@ -585,7 +584,8 @@ def output_merged_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> P
         config.paths.pars / "hpge/drift_time_scan/{simid}-hpge-drift-time-scan.lh5",
         **kwargs,
     )
-=======
+
+
 # hpge impurity-curve tuning
 
 
@@ -641,7 +641,6 @@ def benchmark_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
     """The benchmark file path for the drift-time scan for a detector."""
     pat = config.paths.benchmarks / "hpge/impurity/{hpge_detector}-drift-time-scan.tsv"
     return _expand(pat, **kwargs)
->>>>>>> 7978a24 (feat: add the HPGe impurity-curve scan rules)
 
 
 # hpge energy resolution
