@@ -606,7 +606,7 @@ def log_elecmod_scan_filename(config: SimflowConfig, **kwargs) -> Path:
     pat = log_dirname(config) / "hpge/impurity/{hpge_detector}-elecmod-scan.log"
     return _expand(pat, **kwargs)
 
-
+# drift time scan
 def output_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the drift-time scan file for a detector."""
     pat = config.paths.pars / "hpge/drift_time_scan/singles/{simid}-{hpge_detector}-drift-time-scan.lh5"
@@ -625,8 +625,6 @@ def benchmark_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-
-# dt scan
 def output_drift_time_scan_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the merged HPGe drift-time scan file for a `simid`."""
     return _expand(
