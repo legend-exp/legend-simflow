@@ -700,24 +700,19 @@ rule extract_drift_time_scan:
     `energy_cut_in_keV` (default 1500 keV) are used, at most `max_events`
     (default all).
 
-    Uses wildcard `hpge_detector`.
+    Uses wildcard `hpge_detector`, `simid`
     """
     message:
         "Extracting drift-time scan for detector {wildcards.hpge_detector}"
     input:
         stp_files=lambda wc: [
             f
-            for s in aggregate.gen_list_of_all_simids_matching(
-                config, _impurity_settings["simid_regex"]
-            )
-            for f in aggregate.gen_list_of_simid_outputs(config, tier="stp", simid=s)
+            for f in aggregate.gen_list_of_simid_outputs(config, tier="stp", simid=wc.simid)
         ],
         geom=lambda wc: patterns.geom_gdml_filename(
             config,
             tier="stp",
-            simid=aggregate.gen_list_of_all_simids_matching(
-                config, _impurity_settings["simid_regex"]
-            )[0],
+            simid=wc.simid,
         ),
         psl_file=rules.build_hpge_psl_scan.output[0],
         elecmod=rules.extract_elecmod_scan.output.pars_file,
