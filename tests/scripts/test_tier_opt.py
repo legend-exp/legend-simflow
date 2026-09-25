@@ -73,7 +73,7 @@ def test_opt_script_cli(
     )
     # renamed to dt: readers of the old field must fail
     assert "time" not in spms_fields, "legacy field 'time' still in hit/spms"
-    assert "expected_pes" not in spms_fields, "expected_pes stored without the flag"
+    assert "expected_pes" not in spms_fields, "expected_pes stored without the setting"
 
     def _field(table: str, name: str, f: Path = opt_file) -> np.ndarray:
         return lh5.read_as(f"hit/{table}/{name}", f, library="np")
@@ -104,8 +104,15 @@ def test_opt_script_cli(
         "--simstat-part-file", str(part_file),
         "--opt-file", str(opt_per_sipm),
         "--optmap-per-sipm",
-        "--store-expected-pes",
     ])  # fmt: skip
+    settings = opt.get_tier_settings
+    monkeypatch.setattr(
+        opt,
+        "get_tier_settings",
+        lambda config, tier: AttrsDict(
+            settings(config, tier) | {"store_expected_pes": True}
+        ),
+    )
     opt.main()
 
     hit_tables = {t.removeprefix("hit/") for t in lh5.ls(opt_per_sipm, "hit/")}

@@ -22,7 +22,9 @@ def test_evt_script_cli(
     legend_simstat_part_path,
     legend_detector_usabilities_path,
 ):
-    config_path = l200_config_factory(tmp_path)
+    config_path = l200_config_factory(
+        tmp_path, settings_by_tier={"opt": {"store_expected_pes": True}}
+    )
 
     evt_file = tmp_path / "evt.lh5"
     monkeypatch.setattr(

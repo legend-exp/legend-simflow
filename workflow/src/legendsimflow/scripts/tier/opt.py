@@ -92,7 +92,6 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
         "log_file": "log[0]",
         "optmap_per_sipm": "params.optmap_per_sipm",
         "scintillator_volume_name": "params.scintillator_volume_name",
-        "store_expected_pes": "params.store_expected_pes",
         "simflow_config": "config",
     }
 )
@@ -126,12 +125,6 @@ def main() -> None:
         help="name of the scintillator sensitive volume in the geometry",
     )
     parser.add_argument(
-        "--store-expected-pes",
-        action="store_true",
-        default=False,
-        help="also store the p.e. expectation per row, at unit channel efficiency",
-    )
-    parser.add_argument(
         "--simflow-config",
         "--config",
         dest="simflow_config",
@@ -150,7 +143,6 @@ def main() -> None:
     log_file = args.log_file
     metadata = config.metadata
     optmap_per_sipm = args.optmap_per_sipm
-    store_expected_pes = args.store_expected_pes
     scintillator_volume_name = args.scintillator_volume_name
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
@@ -167,6 +159,7 @@ def main() -> None:
         else tier_opt_settings.max_pes_per_hit_combined
     )
     buffer_len = tier_opt_settings.buffer_len
+    store_expected_pes = tier_opt_settings.get("store_expected_pes", False)
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -244,7 +237,11 @@ def main() -> None:
                 )
             total_detected_pe_stats += _detected_pe_stats
 
-            expected_pes = _output.pop() if store_expected_pes else None
+            # reboost appends the expectation after the other outputs
+            if store_expected_pes:
+                *_output, expected_pes = _output
+            else:
+                expected_pes = None
             if max_pes_per_hit > 0:
                 nr_pe, is_saturated = _output
             else:

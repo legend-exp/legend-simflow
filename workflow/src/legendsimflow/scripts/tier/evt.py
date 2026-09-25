@@ -151,6 +151,9 @@ def main() -> None:
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
+    store_expected_pes = not args.skip_opt and get_tier_settings(config, "opt").get(
+        "store_expected_pes", False
+    )
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
@@ -610,11 +613,7 @@ def main() -> None:
                     "spms/is_saturated", VectorOfVectors(is_saturated_sel)
                 )
 
-                # only present if the opt tier was built with store_expected_pes
-                opt_table = f"hit/{next(iter(det2uid['opt']))}"
-                if f"{opt_table}/expected_pes" in lh5.ls(
-                    hit_file["opt"], f"{opt_table}/"
-                ):
+                if store_expected_pes:
                     expected_pes = _read_hits(tcm, "opt", "expected_pes")[chansel]
                     expected_pes = ak.where(
                         is_empty_opt, empty_expected_pes, expected_pes
