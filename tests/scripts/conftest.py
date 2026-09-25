@@ -347,6 +347,7 @@ def legend_opt_path(
         str(opt_file),
         "--scintillator-volume-name",
         "liquid_argon",
+        "--store-expected-pes",
         "--simflow-config",
         str(config_path),
     ):
