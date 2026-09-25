@@ -445,6 +445,28 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
+# dt scan
+def output_drift_time_scan_merged_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the merged HPGe drift-time scan file for a `simid`."""
+    return _expand(
+        config.paths.pars / "hpge/drift_time_scan/{simid}-hpge-drift-time-scan.lh5",
+        **kwargs,
+    )
+
+
+# impurity model
+
+
+def output_impurity_model_filename(config: SimflowConfig) -> Path:
+    """The path to the per-detector HPGe impurity model parameter file."""
+    return (config.paths.pars / "hpge/impurity_model/model.yaml",)
+
+
+def log_impurity_model_filename(config: SimflowConfig) -> Path:
+    """The log file path for HPGe impurity model extraction for a detector and `runid`."""
+    return log_dirname(config) / "hpge/impurity_model/model.log"
+
+
 def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
     """Flag to compute the superpulses."""
     raw_elecmod = metautils.simpars(
@@ -551,6 +573,17 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
         config.paths.pars / "hpge/currmod/plots/{runid}-{hpge_detector}-fit-result.pdf"
     )
     return _expand(pat, **kwargs)
+
+
+# drift-time sca
+
+
+def output_merged_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the merged HPGe drift-time scan file for a `simid`."""
+    return _expand(
+        config.paths.pars / "hpge/drift_time_scan/{simid}-hpge-drift-time-scan.lh5",
+        **kwargs,
+    )
 
 
 # hpge energy resolution
