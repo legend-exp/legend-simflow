@@ -11,7 +11,7 @@ from legendmeta import LegendMetadata
 from lgdo import Array, Scalar, Struct
 
 from legendsimflow import utils
-from legendsimflow.impurity_tuning import get_run_mapping
+from legendsimflow.impurity_tuning import get_simid_mapping
 from legendsimflow.metadata import get_simconfig
 from legendsimflow.scripts.extract_hpge_impurity_model import main
 from legendsimflow.superpulses import lookup_superpulse_inputs
@@ -33,12 +33,12 @@ def _drift_time(peak1, peak2, frac=0.5, size=1000):
     return np.concatenate([peak1, peak2])
 
 
-def test_get_run_mapping(test_make_ssc_data):
+def test_get_simid_mapping(test_make_ssc_data):
     config = utils.init_simflow_context(
         test_make_ssc_data / "simflow-config-l200-ssc.yaml", workflow=None
     ).config
     runs = ["l200-p16-r008-ssc"]
-    mapping = get_run_mapping(get_simconfig(config, "hit", simid=None), runs)
+    mapping = get_simid_mapping(get_simconfig(config, "hit", simid=None), runs)
 
     assert mapping == {"l200-p16-r008-ssc": "source_pos_1"}
 

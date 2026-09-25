@@ -33,11 +33,11 @@ from legendsimflow.impurity_tuning import (
     get_drift_time,
     get_drift_time_chi2,
     get_drift_time_obs,
-    get_drift_time_obs_mc,
-    get_drift_times_mc,
-    get_run_mapping,
+    get_simid_mapping,
+    get_simulated_drift_time_obs,
+    get_simulated_drift_times,
+    plot_cost_surface,
     plot_drift_time_obs,
-    plot_surface,
     read_data,
 )
 from legendsimflow.metadata import get_simconfig
@@ -48,6 +48,7 @@ DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns
     "wf_weight": 0.5,  # arb
     "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
+    "energy_range": [1500, 2500],
 }
 
 
@@ -161,7 +162,7 @@ def main() -> None:
     log.info(msg)
     data = read_data(args.data_path, args.runids)
 
-    simid_mapping = get_run_mapping(
+    simid_mapping = get_simid_mapping(
         get_simconfig(config, "hit", simid=None), args.runids
     )
 
@@ -172,14 +173,9 @@ def main() -> None:
         for det in dets:
             msg = f"... processing {det}"
             log.info(msg)
-            grid_info = {
-                a: f.view_as()
-                for a, f in lh5.read(
-                    f"{det}/grid_info", args.drift_time_files[0]
-                ).items()
-            }
+            
             # 3. get data observables
-            dts = get_drift_time(data, det)
+            dts = get_drift_time(data, det, ranges=settings.energy_range)
 
             n = {run: len(dt) for run, dt in dts.items()}
 
@@ -197,18 +193,23 @@ def main() -> None:
             log.info("... found data observables (%f, %f)", *data_dt_obs)
 
             # 4. get mc observables
-            weights, dt_mc = get_drift_times_mc(
-                args.drift_time_files, det, simid_mapping, n
+            drift_times_mc, grid_info = get_simulated_drift_times(
+                args.drift_time_files,
+                det,
+                simid_mapping,
+                n,
+                ranges=settings.energy_range,
             )
+            log.info("... found MC drift times.")
 
-            depv, slope, dt_obs1, dt_obs2 = get_drift_time_obs_mc(
+            depv, slope, dt_obs1, dt_obs2 = get_simulated_drift_time_obs(
                 dt_mc, grid_info, weights, **settings.dt_kwargs
             )
             dt_chi2 = get_drift_time_chi2(
                 data_dt_obs, (dt_obs1, dt_obs2), settings.drift_time_weight
             )
 
-            fig, _, best_dep, best_slope, best_cost = plot_surface(
+            fig, _, best_dep, best_slope, best_cost = plot_cost_surface(
                 depv,
                 slope,
                 dt_chi2,
