@@ -7,14 +7,12 @@ import dbetto
 import lh5
 import numpy as np
 import pytest
-from legendmeta import LegendMetadata
 from lgdo import Array, Scalar, Struct
 
 from legendsimflow import utils
 from legendsimflow.impurity_tuning import get_simid_mapping
 from legendsimflow.metadata import get_simconfig
 from legendsimflow.scripts.extract_hpge_impurity_model import main
-from legendsimflow.superpulses import lookup_superpulse_inputs
 
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
@@ -88,11 +86,6 @@ def make_sim_drift_time(tmp_path):
 def test_hpge_impurity_cli_with_data(
     test_make_ssc_data, make_sim_drift_time, tmp_path, monkeypatch
 ):
-    meta = LegendMetadata(test_make_ssc_data / "inputs", lazy=True)
-    _, evt_files, _, _, _ = lookup_superpulse_inputs(
-        l200data, meta, "l200-p16-r008-ssc", DETECTOR, evt_tier_name="pet"
-    )
-
     run_norms = {"l200-p16-r008-ssc": 1.0}
     Path(tmp_path / "outputs").mkdir(parents=True)
     dbetto.utils.write_dict(run_norms, tmp_path / "outputs" / "run_norms.yaml")
@@ -111,7 +104,7 @@ def test_hpge_impurity_cli_with_data(
             "--plot-file",
             str(tmp_path / "outputs" / f"{DETECTOR}_drift_time_obs.pdf"),
             "--data-path",
-            str(evt_files[0].parent),
+            str(l200data),
             "--pars-file",
             str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--simflow-config",

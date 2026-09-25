@@ -92,8 +92,10 @@ def read_evt_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
     """
     data = {}
 
-    for run in runs:
-        files = list(Path(path_data).glob(f"*{run}*.lh5"))
+    for runid in runs:
+        _, period, run, dtype = runid.split("-")
+        run_path = Path(path_data) / "generated" / "tier" / "pet" / dtype / period / run
+        files = list(run_path.glob(f"*{runid}*.lh5"))
 
         if len(files) == 0:
             msg = "No data files found!"
@@ -123,7 +125,7 @@ def read_evt_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
             & evt_data.geds.quality.is_bb_like
             & (evt_data.spms.energy_sum > 10)
         )
-        data[run] = evt_data[mask]
+        data[runid] = evt_data[mask]
 
     return data
 
