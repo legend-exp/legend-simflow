@@ -708,7 +708,7 @@ rule extract_hpge_observables_models:
     params:
         # track l200data so the rule reruns when it changes: the parameter
         # database is discovered dynamically and not listed above
-        _l200data=config.paths.get("l200data", None),
+        data_path=config.paths.get("l200data", None),
     output:
         eresmod_file=patterns.output_eresmod_filename(config),
         aoeresmod_file=patterns.output_aoeresmod_filename(config),
