@@ -67,9 +67,6 @@ rule build_tier_opt:
         time_resolution_in_ns=_tier_setting("opt", "time_resolution_in_ns"),
         max_pes_per_hit_per_sipm=_tier_setting("opt", "max_pes_per_hit_per_sipm"),
         max_pes_per_hit_combined=_tier_setting("opt", "max_pes_per_hit_combined"),
-        store_expected_pes=lambda wc: mutils.get_tier_settings(config, "opt").get(
-            "store_expected_pes", False
-        ),
     output:
         patterns.output_simjob_filename(config, tier="opt"),
     log:
