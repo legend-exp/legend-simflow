@@ -101,7 +101,7 @@ A deployed HPGe is _modelable_ (i.e. eligible for drift-time-map and
 current-pulse model generation, tracked by the `is_modelable` flag in
 {ref}`par-detinfo`) when, for the given run, its usability is `on`, it has an
 operational voltage and its crystal metadata provides an impurity curve. The
-remaining criteria depend on the `tune_impurity_curve` setting in
+remaining criteria depend on the `tune_hpge_impurities_on_data` setting in
 {ref}`hit-tier-settings`:
 
 - `True` (default): the detector PSD status (`analysis.psd.status.low_aoe` in
