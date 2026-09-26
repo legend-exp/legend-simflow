@@ -864,23 +864,26 @@ def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
-def gen_list_of_merged_drift_time_scans(config: SimflowConfig) -> list[Path]:
-    r"""Generate the list of merged drift-time scan files used to tune the impurities.
+def gen_list_of_tuning_simids(config: SimflowConfig) -> list[str]:
+    r"""The `simid`\ s used to tune the HPGe impurities.
 
-    One file per `simid` named in ``config.simlist`` (items are
-    ``<tier>.<simid>``, see :func:`process_simlist`), or per `simid` of the
-    Simflow when the simlist is ``all``.
+    Those named in ``config.simlist`` (items are ``<tier>.<simid>``, see
+    :func:`process_simlist`), or all the `simid`\ s of the Simflow when the
+    simlist is ``all``.
     """
     simlist = config.get("simlist", "all")
     if simlist in ("all", "*"):
-        simids = gen_list_of_all_simids(config)
-    else:
-        if not isinstance(simlist, list):
-            simlist = simlist.split(",")
-        simids = [item.split(".")[1].strip() for item in simlist]
+        return list(gen_list_of_all_simids(config))
+    if not isinstance(simlist, list):
+        simlist = simlist.split(",")
+    return [item.split(".")[1].strip() for item in simlist]
+
+
+def gen_list_of_merged_drift_time_scans(config: SimflowConfig) -> list[Path]:
+    """Generate the list of merged drift-time scan files, one per tuning `simid`."""
     return [
         patterns.output_drift_time_scan_merged_filename(config, simid=simid)
-        for simid in simids
+        for simid in gen_list_of_tuning_simids(config)
     ]
 
 

@@ -757,17 +757,27 @@ rule merge_hpge_drift_time_scans:
         """
 
 
+if _tune_impurity:
+    for _simid in aggregate.gen_list_of_tuning_simids(config):
+        _runs = aggregate.get_runlist(config, _simid)
+        if len(_runs) != 1 or _runs[0] not in config.get("runlist", []):
+            raise SimflowConfigError(
+                f"simid {_simid} must have a single run of the runlist, found {_runs}",
+                "simflow-config.simlist",
+            )
+
+
 rule extract_hpge_impurity_models:
     """Fit the HPGe impurity-curve parameters of every modelable detector.
 
     Compare the drift-time distribution measured in LEGEND-200 data with the
     simulated ones of `merge_hpge_drift_time_scans` and pick the grid point
     with the smallest chi2. With `tune_impurity_curve` the Simflow is a
-    tuning-only production: the runs are the `runlist` and the simulation IDs
-    are the `simlist` of the Simflow configuration file, and each simulation
-    ID must have a single run of that list in its runlist. The output YAML is
-    keyed by detector and holds the best-fit `slope` (dimensionless) and
-    `depletion_voltage` (in V).
+    tuning-only production: the simulation IDs are the `simlist` of the
+    Simflow configuration file, each holding a single run of its `runlist`,
+    which is the data it is compared to. The output YAML is keyed by detector
+    and holds the best-fit `slope` (dimensionless) and `depletion_voltage`
+    (in V).
 
     :::{warning}
     This rule does not have the relevant LEGEND-200 data files as input, since
@@ -786,7 +796,7 @@ rule extract_hpge_impurity_models:
         / f"simprod/config/pars/{config.experiment}/geds/impurity/settings.yaml",
     params:
         data_path=config.paths.get("l200data", None),
-        runids=sorted(config.get("runlist", [])),
+        simids=aggregate.gen_list_of_tuning_simids(config),
     output:
         pars_file=patterns.output_impurity_model_filename(config),
         plot_file=patterns.plot_impurity_model_filename(config),

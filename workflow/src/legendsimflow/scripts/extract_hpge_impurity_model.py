@@ -38,12 +38,8 @@ from legendsimflow.drift_time import (
     get_simulated_drift_times,
     plot_drift_time_obs,
 )
-from legendsimflow.impurity_tuning import (
-    get_simid_mapping,
-    plot_cost_surface,
-    read_evt_data,
-)
-from legendsimflow.metadata import get_simconfig
+from legendsimflow.impurity_tuning import plot_cost_surface, read_evt_data
+from legendsimflow.metadata import get_runlist
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 
@@ -62,7 +58,7 @@ DEFAULT_SETTINGS = {
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
         "settings": "input.settings",
-        "runids": "params.runids",
+        "simids": "params.simids",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -111,10 +107,10 @@ def main() -> None:
         help="input path for evt tier data.",
     )
     parser.add_argument(
-        "--runids",
+        "--simids",
         required=True,
         nargs="+",
-        help="list of runids to process.",
+        help="simulation IDs of the drift-time files, in the same order.",
     )
 
     parser.add_argument("--log-file", default=None, help="log file")
@@ -167,16 +163,21 @@ def main() -> None:
         )
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
+    # each simulation holds a single run, which its drift times are compared to
+    run_files = {}
+    for simid, file in zip(args.simids, drift_time_files, strict=True):
+        runs = get_runlist(config, simid)
+        if len(runs) != 1:
+            msg = f"simid {simid} must have a single run in its runlist, found {runs}"
+            raise ValueError(msg)
+        run_files[runs[0]] = file
+
     # 1. load data
-    msg = f"... loading data from runs {args.runids} and {args.data_path}"
+    msg = f"... loading data from runs {list(run_files)} and {args.data_path}"
     log.info(msg)
 
     with perf_block("read_evt_data()"):
-        data = read_evt_data(data_path, args.runids)
-
-    simid_mapping = get_simid_mapping(
-        get_simconfig(config, "hit", simid=None), args.runids
-    )
+        data = read_evt_data(data_path, list(run_files))
 
     out = {}
     dets = lh5.ls(drift_time_files[0])
@@ -209,9 +210,8 @@ def main() -> None:
             # 4. get mc observables
             with perf_block("get_simulated_drift_times()"):
                 drift_times_mc, grid_info = get_simulated_drift_times(
-                    drift_time_files,
+                    run_files,
                     det,
-                    simid_mapping,
                     n,
                     ranges=settings.energy_range,
                 )

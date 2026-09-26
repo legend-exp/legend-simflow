@@ -36,13 +36,12 @@ from legendsimflow.impurity_tuning import get_grid_value
 
 
 def get_simulated_drift_times(
-    dt_files: list,
+    dt_files: Mapping[str, str],
     detector: str,
-    simid_mapping: Mapping,
     data_stats: Mapping,
     ranges: tuple = (1500, 2500),
 ) -> tuple[dict[str, ak.Array], Struct]:
-    """Get the drift times from the MC for the specified detector and simid mapping.
+    """Get the drift times from the MC for the specified detector.
 
     This returns the drift times for each run as a dictionary of ak.Arrays and the
     grid info. Only hits with energy in `ranges` are selected. A weight is stored
@@ -51,27 +50,17 @@ def get_simulated_drift_times(
     Parameters
     ----------
     dt_files
-        List of simulation files containing drift times.
+        Simulation file containing the drift times, per run.
     detector
         The detector to read data for.
-    simid_mapping
-        The mapping from runs to simids (see {func}`get_simid_mapping`).
     data_stats
         Number of events per run in data spectrum, for normalisation.
     ranges
         Range to select drift times.
     """
     drift_time_mc = {}
-    for run in simid_mapping:
-        files = [file for file in dt_files if simid_mapping[run] in file]
-
-        if len(files) != 1:
-            msg = (
-                f"Only one drift time file should be present per simid not {len(files)}"
-            )
-            raise RuntimeError(msg)
-
-        dt_struct = lh5.read(detector, files)
+    for run, file in dt_files.items():
+        dt_struct = lh5.read(detector, file)
 
         out = {}
         out["energy"] = dt_struct.energy.view_as("ak")
