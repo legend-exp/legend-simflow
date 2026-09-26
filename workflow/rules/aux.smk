@@ -17,11 +17,26 @@ from pathlib import Path
 
 import dbetto
 from legendsimflow import aggregate, nersc, patterns
-from legendsimflow.metadata import get_tier_settings
+from legendsimflow.exceptions import SimflowConfigError
+from legendsimflow.metadata import get_tier_settings, get_par_settings
 
 # the HPGe modeling cache is only needed by the PSD-gated par outputs. aux.smk
 # is always included, so the flag is available to the other rule modules too
 _simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
+_tune_impurity = get_tier_settings(config, "hit").get(
+    "tune_hpge_impurities_on_data", True
+)
+_impurity_settings = get_par_settings(config, "impurity")
+
+if _tune_impurity and not _simulate_psd:
+    raise SimflowConfigError(
+        "tune_hpge_impurities_on_data requires simulate_psd", "tier.hit.settings"
+    )
+if _tune_impurity and config.paths.get("l200data", None) is None:
+    raise SimflowConfigError(
+        "tune_hpge_impurities_on_data requires the LEGEND-200 data (paths.l200data)",
+        "simflow-config.paths",
+    )
 
 
 def on_scratch_smk(path: str | Path):

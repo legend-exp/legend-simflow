@@ -445,26 +445,22 @@ def output_elecmod_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     )
 
 
-# dt scan
-def output_drift_time_scan_merged_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the merged HPGe drift-time scan file for a `simid`."""
-    return _expand(
-        config.paths.pars / "hpge/drift_time_scan/{simid}-hpge-drift-time-scan.lh5",
-        **kwargs,
-    )
-
-
 # impurity model
 
 
 def output_impurity_model_filename(config: SimflowConfig) -> Path:
-    """The path to the per-detector HPGe impurity model parameter file."""
-    return (config.paths.pars / "hpge/impurity_model/model.yaml",)
+    """The path to the HPGe impurity model parameter file, keyed by detector."""
+    return config.paths.pars / "hpge/impurity/impurity-model.yaml"
+
+
+def plot_impurity_model_filename(config: SimflowConfig) -> Path:
+    """The path to the HPGe impurity model fit plots."""
+    return config.paths.pars / "hpge/impurity/plots/impurity-model.pdf"
 
 
 def log_impurity_model_filename(config: SimflowConfig) -> Path:
-    """The log file path for HPGe impurity model extraction for a detector and `runid`."""
-    return log_dirname(config) / "hpge/impurity_model/model.log"
+    """The log file path for the HPGe impurity model extraction."""
+    return log_dirname(config) / "hpge/impurity/impurity-model.log"
 
 
 def compute_superpulses(config: SimflowConfig, **kwargs) -> bool:
@@ -575,10 +571,74 @@ def plot_currmod_filename(config: SimflowConfig, **kwargs) -> Path:
     return _expand(pat, **kwargs)
 
 
-# drift-time sca
+# hpge impurity-curve tuning
 
 
-def output_merged_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+def output_psl_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the ideal HPGe pulse-shape library scan for a detector."""
+    pat = config.paths.pars / "hpge/impurity/{hpge_detector}-hpge-psl-scan.lh5"
+    return _expand(pat, **kwargs)
+
+
+def log_psl_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for the ideal pulse-shape library scan for a detector."""
+    pat = log_dirname(config) / "hpge/impurity/{hpge_detector}-hpge-psl-scan.log"
+    return _expand(pat, **kwargs)
+
+
+def benchmark_psl_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The benchmark file path for the ideal pulse-shape library scan for a detector."""
+    pat = config.paths.benchmarks / "hpge/impurity/{hpge_detector}-hpge-psl-scan.tsv"
+    return _expand(pat, **kwargs)
+
+
+def output_elecmod_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the electronics-model scan parameter file for a detector."""
+    pat = config.paths.pars / "hpge/impurity/{hpge_detector}-elecmod-scan.yaml"
+    return _expand(pat, **kwargs)
+
+
+def plot_elecmod_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the electronics-model scan validation plot for a detector."""
+    pat = config.paths.pars / "hpge/impurity/plots/{hpge_detector}-elecmod-scan.pdf"
+    return _expand(pat, **kwargs)
+
+
+def log_elecmod_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for the electronics-model scan for a detector."""
+    pat = log_dirname(config) / "hpge/impurity/{hpge_detector}-elecmod-scan.log"
+    return _expand(pat, **kwargs)
+
+
+# drift time scan
+def output_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the drift-time scan file for a detector."""
+    pat = (
+        config.paths.pars
+        / "hpge/drift_time_scan/singles/{simid}-{hpge_detector}-drift-time-scan.lh5"
+    )
+    return _expand(pat, **kwargs)
+
+
+def log_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for the drift-time scan for a detector."""
+    pat = (
+        log_dirname(config)
+        / "hpge/drift_time_scan/singles/{simid}-{hpge_detector}-drift-time-scan.log"
+    )
+    return _expand(pat, **kwargs)
+
+
+def benchmark_drift_time_scan_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The benchmark file path for the drift-time scan for a detector."""
+    pat = (
+        config.paths.benchmarks
+        / "hpge/drift_time_scan/singles/{simid}-{hpge_detector}-drift-time-scan.tsv"
+    )
+    return _expand(pat, **kwargs)
+
+
+def output_drift_time_scan_merged_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the merged HPGe drift-time scan file for a `simid`."""
     return _expand(
         config.paths.pars / "hpge/drift_time_scan/{simid}-hpge-drift-time-scan.lh5",

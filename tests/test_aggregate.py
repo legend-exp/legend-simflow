@@ -153,6 +153,8 @@ def test_hpge_is_modelable_requires_usability_on(config, usability):
     common_kwargs = {
         "skip": {},
         "operational_voltage": 4200,
+        "tune_hpge_impurities_on_data": False,
+        "psd_usability": "valid",
         "min_voltage_above_depletion": 100,
     }
     assert agg_mod._hpge_is_modelable(config, "V99000A", "on", **common_kwargs)
@@ -162,6 +164,13 @@ def test_hpge_is_modelable_requires_usability_on(config, usability):
 def test_hpge_modeling_voltage_threshold_configurable(fresh_config, monkeypatch):
     config = fresh_config
     runid = "l200-p02-r000-phy"
+    monkeypatch.setattr(
+        agg,
+        "get_tier_settings",
+        lambda _cfg, tier: AttrsDict(
+            {"tune_hpge_impurities_on_data": False} if tier == "hit" else {}
+        ),
+    )
 
     # V99000A: depletion 4000 V, operated at 4200 V -> 200 V headroom.
     # with the default 100 V margin it is modelable
@@ -179,10 +188,53 @@ def test_hpge_modeling_voltage_threshold_configurable(fresh_config, monkeypatch)
     assert not agg.gen_hpge_modeling_status(config, runid)["V99000A"]["is_modelable"]
 
 
+def test_hpge_is_modelable_with_impurity_tuning(config):
+    kwargs = {
+        "usability": "on",
+        "skip": {},
+        "tune_hpge_impurities_on_data": True,
+        "psd_usability": "valid",
+        "min_voltage_above_depletion": None,
+    }
+    # V99000A depletes at 4000 V: the voltage margin is not required
+    assert agg_mod._hpge_is_modelable(
+        config, "V99000A", operational_voltage=3000, **kwargs
+    )
+    assert not agg_mod._hpge_is_modelable(
+        config, "V99000A", operational_voltage=None, **kwargs
+    )
+    for psd in ("present", "missing"):
+        assert not agg_mod._hpge_is_modelable(
+            config,
+            "V99000A",
+            operational_voltage=4200,
+            **(kwargs | {"psd_usability": psd}),
+        )
+    assert not agg_mod._hpge_is_modelable(
+        config,
+        "V99000A",
+        operational_voltage=4200,
+        **(kwargs | {"skip": {"V99000A": "reason"}}),
+    )
+
+
 def test_runlist_harvesting(config):
     assert agg.gen_list_of_all_runids(config) == {
         f"l200-p02-r00{i}-phy" for i in range(8)
     }
+
+
+def test_merged_drift_time_scans_follow_simlist(fresh_config):
+    config = fresh_config
+    assert len(agg.gen_list_of_merged_drift_time_scans(config)) == len(
+        agg.gen_list_of_all_simids(config)
+    )
+
+    config["simlist"] = ["par.birds_nest_K40", "hit.lar_inside"]
+    assert [p.name for p in agg.gen_list_of_merged_drift_time_scans(config)] == [
+        "birds_nest_K40-hpge-drift-time-scan.lh5",
+        "lar_inside-hpge-drift-time-scan.lh5",
+    ]
 
 
 def test_dtmap_stuff(config):

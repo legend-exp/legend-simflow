@@ -446,6 +446,7 @@ buffer_len: "500*MB"
 simulate_psd: True
 simulate_psd_with_psl: False
 two_pass_aoe_correction: False
+tune_hpge_impurities_on_data: True
 
 eresmod_default:
   expression: FWHMLinear
@@ -496,6 +497,10 @@ aoemeanmod_default:
   written to the `psd/pulse_lib` subtable. The two flags are independent: enable
   either, both, or neither. Setting both to `False` disables the HPGe PSD
   simulation entirely.
+- `tune_hpge_impurities_on_data` (bool, default `True`): select the HPGe
+  modeling criteria based on the tuning of the crystal impurity curve to data.
+  When `False`, detectors are selected by their operational voltage margin above
+  depletion instead. See {ref}`hpge-modeling-criteria`.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 - `aoemeanmod_default` — A/E mean energy-dependence correction applied to
@@ -989,7 +994,8 @@ at runtime.
 An optional single shared YAML file (applies to all detectors) that tunes the
 automatic gate deciding which HPGe detectors are eligible for drift-time map and
 current-pulse model generation (see {ref}`hpge-modeling-criteria`). When absent,
-the built-in defaults are used.
+the built-in defaults are used. It is only read when
+`tune_hpge_impurities_on_data` is `False` in {ref}`hit-tier-settings`.
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/modeling/settings.yaml

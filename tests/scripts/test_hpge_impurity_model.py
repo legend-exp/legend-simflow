@@ -9,9 +9,6 @@ import numpy as np
 import pytest
 from lgdo import Array, Scalar, Struct
 
-from legendsimflow import utils
-from legendsimflow.impurity_tuning import get_simid_mapping
-from legendsimflow.metadata import get_simconfig
 from legendsimflow.scripts.extract_hpge_impurity_model import main
 
 testprod = Path(__file__).parent.parent / "dummyprod"
@@ -29,16 +26,6 @@ def _drift_time(peak1, peak2, frac=0.5, size=1000):
     peak1 = rng.normal(peak1, 100, n1)
     peak2 = rng.normal(peak2, 100, n2)
     return np.concatenate([peak1, peak2])
-
-
-def test_get_simid_mapping(test_make_ssc_data):
-    config = utils.init_simflow_context(
-        test_make_ssc_data / "simflow-config-l200-ssc.yaml", workflow=None
-    ).config
-    runs = ["l200-p16-r008-ssc"]
-    mapping = get_simid_mapping(get_simconfig(config, "hit", simid=None), runs)
-
-    assert mapping == {"l200-p16-r008-ssc": "source_pos_1"}
 
 
 @pytest.fixture
@@ -109,8 +96,8 @@ def test_hpge_impurity_cli_with_data(
             str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--simflow-config",
             str(test_make_ssc_data / "simflow-config-l200-ssc.yaml"),
-            "--runids",
-            "l200-p16-r008-ssc",
+            "--simids",
+            "source_pos_1",
         ],
     )
 

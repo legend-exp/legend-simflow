@@ -15,8 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from collections.abc import Mapping
-from pathlib import Path
 
 import awkward as ak
 import lh5
@@ -24,40 +22,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import griddata
 
+from .spms_pars import lookup_evt_files
+from .utils import get_evt_tier_name
+
 DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns
     "wf_weight": 0.5,  # arb
     "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
 }
-
-
-def get_simid_mapping(simconfig: Mapping, runs: list[str]) -> dict[str, str]:
-    """Get a mapping from run to simid from the simconfig.
-
-    Only simids with a single run per simid are supported, and only
-    runs present in the `runs` list are used.
-
-    Returns a dictionary mapping runs to simids.
-
-    Parameters
-    ----------
-    simconfig
-        metadata on simflow configuration including runlists for each simid.
-    runs
-        lost of runids to use.
-    """
-    out = {}
-    for simid, info in simconfig.items():
-        if not any(run in info.runlist[0] for run in runs):
-            continue
-
-        if len(info["runlist"]) != 1:
-            msg = f"Only one run per simid is supported. Found {len(info.runlist)} runs for simid {simid}."
-            raise ValueError(msg)
-
-        out[info.runlist[0]] = simid
-
-    return out
 
 
 def get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
@@ -91,14 +63,13 @@ def read_evt_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
         Dictionary of ak.Arrays containing the evt data for each run.
     """
     data = {}
+    evt_tier_name = get_evt_tier_name(path_data)
 
     for runid in runs:
-        _, period, run, dtype = runid.split("-")
-        run_path = Path(path_data) / "generated" / "tier" / "pet" / dtype / period / run
-        files = list(run_path.glob(f"*{runid}*.lh5"))
+        files = lookup_evt_files(path_data, runid, evt_tier_name)
 
         if len(files) == 0:
-            msg = "No data files found!"
+            msg = f"no {evt_tier_name} tier files found for {runid} in {path_data}"
             raise RuntimeError(msg)
 
         evt_data = lh5.read(
