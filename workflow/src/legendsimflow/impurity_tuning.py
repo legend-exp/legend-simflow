@@ -16,13 +16,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from collections.abc import Mapping
-from pathlib import Path
 
 import awkward as ak
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import griddata
+
+from .spms_pars import lookup_evt_files
+from .utils import get_evt_tier_name
 
 DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns
@@ -91,14 +93,13 @@ def read_evt_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
         Dictionary of ak.Arrays containing the evt data for each run.
     """
     data = {}
+    evt_tier_name = get_evt_tier_name(path_data)
 
     for runid in runs:
-        _, period, run, dtype = runid.split("-")
-        run_path = Path(path_data) / "generated" / "tier" / "pet" / dtype / period / run
-        files = list(run_path.glob(f"*{runid}*.lh5"))
+        files = lookup_evt_files(path_data, runid, evt_tier_name)
 
         if len(files) == 0:
-            msg = "No data files found!"
+            msg = f"no {evt_tier_name} tier files found for {runid} in {path_data}"
             raise RuntimeError(msg)
 
         evt_data = lh5.read(

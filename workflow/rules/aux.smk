@@ -25,11 +25,15 @@ from legendsimflow.metadata import get_tier_settings, get_par_settings
 _simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
 _tune_impurity = get_tier_settings(config, "hit").get("tune_impurity_curve", True)
 _impurity_settings = get_par_settings(config, "impurity")
-_simid_regex = _impurity_settings.get("simid_regex", "*")
 
 if _tune_impurity and not _simulate_psd:
     raise SimflowConfigError(
         "tune_impurity_curve requires simulate_psd", "tier.hit.settings"
+    )
+if _tune_impurity and config.paths.get("l200data", None) is None:
+    raise SimflowConfigError(
+        "tune_impurity_curve requires the LEGEND-200 data (paths.l200data)",
+        "simflow-config.paths",
     )
 
 
