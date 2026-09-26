@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from collections.abc import Mapping
 
 import awkward as ak
 import lh5
@@ -31,35 +30,6 @@ DEFAULT_SETTINGS = {
     "wf_weight": 0.5,  # arb
     "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
 }
-
-
-def get_simid_mapping(simconfig: Mapping, runs: list[str]) -> dict[str, str]:
-    """Get a mapping from run to simid from the simconfig.
-
-    Only simids with a single run per simid are supported, and only
-    runs present in the `runs` list are used.
-
-    Returns a dictionary mapping runs to simids.
-
-    Parameters
-    ----------
-    simconfig
-        metadata on simflow configuration including runlists for each simid.
-    runs
-        lost of runids to use.
-    """
-    out = {}
-    for simid, info in simconfig.items():
-        if not any(run in info.runlist[0] for run in runs):
-            continue
-
-        if len(info["runlist"]) != 1:
-            msg = f"Only one run per simid is supported. Found {len(info.runlist)} runs for simid {simid}."
-            raise ValueError(msg)
-
-        out[info.runlist[0]] = simid
-
-    return out
 
 
 def get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
