@@ -158,11 +158,13 @@ def main() -> None:
     # make a profiler to track performance of the script
     perf_block, print_perf, _ = reboost.make_profiler()
 
-    settings = (
-        dbetto.AttrsDict(dbetto.utils.load_dict(args.settings))
-        if args.settings is not None
-        else dbetto.AttrsDict(DEFAULT_SETTINGS)
-    )
+    # the settings file is shared with the drift-time scan, so it may hold only
+    # part of the fit settings
+    settings = dbetto.AttrsDict(DEFAULT_SETTINGS)
+    if args.settings is not None:
+        settings = dbetto.AttrsDict(
+            DEFAULT_SETTINGS | dbetto.utils.load_dict(args.settings)
+        )
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
     # 1. load data
