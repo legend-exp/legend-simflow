@@ -224,6 +224,19 @@ def test_runlist_harvesting(config):
     }
 
 
+def test_merged_drift_time_scans_follow_simlist(fresh_config):
+    config = fresh_config
+    assert len(agg.gen_list_of_merged_drift_time_scans(config)) == len(
+        agg.gen_list_of_all_simids(config)
+    )
+
+    config["simlist"] = ["par.birds_nest_K40", "hit.lar_inside"]
+    assert [p.name for p in agg.gen_list_of_merged_drift_time_scans(config)] == [
+        "birds_nest_K40-hpge-drift-time-scan.lh5",
+        "lar_inside-hpge-drift-time-scan.lh5",
+    ]
+
+
 def test_dtmap_stuff(config):
     runid = "l200-p02-r000-phy"
     simid = "stp.pen_plates_Ra224_to_Pb208"

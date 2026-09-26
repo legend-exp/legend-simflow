@@ -47,7 +47,7 @@ from legendsimflow.scripts import log_script_invocation
     mapping={
         "stp_files": "input.stp_files",
         "hpge_detector": "wildcards.hpge_detector",
-        "drift_time_file": "output",
+        "drift_time_file": "output[0]",
         "elecmod": "input.elecmod",
         "geom_file": "input.geom",
         "psl_file": "input.psl_file",

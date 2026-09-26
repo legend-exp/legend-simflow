@@ -680,12 +680,11 @@ rule extract_elecmod_scan:
 rule extract_drift_time_scan:
     """Compute simulated HPGe drift times at each impurity-curve grid point.
 
-    Take the `stp` files of the simulation IDs matching `simid_regex` (from the
-    `impurity` par settings, fnmatch syntax) and compute the drift time of each
+    Take the `stp` files of a simulation ID and compute the drift time of each
     event with every library of `build_hpge_psl_scan`, convolved with the
     best-fit electronics response of `extract_elecmod_scan`. Only events above
     `energy_cut_in_keV` (default 1500 keV) are used, at most `max_events`
-    (default all).
+    (default all), both from the `impurity` par settings.
 
     Uses wildcards `hpge_detector` and `simid`.
     """
@@ -762,11 +761,12 @@ rule extract_hpge_impurity_models:
     """Fit the HPGe impurity-curve parameters of every modelable detector.
 
     Compare the drift-time distribution measured in LEGEND-200 data with the
-    simulated ones of `merge_hpge_drift_time_scans`, for the simulation IDs
-    matching `simid_regex` (fnmatch syntax) in the `impurity` par settings,
-    and pick the grid point with the smallest chi2. Each of those simulation
-    IDs must have a single run in its runlist. The output YAML is keyed by
-    detector and holds the best-fit `slope` (dimensionless) and
+    simulated ones of `merge_hpge_drift_time_scans` and pick the grid point
+    with the smallest chi2. With `tune_impurity_curve` the Simflow is a
+    tuning-only production: the runs are the `runlist` and the simulation IDs
+    are the `simlist` of the Simflow configuration file, and each simulation
+    ID must have a single run of that list in its runlist. The output YAML is
+    keyed by detector and holds the best-fit `slope` (dimensionless) and
     `depletion_voltage` (in V).
 
     :::{warning}
@@ -781,18 +781,12 @@ rule extract_hpge_impurity_models:
     message:
         "Extracting HPGe impurity models"
     input:
-        drift_time=aggregate.gen_list_of_merged_drift_time_scans(config, _simid_regex),
+        drift_time=aggregate.gen_list_of_merged_drift_time_scans(config),
         settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/impurity/settings.yaml",
     params:
         data_path=config.paths.get("l200data", None),
-        runids=sorted(
-            runid
-            for simid in aggregate.gen_list_of_all_simids_matching(
-                config, _simid_regex
-            )
-            for runid in aggregate.get_runlist(config, simid)
-        ),
+        runids=sorted(config.get("runlist", [])),
     output:
         pars_file=patterns.output_impurity_model_filename(config),
         plot_file=patterns.plot_impurity_model_filename(config),
