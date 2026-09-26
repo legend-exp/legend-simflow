@@ -864,11 +864,13 @@ def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
-def gen_list_of_merged_drift_time_scans(config: SimflowConfig) -> list[Path]:
-    r"""Generate the list of merged drift-time scan files for all requested `runid`\ s."""
+def gen_list_of_merged_drift_time_scans(
+    config: SimflowConfig, pattern: str
+) -> list[Path]:
+    r"""Generate the list of merged drift-time scan files for the `simid`\ s matching `pattern`."""
     return [
         patterns.output_drift_time_scan_merged_filename(config, simid=simid)
-        for simid in gen_list_of_all_simids(config)
+        for simid in gen_list_of_all_simids_matching(config, pattern)
     ]
 
 

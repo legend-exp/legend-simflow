@@ -29,18 +29,7 @@ rule gen_all_tier_par:
         lambda wc: aggregate.gen_list_of_all_plots_outputs(
             config, tier="par", cache=smk_load_hpge_cache() if _simulate_psd else None
         ),
-        lambda wc: (
-            patterns.output_drift_time_scan_filename(
-                config,
-                keep_list=True,
-                hpge_detector=aggregate.gen_list_of_all_modelable_hpges(
-                    smk_load_hpge_cache()
-                ),
-                simid = aggregate.gen_list_of_all_simids_matching(config,_simid_regex)
-            )
-            if _tune_impurity
-            else []
-        ),
+        patterns.output_impurity_model_filename(config) if _tune_impurity else [],
 
 
 rule make_simstat_partition_file:
@@ -688,9 +677,6 @@ rule extract_elecmod_scan:
         "../src/legendsimflow/scripts/extract_hpge_elec_response_model_scan.py"
 
 
-_impurity_settings = get_par_settings(config, "impurity")
-
-
 rule extract_drift_time_scan:
     """Compute simulated HPGe drift times at each impurity-curve grid point.
 
@@ -701,17 +687,15 @@ rule extract_drift_time_scan:
     `energy_cut_in_keV` (default 1500 keV) are used, at most `max_events`
     (default all).
 
-    Uses wildcard `hpge_detector`, `simid`
+    Uses wildcards `hpge_detector` and `simid`.
     """
     message:
-        "Extracting drift-time scan for detector {wildcards.hpge_detector} and {wildcards.simid}"
+        "Extracting drift-time scan for detector {wildcards.hpge_detector} in {wildcards.simid}"
     input:
-        stp_files=lambda wc: aggregate.gen_list_of_simid_outputs(config, tier="stp", simid = wc.simid),
-        geom=lambda wc: patterns.geom_gdml_filename(
-            config,
-            tier="stp",
-            simid = wc.simid
+        stp_files=lambda wc: aggregate.gen_list_of_simid_outputs(
+            config, tier="stp", simid=wc.simid
         ),
+        geom=lambda wc: patterns.geom_gdml_filename(config, tier="stp", simid=wc.simid),
         psl_file=rules.build_hpge_psl_scan.output[0],
         elecmod=rules.extract_elecmod_scan.output.pars_file,
     params:
@@ -725,6 +709,97 @@ rule extract_drift_time_scan:
         patterns.benchmark_drift_time_scan_filename(config)
     script:
         "../src/legendsimflow/scripts/extract_drift_time_psl_tuning.py"
+
+
+rule merge_hpge_drift_time_scans:
+    """Merge the HPGe drift-time scans of a `simid` in a single file.
+
+    Copy the top-level LH5 objects (one group per detector) from each
+    detector drift-time scan file into a single merged file using `h5copy`.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Merging HPGe drift-time scan files for {wildcards.simid}"
+    input:
+        lambda wc: patterns.output_drift_time_scan_filename(
+            config,
+            keep_list=True,
+            hpge_detector=aggregate.gen_list_of_all_modelable_hpges(
+                smk_load_hpge_cache()
+            ),
+            simid=wc.simid,
+        ),
+    output:
+        patterns.output_drift_time_scan_merged_filename(config),
+    shell:
+        r"""
+        out={output}
+
+        # turn the input file list into positional arguments
+        set -- {input}
+
+        # if there is no input, create an empty hdf5 file
+        if [ "$#" -eq 0 ]; then
+          python -c "import h5py; h5py.File('$out', 'w')"
+          exit 0
+        fi
+
+        # seed with the first file
+        cp "$1" "$out"
+        shift
+
+        # merge top-level objects from the rest
+        for f in "$@"; do
+          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
+            h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
+          done
+        done
+        """
+
+
+rule extract_hpge_impurity_models:
+    """Fit the HPGe impurity-curve parameters of every modelable detector.
+
+    Compare the drift-time distribution measured in LEGEND-200 data with the
+    simulated ones of `merge_hpge_drift_time_scans`, for the simulation IDs
+    matching `simid_regex` (fnmatch syntax) in the `impurity` par settings,
+    and pick the grid point with the smallest chi2. Each of those simulation
+    IDs must have a single run in its runlist. The output YAML is keyed by
+    detector and holds the best-fit `slope` (dimensionless) and
+    `depletion_voltage` (in V).
+
+    :::{warning}
+    This rule does not have the relevant LEGEND-200 data files as input, since
+    they are dynamically discovered and this would therefore slow down the DAG
+    generation. Therefore, remember to force-rerun if the input data is
+    updated!
+    :::
+
+    No wildcards are used.
+    """
+    message:
+        "Extracting HPGe impurity models"
+    input:
+        drift_time=aggregate.gen_list_of_merged_drift_time_scans(config, _simid_regex),
+        settings=Path(config.paths.metadata)
+        / f"simprod/config/pars/{config.experiment}/geds/impurity/settings.yaml",
+    params:
+        data_path=config.paths.get("l200data", None),
+        runids=sorted(
+            runid
+            for simid in aggregate.gen_list_of_all_simids_matching(
+                config, _simid_regex
+            )
+            for runid in aggregate.get_runlist(config, simid)
+        ),
+    output:
+        pars_file=patterns.output_impurity_model_filename(config),
+        plot_file=patterns.plot_impurity_model_filename(config),
+    log:
+        patterns.log_impurity_model_filename(config),
+    script:
+        "../src/legendsimflow/scripts/extract_hpge_impurity_model.py"
 
 
 rule extract_electronics_model_pars:
@@ -856,22 +931,3 @@ rule extract_hpge_observables_models:
         patterns.log_eresmod_filename(config),
     script:
         "../src/legendsimflow/scripts/pars/extract_hpge_observables_models.py"
-
-
-rule extract_hpge_impurity_models:
-    """Extract and store on disk parameters of the HPGe impurity curve for each detector."""
-    message:
-        "Extracting HPGe impurity models"
-    input:
-        drift_time_files=aggregate.gen_list_of_merged_drift_time_scans(config),
-        settings=get_par_settings(config, "hpge-impurity-model"),
-    output:
-        pars_file=patterns.output_impurity_model_filename(config),
-        plot_file=patterns.log_impurity_model_filename(config),
-    params:
-        data_path=config.paths.get("l200data", None),
-        runids=lambda wc: sorted(aggregate.gen_list_of_all_runids(config)),
-    log:
-        patterns.log_impurity_model_filename(config),
-    script:
-        "../src/legendsimflow/scripts/extract_hpge_impurity_model.py"
