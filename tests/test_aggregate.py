@@ -153,7 +153,7 @@ def test_hpge_is_modelable_requires_usability_on(config, usability):
     common_kwargs = {
         "skip": {},
         "operational_voltage": 4200,
-        "tune_impurity_curve": False,
+        "tune_hpge_impurities_on_data": False,
         "psd_usability": "valid",
         "min_voltage_above_depletion": 100,
     }
@@ -168,7 +168,7 @@ def test_hpge_modeling_voltage_threshold_configurable(fresh_config, monkeypatch)
         agg,
         "get_tier_settings",
         lambda _cfg, tier: AttrsDict(
-            {"tune_impurity_curve": False} if tier == "hit" else {}
+            {"tune_hpge_impurities_on_data": False} if tier == "hit" else {}
         ),
     )
 
@@ -192,7 +192,7 @@ def test_hpge_is_modelable_with_impurity_tuning(config):
     kwargs = {
         "usability": "on",
         "skip": {},
-        "tune_impurity_curve": True,
+        "tune_hpge_impurities_on_data": True,
         "psd_usability": "valid",
         "min_voltage_above_depletion": None,
     }

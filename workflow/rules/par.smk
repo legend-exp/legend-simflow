@@ -538,7 +538,7 @@ rule merge_hpge_aoemean_energy_dependence_pars:
 _build_per_runid = get_par_settings(config, "superpulses").get("build_per_runid", False)
 if _build_per_runid and _tune_impurity:
     raise SimflowConfigError(
-        "build_per_runid is not supported with tune_impurity_curve",
+        "build_per_runid is not supported with tune_hpge_impurities_on_data",
         "pars.superpulses.settings",
     )
 
@@ -772,7 +772,7 @@ rule extract_hpge_impurity_models:
 
     Compare the drift-time distribution measured in LEGEND-200 data with the
     simulated ones of `merge_hpge_drift_time_scans` and pick the grid point
-    with the smallest chi2. With `tune_impurity_curve` the Simflow is a
+    with the smallest chi2. With `tune_hpge_impurities_on_data` the Simflow is a
     tuning-only production: the simulation IDs are the `simlist` of the
     Simflow configuration file, each holding a single run of its `runlist`,
     which is the data it is compared to. The output YAML is keyed by detector

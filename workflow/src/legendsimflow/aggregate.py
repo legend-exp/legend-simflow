@@ -256,7 +256,7 @@ def _hpge_is_modelable(
     usability: str,
     skip: Mapping[str, str],
     operational_voltage: int | None,
-    tune_impurity_curve: bool,
+    tune_hpge_impurities_on_data: bool,
     psd_usability: str,
     min_voltage_above_depletion: int | None,
 ) -> bool:
@@ -282,7 +282,7 @@ def _hpge_is_modelable(
     except (KeyError, AttributeError, FileNotFoundError):
         return False
 
-    if tune_impurity_curve:
+    if tune_hpge_impurities_on_data:
         # the impurity tuning needs valid PSD data, not the depletion voltage
         if psd_usability != "valid":
             return False
@@ -337,7 +337,7 @@ def gen_hpge_modeling_status(
     (i.e. not OFF or AC), it is not listed in the validity-based skip metadata
     ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it has an
     operational voltage, and its crystal metadata provides an impurity curve.
-    Further criteria depend on the ``tune_impurity_curve`` hit-tier setting
+    Further criteria depend on the ``tune_hpge_impurities_on_data`` hit-tier setting
     (default ``True``):
 
     - ``True``: the PSD status (``analysis.psd.status.low_aoe`` in the channel
@@ -362,11 +362,11 @@ def gen_hpge_modeling_status(
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
-    tune_impurity_curve = get_tier_settings(config, "hit").get(
-        "tune_impurity_curve", True
+    tune_hpge_impurities_on_data = get_tier_settings(config, "hit").get(
+        "tune_hpge_impurities_on_data", True
     )
     min_voltage_above_depletion = None
-    if not tune_impurity_curve:
+    if not tune_hpge_impurities_on_data:
         min_voltage_above_depletion = get_par_settings(config, "modeling").get(
             "min_voltage_above_depletion_in_V", 100
         )
@@ -394,7 +394,7 @@ def gen_hpge_modeling_status(
                 chmap[name].analysis.usability,
                 skip,
                 operational_voltage,
-                tune_impurity_curve,
+                tune_hpge_impurities_on_data,
                 psd_usability,
                 min_voltage_above_depletion,
             ),
