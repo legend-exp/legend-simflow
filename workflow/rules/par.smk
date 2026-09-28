@@ -543,6 +543,24 @@ if _build_per_runid and _tune_impurity:
     )
 
 
+def smk_hpge_single_voltage(wildcards):
+    """Return the operational voltage of a detector, required equal in all runs."""
+    opvs = {
+        dets[wildcards.hpge_detector]["operational_voltage_in_V"]
+        for dets in smk_load_hpge_cache().values()
+        if wildcards.hpge_detector in dets
+    }
+    if len(opvs) != 1:
+        msg = (
+            f"detector {wildcards.hpge_detector} has operational voltages "
+            f"{sorted(opvs)} across runs, but its superpulses and pulse-shape "
+            "scan combine all runs; set build_per_runid in the superpulses "
+            "settings or split the production"
+        )
+        raise SimflowConfigError(msg)
+    return opvs.pop()
+
+
 rule build_superpulses_from_data:
     """Build HPGe data superpulses (average waveforms per drift-time slice).
 
@@ -574,11 +592,15 @@ rule build_superpulses_from_data:
     message:
         "Building data superpulses for detector {wildcards.hpge_detector}"
     params:
+        # all runs of the Simflow, whether or not the detector is modelable in
+        # them: the superpulses are a useful product on their own
         runids=lambda wc: (
             [wc.runid]
             if _build_per_runid
             else sorted(aggregate.gen_list_of_all_runids(config))
         ),
+        # superpulses averaged over runs must not mix operational voltages
+        opv=lambda wc: None if _build_per_runid else smk_hpge_single_voltage(wc),
         # track l200data so the rule reruns when it changes: raw data files are
         # discovered dynamically and not listed as inputs
         _l200data=config.paths.get("l200data", None),
@@ -593,22 +615,6 @@ rule build_superpulses_from_data:
         patterns.log_superpulses_filename(config, build_per_runid=_build_per_runid),
     script:
         "../src/legendsimflow/scripts/build_superpulses_from_data.py"
-
-
-def smk_hpge_scan_voltage(wildcards):
-    """Return the operational voltage of a detector, required equal in all runs."""
-    opvs = {
-        dets[wildcards.hpge_detector]["operational_voltage_in_V"]
-        for dets in smk_load_hpge_cache().values()
-        if wildcards.hpge_detector in dets
-    }
-    if len(opvs) != 1:
-        msg = (
-            f"detector {wildcards.hpge_detector} has operational voltages "
-            f"{sorted(opvs)} across runs, the impurity-curve scan needs a single one"
-        )
-        raise SimflowConfigError(msg)
-    return opvs.pop()
 
 
 rule build_hpge_psl_scan:
@@ -631,7 +637,7 @@ rule build_hpge_psl_scan:
         scan_settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/ssd/scan_settings.yaml",
     params:
-        opv=smk_hpge_scan_voltage,
+        opv=smk_hpge_single_voltage,
     output:
         patterns.output_psl_scan_filename(config),
     log:
