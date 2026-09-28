@@ -19,7 +19,7 @@ from pathlib import Path
 
 from legendsimflow import aggregate, patterns
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.metadata import expand_runlist, get_par_settings
+from legendsimflow.metadata import get_par_settings
 
 
 rule gen_all_tier_par:
@@ -764,12 +764,11 @@ rule merge_hpge_drift_time_scans:
 
 
 if _tune_impurity:
-    _runlist = expand_runlist(config.metadata, config.get("runlist", []))
     for _simid in aggregate.gen_list_of_tuning_simids(config):
         _runs = aggregate.get_runlist(config, _simid)
-        if len(_runs) != 1 or _runs[0] not in _runlist:
+        if len(_runs) != 1:
             raise SimflowConfigError(
-                f"simid {_simid} must have a single run of the runlist, found {_runs}",
+                f"simid {_simid} must have a single run in its runlist, found {_runs}",
                 "simflow-config.simlist",
             )
 
@@ -781,8 +780,8 @@ rule extract_hpge_impurity_models:
     simulated ones of `merge_hpge_drift_time_scans` and pick the grid point
     with the smallest chi2. With `tune_hpge_impurities_on_data` the Simflow is a
     tuning-only production: the simulation IDs are the `simlist` of the
-    Simflow configuration file, each holding a single run of its `runlist`,
-    which is the data it is compared to. The output YAML is keyed by detector
+    Simflow configuration file, each holding a single run in its `runlist`
+    (hit-tier simconfig), which is the data it is compared to. The output YAML is keyed by detector
     and holds the best-fit `slope` (dimensionless) and `depletion_voltage`
     (in V).
 
