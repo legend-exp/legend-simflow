@@ -688,8 +688,9 @@ rule extract_drift_time_scan:
 
     Take the `stp` files of a simulation ID and compute the drift time of each
     event with every library of `build_hpge_psl_scan`, convolved with the
-    best-fit electronics response of `extract_elecmod_scan`. Only events above
-    `energy_cut_in_keV` (default 1500 keV) are used, at most `max_events`
+    best-fit electronics response of `extract_elecmod_scan`. Only events
+    depositing more than `drift_time_scan.min_energy_in_keV` (default 1500
+    keV) in the active volume are used, at most `drift_time_scan.max_events`
     (default all), both from the `impurityscan` par settings.
 
     Uses wildcards `hpge_detector` and `simid`.
@@ -704,8 +705,10 @@ rule extract_drift_time_scan:
         psl_file=rules.build_hpge_psl_scan.output[0],
         elecmod=rules.extract_elecmod_scan.output.pars_file,
     params:
-        max_events=_impurity_settings.get("max_events", None),
-        energy_cut=_impurity_settings.get("energy_cut_in_keV", 1500),
+        max_events=_impurity_settings.get("drift_time_scan", {}).get("max_events", None),
+        energy_cut=_impurity_settings.get("drift_time_scan", {}).get(
+            "min_energy_in_keV", 1500
+        ),
     output:
         patterns.output_drift_time_scan_filename(config),
     log:

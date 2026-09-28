@@ -24,12 +24,6 @@ from scipy.interpolate import griddata
 
 from .utils import get_evt_tier_name, lookup_evt_files
 
-DEFAULT_SETTINGS = {
-    "drift_time_weight": 50,  # ns
-    "wf_weight": 0.5,  # arb
-    "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
-}
-
 
 def get_grid_value(idx: int, grid_info: dict, name="slope") -> float:
     """Get the slope value from the grid info given the name.

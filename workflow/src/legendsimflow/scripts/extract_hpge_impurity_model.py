@@ -47,13 +47,6 @@ from legendsimflow.metadata import get_runlist
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 
-DEFAULT_SETTINGS = {
-    "drift_time_weight": 50,  # ns
-    "wf_weight": 0.5,  # arb
-    "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
-    "energy_range": [1500, 2500],
-}
-
 
 def _map_to_runs(
     config: SimflowConfig, simids: Sequence[str], values: Sequence
@@ -172,13 +165,17 @@ def main() -> None:
     # make a profiler to track performance of the script
     perf_block, print_perf, _ = reboost.make_profiler()
 
-    # the settings file is shared with the drift-time scan, so it may hold only
-    # part of the fit settings
-    settings = dbetto.AttrsDict(DEFAULT_SETTINGS)
-    if args.settings is not None:
-        settings = dbetto.AttrsDict(
-            DEFAULT_SETTINGS | dbetto.utils.load_dict(args.settings)
-        )
+    settings = dbetto.AttrsDict(
+        dbetto.utils.load_dict(args.settings) if args.settings is not None else {}
+    ).get("impurity_fit", {})
+    energy_range = settings.get("energy_range_in_keV", [1500, 2500])
+    dt_uncertainty = settings.get("drift_time_uncertainty_in_ns", 50)
+    obs_settings = settings.get("drift_time_observables", {})
+    dt_kwargs = {
+        "percentile": obs_settings.get("percentile", 90),
+        "smoothing": obs_settings.get("smoothing_in_ns", 50),
+        "peak_threshold": obs_settings.get("min_peak_fraction", 0.25),
+    }
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
     run_files = _map_to_runs(config, args.simids, drift_time_files)
@@ -200,12 +197,12 @@ def main() -> None:
 
             # 3. get data observables
             with perf_block("get_data_drift_times()"):
-                dts = get_data_drift_times(data, det, ranges=settings.energy_range)
+                dts = get_data_drift_times(data, det, ranges=energy_range)
 
                 n = {run: len(dt) for run, dt in dts.items()}
 
                 data_dt_obs, weights, edges = get_data_drift_time_obs(
-                    np.concatenate(dts.values()), **settings.dt_kwargs
+                    np.concatenate(dts.values()), **dt_kwargs
                 )
 
             with perf_block("plot_drift_time_obs()"):
@@ -224,12 +221,12 @@ def main() -> None:
                     run_files,
                     det,
                     n,
-                    ranges=settings.energy_range,
+                    ranges=energy_range,
                 )
                 log.info("... found MC drift times.")
 
                 depv, slope, dt_obs1, dt_obs2 = get_simulated_drift_time_obs(
-                    drift_times_mc, grid_info, **settings.dt_kwargs
+                    drift_times_mc, grid_info, **dt_kwargs
                 )
                 log.info(
                     "... found MC for %d parameters between [%f -- %f] and [%f -- %f]",
@@ -241,7 +238,7 @@ def main() -> None:
                 )
 
             dt_chi2 = get_drift_time_chi2(
-                data_dt_obs, (dt_obs1, dt_obs2), settings.drift_time_weight
+                data_dt_obs, (dt_obs1, dt_obs2), dt_uncertainty
             )
             log.info(
                 "... found chi2 for %d parameters between [%f -- %f]",
@@ -272,7 +269,7 @@ def main() -> None:
 
             # elecmod = dbetto.utils.load_dict(args.elecmod)
 
-            # wf_chi2 = get_wf_chi2(elecmod,settings.wf_weight)
+            # wf_chi2 = get_wf_chi2(elecmod, ...)
 
             # find the best fit
             # best_slope, best_dep  = fit_impurities(det,wf_chi2,dt_chi2,pdf)

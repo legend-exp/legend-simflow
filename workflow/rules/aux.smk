@@ -27,6 +27,17 @@ _tune_impurity = get_tier_settings(config, "hit").get(
     "tune_hpge_impurities_on_data", True
 )
 _impurity_settings = get_par_settings(config, "impurityscan")
+# a fit window starting below the scan cut would compare data with an
+# incomplete simulated distribution
+if _tune_impurity and (
+    _impurity_settings.get("drift_time_scan", {}).get("min_energy_in_keV", 1500)
+    > _impurity_settings.get("impurity_fit", {}).get("energy_range_in_keV", [1500])[0]
+):
+    raise SimflowConfigError(
+        "drift_time_scan.min_energy_in_keV is above the lower edge of "
+        "impurity_fit.energy_range_in_keV",
+        "pars.impurityscan.settings",
+    )
 
 if _tune_impurity and not _simulate_psd:
     raise SimflowConfigError(
