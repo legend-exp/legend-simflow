@@ -332,9 +332,7 @@ def main() -> None:
                 )
                 log.debug(msg)
                 rc_evt_files = sorted(
-                    spms_pars.lookup_evt_files(
-                        l200data, rc_runid or runid, evt_tier_name
-                    )
+                    utils.lookup_evt_files(l200data, rc_runid or runid, evt_tier_name)
                 )
                 if not rc_evt_files:
                     msg = "no RC evt files found for random coincidences"
