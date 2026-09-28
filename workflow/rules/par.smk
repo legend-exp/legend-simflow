@@ -690,7 +690,7 @@ rule extract_drift_time_scan:
     event with every library of `build_hpge_psl_scan`, convolved with the
     best-fit electronics response of `extract_elecmod_scan`. Only events above
     `energy_cut_in_keV` (default 1500 keV) are used, at most `max_events`
-    (default all), both from the `impurity` par settings.
+    (default all), both from the `impurityscan` par settings.
 
     Uses wildcards `hpge_detector` and `simid`.
     """
@@ -799,7 +799,7 @@ rule extract_hpge_impurity_models:
     input:
         drift_time=aggregate.gen_list_of_merged_drift_time_scans(config),
         settings=Path(config.paths.metadata)
-        / f"simprod/config/pars/{config.experiment}/geds/impurity/settings.yaml",
+        / f"simprod/config/pars/{config.experiment}/geds/impurityscan/settings.yaml",
     params:
         data_path=config.paths.get("l200data", None),
         simids=aggregate.gen_list_of_tuning_simids(config),
