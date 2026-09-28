@@ -20,6 +20,7 @@ import inspect
 import json
 import logging
 import os
+import re
 from collections.abc import Sequence
 from datetime import datetime
 from numbers import Real
@@ -501,6 +502,43 @@ def get_hit_tier_name(l200data: str) -> str:
         return "hit"
     msg = f"The l200data {l200data} does not contain a valid pht or hit tier"
     raise RuntimeError(msg)
+
+
+def lookup_evt_files(
+    l200data: str | Path, runid: str, evt_tier_name: str
+) -> list[Path]:
+    """Look up the `evt` tier file paths for a given run.
+
+    Parameters
+    ----------
+    l200data
+        Root path to the LEGEND-200 data directory.
+    runid
+        Run identifier string (e.g. ``"l200-p16-r008-phy"``).
+    evt_tier_name
+        Name of the evt tier (e.g. ``"evt"``).
+
+    Returns
+    -------
+    list[Path]
+        Matching evt-tier file paths for the given run.
+    """
+    _, period, run, data_type = re.split(r"\W+", runid)
+
+    if isinstance(l200data, str):
+        l200data = Path(l200data)
+
+    dataflow_config = lookup_dataflow_config(l200data)
+
+    # get the paths to evt tier files
+    df_cfg = (
+        dataflow_config["setups"]["l200"]["paths"]
+        if ("setups" in dataflow_config)
+        else dataflow_config["paths"]
+    )
+
+    evt_path = Path(df_cfg[f"tier_{evt_tier_name}"]).resolve()
+    return list((evt_path / data_type / period / run).glob("*"))
 
 
 def get_evt_tier_name(l200data: str) -> str:

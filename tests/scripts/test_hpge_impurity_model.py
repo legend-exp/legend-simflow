@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from lgdo import Array, Scalar, Struct
 
-from legendsimflow.scripts.extract_hpge_impurity_model import main
+from legendsimflow.scripts.extract_hpge_impurity_model import _map_to_runs, main
 
 testprod = Path(__file__).parent.parent / "dummyprod"
 repo_root = Path(__file__).parent.parent.parent
@@ -26,6 +26,16 @@ def _drift_time(peak1, peak2, frac=0.5, size=1000):
     peak1 = rng.normal(peak1, 100, n1)
     peak2 = rng.normal(peak2, 100, n2)
     return np.concatenate([peak1, peak2])
+
+
+def test_map_to_runs(config):
+    # birds_nest_K40 has no runlist of its own and falls back to the
+    # single-run config runlist
+    assert _map_to_runs(config, ["birds_nest_K40"], ["a.lh5"]) == {
+        "l200-p02-r000-phy": "a.lh5"
+    }
+    with pytest.raises(ValueError, match="single run"):
+        _map_to_runs(config, ["phbr_surface_Ra228_to_Ac228"], ["a.lh5"])
 
 
 @pytest.fixture

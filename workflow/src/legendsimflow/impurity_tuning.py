@@ -22,8 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import griddata
 
-from .spms_pars import lookup_evt_files
-from .utils import get_evt_tier_name
+from .utils import get_evt_tier_name, lookup_evt_files
 
 DEFAULT_SETTINGS = {
     "drift_time_weight": 50,  # ns

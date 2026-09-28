@@ -18,6 +18,7 @@
 
 import argparse
 import logging
+from collections.abc import Sequence
 
 import dbetto
 import legenddataflowscripts as ldfs
@@ -29,7 +30,7 @@ import reboost
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import nersc, utils
+from legendsimflow import SimflowConfig, nersc, utils
 from legendsimflow.drift_time import (
     get_data_drift_time_obs,
     get_data_drift_times,
@@ -38,7 +39,10 @@ from legendsimflow.drift_time import (
     get_simulated_drift_times,
     plot_drift_time_obs,
 )
-from legendsimflow.impurity_tuning import plot_cost_surface, read_evt_data
+from legendsimflow.impurity_tuning import (
+    plot_cost_surface,
+    read_evt_data,
+)
 from legendsimflow.metadata import get_runlist
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
@@ -49,6 +53,20 @@ DEFAULT_SETTINGS = {
     "dt_kwargs": {"percentile": 90, "smoothing": 50, "peak_threshold": 0.25},
     "energy_range": [1500, 2500],
 }
+
+
+def _map_to_runs(
+    config: SimflowConfig, simids: Sequence[str], values: Sequence
+) -> dict:
+    """Key `values` by the single run of the `simid` at the same position."""
+    out = {}
+    for simid, value in zip(simids, values, strict=True):
+        runs = get_runlist(config, simid)
+        if len(runs) != 1:
+            msg = f"simid {simid} must have a single run in its runlist, found {runs}"
+            raise ValueError(msg)
+        out[runs[0]] = value
+    return out
 
 
 @snakemake_compatible(
@@ -163,14 +181,7 @@ def main() -> None:
         )
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
-    # each simulation holds a single run, which its drift times are compared to
-    run_files = {}
-    for simid, file in zip(args.simids, drift_time_files, strict=True):
-        runs = get_runlist(config, simid)
-        if len(runs) != 1:
-            msg = f"simid {simid} must have a single run in its runlist, found {runs}"
-            raise ValueError(msg)
-        run_files[runs[0]] = file
+    run_files = _map_to_runs(config, args.simids, drift_time_files)
 
     # 1. load data
     msg = f"... loading data from runs {list(run_files)} and {args.data_path}"
