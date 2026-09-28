@@ -26,7 +26,7 @@ _simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
 _tune_impurity = get_tier_settings(config, "hit").get(
     "tune_hpge_impurities_on_data", True
 )
-_impurity_settings = get_par_settings(config, "impurity")
+_impurity_settings = get_par_settings(config, "impurityscan")
 
 if _tune_impurity and not _simulate_psd:
     raise SimflowConfigError(
