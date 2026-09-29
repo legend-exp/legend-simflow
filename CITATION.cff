@@ -1,5 +1,7 @@
 cff-version: 1.2.0
 title: legend-simflow
+doi: 10.5281/zenodo.21402197
+date-released: 2026-07-16
 message: "If you use this software, please cite it as below."
 repository-code: https://github.com/legend-exp/legend-simflow
 license: GPL-3.0-only
