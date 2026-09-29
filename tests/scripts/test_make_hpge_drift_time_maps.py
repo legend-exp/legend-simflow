@@ -14,7 +14,8 @@ repo_root = Path(__file__).parent.parent.parent
 
 @pytest.mark.needs_julia
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
-def test_make_hpge_drift_time_maps_l200(tmp_path):
+@pytest.mark.parametrize("tuned", [False, True])
+def test_make_hpge_drift_time_maps_l200(tmp_path, tuned):
     dtmap_file = tmp_path / "V00001A-3500V-hpge-drift-time-map.lh5"
     info_file = tmp_path / "V00001A-3500V-hpge-ssd-modeling.yaml"
 
@@ -41,6 +42,7 @@ def test_make_hpge_drift_time_maps_l200(tmp_path):
             str(dtmap_file),
             "--info-file",
             str(info_file),
+            *(["--impurity", str(testprod / "hpge-impurity.yaml")] if tuned else []),
         ],
         check=True,
         cwd=repo_root,
@@ -77,44 +79,6 @@ def test_make_hpge_drift_time_maps_l200(tmp_path):
         "simulated_depletion_voltage_in_V",
     }
 
-
-@pytest.mark.needs_julia
-@pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
-def test_make_hpge_drift_time_maps_tuned_impurity(tmp_path):
-    impurity_file = tmp_path / "impurity.yaml"
-    dbetto.utils.write_dict(
-        {"V05261B": {"slope": -1.0, "depletion_voltage": 3750.0}}, impurity_file
-    )
-    info_file = tmp_path / "info.yaml"
-
-    subprocess.run(
-        [
-            "julia",
-            "--project=" + str(repo_root / "workflow/src/LegendSimflow.jl"),
-            "--threads",
-            "1",
-            str(repo_root / "workflow/src/legendsimflow/scripts/make_hpge_psd_maps.jl"),
-            "--compute-drift-time",
-            "--detector",
-            "V05261B",
-            "--metadata",
-            str(testprod / "inputs"),
-            "--opv",
-            "4200",
-            "--ssd-settings",
-            str(testprod / "inputs/simprod/config/pars/legend/geds/ssd/settings.yaml"),
-            "--impurity",
-            str(impurity_file),
-            "--output-file",
-            str(tmp_path / "dtmap.lh5"),
-            "--info-file",
-            str(info_file),
-        ],
-        check=True,
-        cwd=repo_root,
-    )
-
-    # the simulation is tuned to the depletion voltage of the impurity file,
-    # not to the one measured in the metadata
-    info = dbetto.utils.load_dict(info_file)
-    assert info["measured_depletion_voltage_in_V"] == 3750
+    # the simulation is tuned to the depletion voltage of the impurity file
+    # (3000 V), not to the one measured in the metadata (3026 V)
+    assert info["measured_depletion_voltage_in_V"] == (3000 if tuned else 3026)

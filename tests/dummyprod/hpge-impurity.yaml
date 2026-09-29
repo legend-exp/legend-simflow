@@ -1,0 +1,8 @@
+# mock output of an impurity-tuning production (pars/hpge/impurity.yaml): the
+# measured depletion voltage of both detectors in the metadata is 3026 V
+V00001A:
+  slope: 0.5
+  depletion_voltage: 3000.0
+V00001B:
+  slope: -0.5
+  depletion_voltage: 3050.0

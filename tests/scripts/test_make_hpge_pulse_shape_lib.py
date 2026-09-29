@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import dbetto
 import lh5
 import numpy as np
 import pytest
@@ -18,6 +19,7 @@ repo_root = Path(__file__).parent.parent.parent
 @pytest.mark.skipif(shutil.which("julia") is None, reason="julia not installed")
 def test_make_hpge_pulse_shape_lib_l200(tmp_path):
     psl_file = tmp_path / "V00001A-3500V-hpge-pulse-shape-lib.lh5"
+    info_file = tmp_path / "V00001A-3500V-hpge-ssd-modeling.yaml"
 
     subprocess.run(
         [
@@ -37,8 +39,12 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
                 testprod
                 / "legend-metadata/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
             ),
+            "--impurity",
+            str(testprod / "hpge-impurity.yaml"),
             "--output-file",
             str(psl_file),
+            "--info-file",
+            str(info_file),
         ],
         check=True,
         cwd=repo_root,
@@ -48,6 +54,10 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
 
     top_keys = lh5.ls(psl_file)
     assert "V00001A" in top_keys, f"Expected group 'V00001A' in LH5, got: {top_keys}"
+
+    # tuned to the depletion voltage of the impurity file, not of the metadata
+    info = dbetto.utils.load_dict(info_file)
+    assert info["measured_depletion_voltage_in_V"] == 3000
 
 
 @pytest.mark.needs_julia

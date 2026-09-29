@@ -30,6 +30,7 @@ paths:
     lar: $_/testdata/remage/l200cfg01-optmap-dummy.lh5
 
   pars: $_/generated-l200/pars
+  hpge_impurity_model: $_/hpge-impurity.yaml
   macros: $_/generated-l200/macros
   tier:
     vtx: $_/generated-l200/tier/vtx
