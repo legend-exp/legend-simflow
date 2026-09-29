@@ -214,23 +214,16 @@ def link_external_paths(
                 continue
             default.unlink()
         elif default.exists():
-            log_.warning(
-                "%s is an existing non-symlink path; ignoring override -> %s",
-                default,
-                current,
-            )
+            msg = f"{default} is an existing non-symlink path; ignoring override -> {current}"
+            log_.warning(msg)
             continue
 
         if not current.exists():
-            log_.warning(
-                "override target %s does not exist; %s will be a broken symlink",
-                current,
-                default,
-            )
+            msg = f"override target {current} does not exist; {default} will be a broken symlink"
+            log_.warning(msg)
         elif not current.is_dir():
-            log_.warning(
-                "override target %s is not a directory; linking anyway", current
-            )
+            msg = f"override target {current} is not a directory; linking anyway"
+            log_.warning(msg)
 
         rel = Path(os.path.relpath(current, start=default.parent))
         default.parent.mkdir(parents=True, exist_ok=True)
@@ -323,14 +316,15 @@ def init_simflow_context(
         metadata = LegendMetadata(config.paths.metadata, lazy=True)
 
         if "legend_metadata_version" in config:
-            log_.info(
-                "checking out legend-metadata version %s",
-                config.legend_metadata_version,
+            msg = (
+                f"checking out legend-metadata version {config.legend_metadata_version}"
             )
+            log_.info(msg)
             try:
                 metadata.checkout(config.legend_metadata_version)
             except GitCommandError as e:
-                log_.warning("could not checkout legend-metadata version: %s", e)
+                msg = f"could not checkout legend-metadata version: {e}"
+                log_.warning(msg)
 
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB
