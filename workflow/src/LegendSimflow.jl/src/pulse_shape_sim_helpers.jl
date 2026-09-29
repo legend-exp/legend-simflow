@@ -534,30 +534,39 @@ function setup_hpge_simulation(meta_path::String,
         end
 
     end
-    sim = Simulation{T}(
-        LegendData,
-        meta,
-        xtal,
-        HPGeEnvironment(medium, temperature*u"K"),
-        allow_cylindrical_asymmetry = false,
-        operational_voltage = 6000.0*u"V"
-    )
-    @info "Calculating electric potential at $(opv_val) V..."
-    calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
-
-    @info "Calculating electric field before corrections..."
-    calculate_electric_field!(sim)
-
+    is_depleted = false
+    scale = 1.0
+    sim = nothing
     dep_raw = nothing
-    try
-        dep_raw = estimate_depletion_voltage(sim, tolerance = 1*u"V")
-    catch
-        error("Detector is not depleted!")
+
+    while !is_depleted
+        xtal.impurity_curve.corrections.scale = scale
+
+        sim = Simulation{T}(
+            LegendData,
+            meta,
+            xtal,
+            HPGeEnvironment(medium, temperature*u"K"),
+            allow_cylindrical_asymmetry = false,
+            operational_voltage = 6000.0*u"V"
+        )
+        @info "Calculating electric potential and field at 6000 V..."
+        calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
+        calculate_electric_field!(sim)
+
+        try
+            dep_raw = estimate_depletion_voltage(sim, tolerance = 1*u"V")
+            is_depleted = true
+        catch
+            @info "Detector was not depleted with base curve at 6 kV opv, scaling impurities by 0.8"
+            scale*=0.8
+        end
     end
+
 
     if rescale_impurities
 
-        scale = adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep_target,
+        scale *= adjust_impurity_and_electric_potential_to_match_depletion!(sim, vdep_target,
             check_for_depletion = false,
             reconverge_electric_potential = false)
 
