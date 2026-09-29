@@ -536,6 +536,8 @@ function setup_hpge_simulation(meta_path::String,
     end
     is_depleted = false
     scale = 1.0
+    sim = nothing
+    dep_raw = nothing
     
     while !is_depleted
         xtal.impurity_curve.corrections.scale = scale
