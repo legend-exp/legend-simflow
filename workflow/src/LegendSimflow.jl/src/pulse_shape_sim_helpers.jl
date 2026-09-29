@@ -538,7 +538,7 @@ function setup_hpge_simulation(meta_path::String,
     scale = 1.0
     sim = nothing
     dep_raw = nothing
-    
+
     while !is_depleted
         xtal.impurity_curve.corrections.scale = scale
 
@@ -551,7 +551,7 @@ function setup_hpge_simulation(meta_path::String,
             operational_voltage = 6000.0*u"V"
         )
         @info "Calculating electric potential and field at 6000 V..."
-        calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)    
+        calculate_electric_potential!(sim, refinement_limits = refinement_limits, depletion_handling = true)
         calculate_electric_field!(sim)
 
         try
@@ -562,7 +562,7 @@ function setup_hpge_simulation(meta_path::String,
             scale*=0.8
         end
     end
-    
+
 
     if rescale_impurities
 
