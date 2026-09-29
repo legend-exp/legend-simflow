@@ -25,10 +25,7 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
             "--project=" + str(repo_root / "workflow/src/LegendSimflow.jl"),
             "--threads",
             "1",
-            str(
-                repo_root
-                / "workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
-            ),
+            str(repo_root / "workflow/src/legendsimflow/scripts/make_hpge_psd_maps.jl"),
             "--detector",
             "V00001A",
             "--metadata",
