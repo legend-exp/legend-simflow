@@ -4,6 +4,7 @@ import os
 import shutil
 from pathlib import Path
 
+import dbetto
 import lh5
 import numpy as np
 import pytest
@@ -119,6 +120,14 @@ def test_l200_workflow():
     generated = dummyprod / "generated-l200"
     _assert_psd_psl_in_hit(generated)
     _assert_psd_psl_in_evt(generated)
+
+    # the SSD simulations are tuned to the depletion voltages (in V) of the
+    # mock impurity model in paths.hpge_impurity_model
+    ssd_info = dbetto.utils.load_dict(generated / "pars/detinfo/hpge_ssd_modeling.yaml")
+    tuned = {"V00001A": 3000, "V00001B": 3050}
+    for dets in ssd_info.values():
+        for det, info in dets.items():
+            assert info["measured_depletion_voltage_in_V"] == tuned[det]
 
 
 @pytest.mark.needs_nersc
