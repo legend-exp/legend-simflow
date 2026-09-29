@@ -36,7 +36,8 @@ using LegendSimflow
 """
     main()
 
-Generate ideal HPGe waveform maps for specified detector and save to LH5 file.
+Generate HPGe ideal pulse-shape libraries or drift-time maps for a detector
+and save them to an LH5 file.
 """
 function main()
     T = Float32
@@ -60,6 +61,11 @@ function main()
         required = true
     end
     @add_arg_table s begin
+        "--info-file"
+        help = "Path to output YAML file with the SSD-modeling provenance scalars (optional)"
+        default = nothing
+    end
+    @add_arg_table s begin
         "--opv"
         help = "detector operational voltage in V (defaults to metadata value)"
     end
@@ -75,7 +81,7 @@ function main()
     end
     @add_arg_table s begin
         "--impurity"
-        help = "YAML file with the parameters of the impurity profile (optional; built-in defaults used if absent or missing)"
+        help = "YAML file with the tuned impurity-profile slope and depletion voltage, keyed by detector (optional; metadata values used if absent)"
         default = nothing
     end
     parsed_args = parse_args(s)
@@ -100,21 +106,15 @@ function main()
     ssd_settings = parsed_args["ssd-settings"]
     sim_cfg = (!isnothing(ssd_settings) && isfile(ssd_settings)) ? readprops(ssd_settings) : PropDict()
 
-    # get the parameters of the impurity model
-    impurity = parsed_args["impurity"]
-    impurity = (!isnothing(impurity) && isfile(impurity)) ? readprops(impurity)[det] : nothing
-
-    if !isnothing(impurity)
-        vdep = impurity[:vdep]
-        slope = impurity[:slope]
-    else
-        vdep = nothing
-        slope = nothing
-    end
-
-    if !isnothing(slope)
-        @info "Adjusting impurity profile parameters with slope = $slope"
-        xtal.impurity_curve.parameters = adjust_impurity_pars(xtal.impurity_curve.parameters, slope)
+    # tuned impurity profile: rescale its non-constant part by `slope` and
+    # match the simulated depletion voltage (in V) to `depletion_voltage`
+    vdep = nothing
+    impurity_file = parsed_args["impurity"]
+    if !isnothing(impurity_file)
+        impurity = readprops(impurity_file)[det]
+        vdep = impurity.depletion_voltage
+        @info "Adjusting impurity profile parameters with slope = $(impurity.slope)"
+        xtal.impurity_curve.parameters = adjust_impurity_pars(xtal.impurity_curve.parameters, impurity.slope)
     end
 
     grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000.0
@@ -122,14 +122,12 @@ function main()
     padding = get(sim_cfg, :padding, DEFAULT_PADDING)
 
     @info "using ref limits $ref_limits"
-    # the SSD-modeling provenance scalars are stored as metadata by the
-    # drift-time-map job, so the returned `info` is intentionally discarded here
     sim, info = setup_hpge_simulation(meta_path, meta, xtal, opv_val, T, ref_limits, vdep = vdep)
 
     output = nothing
     for a in CRYSTAL_AXIS_ANGLES
 
-        if !parsed_args["compute_drift_time"]
+        if !parsed_args["compute-drift-time"]
             result = compute_ideal_pulse_shape_lib(sim, meta, T, a, false, grid_size, padding)
 
             key = Symbol("waveform_$(lpad(string(a), 3, '0'))_deg")
