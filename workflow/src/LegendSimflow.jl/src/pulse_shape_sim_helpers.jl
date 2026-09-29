@@ -74,7 +74,7 @@ Shared by the map padding routines [`extend_drift_time_map`](@ref) and
 (e.g. the column/radius axis is typically not extended into negative values).
 
 # Arguments
-- `row_axis::AbstractVector`: Axis values impurity = impuritycorresponding to rows (e.g. z height).
+- `row_axis::AbstractVector`: Axis values corresponding to rows (e.g. z height).
 - `col_axis::AbstractVector`: Axis values corresponding to columns (e.g. r radius).
 - `row_layers_low::Int`, `row_layers_high::Int`: Layers to add below/above the row axis.
 - `col_layers_low::Int`, `col_layers_high::Int`: Layers to add below/above the col axis.

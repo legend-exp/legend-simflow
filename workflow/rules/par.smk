@@ -21,6 +21,10 @@ from legendsimflow import aggregate, patterns
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_par_settings
 
+# tuned HPGe impurity profiles, from a separate impurity-tuning production
+_impurity_model = config.paths.get("hpge_impurity_model", None)
+_impurity_opt = f"--impurity {_impurity_model}" if _impurity_model else ""
+
 
 rule gen_all_tier_par:
     """Produce all `par` step outputs."""
@@ -128,6 +132,7 @@ rule build_hpge_drift_time_map:
         "Generating drift-time map for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         unpack(smk_hpge_psd_simulation_inputs),
+        impurity=_impurity_model or [],
     params:
         metadata_path=config.paths.metadata,
     output:
@@ -143,9 +148,10 @@ rule build_hpge_drift_time_map:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
         "  workflow/src/legendsimflow/scripts/make_hpge_psd_maps.jl"
         "    --detector {wildcards.hpge_detector}"
-        "    --compute-drift-time" 
+        "    --compute-drift-time"
         f"   --metadata {config.paths.metadata}"
         "    --ssd-settings {input.ssd_settings}"
+        f"   {_impurity_opt}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output.dtmap_file}"
         "    --info-file {output.info_file} &> {log}"
@@ -269,6 +275,7 @@ rule build_hpge_pulse_shape_library:
         "Generating pulse-shape library for HPGe detector {wildcards.hpge_detector} at {wildcards.hpge_voltage}V"
     input:
         unpack(smk_hpge_psd_simulation_inputs),
+        impurity=_impurity_model or [],
     params:
         metadata_path=config.paths.metadata,
     output:
@@ -285,6 +292,7 @@ rule build_hpge_pulse_shape_library:
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
         "    --ssd-settings {input.ssd_settings}"
+        f"   {_impurity_opt}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
 

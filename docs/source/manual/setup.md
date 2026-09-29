@@ -59,6 +59,10 @@ Here's a basic description of its fields:
   - `l200data` (input): LEGEND-200 data production cycle (e.g.
     `<...>/public/prodenv/prod-blind/ref-v1.0.0`) used to extract production
     parameters (e.g. energy resolution)
+  - `hpge_impurity_model` (input, optional): HPGe impurity-model file
+    (`pars/hpge/impurity.yaml`) written by a separate impurity-tuning production
+    (see {ref}`hpge-dtmap-extraction`). When set, the drift-time maps and ideal
+    pulse-shape libraries use the tuned impurity profiles
   - `benchmarks` (output): Snakemake rule benchmark files
   - `log` (output): Snakemake rule log files
   - `metadata` (input): Simflow input metadata. This is a clone of the

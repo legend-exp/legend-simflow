@@ -189,14 +189,19 @@ The `SolidStateDetectors.jl` (SSD) simulation parameters (grid size, refinement
 thresholds, padding) are controlled by {ref}`ssd-settings-meta`.
 
 Both this simulation and the ideal pulse-shape library tune the crystal impurity
-profile so that the _simulated_ depletion voltage reproduces the _measured_ one
-(`characterization.l200_site.depletion_voltage_in_V` in the diode metadata): any
+profile so that the _simulated_ depletion voltage reproduces a target one: any
 impurity-curve corrections stored in the metadata are reset, the impurity
-density is rescaled to match the measurement, and the job aborts if the two
-depletion voltages still disagree by more than a fixed threshold (200 V). The
-resulting impurity scaling factor and the raw and corrected depletion voltages
-are recorded as provenance in `pars/detinfo/hpge_ssd_modeling.yaml` (see
-{ref}`par-detinfo`).
+density is rescaled to match the target, and the job aborts if the two depletion
+voltages still disagree by more than a fixed threshold (200 V). By default the
+target is the measured depletion voltage
+(`characterization.l200_site.depletion_voltage_in_V` in the diode metadata).
+When `paths.hpge_impurity_model` is set in the Simflow configuration file, the
+tuned values of each detector are read from that file instead: the non-constant
+part of the impurity profile is first scaled by `1 + slope`, and the target is
+`depletion_voltage` (in V). The file must list every detector that is simulated.
+The resulting impurity scaling factor and the raw and corrected depletion
+voltages are recorded as provenance in `pars/detinfo/hpge_ssd_modeling.yaml`
+(see {ref}`par-detinfo`).
 
 (hpge-ideal-psl-extraction)=
 
