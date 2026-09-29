@@ -11,6 +11,7 @@
 ![GitHub issues](https://img.shields.io/github/issues/legend-exp/legend-simflow?logo=github)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/legend-exp/legend-simflow?logo=github)
 ![License](https://img.shields.io/github/license/legend-exp/legend-simflow)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21402197.svg)](https://doi.org/10.5281/zenodo.21402197)
 
 End-to-end Snakemake workflow to run Monte Carlo simulations of signal and
 background signatures in the LEGEND experiment and produce probability-density
