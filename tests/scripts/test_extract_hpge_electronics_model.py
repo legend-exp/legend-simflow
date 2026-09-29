@@ -273,3 +273,8 @@ def test_extract_electronics_model_scan_cli_with_data(
     )
 
     assert validate_ssd_scan_grid(pars_file, DETECTOR)
+
+    # sigma_limits from the elecmod settings.yaml in the test metadata
+    assert all(
+        15.0 <= p.sigma <= 25.0 for s in pars.psl_scan.values() for p in s.values()
+    )

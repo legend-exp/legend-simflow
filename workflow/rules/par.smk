@@ -822,7 +822,8 @@ rule extract_electronics_model_pars:
     convolved with a causal exponential preamplifier decay `tau`) by comparing
     processed ideal PSL waveforms to the measured data superpulses. When a
     `default` key is present in the `elecmod` validity metadata the fit is
-    bypassed and the metadata values are written directly.
+    bypassed and the metadata values are written directly. The fit settings are
+    read from `settings.yaml` in the same `elecmod` metadata directory.
 
     The (temporary, per-detector) output YAML, consumed by
     `merge_electronics_model_pars`, contains:

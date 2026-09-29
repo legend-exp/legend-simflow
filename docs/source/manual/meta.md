@@ -1005,17 +1005,16 @@ present the fit is bypassed and these settings are ignored. See
 
 :::
 
-Tuning parameters for the data-driven fit in `extract_electronics_model_pars`,
-which minimises the mean RMS between simulated and measured current superpulses
-(across drift-time slices, via Minuit/MIGRAD) to extract the per-detector
-`sigma` and `tau`. The `extract_hpge_elec_response_model.py` script reads them
-from an optional YAML supplied through its `--settings` flag. The file replaces
-the built-in defaults as a whole, so it must set every key below. The workflow
-rule does not currently pass such a file, so the built-in defaults are used in
-production.
+Tuning parameters for the data-driven fit in `extract_electronics_model_pars`
+(and in its impurity-curve scan version `extract_elecmod_scan`), which minimises
+the mean RMS between simulated and measured current superpulses (across
+drift-time slices, via Minuit/MIGRAD) to extract the per-detector `sigma` and
+`tau`. Settings are read via `get_par_settings(config, "elecmod")` from an
+optional `settings.yaml` in the {ref}`elecmod-metadata-dir`. Keys set in the
+file override the built-in defaults below; missing keys keep their default.
 
 ```{code-block} yaml
-:caption: optional settings YAML for extract_electronics_model_pars (--settings); values shown are the built-in defaults
+:caption: simprod/config/pars/{experiment}/geds/elecmod/settings.yaml (values shown are the built-in defaults)
 
 angle: "000"
 sigma_start: 10.0
@@ -1038,7 +1037,7 @@ max_num_superpulses: 5
 | `sigma_limits`        | [float, float] | `[0.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `sigma` during the fit.                                                                                                                                                       |
 | `tau_limits`          | [float, float] | `[0.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `tau` during the fit.                                                                                                                                                         |
 | `comparison_window`   | [float, float] | `[-500.0, 500.0]` | `(t_min, t_max)` window (ns) relative to the current peak over which the simulation/data RMS is computed; `null` uses the full waveform overlap.                                                              |
-| `plot_window`         | [float, float] | `[-600.0, 600.0]` | `(t_min, t_max)` window (ns) relative to the current peak shown in the best-fit diagnostic plots. Does not affect the fit.                                                                                    |
+| `plot_window`         | [float, float] | `[-600.0, 600.0]` | `(t_min, t_max)` window (ns) relative to the current peak shown in the best-fit diagnostic plots; `null` falls back to `comparison_window`. Does not affect the fit.                                          |
 | `weight_power`        | float          | `2.0`             | Data-amplitude weight exponent `p` (`w = \|data\|**p`) applied to the squared residuals before the RMS; `0` is the plain equal-weight RMS, larger values bias the fit toward the current peak and its flanks. |
 | `max_calls`           | int            | `1000`            | Maximum number of Minuit (MIGRAD) function evaluations.                                                                                                                                                       |
 | `dt_range_tuning`     | [float, float] | `[600.0, 3000.0]` | Drift-time range (ns); only superpulse slices whose centre falls in this range are used in the fit.                                                                                                           |
