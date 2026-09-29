@@ -36,6 +36,7 @@ from legendsimflow.hpge_electronics_tuning import (
     get_ideal_wfs_all_slices,
     plot_scan_maps,
 )
+from legendsimflow.metadata import get_par_settings
 from legendsimflow.plot import decorate
 from legendsimflow.psl import validate_ssd_scan_grid
 from legendsimflow.scripts import log_script_invocation
@@ -54,7 +55,6 @@ DEFAULT_SETTINGS = {
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
-    "truncate_gauss": True,
 }
 
 
@@ -65,7 +65,6 @@ DEFAULT_SETTINGS = {
         "superpulses": "input.superpulses",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
-        "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -87,8 +86,8 @@ def main() -> None:
         |       `-- ...
         `-- info                 # slope_min, slope_step, dep_min, dep_step
 
-    ``--superpulses`` and ``--settings`` are the data superpulses and the fit
-    configuration of a single-point fit.
+    ``--superpulses`` are the data superpulses. The fit settings are the same
+    as for the single-point fit.
 
     Each grid point is fitted on its own and the results keep the same layout
     in the YAML file ``--pars-file``::
@@ -150,13 +149,6 @@ def main() -> None:
         help="simflow config YAML path",
     )
     parser.add_argument(
-        "--settings",
-        type=str,
-        required=False,
-        default=None,
-        help="Path to YAML file with settings for the fit (e.g. initial values, limits, comparison window); ",
-    )
-    parser.add_argument(
         "--plot-file",
         type=str,
         required=False,
@@ -190,11 +182,10 @@ def main() -> None:
     hpge = args.hpge_detector
     pars_file = args.pars_file
 
-    settings = (
-        dbetto.AttrsDict(dbetto.utils.load_dict(args.settings))
-        if args.settings is not None
-        else dbetto.AttrsDict(DEFAULT_SETTINGS)
-    )
+    settings = DEFAULT_SETTINGS
+    if args.simflow_config is not None:
+        settings = DEFAULT_SETTINGS | get_par_settings(config, "elecmod")
+    settings = dbetto.AttrsDict(settings)
 
     log.info(
         "extracting electronics model from superpulses %s in %s ...",
@@ -212,7 +203,9 @@ def main() -> None:
         raise RuntimeError(msg)
 
     # loop over slope and depv
-    comparison_window = tuple(settings.comparison_window)
+    comparison_window = settings.comparison_window
+    if comparison_window is not None:
+        comparison_window = tuple(comparison_window)
 
     if args.plot_file is not None:
         plot_dir = Path(args.plot_file).parent
@@ -277,7 +270,7 @@ def main() -> None:
                         sigma_limits=tuple(settings.sigma_limits),
                         tau_limits=tuple(settings.tau_limits),
                         comparison_window=comparison_window,
-                        weight_power=settings.get("weight_power", 0.0),
+                        weight_power=settings.weight_power,
                         max_calls=settings.max_calls,
                     )
 

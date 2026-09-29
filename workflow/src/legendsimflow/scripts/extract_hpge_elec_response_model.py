@@ -65,7 +65,6 @@ DEFAULT_SETTINGS = {
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
-    "truncate_gauss": True,
 }
 
 
@@ -78,7 +77,6 @@ DEFAULT_SETTINGS = {
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
         "uniformity_plot_file": "output.uniformity_plot_file",
-        "settings": "input.settings",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -127,13 +125,6 @@ def main() -> None:
         help="simflow config YAML path",
     )
     parser.add_argument(
-        "--settings",
-        type=str,
-        required=False,
-        default=None,
-        help="Path to YAML file with settings for the fit (e.g. initial values, limits, comparison window); ",
-    )
-    parser.add_argument(
         "--plot-file",
         type=str,
         required=False,
@@ -164,10 +155,8 @@ def main() -> None:
     runid = args.runid
     hpge = args.hpge_detector
     pars_file = args.pars_file
-    settings = (
-        dbetto.AttrsDict(dbetto.utils.load_dict(args.settings))
-        if args.settings is not None
-        else dbetto.AttrsDict(DEFAULT_SETTINGS)
+    settings = dbetto.AttrsDict(
+        DEFAULT_SETTINGS | mutils.get_par_settings(config, "elecmod")
     )
 
     # check for metadata-driven defaults first; if present, bypass the
@@ -217,8 +206,12 @@ def main() -> None:
         *settings.dt_range_tuning,
     )
 
-    comparison_window = tuple(settings.comparison_window)
-    plot_window = tuple(settings.plot_window)
+    comparison_window = settings.comparison_window
+    if comparison_window is not None:
+        comparison_window = tuple(comparison_window)
+    plot_window = settings.plot_window
+    if plot_window is not None:
+        plot_window = tuple(plot_window)
 
     # Prepare ideal waveforms
     log.info("... selecting ideal waveforms per slice ...")
@@ -251,7 +244,7 @@ def main() -> None:
         sigma_limits=tuple(settings.sigma_limits),
         tau_limits=tuple(settings.tau_limits),
         comparison_window=comparison_window,
-        weight_power=settings.get("weight_power", 0.0),
+        weight_power=settings.weight_power,
         max_calls=settings.max_calls,
     )
 
