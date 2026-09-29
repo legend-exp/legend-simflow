@@ -141,8 +141,9 @@ rule build_hpge_drift_time_map:
     # way to handle package dependencies nor Project.toml
     shell:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
-        "  workflow/src/legendsimflow/scripts/make_hpge_drift_time_maps.jl"
+        "  workflow/src/legendsimflow/scripts/make_hpge_psd_maps.jl"
         "    --detector {wildcards.hpge_detector}"
+        "    --compute-drift-time" 
         f"   --metadata {config.paths.metadata}"
         "    --ssd-settings {input.ssd_settings}"
         "    --opv {wildcards.hpge_voltage}"
@@ -280,7 +281,7 @@ rule build_hpge_pulse_shape_library:
     # way to handle package dependencies nor Project.toml
     shell:
         "julia --project=workflow/src/LegendSimflow.jl --threads 1"
-        "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib.jl"
+        "  workflow/src/legendsimflow/scripts/make_hpge_psd_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         f"   --metadata {config.paths.metadata}"
         "    --ssd-settings {input.ssd_settings}"
