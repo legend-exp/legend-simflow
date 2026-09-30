@@ -73,6 +73,20 @@ simflow at runtime:
   an input of consumer `stp`-tier jobs.
 - `N_EVENTS`: number of vertices to generate.
 
+Every block must also set the `product` key, which states what the generator
+writes. The `stp` tier uses it to choose the _remage_ macro commands for a
+`~vertices:` reference (see the `generator` and `confinement` fields in
+{ref}`simconfig.yaml`). Allowed values:
+
+- `positions`: vertex positions only, in a `vtx/pos` table. Usable only as an
+  `stp`-tier `confinement`.
+- `kinematics`: primary kinematics only, in a `vtx/kin` table without positions.
+  Usable as an `stp`-tier `generator`, together with a `confinement` that
+  supplies the positions.
+- `kinematics_and_positions`: primary kinematics and positions in the same
+  `vtx/kin` table. Usable as an `stp`-tier `generator` without any
+  `confinement`.
+
 Example:
 
 ```yaml
@@ -80,6 +94,7 @@ hpge_surface:
   command: >-
     revertex hpge-surf-pos --detectors [VB]* --surface-type nplus --gdml
     {INPUT_FILE} --out-file {OUTPUT_FILE} --n-events {N_EVENTS}
+  product: positions
 ```
 
 ### `stp` tier
@@ -128,9 +143,13 @@ Supported fields per `simid`:
   - formatted as `~defines:NAME`, where `NAME` is defined in
     {ref}`generators.yaml`.
   - formatted as `~vertices:NAME`, where `NAME` references a vertices simulation
-    from the `vtx` tier (see {ref}`vtx-tier-meta`). When vertices are used as
-    the generator they carry vertex position _and_ kinematics, so the
-    `confinement` key (see below) is forbidden.
+    from the `vtx` tier (see {ref}`vtx-tier-meta`). `NAME` must produce
+    kinematics, i.e. its `product` must be `kinematics` or
+    `kinematics_and_positions`:
+    - with `kinematics_and_positions`, positions are read from the same file, so
+      the `confinement` key (see below) is forbidden;
+    - with `kinematics`, the file carries no positions, so a `confinement` (of
+      any kind) **must** be configured to supply them.
 
 - `confinement` — one of:
   - `~defines:NAME` to reference a confinement block in {ref}`confinement.yaml`
@@ -138,8 +157,10 @@ Supported fields per `simid`:
   - `~volumes.surface:PATTERN` to sample on the surface of volumes matching
     `PATTERN`
   - a list of the above strings to combine multiple volume patterns
-  - `~vertices:NAME` to used the vertex positions similated by the `vtx` tier
-    generator `NAME` (see {ref}`vtx-tier-meta`).
+  - `~vertices:NAME` to use the vertex positions simulated by the `vtx` tier
+    generator `NAME` (see {ref}`vtx-tier-meta`). `NAME` must produce positions,
+    i.e. its `product` must be `positions`. This cannot be combined with a
+    `~vertices:` generator.
   - `~function:NAME` to use a user-defined function to generate macro commands.
     `NAME` should be in a format:
   ```
