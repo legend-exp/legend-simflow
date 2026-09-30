@@ -6,6 +6,7 @@ hpge_surface:
     --gdml {GDML_FILE}
     --out-file {OUTPUT_FILE}
     --n-events {N_EVENTS}
+  product: positions
 
 exotic_process:
   command: >-
@@ -13,3 +14,12 @@ exotic_process:
     --gdml {GDML_FILE}
     --out-file {OUTPUT_FILE}
     --n-events {N_EVENTS}
+  product: kinematics
+
+musun_hall_c:
+  command: >-
+    my-musun-like-generator
+    --gdml {GDML_FILE}
+    --out-file {OUTPUT_FILE}
+    --n-events {N_EVENTS}
+  product: kinematics_and_positions
