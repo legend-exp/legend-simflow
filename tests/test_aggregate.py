@@ -360,6 +360,24 @@ def test_hpge_voltage_functions(config):
     assert isinstance(voltage, int)
 
 
+def test_hpge_voltage_default(config, monkeypatch):
+    runid = "l200-p02-r000-phy"
+    opv = AttrsDict(
+        {
+            "V00001A": {"operational_voltage_in_V": 4000.0},
+            "default": {"operational_voltage_in_V": 3500.0},
+        }
+    )
+    monkeypatch.setattr(agg_mod, "simpars", lambda *_args, **_kwargs: opv)
+
+    assert agg.get_hpge_voltage(config, "V00001A", runid) == 4000
+    assert agg.get_hpge_voltage(config, "V00101Z", runid) == 3500
+
+    opv.pop("default")
+    with pytest.raises(KeyError):
+        agg.get_hpge_voltage(config, "V00101Z", runid)
+
+
 def test_currmod_stuff(config):
     runid = "l200-p02-r000-phy"
     simid = "stp.pen_plates_Ra224_to_Pb208"
