@@ -54,8 +54,8 @@ DEFAULT_SETTINGS = {
     "angle": "000",
     "sigma_start": 10.0,
     "tau_start": 50.0,
-    "sigma_limits": (0.0, 200.0),
-    "tau_limits": (0.0, 200.0),
+    "sigma_limits": (1.0, 50.0),
+    "tau_limits": (1.0, 200.0),
     "comparison_window": (-500.0, 500.0),
     "plot_window": (-600.0, 600.0),
     # data-amplitude weight exponent p for the fit cost (w = |data|**p): biases
