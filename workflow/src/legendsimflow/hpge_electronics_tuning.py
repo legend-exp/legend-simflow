@@ -797,7 +797,6 @@ def plot_scan_maps(
 
         cmap_tmp = plt.colormaps[cmap].copy().with_extremes(over="grey")
 
-
         mesh = ax.pcolormesh(
             x_edges,
             y_edges,
