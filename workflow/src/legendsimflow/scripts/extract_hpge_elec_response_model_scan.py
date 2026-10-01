@@ -20,7 +20,7 @@ import argparse
 import logging
 from contextlib import nullcontext
 from pathlib import Path
-
+import time
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
@@ -47,12 +47,12 @@ from legendsimflow.superpulses import (
 DEFAULT_SETTINGS = {
     "angle": "000",
     "sigma_start": 10.0,
-    "tau_start": 50.0,
-    "sigma_limits": (0.0, 200.0),
-    "tau_limits": (0.0, 200.0),
+    "tau_start": 30.0,
+    "sigma_limits": (0.0, 50.0),
+    "tau_limits": (0.0, 100.0),
     "comparison_window": (-500.0, 500.0),
     "weight_power": 2.0,
-    "max_calls": 1000,
+    "max_calls": 300,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
 }
@@ -226,7 +226,10 @@ def main() -> None:
             slope = slope_group.split("/")[-1]
             psl_scan[slope] = {}
             log.debug("... reading ideal waveforms from %s ...", slope)
-
+            
+            sigma_start=settings.sigma_start
+            tau_start=settings.tau_start
+            
             for depv_group in lh5.ls(
                 ideal_psl_scan, f"{args.hpge_detector}/psl_scan/{slope}/"
             ):
@@ -257,23 +260,33 @@ def main() -> None:
 
                 # Run fit
                 log.info(
-                    "starting fit (sigma0=%.1f, tau0=%.1f) ...",
-                    settings.sigma_start,
-                    settings.tau_start,
+                    "starting fit (sigma0=%.1f, tau0=%.1f) ... %d",
+                    sigma_start,
+                    tau_start,
+                    settings.max_calls
                 )
                 with perf_block("fit_electronics_parameters()"):
+
+                    t0 = time.time()
                     result = fit_electronics_parameters(
                         **ideal_wfs,
                         data_superpulses=data_superpulses,
-                        sigma_start=settings.sigma_start,
-                        tau_start=settings.tau_start,
+                        sigma_start=sigma_start,
+                        tau_start=tau_start,
                         sigma_limits=tuple(settings.sigma_limits),
                         tau_limits=tuple(settings.tau_limits),
                         comparison_window=comparison_window,
                         weight_power=settings.weight_power,
                         max_calls=settings.max_calls,
                     )
-
+                    # seed
+                    t = time.time() - t0
+                    
+                    sigma_start = result["sigma"]
+                    tau_start = result["tau"]
+                    
+                    log.info(f"finished fit (in {t:.1f} s, with {len(result["cost_history"])}  calls and sigma = ({sigma_start:.1f}) ns tau = ({tau_start:.1f}) ns")
+                                        
                 # Write output
                 psl_scan[slope][depv] = {
                     "detector": args.hpge_detector,

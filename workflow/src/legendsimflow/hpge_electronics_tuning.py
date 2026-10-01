@@ -117,6 +117,7 @@ def compute_rms_in_slice(
     data_sp: Superpulse,
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
+    return_mode = "current"
 ) -> float:
     """RMS residual between a simulated and a data current superpulse.
 
@@ -152,8 +153,14 @@ def compute_rms_in_slice(
         (Optionally data-amplitude-weighted) root mean square of the residuals.
 
     """
-    data_time = data_sp.current_time_axis
-    data_wf = data_sp.current_wf
+
+    if return_mode == "current":
+        data_time = data_sp.current_time_axis
+        data_wf = data_sp.current_wf
+    else:
+        data_time = data_sp.charge_time_axis
+        data_wf = data_sp.charge_wf
+
 
     f = interp1d(
         sim_time, sim_avg, kind="linear", bounds_error=False, fill_value=np.nan
@@ -195,6 +202,7 @@ def build_cost_function(
     nsamples_output: int,
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
+    return_mode = "current"
 ) -> Callable:
     """Build the scalar cost function for the Minuit minimiser.
 
@@ -228,8 +236,6 @@ def build_cost_function(
     """
 
     def cost(sigma, tau):
-        if sigma <= 0 or tau <= 0:
-            return 1e6
 
         rf = psl.build_electronics_response_kernel(
             dt, mu_bandwidth=0.0, sigma_bandwidth=sigma, tau_rc=tau
@@ -243,6 +249,7 @@ def build_cost_function(
                 dt,
                 alignment_idx,
                 nsamples_output,
+                return_mode = return_mode
             )
             sim_avg = np.mean(processed, axis=0)
             sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
@@ -252,8 +259,9 @@ def build_cost_function(
                 data_superpulses[sl],
                 comparison_window,
                 weight_power,
+                return_mode = return_mode
             )
-        return total / len(ideal_wfs_slice)
+        return 1000 * total / len(ideal_wfs_slice)
 
     return cost
 
@@ -361,7 +369,10 @@ def fit_electronics_parameters(
     tau_limits: tuple[float, float],
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
-    max_calls: int = 5000,
+    max_calls: int = 1000,
+    errs = (1,1),
+    mode = "simplex",
+    return_mode = "current"
 ) -> dict:
     """Fit the electronics response parameters sigma and tau.
 
@@ -415,6 +426,7 @@ def fit_electronics_parameters(
         nsamples_output,
         comparison_window,
         weight_power,
+        return_mode = return_mode
     )
 
     history: list[tuple[tuple[float, float], float]] = []
@@ -425,20 +437,33 @@ def fit_electronics_parameters(
         return val
 
     m = Minuit(tracked_cost, sigma=sigma_start, tau=tau_start)
-    m.errors = (5.0, 10.0)
+    
+    if errs is not None:
+        m.errors = errs
+    
     m.limits["sigma"] = sigma_limits
     m.limits["tau"] = tau_limits
 
     # Minuit's default. Strategy 0 skips the Hessian refinement and roughly
     # halves the number of cost evaluations, but the fit then comes out less
     # stable, so the slower setting is worth it
-    m.simplex(ncall=max_calls)
     m.strategy = 2
-
-    m.migrad(ncall=max_calls)
+    if mode == "simplex":
+        m.tol/=10
+        m.simplex(ncall=max_calls)
+    elif mode == "migrad":
+        
+        m.migrad(ncall=max_calls)
+    elif mode == "both":
+        m.simplex
+        m.migrad(ncall= max_calls)
+    else:
+        msg = f"Only mode simplex or migrad are supported not {mode}"
+        raise ValueError(msg)
+        
     if not m.valid:
-        log.warning("MIGRAD did not converge")
-
+        log.warning(f"MIGRAD did not converge {len(history)} out of {max_calls}")
+        
     return {
         "sigma": m.values["sigma"],
         "tau": m.values["tau"],
@@ -773,8 +798,7 @@ def plot_scan_maps(
         # the residual varies over orders of magnitude across the grid while the
         # structure that matters sits close to the minimum
         finite = grid[np.isfinite(grid)]
-        norm = LogNorm() if key == "rms" and finite.size and finite.min() > 0 else None
-        mesh = ax.pcolormesh(x_edges, y_edges, grid, cmap=cmap, norm=norm)
+        mesh = ax.pcolormesh(x_edges, y_edges, grid, cmap=cmap, norm=None)
         fig.colorbar(mesh, ax=ax, label=label)
         ax.set_xlabel("Depletion voltage [V]")
 
