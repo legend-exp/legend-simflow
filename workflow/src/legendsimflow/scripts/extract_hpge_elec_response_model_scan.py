@@ -52,7 +52,7 @@ DEFAULT_SETTINGS = {
     "tau_limits": (1.0, 100.0),
     "comparison_window": (-500.0, 500.0),
     "weight_power": 2.0,
-    "max_calls": 300,
+    "max_calls": 100,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
     "minimiser_mode": "simplex",
