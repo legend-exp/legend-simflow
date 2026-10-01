@@ -102,7 +102,7 @@ def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArr
     # Select waveforms in slice
     lo, hi = sl.drift_time_range
     mask = (drift_times >= lo) & (drift_times < hi)
-    return  ideal_wfs[mask]
+    return ideal_wfs[mask]
 
 
 def compute_rms_in_slice(
@@ -446,7 +446,7 @@ def fit_electronics_parameters(
     # stable, so the slower setting is worth it
     m.strategy = 2
     if mode == "simplex":
-        #m.tol /= 10
+        # m.tol /= 10
         m.simplex(ncall=max_calls)
     elif mode == "migrad":
         m.migrad(ncall=max_calls)
@@ -794,17 +794,19 @@ def plot_scan_maps(
         grid = maps[key]
         # the residual varies over orders of magnitude across the grid while the
         # structure that matters sits close to the minimum
-        
+
         cmap_tmp = plt.colormaps[cmap].copy().with_extremes(over="grey")
 
-        if key == "rms":
-            vmax = 10
-        else:
-            vmax = None
-            
-        mesh = ax.pcolormesh(
-            x_edges, y_edges, grid, cmap=cmap_tmp, vmin=0, vmax=None, norm=None, rasterized=True,
 
+        mesh = ax.pcolormesh(
+            x_edges,
+            y_edges,
+            grid,
+            cmap=cmap_tmp,
+            vmin=0 if key == "rms" else None,
+            vmax=10 if key == "rms" else None,
+            norm=None,
+            rasterized=True,
         )
         if key == "rms":
             cs = ax.contour(

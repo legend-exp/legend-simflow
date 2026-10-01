@@ -161,7 +161,7 @@ def main() -> None:
 
     if args.simflow_config is not None:
         config = utils.init_simflow_context(args.simflow_config, workflow=None).config
-        
+
         metadata = config.metadata
 
         log_config = metadata.simprod.config.logging
@@ -264,7 +264,6 @@ def main() -> None:
                     )
                     continue
 
-                
                 with perf_block("fit_electronics_parameters()"):
                     result = fit_electronics_parameters(
                         **ideal_wfs,
