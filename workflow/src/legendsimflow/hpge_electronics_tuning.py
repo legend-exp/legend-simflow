@@ -454,7 +454,7 @@ def fit_electronics_parameters(
         m.simplex(ncall=max_calls)
         m.migrad(ncall=max_calls)
     else:
-        msg = f"Only mode simplex or migrad are supported not {mode}"
+        msg = f"Only modes 'simplex', 'migrad', or 'both' are supported, not {mode}"
         raise ValueError(msg)
 
     if not m.valid and mode != "simplex":
