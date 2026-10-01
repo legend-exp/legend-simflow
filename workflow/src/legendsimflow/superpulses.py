@@ -297,7 +297,7 @@ def lookup_superpulse_inputs(
     dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
     tstamp = mutils.runinfo(metadata, data_runid).start_key
-    chmap = mutils.get_channelmap(metadata, tstamp)
+    chmap = metadata.channelmap(tstamp)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
     return raw_files, evt_files, dsp_cfg_file, tab_map, data_runid
