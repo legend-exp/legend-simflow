@@ -22,7 +22,7 @@ from pathlib import Path
 
 import lh5
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata, MetadataRepository
+from legendmeta import MetadataRepository
 from legendmeta.police import validate_dict_schema
 from snakemake.iocontainers import Wildcards
 
@@ -177,7 +177,7 @@ def usability(
     to a non-None value, it will be returned.
     """
     rinfo = runinfo(metadata, runid)
-    chmap = get_channelmap(metadata, rinfo.start_key)
+    chmap = metadata.channelmap(rinfo.start_key)
     if det_name in chmap and "analysis" in chmap[det_name]:
         return chmap[det_name].analysis.usability
 
@@ -259,11 +259,7 @@ def get_channelmap(
         :class:`~legendmeta.Legend1000Metadata` builds the record of a channel
         that is not in the database from its default record.
     """
-    if isinstance(metadata, LegendMetadata):
-        chmap = metadata.channelmap(timestamp, skip_version_check=True)
-    else:
-        chmap = metadata.channelmap(timestamp)
-
+    chmap = metadata.channelmap(timestamp)
     if names is None:
         return chmap
     return AttrsDict({name: chmap[name] for name in names})
@@ -586,7 +582,7 @@ def _get_lh5_table(
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
 
-    chmap = get_channelmap(metadata, timestamp)
+    chmap = metadata.channelmap(timestamp)
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"
