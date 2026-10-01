@@ -155,3 +155,43 @@ def test_merge_stp_n_opt_tcms_to_lh5_roundtrip(tmp_path):
     assert merged.row_in_table[2].to_list() == [3, 9, 5]
 
     assert not ak.any(merged.table_key == -1)
+
+
+def test_merge_tcm_drop_uids(tmp_path):
+    # uids 100 and 101 are SiPMs that the stp TCM lists as well
+    tcm_stp = ak.zip(
+        {
+            "table_key": ak.Array([[-1, 100, 10], [101], [20, -1]]),
+            "row_in_table": ak.Array([[0, 0, 1], [1], [2, 3]]),
+        },
+        depth_limit=1,
+    )
+
+    tcm_opt = ak.zip(
+        {
+            "table_key": ak.Array([[100, 101], [100]]),
+            "row_in_table": ak.Array([[0, 0], [1]]),
+        },
+        depth_limit=1,
+    )
+
+    out = merge_stp_n_opt_tcms(
+        tcm_stp, tcm_opt, scintillator_uid=-1, drop_uids={100, 101}
+    )
+
+    assert out.table_key.to_list() == [[100, 101, 10], [], [20, 100]]
+    assert out.row_in_table.to_list() == [[0, 0, 1], [], [2, 1]]
+
+    stp_file = tmp_path / "stp.lh5"
+    opt_file = tmp_path / "opt.lh5"
+    out_file = tmp_path / "out.lh5"
+    lh5.write(Table(tcm_stp), "tcm", str(stp_file))
+    lh5.write(Table(tcm_opt), "tcm", str(opt_file))
+
+    merge_stp_n_opt_tcms_to_lh5(
+        stp_file, opt_file, out_file, scintillator_uid=-1, drop_uids={100, 101}
+    )
+
+    merged = lh5.read_as("tcm", str(out_file), library="ak")
+    assert merged.table_key.to_list() == out.table_key.to_list()
+    assert merged.row_in_table.to_list() == out.row_in_table.to_list()

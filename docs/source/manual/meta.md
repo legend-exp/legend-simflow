@@ -391,6 +391,20 @@ buffer_len: "10*MB"
 - `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
   geometry used to identify liquid argon energy depositions (e.g. `liquid_argon`
   for LEGEND-200, `liquid_argon_underground` for LEGEND-1000).
+- `light_source` (str, optional, default `map`) — where the detected photons
+  come from:
+  - `map`: photoelectrons are sampled from the liquid argon optical map
+    (`paths.optical_maps.lar`), given the energy depositions in the scintillator
+    volume.
+  - `tracked_photons`: photons are tracked in the simulation, and the photons
+    recorded in the `stp` SiPM tables are used. The optical map is not read and
+    the `max_pes_per_hit_*` caps do not apply. Each SiPM row is assigned to the
+    liquid argon row in the same row of the `stp` time-coincidence map (TCM);
+    SiPM rows without a liquid argon row in their TCM row are dropped. Requires
+    `optmap_per_sipm: true`. The `stp` tier must be simulated with optical
+    physics and SiPM detectors registered as optical detectors, and the SiPM
+    photon detection efficiency (PDE) must not be applied during tracking
+    (`sipm_use_pde_curve: false` in `geom_config_extra`).
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.
@@ -412,6 +426,9 @@ buffer_len: "10*MB"
   channel nor `default` is present, processing fails with a `KeyError` naming
   the missing channel.
 
+  With `light_source: tracked_photons`, each photon that reached a SiPM is kept
+  with this probability.
+
   Per-channel values are equivalent to the `sipm_efficiencies` option of
   [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io), which only
   takes effect while photons are tracked and so cannot be used with a pre-built
@@ -429,7 +446,9 @@ buffer_len: "10*MB"
   across all SiPMs combined (used when `optmap_per_sipm: false`).
 - `store_expected_pes` (bool, optional, default `false`) — when `true`, also
   store the `expected_pes` field in the `opt` output (see {ref}`opt-tier`) and
-  the `spms/expected_pes` field in the `evt` output.
+  the `spms/expected_pes` field in the `evt` output. With
+  `light_source: tracked_photons`, this is the number of photons that reached
+  the SiPM.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"10*MB"`). Controls memory
   usage during processing; does not affect the output.
 

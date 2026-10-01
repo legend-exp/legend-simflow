@@ -51,7 +51,8 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
     mapping ``<sipm name> -> <scaling factor>`` for per-channel photon detection
     efficiencies. In the latter case channels missing from the mapping fall back
     to the reserved ``default`` key; without it, a missing channel is an error
-    rather than a silent guess.
+    rather than a silent guess. With ``light_source: tracked_photons`` the
+    factor is the probability to keep each photon that reached the SiPM.
 
     Parameters
     ----------
@@ -83,7 +84,9 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
 @snakemake_compatible(
     mapping={
         "stp_file": "input.stp_file",
-        "optmap_lar": "input.optmap_lar",
+        "optmap_lar": lambda snakemake: (
+            snakemake.input.optmap_lar[0] if snakemake.input.optmap_lar else None
+        ),
         "geom_file": "input.geom",
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
@@ -98,7 +101,11 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the opt tier.")
     parser.add_argument("--stp-file", required=True, help="input stp tier file")
-    parser.add_argument("--optmap-lar", required=True, help="LAr optical map file")
+    parser.add_argument(
+        "--optmap-lar",
+        default=None,
+        help="LAr optical map file, needed with light_source: map",
+    )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
     parser.add_argument(
         "--simstat-part-file",
@@ -138,7 +145,6 @@ def main() -> None:
     stp_file = nersc.dvs_ro(config, args.stp_file)
     jobid = args.jobid
     opt_file = args.opt_file
-    optmap_lar = nersc.dvs_ro(config, args.optmap_lar)
     gdml_file = nersc.dvs_ro(config, args.geom_file)
     log_file = args.log_file
     metadata = config.metadata
@@ -160,6 +166,23 @@ def main() -> None:
     )
     buffer_len = tier_opt_settings.buffer_len
     store_expected_pes = tier_opt_settings.get("store_expected_pes", False)
+    light_source = tier_opt_settings.get("light_source", "map")
+
+    settings_block = f"simprod.config.tier.opt.{config.experiment}.settings"
+    if light_source not in ("map", "tracked_photons"):
+        msg = f"light_source must be 'map' or 'tracked_photons', not {light_source!r}"
+        raise SimflowConfigError(msg, settings_block)
+    if light_source == "tracked_photons" and not optmap_per_sipm:
+        msg = "light_source: tracked_photons needs optmap_per_sipm: true"
+        raise SimflowConfigError(msg, settings_block)
+    if light_source == "map":
+        if args.optmap_lar is None:
+            msg = "--optmap-lar is required with light_source: map"
+            raise SimflowConfigError(msg, settings_block)
+        optmap_lar = nersc.dvs_ro(config, args.optmap_lar)
+    else:
+        optmap_lar = None
+    rng = np.random.default_rng()
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -183,25 +206,31 @@ def main() -> None:
             f"{gdml_file}. scintillator volumes in the geometry: "
             f"{sorted(scintillators)}"
         )
-        raise SimflowConfigError(
-            msg, f"simprod.config.tier.opt.{config.experiment}.settings"
-        )
+        raise SimflowConfigError(msg, settings_block)
 
     def process_sipm(
         iterator: LH5Iterator,
-        optmap_lar: str | Path | OptmapForConvolve,
+        optmap_lar: str | Path | OptmapForConvolve | None,
         sipm: str,
         sipm_uid: int,
         out_file: str | Path,
         runid: str,
         usability: str,
+        sipm_tcm: ak.Array | None = None,
     ) -> None:
-        with perf_block("load_optmap()"):
-            # in per-SiPM mode the map is (re)loaded here, once per call, and
-            # released again on return: the per-channel maps are too large to
-            # keep all of them resident for the whole job.
-            if not isinstance(optmap_lar, OptmapForConvolve):
-                optmap_lar = reboost.spms.load_optmap(optmap_lar, sipm)
+        """Write the photoelectrons of one SiPM, one row per argon row.
+
+        With ``light_source: tracked_photons``, `sipm_tcm` holds the stp TCM
+        rows that contain an argon row, in the order of the argon rows, with
+        only the entries of this SiPM.
+        """
+        if light_source == "map":
+            with perf_block("load_optmap()"):
+                # in per-SiPM mode the map is (re)loaded here, once per call, and
+                # released again on return: the per-channel maps are too large to
+                # keep all of them resident for the whole job.
+                if not isinstance(optmap_lar, OptmapForConvolve):
+                    optmap_lar = reboost.spms.load_optmap(optmap_lar, sipm)
 
         # constant for this SiPM, so resolve it once instead of per chunk
         map_scaling = resolve_map_scaling(optmap_scaling_factor, sipm)
@@ -209,53 +238,82 @@ def main() -> None:
         log.debug(msg)
 
         total_detected_pe_stats = NumdetStats()
+        n_rows_done = 0
 
         for lgdo_chunk in iterator:
             chunk = lgdo_chunk.view_as("ak")
+            first_chunk_row, n_rows_done = n_rows_done, n_rows_done + len(chunk)
 
-            with perf_block("emitted_scintillation_photons()"):
-                scint_ph = reboost.spms.emitted_scintillation_photons(
-                    chunk.edep, chunk.particle, "lar"
-                )
+            if light_source == "tracked_photons":
+                with perf_block("tracked_photoelectrons()"):
+                    tcm_chunk = sipm_tcm[first_chunk_row:n_rows_done]
+                    if ak.any(ak.num(tcm_chunk.table_key) > 0):
+                        ph_times = ak.flatten(
+                            reboost.read_hit_field_by_tcm(
+                                tcm_chunk,
+                                stp_file,
+                                "time",
+                                {sipm_uid: sipm},
+                                lh5_group="stp",
+                            ),
+                            axis=2,
+                        )
+                    else:
+                        ph_times = ak.unflatten(
+                            np.empty(0), np.zeros(len(chunk), dtype=np.int64)
+                        )
+                    counts = ak.to_numpy(ak.num(ph_times))
 
-            with perf_block("number_of_detected_photoelectrons()"):
-                # return_stats=True also silences the per-chunk warnings of
-                # reboost about steps outside the map
-                *_output, _detected_pe_stats = (
-                    reboost.spms.number_of_detected_photoelectrons(
-                        chunk.xloc,
-                        chunk.yloc,
-                        chunk.zloc,
-                        scint_ph,
-                        optmap_lar,
-                        sipm,
-                        map_scaling=map_scaling,
-                        max_pes_per_hit=max_pes_per_hit,
-                        return_pes_expectation_value=store_expected_pes,
-                        return_stats=True,
+                    keep = rng.random(np.sum(counts)) < map_scaling
+                    pe_times_micro = ak.sort(
+                        ph_times[ak.unflatten(keep, counts)], axis=-1
                     )
-                )
-            total_detected_pe_stats += _detected_pe_stats
-
-            # reboost appends the expectation after the other outputs
-            if store_expected_pes:
-                *_output, expected_pes = _output
+                    expected_pes = counts if store_expected_pes else None
+                    is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
             else:
-                expected_pes = None
-            if max_pes_per_hit > 0:
-                nr_pe, is_saturated = _output
-            else:
-                (nr_pe,) = _output
-                is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
+                with perf_block("emitted_scintillation_photons()"):
+                    scint_ph = reboost.spms.emitted_scintillation_photons(
+                        chunk.edep, chunk.particle, "lar"
+                    )
 
-            with perf_block("photoelectron_times()"):
-                pe_times_micro = reboost.spms.photoelectron_times(
-                    nr_pe, chunk.particle, chunk.time, "lar"
-                )
+                with perf_block("number_of_detected_photoelectrons()"):
+                    # return_stats=True also silences the per-chunk warnings of
+                    # reboost about steps outside the map
+                    *_output, _detected_pe_stats = (
+                        reboost.spms.number_of_detected_photoelectrons(
+                            chunk.xloc,
+                            chunk.yloc,
+                            chunk.zloc,
+                            scint_ph,
+                            optmap_lar,
+                            sipm,
+                            map_scaling=map_scaling,
+                            max_pes_per_hit=max_pes_per_hit,
+                            return_pes_expectation_value=store_expected_pes,
+                            return_stats=True,
+                        )
+                    )
+                total_detected_pe_stats += _detected_pe_stats
 
-                # the photoelectron_times() processor does not guarantee time
-                # ordering
-                pe_times_micro = ak.sort(pe_times_micro, axis=-1)
+                # reboost appends the expectation after the other outputs
+                if store_expected_pes:
+                    *_output, expected_pes = _output
+                else:
+                    expected_pes = None
+                if max_pes_per_hit > 0:
+                    nr_pe, is_saturated = _output
+                else:
+                    (nr_pe,) = _output
+                    is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
+
+                with perf_block("photoelectron_times()"):
+                    pe_times_micro = reboost.spms.photoelectron_times(
+                        nr_pe, chunk.particle, chunk.time, "lar"
+                    )
+
+                    # the photoelectron_times() processor does not guarantee time
+                    # ordering
+                    pe_times_micro = ak.sort(pe_times_micro, axis=-1)
 
             with perf_block("photoelectron_resolution()"):
                 pe_amps_micro = reboost.spms.smear_photoelectrons(
@@ -309,6 +367,9 @@ def main() -> None:
                     uid=sipm_uid,
                 )
 
+        if light_source == "tracked_photons":
+            return
+
         tot = total_detected_pe_stats.energy_looped
         for counts, where in (
             (
@@ -337,7 +398,7 @@ def main() -> None:
 
     # in combined mode there is a single map, so pre-load it once for a little
     # speed up. in per-SiPM mode the maps are loaded on demand in process_sipm()
-    if not optmap_per_sipm:
+    if light_source == "map" and not optmap_per_sipm:
         optmap_lar = reboost.spms.load_optmap(optmap_lar, "all")
 
     # loop over the partitions for this file
@@ -383,7 +444,23 @@ def main() -> None:
                     i_start=i_start,
                     n_entries=n_entries,
                     buffer_len=buffer_len,
+                    field_mask=(
+                        ["evtid", "t0"] if light_source == "tracked_photons" else None
+                    ),
                 )
+
+            if light_source == "tracked_photons":
+                # the stp TCM groups each SiPM row with the argon row of the
+                # same event within the coincidence window
+                tcm_part = tcm[evt_idx_range[0] : evt_idx_range[1] + 1]
+                has_lar = ak.any(tcm_part.table_key == geom_meta.uid, axis=1)
+                tcm_lar = tcm_part[has_lar]
+                if len(tcm_lar) != n_entries:
+                    msg = (
+                        f"{len(tcm_lar)} TCM rows contain a {det_name} row, "
+                        f"expected {n_entries}"
+                    )
+                    raise ValueError(msg)
 
             if optmap_per_sipm:
                 for sipm in sorted(reboost_utils.get_senstables(geom, "optical")):
@@ -396,7 +473,19 @@ def main() -> None:
                         log.warning(msg)
                         usability = "on"
 
-                    msg = f"applying optical map for SiPM {sipm}"
+                    sipm_tcm = None
+                    if light_source == "tracked_photons":
+                        is_sipm = tcm_part.table_key == sipm_uid
+                        n_lost = int(ak.sum(is_sipm[~has_lar]))
+                        if n_lost > 0:
+                            msg = (
+                                f"{n_lost} {sipm} rows have no {det_name} row in "
+                                "their TCM row and are dropped"
+                            )
+                            log.warning(msg)
+                        sipm_tcm = tcm_lar[tcm_lar.table_key == sipm_uid]
+
+                    msg = f"processing SiPM {sipm} ({light_source})"
                     log.debug(msg)
 
                     process_sipm(
@@ -407,6 +496,7 @@ def main() -> None:
                         opt_file,
                         runid,
                         usability,
+                        sipm_tcm,
                     )
 
                     print_perf_last()

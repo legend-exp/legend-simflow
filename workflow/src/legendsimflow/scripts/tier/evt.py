@@ -202,11 +202,16 @@ def main() -> None:
                     msg, f"simprod.config.tier.opt.{config.experiment}.settings"
                 )
 
+            # with tracked photons, the stp TCM also lists the SiPM tables
+            opt_uids = reboost.get_remage_detector_uids(
+                hit_file["opt"], lh5_table="hit"
+            )
             merge_stp_n_opt_tcms_to_lh5(
                 stp_file,
                 hit_file["opt"],
                 evt_file,
                 scintillator_uid=scintillator_uid,
+                drop_uids=set(opt_uids) - {scintillator_uid},
                 buffer_len=buffer_len,
             )
 

@@ -157,12 +157,14 @@ while the `pulse_lib` values come from the per-pixel pulse-shape library (see
 
 The `opt` tier is at the same conceptual level as the `hit` tier: it performs
 detector-wise post-processing, but for SiPMs instead of HPGe detectors. It
-applies the optical map convolution and photoelectron (PE) response models to
-the scintillator output from the `stp` tier. When using per-SiPM optical maps, a
-separate table is written for each SiPM channel under `/hit/{sipm_name}/`; when
-using a single summed map (the default), all SiPM channels are aggregated into a
-single `/hit/spms/` table. Each row corresponds to an `stp`-tier hit entry
-(identified by `evtid`) — not to a single physics event.
+applies the optical map convolution (or, with `light_source: tracked_photons`,
+reads the photons tracked to the SiPMs) and photoelectron (PE) response models
+to the scintillator output from the `stp` tier. When using per-SiPM optical
+maps, a separate table is written for each SiPM channel under
+`/hit/{sipm_name}/`; when using a single summed map (the default), all SiPM
+channels are aggregated into a single `/hit/spms/` table. Each row corresponds
+to an `stp`-tier hit entry (identified by `evtid`) — not to a single physics
+event.
 
 ### Inherited fields
 
