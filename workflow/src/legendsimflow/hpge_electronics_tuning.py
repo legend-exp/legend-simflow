@@ -104,8 +104,6 @@ def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArr
     mask = (drift_times >= lo) & (drift_times < hi)
     selected = ideal_wfs[mask]
 
-    if len(selected) == 0:
-        log.warning("no ideal waveforms in %s", sl)
 
     return selected
 
