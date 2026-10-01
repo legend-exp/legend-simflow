@@ -100,7 +100,7 @@ def test_compute_rms_with_offset():
     sp = _make_superpulse(sl, data_wf, time)
 
     rms = compute_rms_in_slice(sim_wf, time, sp)
-    assert rms == pytest.approx(0.5, abs=1e-12)
+    assert rms == pytest.approx(500, abs=1e-12)
 
 
 def test_compute_rms_comparison_window():

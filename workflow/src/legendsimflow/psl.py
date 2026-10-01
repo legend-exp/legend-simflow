@@ -424,8 +424,10 @@ def build_electronics_response_kernel(
 
     """
     # Validate inputs and prevent numerical issues by adding a small epsilon to avoid zero or negative values
-    sigma_bandwidth = sigma_bandwidth + 1e-10
-    tau_rc = tau_rc + 1e-10
+    if sigma_bandwidth == 0:
+        sigma_bandwidth = sigma_bandwidth + 1e-10
+    if tau_rc == 0:
+        tau_rc = tau_rc + 1e-10
 
     if dt <= 0:
         msg = f"dt must be positive, got {dt}"
