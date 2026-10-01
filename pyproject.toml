@@ -72,6 +72,7 @@ dependencies = [
     "revertex >=0.1.2",
     "ruamel.yaml",
     "snakemake >=9.19,<9.20",
+    "pulp < 4",
     "snakemake-argparse-bridge >=0.2.0",
     "snakemake-storage-plugin-fs",
     "snakemake-executor-plugin-slurm",
