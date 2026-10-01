@@ -424,7 +424,7 @@ def build_electronics_response_kernel(
 
     """
     # Validate inputs and prevent numerical issues by adding a small epsilon to avoid zero or negative values
-    sigma_bandwidth = sigma_bandwith + 1e-10
+    sigma_bandwidth = sigma_bandwidth + 1e-10
     tau_rc = tau_rc + 1e-10
 
     if dt <= 0:

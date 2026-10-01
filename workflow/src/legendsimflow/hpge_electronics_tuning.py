@@ -187,9 +187,9 @@ def compute_rms_in_slice(
         if weight_sum == 0:
             msg = "data-amplitude weights sum to zero in comparison region"
             raise ValueError(msg)
-        return float(np.sqrt(np.sum(weights * sq_resid) / weight_sum))
+        return 1000 * float(np.sqrt(np.sum(weights * sq_resid) / weight_sum))
 
-    return float(np.sqrt(np.mean(sq_resid)))
+    return 1000 * float(np.sqrt(np.mean(sq_resid)))
 
 
 def build_cost_function(
@@ -260,7 +260,7 @@ def build_cost_function(
                 weight_power,
                 waveform_type=waveform_type,
             )
-        return 1000 * total / len(ideal_wfs_slice)
+        return total / len(ideal_wfs_slice)
 
     return cost
 
@@ -406,6 +406,12 @@ def fit_electronics_parameters(
         fit toward the current peak. See :func:`compute_rms_in_slice`.
     max_calls
         Maximum number of Minuit function evaluations.
+    errs
+        Initial step sizes for sigma and tau in ns to pass to `minuit.errors`. Default is ``(5, 10)``.
+    mode
+        Minimisation mode: ``"simplex"``, ``"migrad"``, or ``"both"``.
+    waveform_type
+        ``"current"`` (default) or ``"charge"``, determines which waveform is used to fit.
 
     Returns
     -------

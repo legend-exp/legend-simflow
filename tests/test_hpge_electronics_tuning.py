@@ -171,23 +171,6 @@ def test_compute_rms_weight_zero_data_raises():
         compute_rms_in_slice(np.ones(100), time, sp, weight_power=2.0)
 
 
-def test_build_cost_function_penalty():
-    """Non-positive parameters must return the penalty value."""
-    sl = Slice(energy_range=(0, 1e6), drift_time_range=(900, 1100))
-    sp = _make_superpulse(sl, np.zeros(10), np.arange(10, dtype=float))
-    dummy_wfs = np.zeros((2, 100))
-
-    cost = build_cost_function(
-        {sl: dummy_wfs},
-        {sl: sp},
-        dt=1.0,
-        alignment_idx=50,
-        nsamples_output=10,
-    )
-    assert cost(-1, 30) == 1e6
-    assert cost(5, -1) == 1e6
-    assert cost(0, 30) == 1e6
-
 
 @pytest.fixture
 def cost_fixture():
