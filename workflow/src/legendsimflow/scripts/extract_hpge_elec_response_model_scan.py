@@ -20,7 +20,7 @@ import argparse
 import logging
 from contextlib import nullcontext
 from pathlib import Path
-import time
+
 import dbetto
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
@@ -219,20 +219,24 @@ def main() -> None:
     }
 
     psl_scan = {}
+    fits = 0
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
         for slope_group in lh5.ls(ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"):
             slope = slope_group.split("/")[-1]
             psl_scan[slope] = {}
-            log.debug("... reading ideal waveforms from %s ...", slope)
-            
-            sigma_start=settings.sigma_start
-            tau_start=settings.tau_start
-            
+
+            sigma_start = settings.sigma_start
+            tau_start = settings.tau_start
+
             for depv_group in lh5.ls(
                 ideal_psl_scan, f"{args.hpge_detector}/psl_scan/{slope}/"
             ):
+                if fits % 20 == 0:
+                    msg = f"fitting electronics model #:{fits}"
+                    log.info(msg)
+
                 depv = depv_group.split("/")[-1]
 
                 with perf_block("read_ideal_wfs()"):
@@ -258,16 +262,7 @@ def main() -> None:
                     )
                     continue
 
-                # Run fit
-                log.info(
-                    "starting fit (sigma0=%.1f, tau0=%.1f) ... %d",
-                    sigma_start,
-                    tau_start,
-                    settings.max_calls
-                )
                 with perf_block("fit_electronics_parameters()"):
-
-                    t0 = time.time()
                     result = fit_electronics_parameters(
                         **ideal_wfs,
                         data_superpulses=data_superpulses,
@@ -280,13 +275,11 @@ def main() -> None:
                         max_calls=settings.max_calls,
                     )
                     # seed
-                    t = time.time() - t0
-                    
+
                     sigma_start = result["sigma"]
                     tau_start = result["tau"]
-                    
-                    log.info(f"finished fit (in {t:.1f} s, with {len(result["cost_history"])}  calls and sigma = ({sigma_start:.1f}) ns tau = ({tau_start:.1f}) ns")
-                                        
+                    fits += 1
+
                 # Write output
                 psl_scan[slope][depv] = {
                     "detector": args.hpge_detector,
