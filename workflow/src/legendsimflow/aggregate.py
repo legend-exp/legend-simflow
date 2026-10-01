@@ -24,10 +24,11 @@ import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
 
-from . import SimflowConfig, patterns
+from . import SimflowConfig, geometry, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
     encode_psd_usability,
+    get_channelmap,
     get_par_settings,
     get_runlist,
     get_simconfig,
@@ -217,10 +218,11 @@ def crystal_meta(config: SimflowConfig, diode_meta: AttrsDict) -> AttrsDict:
         + format(diode_meta.production.order, "02d")
         + diode_meta.production.crystal
     )
-    crystal_db = config.metadata.hardware.detectors.germanium.crystals
-    if crystal_name in crystal_db:
-        return crystal_db[crystal_name]
-    return None
+    # look up directly: Legend1000Metadata default records are not visible to `in`
+    try:
+        return config.metadata.hardware.detectors.germanium.crystals[crystal_name]
+    except (KeyError, FileNotFoundError):
+        return None
 
 
 def start_key(config: SimflowConfig, runid: str) -> str:
@@ -355,7 +357,7 @@ def gen_hpge_modeling_status(
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
-    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+    chmap = get_channelmap(metadata, timestamp, geometry.channel_names(config))
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
@@ -533,11 +535,12 @@ def gen_list_of_all_usabilities(
     elif rc_runid is not None:
         all_runids.add(rc_runid)
 
+    names = geometry.channel_names(config)
     out_dict = {}
     for runid in all_runids:
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
-        chmap = config.metadata.channelmap(rinfo.start_key, skip_version_check=True)
+        chmap = get_channelmap(config.metadata, rinfo.start_key, names)
         for chname in chmap:
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability

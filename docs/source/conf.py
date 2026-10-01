@@ -110,8 +110,8 @@ nitpick_ignore_regex = [
     ("py:class", r"pyg4ometry\..*"),
     # snakemake internal paths differ from public API paths
     ("py:class", r"snakemake\.iocontainers\..*"),
-    # legendmeta re-exports LegendMetadata at top level but inventory uses submodule path
-    ("py:class", r"legendmeta\.LegendMetadata"),
+    # legendmeta re-exports its classes at top level but inventory uses submodule paths
+    ("py:class", r"legendmeta\.(LegendMetadata|Legend1000Metadata|MetadataRepository)"),
     # iminuit exposes Minuit at iminuit.Minuit but annotations resolve to internal path
     ("py:class", r"iminuit\.minuit\.Minuit"),
 ]

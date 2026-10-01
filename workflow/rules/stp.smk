@@ -92,6 +92,7 @@ rule build_geom_gdml:
         patterns.geom_log_filename(config),
     shell:
         "LEGEND_METADATA={config.paths.metadata} "
+        "LEGEND1000_METADATA={config.paths.metadata} "
         "{params.executable} --verbose --config {input} -- {output} &> {log}"
 
 

@@ -10,7 +10,7 @@ import lh5
 import numpy as np
 import pytest
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata
+from legendmeta import Legend1000Metadata, LegendMetadata
 from lgdo import Array, Table
 
 from legendsimflow import SimflowConfigError, hpge_pars, utils
@@ -718,3 +718,13 @@ def test_link_external_paths_creates_intermediate_dirs(link_setup, tmp_path):
     utils.link_external_paths(config, workflow_basedir)
 
     assert (cycle / "generated/tier/hit").is_symlink()
+
+
+def test_metadata_class():
+    assert utils.metadata_class(AttrsDict({})) is LegendMetadata
+
+    config = AttrsDict({"metadata_repo": "legend1000-metadata"})
+    assert utils.metadata_class(config) is Legend1000Metadata
+
+    with pytest.raises(SimflowConfigError):
+        utils.metadata_class(AttrsDict({"metadata_repo": "l1000"}))

@@ -88,7 +88,7 @@ def test_nersc_cli_no_submit(tmp_path, monkeypatch, capsys):
     _make_nersc_config(tmp_path)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["snakemake-nersc", "-N", "2", "--no-submit"])
-    with patch("legendsimflow.cli.LegendMetadata"):
+    with patch("legendsimflow.cli.metadata_class"):
         snakemake_nersc_cli()
     out = capsys.readouterr().out
     assert "snakemake" in out
@@ -105,7 +105,7 @@ def test_nersc_cli_without_srun(tmp_path, monkeypatch, capsys):
         "argv",
         ["snakemake-nersc", "-N", "2", "--no-submit", "--without-srun"],
     )
-    with patch("legendsimflow.cli.LegendMetadata"):
+    with patch("legendsimflow.cli.metadata_class"):
         snakemake_nersc_cli()
     out = capsys.readouterr().out
     assert "snakemake" in out
@@ -121,7 +121,7 @@ def test_nersc_cli_extra_args_forwarded(tmp_path, monkeypatch, capsys):
         "argv",
         ["snakemake-nersc", "-N", "2", "--no-submit", "--dryrun", "--cores", "4"],
     )
-    with patch("legendsimflow.cli.LegendMetadata"):
+    with patch("legendsimflow.cli.metadata_class"):
         snakemake_nersc_cli()
     out = capsys.readouterr().out
     assert "--dryrun" in out
@@ -135,7 +135,7 @@ def test_nersc_cli_simlist_partitioned(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(
         sys, "argv", ["snakemake-nersc", "-N", "2", "--no-submit", "--without-srun"]
     )
-    with patch("legendsimflow.cli.LegendMetadata"):
+    with patch("legendsimflow.cli.metadata_class"):
         snakemake_nersc_cli()
     out = capsys.readouterr().out
     # Two "would spawn" lines - one per node
@@ -149,7 +149,7 @@ def test_nersc_cli_skips_empty_chunks(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(
         sys, "argv", ["snakemake-nersc", "-N", "5", "--no-submit", "--without-srun"]
     )
-    with patch("legendsimflow.cli.LegendMetadata"):
+    with patch("legendsimflow.cli.metadata_class"):
         snakemake_nersc_cli()
     out = capsys.readouterr().out
     # one process per simlist item, none for the three leftover nodes

@@ -64,6 +64,7 @@ def _build_argv(
     config_path = tmp_path / "simflow-config.yaml"
     raw = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
     raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    raw["paths"]["config"] = str(dummyprod / "inputs/simprod/config")
     if l200data is not None:
         raw["paths"]["l200data"] = l200data
     config_path.write_text(yaml.safe_dump(raw))
