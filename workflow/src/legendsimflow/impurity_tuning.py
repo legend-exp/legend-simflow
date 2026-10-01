@@ -16,6 +16,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+from collections.abc import Mapping
+
 import awkward as ak
 import lh5
 import matplotlib.pyplot as plt
@@ -94,7 +96,9 @@ def read_evt_data(path_data: str, runs: list[str]) -> dict[str, ak.Array]:
     return data
 
 
-def plot_cost_surface(x, y, z, name, det, vrange, levels, method="nearest"):
+def plot_cost_surface(
+    x, y, z, name, det, vrange, levels, method="nearest", ftype="drift time"
+):
     """Plot the cost function as a function of depletion voltage and slope."""
     xi = np.linspace(x.min(), x.max(), 500)
     yi = np.linspace(y.min(), y.max(), 500)
@@ -136,6 +140,42 @@ def plot_cost_surface(x, y, z, name, det, vrange, levels, method="nearest"):
     ax.clabel(cs, fmt="%g", fontsize=12)
     ax.set_xlabel("Depletion voltage [V]")
     ax.set_ylabel("Slope [%]")
-    ax.set_title(f"{det} cost function (min {np.min(z):.2f})")
+    ax.set_title(f"{det} {ftype} (min {np.min(z):.2f})")
 
     return fig, ax, xm, ym, zm
+
+
+def get_wf_chi2(
+    elecmod: Mapping, grid_info: Mapping, wf_scale
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Get the waveform chi2 for the given electronics model.
+
+    Parameters
+    ----------
+    elecmod
+        Electronics model parameters.
+    grid_info
+        Information on the grid, must contain `dep_min`, `dep_step`, `slope_min`, and `slope_step`.
+    wf_scale
+        Scale factor for the RMS to chi2.
+
+    Returns
+    -------
+    dep
+        Depletion voltage values.
+    slope
+        Slope values.
+    wf_chi2
+        Waveform chi2 values.
+    """
+    dep = []
+    slope = []
+    wf_rms = []
+
+    for slope_val, slope_dict in elecmod.items():
+        for depv_val, depv_dict in slope_dict.items():
+            dep.append(get_grid_value(depv_val, grid_info, name="dep"))
+            slope.append(get_grid_value(slope_val, grid_info, name="slope"))
+            wf_rms.append(depv_dict["wf_rms"] ** 2 / wf_scale**2)
+
+    return dep, slope, wf_rms
