@@ -692,6 +692,33 @@ rule extract_elecmod_scan:
         "../src/legendsimflow/scripts/extract_hpge_elec_response_model_scan.py"
 
 
+rule merge_electronics_model_scan_pars:
+    """Merge the HPGe electronics-response model scan parameters in a single file.
+
+    Collect the individual best-fit parameter files (one per detector) and
+    write them into a single YAML file keyed by detector name.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Merging electronics model parameters in {wildcards.runid}"
+    input:
+        lambda wc: aggregate.gen_list_of_elecmod_scans(
+            config, cache=smk_load_hpge_cache()
+        ),
+    output:
+        patterns.output_elecmod_scan_merged_filename(config),
+    run:
+        import dbetto
+
+
+        out_dict = {}
+        for i, f in enumerate(input):
+            out_dict |= dbetto.utils.load_dict(f)
+
+        dbetto.utils.write_dict(out_dict, output[0])
+
+
 rule extract_drift_time_scan:
     """Compute simulated HPGe drift times at each impurity-curve grid point.
 
@@ -812,6 +839,7 @@ rule extract_hpge_impurity_models:
         drift_time=aggregate.gen_list_of_merged_drift_time_scans(config),
         settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/impurityscan/settings.yaml",
+        elecmod_file=patterns.output_elecmod_merged_filename(config),
     params:
         data_path=config.paths.get("l200data", None),
         simids=aggregate.gen_list_of_tuning_simids(config),

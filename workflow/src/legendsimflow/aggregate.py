@@ -864,6 +864,14 @@ def gen_list_of_merged_elecmods(config: SimflowConfig, simid: str) -> list[Path]
     ]
 
 
+def gen_list_of_elecmod_scans(config: SimflowConfig, cache: dict) -> list[Path]:
+    r"""Generate the list of HPGe electronics model scan files."""
+    return [
+        patterns.output_elecmod_scan_filename(config, hpge_detector=hpge_detector)
+        for hpge_detector in cache
+    ]
+
+
 def gen_list_of_tuning_simids(config: SimflowConfig) -> list[str]:
     r"""The `simid`\ s used to tune the HPGe impurities.
 
