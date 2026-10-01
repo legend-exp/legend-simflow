@@ -102,9 +102,7 @@ def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArr
     # Select waveforms in slice
     lo, hi = sl.drift_time_range
     mask = (drift_times >= lo) & (drift_times < hi)
-    selected = ideal_wfs[mask]
-
-    return selected
+    return [mask]
 
 
 def compute_rms_in_slice(
@@ -113,7 +111,7 @@ def compute_rms_in_slice(
     data_sp: Superpulse,
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
-    return_mode="current",
+    waveform_type="current",
 ) -> float:
     """RMS residual between a simulated and a data current superpulse.
 
@@ -142,6 +140,9 @@ def compute_rms_in_slice(
         Exponent ``p`` of the data-amplitude weight ``w = |data|**p`` applied
         to the squared residuals. ``0`` (default) is the unweighted RMS;
         larger values concentrate the fit on the current peak and its flanks.
+    waveform_type
+        ``"current"`` (default) or ``"charge"``. Determines which waveform
+        and time axis are used to fit.
 
     Returns
     -------
@@ -149,12 +150,15 @@ def compute_rms_in_slice(
         (Optionally data-amplitude-weighted) root mean square of the residuals.
 
     """
-    if return_mode == "current":
+    if waveform_type == "current":
         data_time = data_sp.current_time_axis
         data_wf = data_sp.current_wf
-    else:
+    elif waveform_type == "charge":
         data_time = data_sp.charge_time_axis
         data_wf = data_sp.charge_wf
+    else:
+        msg = f"waveform_type must be 'current' or 'charge', not {waveform_type}"
+        raise ValueError(msg)
 
     f = interp1d(
         sim_time, sim_avg, kind="linear", bounds_error=False, fill_value=np.nan
@@ -196,7 +200,7 @@ def build_cost_function(
     nsamples_output: int,
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
-    return_mode="current",
+    waveform_type="current",
 ) -> Callable:
     """Build the scalar cost function for the Minuit minimiser.
 
@@ -221,6 +225,8 @@ def build_cost_function(
     weight_power
         Data-amplitude weight exponent ``p`` (``w = |data|**p``) passed through
         to :func:`compute_rms_in_slice`. ``0`` (default) is the unweighted RMS.
+    waveform_type
+        ``"current"`` (default) or ``"charge"``, determines which waveform is used to fit.
 
     Returns
     -------
@@ -242,7 +248,7 @@ def build_cost_function(
                 dt,
                 alignment_idx,
                 nsamples_output,
-                return_mode=return_mode,
+                return_mode=waveform_type,
             )
             sim_avg = np.mean(processed, axis=0)
             sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
@@ -252,7 +258,7 @@ def build_cost_function(
                 data_superpulses[sl],
                 comparison_window,
                 weight_power,
-                return_mode=return_mode,
+                waveform_type=waveform_type,
             )
         return 1000 * total / len(ideal_wfs_slice)
 
@@ -363,9 +369,9 @@ def fit_electronics_parameters(
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
     max_calls: int = 1000,
-    errs=(1, 1),
+    errs=(5, 5),
     mode="simplex",
-    return_mode="current",
+    waveform_type="current",
 ) -> dict:
     """Fit the electronics response parameters sigma and tau.
 
@@ -419,7 +425,7 @@ def fit_electronics_parameters(
         nsamples_output,
         comparison_window,
         weight_power,
-        return_mode=return_mode,
+        waveform_type=waveform_type,
     )
 
     history: list[tuple[tuple[float, float], float]] = []

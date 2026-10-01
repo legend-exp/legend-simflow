@@ -65,6 +65,7 @@ DEFAULT_SETTINGS = {
     "max_calls": 1000,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
+    "minimiser_mode": "simplex",
 }
 
 
@@ -246,6 +247,7 @@ def main() -> None:
         comparison_window=comparison_window,
         weight_power=settings.weight_power,
         max_calls=settings.max_calls,
+        mode=settings.minimiser_mode,
     )
 
     # Print summary
