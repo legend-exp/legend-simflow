@@ -49,7 +49,7 @@ DEFAULT_SETTINGS = {
     "sigma_start": 10.0,
     "tau_start": 30.0,
     "sigma_limits": (1.0, 50.0),
-    "tau_limits": (1.0, 100.0),
+    "tau_limits": (2.0, 100.0),
     "comparison_window": (-500.0, 500.0),
     "weight_power": 2.0,
     "max_calls": 100,
@@ -161,6 +161,7 @@ def main() -> None:
 
     if args.simflow_config is not None:
         config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+        
         metadata = config.metadata
 
         log_config = metadata.simprod.config.logging
@@ -263,6 +264,7 @@ def main() -> None:
                     )
                     continue
 
+                
                 with perf_block("fit_electronics_parameters()"):
                     result = fit_electronics_parameters(
                         **ideal_wfs,
@@ -274,7 +276,7 @@ def main() -> None:
                         comparison_window=comparison_window,
                         weight_power=settings.weight_power,
                         max_calls=settings.max_calls,
-                        minimiser_mode=settings.mode,
+                        mode=settings.minimiser_mode,
                         waveform_type="current",
                     )
                     # seed

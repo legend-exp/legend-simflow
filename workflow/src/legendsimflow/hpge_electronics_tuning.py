@@ -102,7 +102,7 @@ def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArr
     # Select waveforms in slice
     lo, hi = sl.drift_time_range
     mask = (drift_times >= lo) & (drift_times < hi)
-    return [mask]
+    return  ideal_wfs[mask]
 
 
 def compute_rms_in_slice(
@@ -332,8 +332,6 @@ def get_ideal_wfs_all_slices(
         msg = "no valid slices found"
         raise RuntimeError(msg)
 
-    log.info("prepared %d slices", len(ideal_wfs_slice))
-
     # sort the superpulses based on drift time
     sorted_wfs = sorted(
         ideal_wfs_slice.items(),
@@ -369,7 +367,7 @@ def fit_electronics_parameters(
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
     max_calls: int = 1000,
-    errs=(5, 5),
+    errs=(5, 10),
     mode="simplex",
     waveform_type="current",
 ) -> dict:
@@ -448,7 +446,7 @@ def fit_electronics_parameters(
     # stable, so the slower setting is worth it
     m.strategy = 2
     if mode == "simplex":
-        m.tol /= 10
+        #m.tol /= 10
         m.simplex(ncall=max_calls)
     elif mode == "migrad":
         m.migrad(ncall=max_calls)
@@ -796,19 +794,27 @@ def plot_scan_maps(
         grid = maps[key]
         # the residual varies over orders of magnitude across the grid while the
         # structure that matters sits close to the minimum
+        
+        cmap_tmp = plt.colormaps[cmap].copy().with_extremes(over="grey")
 
-        cmap_tmp = cmap.with_extremes(over="grey")
+        if key == "rms":
+            vmax = 10
+        else:
+            vmax = None
+            
         mesh = ax.pcolormesh(
-            x_edges, y_edges, grid, cmap=cmap_tmp, vmin=0, vmax=10, norm=None
+            x_edges, y_edges, grid, cmap=cmap_tmp, vmin=0, vmax=None, norm=None, rasterized=True,
+
         )
-        cs = ax.contour(
-            x_edges,
-            y_edges,
-            grid,
-            levels=[1, 2, 10],
-            colors="black",
-        )
-        ax.clabel(cs, fmt="%g", fontsize=10)
+        if key == "rms":
+            cs = ax.contour(
+                depvs,
+                slopes,
+                grid,
+                levels=[1, 2, 10],
+                colors="black",
+            )
+            ax.clabel(cs, fmt="%g", fontsize=10)
 
         fig.colorbar(mesh, ax=ax, label=label)
         ax.set_xlabel("Depletion voltage [V]")
