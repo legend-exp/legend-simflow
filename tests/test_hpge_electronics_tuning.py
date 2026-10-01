@@ -171,7 +171,6 @@ def test_compute_rms_weight_zero_data_raises():
         compute_rms_in_slice(np.ones(100), time, sp, weight_power=2.0)
 
 
-
 @pytest.fixture
 def cost_fixture():
     """Cost function and true parameters built from synthetic step waveforms."""
