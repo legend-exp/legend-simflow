@@ -423,14 +423,19 @@ def build_electronics_response_kernel(
         The normalized response kernel
 
     """
-    # Validate inputs
+    # Validate inputs and prevent numerical issues by adding a small epsilon to avoid zero or negative values
+    if sigma_bandwidth == 0:
+        sigma_bandwidth = sigma_bandwidth + 1e-10
+    if tau_rc == 0:
+        tau_rc = tau_rc + 1e-10
+
     if dt <= 0:
         msg = f"dt must be positive, got {dt}"
         raise ValueError(msg)
-    if sigma_bandwidth <= 0:
+    if sigma_bandwidth < 0:
         msg = f"sigma_bandwidth must be positive, got {sigma_bandwidth}"
         raise ValueError(msg)
-    if not gaussian_only and tau_rc <= 0:
+    if not gaussian_only and tau_rc < 0:
         msg = f"tau_rc must be positive, got {tau_rc}"
         raise ValueError(msg)
 
