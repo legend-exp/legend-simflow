@@ -70,6 +70,19 @@ end
     # the constant term a is preserved, b is scaled by (1 + slope)
     @test impurity_curves.a == 1.0
     @test impurity_curves.b == 15.0
+
+    # check that the original curve are not modified
+    input = PropDict(:a => 1, :b => 5, :n => 2, :l => 3, :m=>4)
+    impurity_curves = adjust_impurity_pars(input, 2.0)
+
+    @test impurity_curves isa PropDict
+    @test input.a == 1.0
+    @test input.b == 5.0
+    @test input.n == 2.0
+    @test input.l == 3.0
+    @test input.m == 4.0
+
+
 end
 
 @testset "map_generation" begin
