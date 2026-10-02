@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from pathlib import Path
 
 import awkward as ak
@@ -24,7 +23,7 @@ import numpy as np
 from lgdo import Table
 
 
-def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid, drop_uids=()):
+def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
     """Merge `tcm_opt` rows into `tcm_stp` at the scintillator uid.
 
     For each `axis=0` row of `tcm_stp`, if `tcm_stp.table_key` contains
@@ -33,9 +32,6 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid, drop_uids=()):
     the corresponding `tcm_opt.row_in_table`, preserving alignment between
     `table_key[i][j]` and `row_in_table[i][j]`.
 
-    Entries of `tcm_stp` with a uid in `drop_uids` are removed first. The
-    number of rows does not change, a row can become empty.
-
     Parameters
     ----------
     tcm_stp, tcm_opt
@@ -43,9 +39,6 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid, drop_uids=()):
     scintillator_uid
         Scalar value in `tcm_stp.table_key` marking where to splice in
         `tcm_opt`, i.e. the UID of the scintillator table.
-    drop_uids
-        UIDs to remove from `tcm_stp`, e.g. the SiPM tables written by remage
-        when photons are tracked, which `tcm_opt` already lists.
 
     Returns
     -------
@@ -72,13 +65,11 @@ def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid, drop_uids=()):
         raise ValueError(msg)
 
     return merge_stp_n_opt_tcms_chunk(
-        tcm_stp, tcm_opt, scintillator_uid=scintillator_uid, drop_uids=drop_uids
+        tcm_stp, tcm_opt, scintillator_uid=scintillator_uid
     )
 
 
-def merge_stp_n_opt_tcms_chunk(
-    tcm_stp, tcm_opt, *, scintillator_uid, drop_uids: Collection[int] = ()
-):
+def merge_stp_n_opt_tcms_chunk(tcm_stp, tcm_opt, *, scintillator_uid):
     """Chunk-level implementation of :func:`merge_stp_n_opt_tcms`.
 
     This function assumes `tcm_opt` contains *exactly* as many rows as there are
@@ -86,14 +77,6 @@ def merge_stp_n_opt_tcms_chunk(
     """
     stp_k = tcm_stp.table_key
     stp_r = tcm_stp.row_in_table
-
-    if len(drop_uids) > 0:
-        keep = ak.unflatten(
-            np.isin(ak.to_numpy(ak.flatten(stp_k)), list(drop_uids), invert=True),
-            ak.num(stp_k),
-        )
-        stp_k = stp_k[keep]
-        stp_r = stp_r[keep]
 
     is_ph = stp_k == scintillator_uid
     n_ph_per_row = ak.sum(is_ph, axis=1)
@@ -133,7 +116,6 @@ def merge_stp_n_opt_tcms_to_lh5(
     out_file: str | Path,
     *,
     scintillator_uid: int,
-    drop_uids: Collection[int] = (),
     buffer_len: str | int = "50*MB",
 ) -> None:
     """Stream-merge STP and OPT TCMs and write unified TCM to disk in chunks.
@@ -142,8 +124,6 @@ def merge_stp_n_opt_tcms_to_lh5(
     chunk, reads only the required number of OPT TCM rows (those corresponding
     to STP rows containing the `scintillator_uid` placeholder) via `lh5.read_as`
     with explicit indices. The merged output is appended to `out_file:/tcm`.
-    Entries with a uid in `drop_uids` are removed from the STP TCM, see
-    :func:`merge_stp_n_opt_tcms`.
     """
     opt_pos = 0
     out_wo_mode = "write_safe"
@@ -190,7 +170,6 @@ def merge_stp_n_opt_tcms_to_lh5(
             tcm_stp_chunk,
             tcm_opt_chunk,
             scintillator_uid=scintillator_uid,
-            drop_uids=drop_uids,
         )
 
         lh5.write(Table(merged), "tcm", str(out_file), wo_mode=out_wo_mode)

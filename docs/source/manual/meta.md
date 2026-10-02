@@ -398,13 +398,13 @@ buffer_len: "10*MB"
     volume.
   - `tracked_photons`: photons are tracked in the simulation, and the photons
     recorded in the `stp` SiPM tables are used. The optical map is not read and
-    the `max_pes_per_hit_*` caps do not apply. Each SiPM row is assigned to the
-    liquid argon row in the same row of the `stp` time-coincidence map (TCM);
-    SiPM rows without a liquid argon row in their TCM row are dropped. Requires
-    `optmap_per_sipm: true`. The `stp` tier must be simulated with optical
-    physics and SiPM detectors registered as optical detectors, and the SiPM
-    photon detection efficiency (PDE) must not be applied during tracking
-    (`sipm_use_pde_curve: false` in `geom_config_extra`).
+    the `max_pes_per_hit_*` caps do not apply. As in the `hit` tier, each row of
+    a SiPM table gives one output row, so light that does not come from liquid
+    argon energy depositions is kept as well. Requires `optmap_per_sipm: true`.
+    The `stp` tier must be simulated with optical physics and SiPM detectors
+    registered as optical detectors, and the SiPM photon detection efficiency
+    (PDE) must not be applied during tracking (`sipm_use_pde_curve: false` in
+    `geom_config_extra`).
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.

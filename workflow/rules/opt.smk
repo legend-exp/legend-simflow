@@ -33,10 +33,10 @@ rule build_tier_opt:
       corresponding to simulated energy depositions and detected
       photoelectrons are sampled according to the input optical map;
     - with `light_source: tracked_photons`, the photons recorded in the `stp`
-      SiPM tables are used instead and the optical map is not an input. Each
-      SiPM row is assigned to the liquid argon row in the same `stp`
-      time-coincidence map (TCM) row, and each photon is kept with probability
-      `optmap_scaling_factor`;
+      SiPM tables are used instead and the optical map is not an input. As in
+      the `hit` tier, each SiPM row gives one output row, and each photon is
+      kept with probability `optmap_scaling_factor`. SiPMs that no photon
+      reached get an empty table;
     - a finite resolution is applied to each photoelectron amplitude (see
       script);
     - photoelectrons are clustered in time to simulate the effect of finite

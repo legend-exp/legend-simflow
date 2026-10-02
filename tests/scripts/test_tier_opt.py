@@ -183,19 +183,20 @@ def test_opt_script_tracked_photons(
     n_lar = len(lar)
     assert n_lar > 0, "no liquid argon rows in the stp file"
 
-    # add photons in one SiPM: k photons, 1 us apart, 100 ns after the k-th
-    # argon row, so that no two of them are clustered
+    # add photons in one SiPM: one row 100 ns after each argon row, with k
+    # photons 1 us apart, so that no two of them are clustered. a last row, 1 ms
+    # after the last argon row, has no argon row in its TCM row
     sens_tables = pygeomtools.detectors.get_all_senstables(
         pyg4ometry.gdml.Reader(str(legend_gdml_path)).getRegistry()
     )
-    n_ph = np.arange(n_lar) % 4
-    times = ak.Array(
-        [t0 + 100 + 1000 * np.arange(n) for t0, n in zip(lar.t0, n_ph, strict=True)]
-    )
+    evtid = np.append(np.asarray(lar.evtid), lar.evtid[-1])
+    t0 = np.append(np.asarray(lar.t0) + 100, lar.t0[-1] + 1e6)
+    n_ph = np.append(np.arange(n_lar) % 4, 2)
+    times = ak.Array([t + 1000 * np.arange(n) for t, n in zip(t0, n_ph, strict=True)])
     sipm_table = Table(
         {
-            "evtid": Array(np.asarray(lar.evtid)),
-            "t0": Array(np.asarray(lar.t0) + 100, attrs={"units": "ns"}),
+            "evtid": Array(evtid),
+            "t0": Array(t0, attrs={"units": "ns"}),
             "time": VectorOfVectors(times, attrs={"units": "ns"}),
         }
     )
@@ -245,17 +246,18 @@ def test_opt_script_tracked_photons(
     )
     opt.main()
 
+    # one row per row of the SiPM table, also the one without argon
     out = lh5.read_as(f"hit/{_SIPM_ON}", opt_file, library="ak")
-    assert len(out) == n_lar
-    assert out.evtid.to_list() == lar.evtid.to_list()
+    assert out.evtid.to_list() == evtid.tolist()
+    assert np.allclose(ak.to_numpy(out.t0), t0)
     assert out.expected_pes.to_list() == n_ph.tolist()
     assert ak.num(out.dt).to_list() == n_ph.tolist()
-    expected_dt = ak.Array([100 + 1000 * np.arange(n) for n in n_ph])
+    expected_dt = ak.Array([1000 * np.arange(n) for n in n_ph])
     assert ak.all(abs(ak.flatten(out.dt - expected_dt)) < 1e-2)
     assert not ak.any(out.is_saturated)
 
-    # SiPMs without photons get empty rows
-    out = lh5.read_as(f"hit/{_SIPM_AC}", opt_file, library="ak")
-    assert len(out) == n_lar
-    assert ak.sum(ak.num(out.dt)) == 0
-    assert ak.all(out.expected_pes == 0)
+    # a SiPM without photons gets an empty table
+    assert lh5.read_n_rows(f"hit/{_SIPM_AC}", opt_file) == 0
+    assert sens_tables[_SIPM_AC].uid in reboost.get_remage_detector_uids(
+        opt_file, lh5_table="hit"
+    )

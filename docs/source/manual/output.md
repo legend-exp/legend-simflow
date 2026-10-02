@@ -157,33 +157,34 @@ while the `pulse_lib` values come from the per-pixel pulse-shape library (see
 
 The `opt` tier is at the same conceptual level as the `hit` tier: it performs
 detector-wise post-processing, but for SiPMs instead of HPGe detectors. It
-applies the optical map convolution (or, with `light_source: tracked_photons`,
-reads the photons tracked to the SiPMs) and photoelectron (PE) response models
-to the scintillator output from the `stp` tier. When using per-SiPM optical
-maps, a separate table is written for each SiPM channel under
-`/hit/{sipm_name}/`; when using a single summed map (the default), all SiPM
-channels are aggregated into a single `/hit/spms/` table. Each row corresponds
-to an `stp`-tier hit entry (identified by `evtid`) — not to a single physics
-event.
+applies the optical map convolution and photoelectron (PE) response models to
+the scintillator output from the `stp` tier. When using per-SiPM optical maps, a
+separate table is written for each SiPM channel under `/hit/{sipm_name}/`; when
+using a single summed map (the default), all SiPM channels are aggregated into a
+single `/hit/spms/` table. Each row corresponds to an `stp`-tier hit entry
+(identified by `evtid`) — not to a single physics event: a liquid argon hit with
+the optical map, a hit of the SiPM itself with `light_source: tracked_photons`
+(see {ref}`opt-tier-settings`). In the latter case every SiPM of the geometry
+has a table, empty if no photon reached it.
 
 ### Inherited fields
 
-| Field   | Type    | Units | Description                                                                                   |
-| ------- | ------- | ----- | --------------------------------------------------------------------------------------------- |
-| `evtid` | `Array` | —     | Event identifier, shared across all detectors hit in the same event.                          |
-| `t0`    | `Array` | ns    | Time of the first energy deposition in the LAr hit relative to the start of the Geant4 event. |
+| Field   | Type    | Units | Description                                                                                                                                        |
+| ------- | ------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evtid` | `Array` | —     | Event identifier, shared across all detectors hit in the same event.                                                                               |
+| `t0`    | `Array` | ns    | Time of the first energy deposition in the LAr hit (first photon in the SiPM hit with tracked photons), relative to the start of the Geant4 event. |
 
 ### Added fields
 
-| Field          | Type              | Units | Description                                                                                                                                                                          |
-| -------------- | ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dt`           | `VectorOfVectors` | ns    | Photoelectron arrival times relative to the hit `t0`, after resolution smearing and photoelectron clustering to simulate the timing resolution of the SiPM. Variable-length per row. |
-| `energy`       | `VectorOfVectors` | —     | Photoelectron amplitudes (relative units), after PE resolution smearing. Variable-length array matching `dt`.                                                                        |
-| `is_saturated` | `Array`           | —     | Boolean flag. `True` when the number of detected photoelectrons exceeds a maximum PE-per-hit cap, indicating SiPM saturation.                                                        |
-| `expected_pes` | `Array`           | —     | _(optional)_ Expected number of photoelectrons per row at unit channel efficiency, before the PE-per-hit cap. Present only when `store_expected_pes` is enabled.                     |
-| `period`       | `Array`           | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                      |
-| `run`          | `Array`           | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                         |
-| `usability`    | `Array`           | —     | Encoded SiPM channel usability status for this run. Decode with {func}`legendsimflow.metadata.decode_usability`.                                                                     |
+| Field          | Type              | Units | Description                                                                                                                                                                                                                         |
+| -------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dt`           | `VectorOfVectors` | ns    | Photoelectron arrival times relative to the hit `t0`, after resolution smearing and photoelectron clustering to simulate the timing resolution of the SiPM. Variable-length per row.                                                |
+| `energy`       | `VectorOfVectors` | —     | Photoelectron amplitudes (relative units), after PE resolution smearing. Variable-length array matching `dt`.                                                                                                                       |
+| `is_saturated` | `Array`           | —     | Boolean flag. `True` when the number of detected photoelectrons exceeds a maximum PE-per-hit cap, indicating SiPM saturation.                                                                                                       |
+| `expected_pes` | `Array`           | —     | _(optional)_ Expected number of photoelectrons per row at unit channel efficiency, before the PE-per-hit cap; with tracked photons, the number of photons that reached the SiPM. Present only when `store_expected_pes` is enabled. |
+| `period`       | `Array`           | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                                                     |
+| `run`          | `Array`           | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                                        |
+| `usability`    | `Array`           | —     | Encoded SiPM channel usability status for this run. Decode with {func}`legendsimflow.metadata.decode_usability`.                                                                                                                    |
 
 (evt-tier)=
 
@@ -271,21 +272,21 @@ from the corresponding `hit`-tier subtable and are `VectorOfVectors`
 ### `spms/` — SiPM (LAr scintillation) array
 
 Per-event arrays collecting SiPM data. All non-OFF channels are always present
-in ascending UID order, even for events with no energy deposition in liquid
-argon.
+in ascending UID order, also those without light in the event. Several `opt`
+rows of one channel in the same event are joined.
 
-| Field          | Type              | Units | Description                                                                                                                                                                                                                                                                               |
-| -------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rawid`        | `VectorOfVectors` | —     | SiPM channel UIDs, matching the channel identifiers used in LEGEND-200 data. Always the full list of non-OFF channels per event.                                                                                                                                                          |
-| `energy`       | `VectorOfVectors` | —     | PE amplitudes per channel per event, filtered by the PE energy threshold. Nested variable-length array.                                                                                                                                                                                   |
-| `time`         | `VectorOfVectors` | ns    | PE times per channel per event, relative to `trigger/timestamp`. Nested variable-length array matching `energy`. Unlike `spms/t0` in LEGEND-200 data, which counts from the start of the waveform.                                                                                        |
-| `is_saturated` | `VectorOfVectors` | —     | Boolean SiPM saturation flag per channel. `True` if PE count exceeds threshold.                                                                                                                                                                                                           |
-| `hit_idx`      | `VectorOfVectors` | —     | Row index in the `opt`-tier table for lookback. Set to `-1` for events with no LAr energy deposition.                                                                                                                                                                                     |
-| `expected_pes` | `VectorOfVectors` | —     | _(optional)_ Expected number of photoelectrons per channel at unit channel efficiency, before the PE-per-hit cap and the PE threshold. Same order as `rawid`; `0` for events with no LAr energy deposition. Present only when `store_expected_pes` is enabled in the `opt` tier settings. |
-| `energy_sum`   | `Array`           | —     | Total PE energy summed over all channels and all PEs. Scalar per event.                                                                                                                                                                                                                   |
-| `multiplicity` | `Array`           | —     | Number of SiPM channels with at least one detected PE. Scalar per event.                                                                                                                                                                                                                  |
-| `rc_energy`    | `VectorOfVectors` | —     | _(optional)_ Random-coincidence PE amplitudes from forced-trigger data. Present only when `add_random_coincidences` is enabled.                                                                                                                                                           |
-| `rc_time`      | `VectorOfVectors` | ns    | _(optional)_ Random-coincidence PE times, on the same time axis as `time`. Present only when `add_random_coincidences` is enabled.                                                                                                                                                        |
+| Field          | Type              | Units | Description                                                                                                                                                                                                                                                                                     |
+| -------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rawid`        | `VectorOfVectors` | —     | SiPM channel UIDs, matching the channel identifiers used in LEGEND-200 data. Always the full list of non-OFF channels per event.                                                                                                                                                                |
+| `energy`       | `VectorOfVectors` | —     | PE amplitudes per channel per event, filtered by the PE energy threshold. Nested variable-length array.                                                                                                                                                                                         |
+| `time`         | `VectorOfVectors` | ns    | PE times per channel per event, relative to `trigger/timestamp`. Nested variable-length array matching `energy`. Unlike `spms/t0` in LEGEND-200 data, which counts from the start of the waveform.                                                                                              |
+| `is_saturated` | `VectorOfVectors` | —     | Boolean SiPM saturation flag per channel. `True` if PE count exceeds threshold.                                                                                                                                                                                                                 |
+| `hit_idx`      | `VectorOfVectors` | —     | Row index in the `opt`-tier table for lookback (the first row, if the channel has several in the event). Set to `-1` for channels without an `opt` row in the event.                                                                                                                            |
+| `expected_pes` | `VectorOfVectors` | —     | _(optional)_ Expected number of photoelectrons per channel at unit channel efficiency, before the PE-per-hit cap and the PE threshold. Same order as `rawid`; `0` for channels without an `opt` row in the event. Present only when `store_expected_pes` is enabled in the `opt` tier settings. |
+| `energy_sum`   | `Array`           | —     | Total PE energy summed over all channels and all PEs. Scalar per event.                                                                                                                                                                                                                         |
+| `multiplicity` | `Array`           | —     | Number of SiPM channels with at least one detected PE. Scalar per event.                                                                                                                                                                                                                        |
+| `rc_energy`    | `VectorOfVectors` | —     | _(optional)_ Random-coincidence PE amplitudes from forced-trigger data. Present only when `add_random_coincidences` is enabled.                                                                                                                                                                 |
+| `rc_time`      | `VectorOfVectors` | ns    | _(optional)_ Random-coincidence PE times, on the same time axis as `time`. Present only when `add_random_coincidences` is enabled.                                                                                                                                                              |
 
 ### `coincident/` — detector coincidence flags
 
