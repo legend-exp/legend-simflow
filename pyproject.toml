@@ -241,6 +241,7 @@ filterwarnings = [
   "ignore:overflow encountered in divide:RuntimeWarning",
   "ignore:overflow encountered in cast:RuntimeWarning",
   "ignore:lgdo.lh5 has moved to its own package:DeprecationWarning",
+  "ignore:Constructing LpVariable\\(name, \\.\\.\\.\\) directly is deprecated:DeprecationWarning",
 ]
 log_cli_level = "INFO"
 testpaths = [
