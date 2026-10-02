@@ -176,15 +176,15 @@ has a table, empty if no photon reached it.
 
 ### Added fields
 
-| Field          | Type              | Units | Description                                                                                                                                                                                                                         |
-| -------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dt`           | `VectorOfVectors` | ns    | Photoelectron arrival times relative to the hit `t0`, after resolution smearing and photoelectron clustering to simulate the timing resolution of the SiPM. Variable-length per row.                                                |
-| `energy`       | `VectorOfVectors` | —     | Photoelectron amplitudes (relative units), after PE resolution smearing. Variable-length array matching `dt`.                                                                                                                       |
-| `is_saturated` | `Array`           | —     | Boolean flag. `True` when the number of detected photoelectrons exceeds a maximum PE-per-hit cap, indicating SiPM saturation.                                                                                                       |
-| `expected_pes` | `Array`           | —     | _(optional)_ Expected number of photoelectrons per row at unit channel efficiency, before the PE-per-hit cap; with tracked photons, the number of photons that reached the SiPM. Present only when `store_expected_pes` is enabled. |
-| `period`       | `Array`           | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                                                                     |
-| `run`          | `Array`           | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                                                                        |
-| `usability`    | `Array`           | —     | Encoded SiPM channel usability status for this run. Decode with {func}`legendsimflow.metadata.decode_usability`.                                                                                                                    |
+| Field          | Type              | Units | Description                                                                                                                                                                            |
+| -------------- | ----------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dt`           | `VectorOfVectors` | ns    | Photoelectron arrival times relative to the hit `t0`, after resolution smearing and photoelectron clustering to simulate the timing resolution of the SiPM. Variable-length per row.   |
+| `energy`       | `VectorOfVectors` | —     | Photoelectron amplitudes (relative units), after PE resolution smearing. Variable-length array matching `dt`.                                                                          |
+| `is_saturated` | `Array`           | —     | Boolean flag. `True` when the number of detected photoelectrons exceeds a maximum PE-per-hit cap, indicating SiPM saturation.                                                          |
+| `expected_pes` | `Array`           | —     | _(optional)_ Expected number of photoelectrons per row at unit channel efficiency, before the PE-per-hit cap. Present only when `store_expected_pes` is enabled, with the optical map. |
+| `period`       | `Array`           | —     | Data-taking period number extracted from the run identifier (numeric encoding).                                                                                                        |
+| `run`          | `Array`           | —     | Data-taking run number extracted from the run identifier (numeric encoding).                                                                                                           |
+| `usability`    | `Array`           | —     | Encoded SiPM channel usability status for this run. Decode with {func}`legendsimflow.metadata.decode_usability`.                                                                       |
 
 (evt-tier)=
 

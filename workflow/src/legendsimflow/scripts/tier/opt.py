@@ -51,8 +51,7 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
     mapping ``<sipm name> -> <scaling factor>`` for per-channel photon detection
     efficiencies. In the latter case channels missing from the mapping fall back
     to the reserved ``default`` key; without it, a missing channel is an error
-    rather than a silent guess. With ``light_source: tracked_photons`` the
-    factor is the probability to keep each photon that reached the SiPM.
+    rather than a silent guess.
 
     Parameters
     ----------
@@ -104,7 +103,7 @@ def main() -> None:
     parser.add_argument(
         "--optmap-lar",
         default=None,
-        help="LAr optical map file, needed with light_source: map",
+        help="LAr optical map file, needed with light_source: optmap",
     )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
     parser.add_argument(
@@ -159,30 +158,29 @@ def main() -> None:
     optmap_scaling_factor = tier_opt_settings.optmap_scaling_factor
     photoelectron_resolution_sigma = tier_opt_settings.photoelectron_resolution_sigma
     time_resolution_in_ns = tier_opt_settings.time_resolution_in_ns
-    max_pes_per_hit = (
-        tier_opt_settings.max_pes_per_hit_per_sipm
-        if optmap_per_sipm
-        else tier_opt_settings.max_pes_per_hit_combined
-    )
     buffer_len = tier_opt_settings.buffer_len
     store_expected_pes = tier_opt_settings.get("store_expected_pes", False)
-    light_source = tier_opt_settings.get("light_source", "map")
+    light_source = tier_opt_settings.get("light_source", "optmap")
+    # tracked photons always give one table per SiPM
+    max_pes_per_hit = (
+        tier_opt_settings.max_pes_per_hit_per_sipm
+        if optmap_per_sipm or light_source == "tracked_photons"
+        else tier_opt_settings.max_pes_per_hit_combined
+    )
 
     settings_block = f"simprod.config.tier.opt.{config.experiment}.settings"
-    if light_source not in ("map", "tracked_photons"):
-        msg = f"light_source must be 'map' or 'tracked_photons', not {light_source!r}"
+    if light_source not in ("optmap", "tracked_photons"):
+        msg = (
+            f"light_source must be 'optmap' or 'tracked_photons', not {light_source!r}"
+        )
         raise SimflowConfigError(msg, settings_block)
-    if light_source == "tracked_photons" and not optmap_per_sipm:
-        msg = "light_source: tracked_photons needs optmap_per_sipm: true"
-        raise SimflowConfigError(msg, settings_block)
-    if light_source == "map":
+    if light_source == "optmap":
         if args.optmap_lar is None:
-            msg = "--optmap-lar is required with light_source: map"
+            msg = "--optmap-lar is required with light_source: optmap"
             raise SimflowConfigError(msg, settings_block)
         optmap_lar = nersc.dvs_ro(config, args.optmap_lar)
     else:
         optmap_lar = None
-    rng = np.random.default_rng()
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -219,11 +217,11 @@ def main() -> None:
     ) -> None:
         """Write the photoelectrons of one SiPM.
 
-        `iterator` runs over the argon table with ``light_source: map`` and over
+        `iterator` runs over the argon table with ``light_source: optmap`` and over
         the table of the SiPM with ``light_source: tracked_photons``. Each of
         its rows gives one output row.
         """
-        if light_source == "map":
+        if light_source == "optmap":
             with perf_block("load_optmap()"):
                 # in per-SiPM mode the map is (re)loaded here, once per call, and
                 # released again on return: the per-channel maps are too large to
@@ -231,10 +229,10 @@ def main() -> None:
                 if not isinstance(optmap_lar, OptmapForConvolve):
                     optmap_lar = reboost.spms.load_optmap(optmap_lar, sipm)
 
-        # constant for this SiPM, so resolve it once instead of per chunk
-        map_scaling = resolve_map_scaling(optmap_scaling_factor, sipm)
-        msg = f"using optical map scaling factor {map_scaling} for {sipm}"
-        log.debug(msg)
+            # constant for this SiPM, so resolve it once instead of per chunk
+            map_scaling = resolve_map_scaling(optmap_scaling_factor, sipm)
+            msg = f"using optical map scaling factor {map_scaling} for {sipm}"
+            log.debug(msg)
 
         total_detected_pe_stats = NumdetStats()
 
@@ -242,13 +240,17 @@ def main() -> None:
             chunk = lgdo_chunk.view_as("ak")
 
             if light_source == "tracked_photons":
-                with perf_block("tracked_photoelectrons()"):
-                    counts = ak.to_numpy(ak.num(chunk.time))
-                    keep = rng.random(np.sum(counts)) < map_scaling
-                    pe_times_micro = ak.sort(
-                        chunk.time[ak.unflatten(keep, counts)], axis=-1
+                # the SiPM efficiency is applied while tracking: every recorded
+                # photon is a photoelectron
+                pe_times_micro = ak.sort(chunk.time, axis=-1)
+                expected_pes = None
+                if max_pes_per_hit > 0:
+                    # as with the map: saturated once the cap is reached
+                    is_saturated = ak.to_numpy(
+                        ak.num(pe_times_micro) >= max_pes_per_hit
                     )
-                    expected_pes = counts if store_expected_pes else None
+                    pe_times_micro = pe_times_micro[:, :max_pes_per_hit]
+                else:
                     is_saturated = np.full(len(chunk), fill_value=False, dtype=np.bool_)
             else:
                 with perf_block("emitted_scintillation_photons()"):
@@ -378,7 +380,7 @@ def main() -> None:
 
     # in combined mode there is a single map, so pre-load it once for a little
     # speed up. in per-SiPM mode the maps are loaded on demand in process_sipm()
-    if light_source == "map" and not optmap_per_sipm:
+    if light_source == "optmap" and not optmap_per_sipm:
         optmap_lar = reboost.spms.load_optmap(optmap_lar, "all")
 
     sipms = sorted(reboost_utils.get_senstables(geom, "optical"))
@@ -514,7 +516,7 @@ def main() -> None:
                 "t0": Array(np.empty(0), attrs={"units": "ns"}),
                 "time": VectorOfVectors(
                     flattened_data=Array(np.empty(0)),
-                    cumulative_length=Array(np.empty(0, dtype=np.uint32)),
+                    cumulative_length=Array(np.empty(0, dtype=np.int64)),
                     attrs={"units": "ns"},
                 ),
             }

@@ -228,7 +228,6 @@ def test_opt_script_tracked_photons(
         "--jobid", "0000",
         "--scintillator-volume-name", "liquid_argon",
         "--opt-file", str(opt_file),
-        "--optmap-per-sipm",
         "--simflow-config", str(config_path),
     ])  # fmt: skip
     settings = opt.get_tier_settings
@@ -239,8 +238,10 @@ def test_opt_script_tracked_photons(
             settings(config, tier)
             | {
                 "light_source": "tracked_photons",
-                "optmap_scaling_factor": 1,
+                # ignored with tracked photons
+                "optmap_scaling_factor": 0.3,
                 "store_expected_pes": True,
+                "max_pes_per_hit_per_sipm": 2,
             }
         ),
     )
@@ -250,11 +251,13 @@ def test_opt_script_tracked_photons(
     out = lh5.read_as(f"hit/{_SIPM_ON}", opt_file, library="ak")
     assert out.evtid.to_list() == evtid.tolist()
     assert np.allclose(ak.to_numpy(out.t0), t0)
-    assert out.expected_pes.to_list() == n_ph.tolist()
-    assert ak.num(out.dt).to_list() == n_ph.tolist()
-    expected_dt = ak.Array([1000 * np.arange(n) for n in n_ph])
+    assert "expected_pes" not in out.fields
+    # capped at 2 photoelectrons per row, the first ones in time
+    n_kept = np.minimum(n_ph, 2)
+    assert ak.num(out.dt).to_list() == n_kept.tolist()
+    expected_dt = ak.Array([1000 * np.arange(n) for n in n_kept])
     assert ak.all(abs(ak.flatten(out.dt - expected_dt)) < 1e-2)
-    assert not ak.any(out.is_saturated)
+    assert out.is_saturated.to_list() == (n_ph >= 2).tolist()
 
     # a SiPM without photons gets an empty table
     assert lh5.read_n_rows(f"hit/{_SIPM_AC}", opt_file) == 0

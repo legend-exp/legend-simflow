@@ -152,14 +152,15 @@ def main() -> None:
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
-    store_expected_pes = not args.skip_opt and get_tier_settings(config, "opt").get(
-        "store_expected_pes", False
-    )
     light_source = (
         None
         if args.skip_opt
-        else get_tier_settings(config, "opt").get("light_source", "map")
+        else get_tier_settings(config, "opt").get("light_source", "optmap")
     )
+    # with tracked photons there is no expectation at unit efficiency
+    store_expected_pes = light_source == "optmap" and get_tier_settings(
+        config, "opt"
+    ).get("store_expected_pes", False)
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
