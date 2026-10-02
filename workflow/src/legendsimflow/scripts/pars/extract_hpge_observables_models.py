@@ -114,7 +114,7 @@ def main() -> None:
         or psdcuts_default is not None
     ):
         tstamp = mutils.runinfo(metadata, runid).start_key
-        chmap = metadata.channelmap(tstamp, skip_version_check=True)
+        chmap = metadata.channelmap(tstamp)
 
     # pre-compute l200data helpers once if any observable needs the l200data path
     hit_tier_name = None

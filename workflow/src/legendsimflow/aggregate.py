@@ -358,7 +358,7 @@ def gen_hpge_modeling_status(
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
-    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+    chmap = metadata.channelmap(timestamp)
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
@@ -526,7 +526,7 @@ def gen_list_of_all_usabilities(
     for runid in all_runids:
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
-        chmap = config.metadata.channelmap(rinfo.start_key, skip_version_check=True)
+        chmap = config.metadata.channelmap(rinfo.start_key)
         for chname in chmap:
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability
@@ -566,16 +566,16 @@ def gen_list_of_all_runids(config) -> set[str]:
 def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
     """Get the operational voltage for an HPGe in a given run.
 
-    Returns the voltage as an integer.
+    Reads ``simprod/config/pars/<experiment>/geds/opv/``. A ``default`` entry
+    applies to every detector that has no entry of its own. Raises
+    ``KeyError`` if neither is found.
     """
-    try:
-        opv = simpars(config.metadata, "geds.opv", runid, config.experiment)[
-            hpge
-        ].operational_voltage_in_V
-    except KeyError as e:
+    opv = simpars(config.metadata, "geds.opv", runid, config.experiment)
+    entry = opv.get(hpge, opv.get("default"))
+    if entry is None:
         msg = f"operational voltage for hpge {hpge} not found in run {runid}"
-        raise KeyError(msg) from e
-    return int(opv)
+        raise KeyError(msg)
+    return int(entry.operational_voltage_in_V)
 
 
 def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str | None:
