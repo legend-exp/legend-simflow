@@ -238,28 +238,6 @@ def runinfo(metadata: MetadataRepository, runid: str) -> str:
     return metadata.datasets.runinfo[period][run][datatype]
 
 
-def get_channelmap(
-    metadata: MetadataRepository, timestamp: str, names: Iterable[str] | None = None
-) -> AttrsDict:
-    """Get the channel map valid at `timestamp`.
-
-    Parameters
-    ----------
-    metadata
-        LEGEND metadata database.
-    timestamp
-        a timestamp in the format ``YYYYmmddTHHMMSSZ``.
-    names
-        if not ``None``, return only the channels with these names.
-        :class:`~legendmeta.Legend1000Metadata` builds the record of a channel
-        that is not in the database from its default record.
-    """
-    chmap = metadata.channelmap(timestamp)
-    if names is None:
-        return chmap
-    return AttrsDict({name: chmap[name] for name in names})
-
-
 def reference_cal_run(metadata: MetadataRepository, runid: str) -> str:
     """The reference calibration run for `runid`.
 

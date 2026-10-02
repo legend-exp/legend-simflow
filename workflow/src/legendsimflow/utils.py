@@ -40,7 +40,7 @@ from legendmeta import Legend1000Metadata, LegendMetadata, MetadataRepository
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
-from . import SimflowConfig, nersc
+from . import SimflowConfig, geometry, nersc
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
@@ -339,9 +339,17 @@ def init_simflow_context(
                 msg = f"could not checkout metadata version: {e}"
                 log_.warning(msg)
 
+        # legend1000-metadata holds only default records, the channels come
+        # from the geometry
+        kwargs = {}
+        if metadata_cls is Legend1000Metadata:
+            kwargs["channels"] = geometry.channel_names(config)
+
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB
-        config["metadata"] = metadata_cls(nersc.dvs_ro(config, config.paths.metadata))
+        config["metadata"] = metadata_cls(
+            nersc.dvs_ro(config, config.paths.metadata), **kwargs
+        )
 
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)

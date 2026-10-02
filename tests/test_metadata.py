@@ -3,10 +3,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-import dbetto
 import pytest
 from dbetto import AttrsDict
-from legendmeta import Legend1000Metadata
 
 from legendsimflow import metadata
 from legendsimflow.exceptions import SimflowConfigError
@@ -248,51 +246,3 @@ def test_get_par_settings(config):
     settings_empty = metadata.get_par_settings(config, "nonexistent_par")
     assert isinstance(settings_empty, AttrsDict)
     assert len(settings_empty) == 0
-
-
-def test_get_channelmap(config):
-    tstamp = metadata.runinfo(config.metadata, "l200-p02-r000-phy").start_key
-    chmap = metadata.get_channelmap(config.metadata, tstamp)
-    name = next(iter(chmap))
-
-    result = metadata.get_channelmap(config.metadata, tstamp, [name])
-    assert list(result) == [name]
-    assert result[name] == chmap[name]
-
-
-def test_get_channelmap_l1000(tmp_path):
-    def write(path, data):
-        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
-        dbetto.utils.write_dict(data, tmp_path / path)
-
-    validity = [
-        {"valid_from": "20400101T000000Z", "category": "all", "apply": ["a.yaml"]}
-    ]
-    write("hardware/configuration/channelmaps/validity.yaml", validity)
-    write(
-        "hardware/configuration/channelmaps/a.yaml",
-        {
-            "V99999Z": {
-                "name": "V99999Z",
-                "system": "geds",
-                "location": {"string": 1, "position": 1},
-                "daq": {"rawid": 1000000},
-            }
-        },
-    )
-    write("datasets/statuses/validity.yaml", validity)
-    write("datasets/statuses/a.yaml", {"V99999Z": {"usability": "on"}})
-    write(
-        "hardware/detectors/germanium/diodes/V99999Z.yaml",
-        {
-            "name": "V99999Z",
-            "production": {"order": 99, "crystal": "999", "slice": "Z"},
-        },
-    )
-
-    meta = Legend1000Metadata(tmp_path)
-    result = metadata.get_channelmap(meta, "20400101T000000Z", ["V00101Z"])
-
-    assert list(result) == ["V00101Z"]
-    assert result.V00101Z.daq.rawid == 1001001
-    assert result.V00101Z.analysis.usability == "on"
