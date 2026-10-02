@@ -218,11 +218,10 @@ def crystal_meta(config: SimflowConfig, diode_meta: AttrsDict) -> AttrsDict:
         + format(diode_meta.production.order, "02d")
         + diode_meta.production.crystal
     )
-    # look up directly: Legend1000Metadata default records are not visible to `in`
-    try:
-        return config.metadata.hardware.detectors.germanium.crystals[crystal_name]
-    except (KeyError, FileNotFoundError):
-        return None
+    crystal_db = config.metadata.hardware.detectors.germanium.crystals
+    if crystal_name in crystal_db:
+        return crystal_db[crystal_name]
+    return None
 
 
 def start_key(config: SimflowConfig, runid: str) -> str:
