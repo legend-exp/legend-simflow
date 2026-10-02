@@ -22,7 +22,7 @@ import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import geometry, hpge_pars, utils
+from legendsimflow import hpge_pars, utils
 from legendsimflow import metadata as mutils
 from legendsimflow.scripts import log_script_invocation
 
@@ -114,7 +114,7 @@ def main() -> None:
         or psdcuts_default is not None
     ):
         tstamp = mutils.runinfo(metadata, runid).start_key
-        chmap = mutils.get_channelmap(metadata, tstamp, geometry.channel_names(config))
+        chmap = metadata.channelmap(tstamp)
 
     # pre-compute l200data helpers once if any observable needs the l200data path
     hit_tier_name = None

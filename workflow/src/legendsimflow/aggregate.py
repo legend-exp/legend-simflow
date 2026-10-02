@@ -24,11 +24,10 @@ import dbetto
 from dbetto import AttrsDict
 from legendmeta.police import validate_dict_schema
 
-from . import SimflowConfig, geometry, patterns
+from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
     encode_psd_usability,
-    get_channelmap,
     get_par_settings,
     get_runlist,
     get_simconfig,
@@ -356,7 +355,7 @@ def gen_hpge_modeling_status(
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
-    chmap = get_channelmap(metadata, timestamp, geometry.channel_names(config))
+    chmap = metadata.channelmap(timestamp)
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
@@ -534,12 +533,11 @@ def gen_list_of_all_usabilities(
     elif rc_runid is not None:
         all_runids.add(rc_runid)
 
-    names = geometry.channel_names(config)
     out_dict = {}
     for runid in all_runids:
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
-        chmap = get_channelmap(config.metadata, rinfo.start_key, names)
+        chmap = config.metadata.channelmap(rinfo.start_key)
         for chname in chmap:
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability
