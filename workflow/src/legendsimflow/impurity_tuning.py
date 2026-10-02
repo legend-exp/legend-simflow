@@ -105,7 +105,7 @@ def plot_cost_surface(x, y, z, name, det, vrange, levels, method="nearest"):
     fig, ax = plt.subplots()
 
     cmap = plt.colormaps["RdYlBu_r"].copy()
-    cmap.with_extremes(over="grey")
+    cmap = cmap.with_extremes(over="grey")
 
     im = ax.pcolormesh(
         X,

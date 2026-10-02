@@ -29,7 +29,6 @@ import numpy as np
 from iminuit import Minuit
 from lgdo import Struct
 from matplotlib import pyplot as plt
-from matplotlib.colors import LogNorm
 from numpy.typing import NDArray
 from reboost import units
 from scipy.interpolate import interp1d
@@ -103,12 +102,7 @@ def select_ideal_wfs_in_slice(ideal_wfs: NDArray, dt: float, sl: Slice) -> NDArr
     # Select waveforms in slice
     lo, hi = sl.drift_time_range
     mask = (drift_times >= lo) & (drift_times < hi)
-    selected = ideal_wfs[mask]
-
-    if len(selected) == 0:
-        log.warning("no ideal waveforms in %s", sl)
-
-    return selected
+    return ideal_wfs[mask]
 
 
 def compute_rms_in_slice(
@@ -117,6 +111,7 @@ def compute_rms_in_slice(
     data_sp: Superpulse,
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
+    waveform_type="current",
 ) -> float:
     """RMS residual between a simulated and a data current superpulse.
 
@@ -145,6 +140,9 @@ def compute_rms_in_slice(
         Exponent ``p`` of the data-amplitude weight ``w = |data|**p`` applied
         to the squared residuals. ``0`` (default) is the unweighted RMS;
         larger values concentrate the fit on the current peak and its flanks.
+    waveform_type
+        ``"current"`` (default) or ``"charge"``. Determines which waveform
+        and time axis are used to fit.
 
     Returns
     -------
@@ -152,8 +150,15 @@ def compute_rms_in_slice(
         (Optionally data-amplitude-weighted) root mean square of the residuals.
 
     """
-    data_time = data_sp.current_time_axis
-    data_wf = data_sp.current_wf
+    if waveform_type == "current":
+        data_time = data_sp.current_time_axis
+        data_wf = data_sp.current_wf
+    elif waveform_type == "charge":
+        data_time = data_sp.charge_time_axis
+        data_wf = data_sp.charge_wf
+    else:
+        msg = f"waveform_type must be 'current' or 'charge', not {waveform_type}"
+        raise ValueError(msg)
 
     f = interp1d(
         sim_time, sim_avg, kind="linear", bounds_error=False, fill_value=np.nan
@@ -182,9 +187,9 @@ def compute_rms_in_slice(
         if weight_sum == 0:
             msg = "data-amplitude weights sum to zero in comparison region"
             raise ValueError(msg)
-        return float(np.sqrt(np.sum(weights * sq_resid) / weight_sum))
+        return 1000 * float(np.sqrt(np.sum(weights * sq_resid) / weight_sum))
 
-    return float(np.sqrt(np.mean(sq_resid)))
+    return 1000 * float(np.sqrt(np.mean(sq_resid)))
 
 
 def build_cost_function(
@@ -195,6 +200,7 @@ def build_cost_function(
     nsamples_output: int,
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
+    waveform_type="current",
 ) -> Callable:
     """Build the scalar cost function for the Minuit minimiser.
 
@@ -219,6 +225,8 @@ def build_cost_function(
     weight_power
         Data-amplitude weight exponent ``p`` (``w = |data|**p``) passed through
         to :func:`compute_rms_in_slice`. ``0`` (default) is the unweighted RMS.
+    waveform_type
+        ``"current"`` (default) or ``"charge"``, determines which waveform is used to fit.
 
     Returns
     -------
@@ -228,9 +236,6 @@ def build_cost_function(
     """
 
     def cost(sigma, tau):
-        if sigma <= 0 or tau <= 0:
-            return 1e6
-
         rf = psl.build_electronics_response_kernel(
             dt, mu_bandwidth=0.0, sigma_bandwidth=sigma, tau_rc=tau
         )
@@ -243,6 +248,7 @@ def build_cost_function(
                 dt,
                 alignment_idx,
                 nsamples_output,
+                return_mode=waveform_type,
             )
             sim_avg = np.mean(processed, axis=0)
             sim_time = (np.arange(len(sim_avg)) - alignment_idx) * dt
@@ -252,6 +258,7 @@ def build_cost_function(
                 data_superpulses[sl],
                 comparison_window,
                 weight_power,
+                waveform_type=waveform_type,
             )
         return total / len(ideal_wfs_slice)
 
@@ -325,8 +332,6 @@ def get_ideal_wfs_all_slices(
         msg = "no valid slices found"
         raise RuntimeError(msg)
 
-    log.info("prepared %d slices", len(ideal_wfs_slice))
-
     # sort the superpulses based on drift time
     sorted_wfs = sorted(
         ideal_wfs_slice.items(),
@@ -361,7 +366,10 @@ def fit_electronics_parameters(
     tau_limits: tuple[float, float],
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
-    max_calls: int = 5000,
+    max_calls: int = 1000,
+    errs=(5, 10),
+    mode="simplex",
+    waveform_type="current",
 ) -> dict:
     """Fit the electronics response parameters sigma and tau.
 
@@ -398,6 +406,12 @@ def fit_electronics_parameters(
         fit toward the current peak. See :func:`compute_rms_in_slice`.
     max_calls
         Maximum number of Minuit function evaluations.
+    errs
+        Initial step sizes for sigma and tau in ns to pass to `minuit.errors`. Default is ``(5, 10)``.
+    mode
+        Minimisation mode: ``"simplex"``, ``"migrad"``, or ``"both"``.
+    waveform_type
+        ``"current"`` (default) or ``"charge"``, determines which waveform is used to fit.
 
     Returns
     -------
@@ -415,6 +429,7 @@ def fit_electronics_parameters(
         nsamples_output,
         comparison_window,
         weight_power,
+        waveform_type=waveform_type,
     )
 
     history: list[tuple[tuple[float, float], float]] = []
@@ -425,19 +440,32 @@ def fit_electronics_parameters(
         return val
 
     m = Minuit(tracked_cost, sigma=sigma_start, tau=tau_start)
-    m.errors = (5.0, 10.0)
+
+    if errs is not None:
+        m.errors = errs
+
     m.limits["sigma"] = sigma_limits
     m.limits["tau"] = tau_limits
 
     # Minuit's default. Strategy 0 skips the Hessian refinement and roughly
     # halves the number of cost evaluations, but the fit then comes out less
     # stable, so the slower setting is worth it
-    m.simplex(ncall=max_calls)
     m.strategy = 2
+    if mode == "simplex":
+        # m.tol /= 10
+        m.simplex(ncall=max_calls)
+    elif mode == "migrad":
+        m.migrad(ncall=max_calls)
+    elif mode == "both":
+        m.simplex(ncall=max_calls)
+        m.migrad(ncall=max_calls)
+    else:
+        msg = f"Only modes 'simplex', 'migrad', or 'both' are supported, not {mode}"
+        raise ValueError(msg)
 
-    m.migrad(ncall=max_calls)
-    if not m.valid:
-        log.warning("MIGRAD did not converge")
+    if not m.valid and mode != "simplex":
+        msg = f"Migrad did not converge {len(history)} out of {max_calls}"
+        log.warning(msg)
 
     return {
         "sigma": m.values["sigma"],
@@ -772,9 +800,29 @@ def plot_scan_maps(
         grid = maps[key]
         # the residual varies over orders of magnitude across the grid while the
         # structure that matters sits close to the minimum
-        finite = grid[np.isfinite(grid)]
-        norm = LogNorm() if key == "rms" and finite.size and finite.min() > 0 else None
-        mesh = ax.pcolormesh(x_edges, y_edges, grid, cmap=cmap, norm=norm)
+
+        cmap_tmp = plt.colormaps[cmap].copy().with_extremes(over="grey")
+
+        mesh = ax.pcolormesh(
+            x_edges,
+            y_edges,
+            grid,
+            cmap=cmap_tmp,
+            vmin=0 if key == "rms" else None,
+            vmax=10 if key == "rms" else None,
+            norm=None,
+            rasterized=True,
+        )
+        if key == "rms":
+            cs = ax.contour(
+                depvs,
+                slopes,
+                grid,
+                levels=[1, 2, 10],
+                colors="black",
+            )
+            ax.clabel(cs, fmt="%g", fontsize=10)
+
         fig.colorbar(mesh, ax=ax, label=label)
         ax.set_xlabel("Depletion voltage [V]")
 
