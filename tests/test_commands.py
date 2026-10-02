@@ -81,23 +81,10 @@ def test_make_macro(config):
     ]
     assert set(confine).issubset(text.split("\n"))
 
-    text, fmac = commands.make_remage_macro(config, "exotic_physics_process", "stp")
-    confine = [
-        "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/Confinement/FromFile/FileName "
-        + str(
-            patterns.vtx_filename_for_stp(
-                config, "exotic_physics_process", jobid="{JOBID}"
-            )
-        ),
-    ]
-    assert set(confine).issubset(text.split("\n"))
-    assert "/RMG/Generator/Select" not in text
-
     text, fmac = commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
     confine = [
-        "/RMG/Generator/Confine FromFile",
-        "/RMG/Generator/Confinement/FromFile/FileName "
+        "/RMG/Generator/Select FromFile",
+        "/RMG/Generator/FromFile/FileName "
         + str(
             patterns.vtx_filename_for_stp(
                 config, "exotic_physics_hpge", jobid="{JOBID}"
@@ -105,7 +92,18 @@ def test_make_macro(config):
         ),
     ]
     assert set(confine).issubset(text.split("\n"))
+    assert "/RMG/Generator/FromFile/IncludePosition" not in text
     assert "/RMG/Generator/Confine Volume" in text
+
+    text, fmac = commands.make_remage_macro(config, "muon_physics", "stp")
+    generator = [
+        "/RMG/Generator/Select FromFile",
+        "/RMG/Generator/FromFile/IncludePosition true",
+        "/RMG/Generator/FromFile/FileName "
+        + str(patterns.vtx_filename_for_stp(config, "muon_physics", jobid="{JOBID}")),
+    ]
+    assert set(generator).issubset(text.split("\n"))
+    assert "/RMG/Generator/Confine" not in text
 
 
 def test_make_macro_errors_1(fresh_config):
@@ -194,6 +192,41 @@ def test_make_macro_errors_vertices(fresh_config):
     )
     with pytest.raises(SimflowConfigError):
         commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+
+def test_make_macro_errors_product(fresh_config):
+    config = fresh_config
+    vtx = fresh_config.metadata.simprod.config.tier.vtx.legend.simconfig
+
+    # kinematics only, no confinement
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+    vtx["exotic_process"]["product"] = "positions"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_process", "stp")
+
+    vtx["hpge_surface"]["product"] = "kinematics"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")
+
+    vtx["hpge_surface"]["product"] = "kinematics_and_positions"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "lar_hpge_shell_K42", "stp")
+
+    # kinematics_and_positions plus a confinement
+    stp = fresh_config.metadata.simprod.config.tier.stp.legend.simconfig
+    stp["muon_physics"]["confinement"] = "~volumes.bulk:hpge_assembly_plate_pen"
+    with pytest.raises(SimflowConfigError, match="no confinement allowed"):
+        commands.make_remage_macro(config, "muon_physics", "stp")
+
+    vtx["exotic_process"]["product"] = "not_a_product_kind"
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
+
+    del vtx["exotic_process"]["product"]
+    with pytest.raises(SimflowConfigError):
+        commands.make_remage_macro(config, "exotic_physics_hpge", "stp")
 
 
 def test_remage_cli(fresh_config):
