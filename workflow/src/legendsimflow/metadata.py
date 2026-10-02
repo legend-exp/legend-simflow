@@ -299,7 +299,7 @@ def simpars(
         LEGEND metadata database.
     par
         name of directory under ``metadata.simprod.config.pars.{experiment}``.
-        Can be a nested property, as in e.g. ``geds.opv.value``. ``.`` and
+        Can be a nested property, as in e.g. ``geds.eresmod``. ``.`` and
         ``/`` are allowed separators.
     runid
         a run identifier in the format ``<experiment>-<period>-<run>-<datatype>``.

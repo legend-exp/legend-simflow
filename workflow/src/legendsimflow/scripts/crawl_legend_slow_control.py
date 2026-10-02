@@ -45,7 +45,10 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("runsel", help="run selection string, i.e. l200-p14-r001-phy")
 parser.add_argument("-o", "--output", help="output file path")
-parser.add_argument("--opv-db", help="path to existing opv database (folder)")
+parser.add_argument(
+    "--opv-db",
+    help="path to existing opv database (folder), e.g. hardware/configuration/opvs",
+)
 
 args = parser.parse_args()
 

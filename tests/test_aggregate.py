@@ -359,6 +359,9 @@ def test_hpge_voltage_functions(config):
     assert voltage == 4200
     assert isinstance(voltage, int)
 
+    with pytest.raises(KeyError):
+        agg.get_hpge_voltage(config, "V12345A", runid)
+
 
 def test_currmod_stuff(config):
     runid = "l200-p02-r000-phy"

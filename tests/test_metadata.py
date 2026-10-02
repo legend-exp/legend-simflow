@@ -25,10 +25,10 @@ def test_all(config):
     assert "livetime_in_s" in metadata.runinfo(config.metadata, "l200-p02-r000-phy")
 
     assert (
-        "operational_voltage_in_V"
-        in metadata.simpars(
-            config.metadata, "geds.opv", "l200-p02-r002-phy", config.experiment
+        metadata.simpars(
+            config.metadata, "geds.skip", "l200-p02-r003-phy", config.experiment
         ).V99000A
+        == "SSD crashes"
     )
 
     # default= returns the default when the par directory does not exist

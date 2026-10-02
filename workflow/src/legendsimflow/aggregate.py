@@ -566,16 +566,16 @@ def gen_list_of_all_runids(config) -> set[str]:
 def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
     """Get the operational voltage for an HPGe in a given run.
 
-    Returns the voltage as an integer.
+    Reads ``hardware/configuration/opvs/`` in the metadata. Raises
+    ``KeyError`` if the detector has no entry.
     """
-    try:
-        opv = simpars(config.metadata, "geds.opv", runid, config.experiment)[
-            hpge
-        ].operational_voltage_in_V
-    except KeyError as e:
+    opvs = config.metadata.hardware.configuration.opvs.on(start_key(config, runid))
+    # index, do not use .get(): it skips the default records of Legend1000Metadata
+    if hpge not in opvs:
         msg = f"operational voltage for hpge {hpge} not found in run {runid}"
-        raise KeyError(msg) from e
-    return int(opv)
+        raise KeyError(msg)
+
+    return int(opvs[hpge].operational_voltage_in_V)
 
 
 def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str | None:
