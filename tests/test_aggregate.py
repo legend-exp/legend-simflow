@@ -417,13 +417,13 @@ def test_usability_harvesting(config):
     assert usability["l200-p02-r000-phy"] == {
         "V99000A": {
             "usability": "on",
-            "daq_rawid": 1234568,
+            "rawid": 1234568,
             "psd_usability": "valid",
             "crystal_metadata_usability": "valid",
         },
         "B99000A": {
             "usability": "off",
-            "daq_rawid": 1234569,
+            "rawid": 1234569,
             "psd_usability": "missing",
             "crystal_metadata_usability": "valid",
         },
@@ -446,7 +446,7 @@ def test_usability_harvesting_includes_rc_runs(config, monkeypatch, rc_runid):
     assert "l200-p03-r000-phy" in usability
     assert usability["l200-p03-r000-phy"]
     assert all(
-        isinstance(entry["daq_rawid"], int)
+        isinstance(entry["rawid"], int)
         for entry in usability["l200-p03-r000-phy"].values()
     )
 
