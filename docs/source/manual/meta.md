@@ -391,6 +391,24 @@ buffer_len: "10*MB"
 - `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
   geometry used to identify liquid argon energy depositions (e.g. `liquid_argon`
   for LEGEND-200, `liquid_argon_underground` for LEGEND-1000).
+- `light_source` (str, optional, default `optmap`) — where the detected photons
+  come from:
+  - `optmap`: photoelectrons are sampled from the liquid argon optical map
+    (`paths.optical_maps.lar`), given the energy depositions in the scintillator
+    volume.
+  - `tracked_photons`: photons are tracked in the simulation, and the photons
+    recorded in the `stp` SiPM tables are used. The optical map is not read.
+    `max_pes_per_hit_per_sipm` caps the photoelectrons of each SiPM hit, keeping
+    the first ones in time. As in the `hit` tier, each row of a SiPM table gives
+    one output row, so light that does not come from liquid argon energy
+    depositions is kept as well. The output is always per SiPM;
+    `optmap_per_sipm` is ignored. Every recorded photon is a photoelectron, so
+    the SiPM photon detection efficiency (PDE) must be applied while tracking,
+    in the geometry: the PDE curve (`sipm_use_pde_curve`) and the per-channel
+    `sipm_efficiencies` of legend-pygeom-l200, set in `geom_config_extra`.
+    `optmap_scaling_factor` and `store_expected_pes` are ignored. The `stp` tier
+    must be simulated with optical physics and SiPM detectors registered as
+    optical detectors.
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.
@@ -412,6 +430,8 @@ buffer_len: "10*MB"
   channel nor `default` is present, processing fails with a `KeyError` naming
   the missing channel.
 
+  Ignored with `light_source: tracked_photons`.
+
   Per-channel values are equivalent to the `sipm_efficiencies` option of
   [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io), which only
   takes effect while photons are tracked and so cannot be used with a pre-built
@@ -423,13 +443,15 @@ buffer_len: "10*MB"
 - `time_resolution_in_ns` (float) — SiPM time resolution in nanoseconds.
   Photoelectrons within this window are clustered into a single hit.
 - `max_pes_per_hit_per_sipm` (int) — maximum number of photoelectrons per hit
-  per SiPM channel (used when `optmap_per_sipm: true`). Limits memory and
+  per SiPM channel (used when `optmap_per_sipm: true` or with
+  `light_source: tracked_photons`; `-1` disables it). Limits memory and
   processing time.
 - `max_pes_per_hit_combined` (int) — maximum number of photoelectrons per hit
   across all SiPMs combined (used when `optmap_per_sipm: false`).
 - `store_expected_pes` (bool, optional, default `false`) — when `true`, also
   store the `expected_pes` field in the `opt` output (see {ref}`opt-tier`) and
-  the `spms/expected_pes` field in the `evt` output.
+  the `spms/expected_pes` field in the `evt` output. Ignored with
+  `light_source: tracked_photons`.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"10*MB"`). Controls memory
   usage during processing; does not affect the output.
 

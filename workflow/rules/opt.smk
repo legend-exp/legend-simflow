@@ -4,9 +4,17 @@ from dbetto.utils import load_dict
 
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
-from legendsimflow.metadata import deferred_tier_setting
+from legendsimflow.metadata import deferred_tier_setting, get_tier_settings
 
 _tier_setting = partial(deferred_tier_setting, config)
+
+
+def smk_optmap_lar(wildcards):
+    """The LAr optical map, not needed when the light comes from tracked photons."""
+    light_source = get_tier_settings(config, "opt").get("light_source", "optmap")
+    if light_source == "tracked_photons":
+        return []
+    return [on_scratch_smk(config.paths.optical_maps.lar)]
 
 
 rule gen_all_tier_opt:
@@ -29,9 +37,15 @@ rule build_tier_opt:
       (see the `make_simstat_partition_file` rule). For each partition:
     - the detector usability is retrieved from `legend-metadata` and stored in
       the output;
-    - scintillation photons are generated corresponding to simulated energy
-      depositions;
-    - detected photoelectrons are sampled according to the input optical map;
+    - with `light_source: optmap` (default), scintillation photons are generated
+      corresponding to simulated energy depositions and detected
+      photoelectrons are sampled according to the input optical map;
+    - with `light_source: tracked_photons`, the photons recorded in the `stp`
+      SiPM tables are used instead and the optical map is not an input. As in
+      the `hit` tier, each SiPM row gives one output row, and every photon is
+      a photoelectron: the SiPM efficiency is applied while tracking. The
+      photoelectrons of each SiPM row are capped as with the map. SiPMs that
+      no photon reached get an empty table;
     - a finite resolution is applied to each photoelectron amplitude (see
       script);
     - photoelectrons are clustered in time to simulate the effect of finite
@@ -52,7 +66,7 @@ rule build_tier_opt:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=on_scratch_smk(config.paths.optical_maps.lar),
+        optmap_lar=smk_optmap_lar,
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
