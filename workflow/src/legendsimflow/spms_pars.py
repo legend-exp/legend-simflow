@@ -343,7 +343,7 @@ def reorder_rc_channels(
     """Reorder the SiPM channels of random-coincidence data to the order of `spms_uids`.
 
     `rc_data` comes from :func:`get_chunk_rc_data`. Its ``rawid`` field holds the
-    DAQ rawids of the source run, which change when channels are recabled.
+    rawids of the source run, which change when channels are recabled.
     `uid_of_rawid` maps them to simulation uids (the detector IDs in the simulated
     geometry), matched by channel name. Raises if the events do not share the same
     channel list, or if the channels differ from `spms_uids`.

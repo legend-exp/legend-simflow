@@ -60,7 +60,7 @@ VALID_PSD = encode_psd_usability("valid")
         ),
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
-        "daq_rawid_file": "input.daq_rawid",
+        "rawid_file": "input.rawid",
         "jobid": "wildcards.jobid",
         "simid": "wildcards.simid",
         "evt_file": "output[0]",
@@ -91,9 +91,9 @@ def main() -> None:
         help="detector usability YAML file",
     )
     parser.add_argument(
-        "--daq-rawid-file",
+        "--rawid-file",
         required=True,
-        help="detector DAQ rawid YAML file",
+        help="detector rawid YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
     parser.add_argument(
@@ -161,7 +161,7 @@ def main() -> None:
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
-    daq_rawid_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.daq_rawid_file)))
+    rawid_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.rawid_file)))
 
     # get the psd settings
     tier_hit_settings = get_tier_settings(config, "hit")
@@ -360,11 +360,11 @@ def main() -> None:
                     rc_evt_files, mode=rc_mode
                 )
 
-            # the RC channels carry the DAQ rawids of the run they are drawn
+            # the RC channels carry the rawids of the run they are drawn
             # from: map them to the simulation uids through the channel names
             rc_uid_of_rawid = {
                 rawid: det2uid["opt"][name]
-                for name, rawid in daq_rawid_map[rc_runid or runid].items()
+                for name, rawid in rawid_map[rc_runid or runid].items()
                 if name in det2uid["opt"]
             }
             # state is reset per partition so RC events are drawn independently
@@ -647,16 +647,14 @@ def main() -> None:
                             len(unified_tcm),
                             rc_index_lookup,
                         )
-                    try:
-                        rc_chunk = spms_pars.reorder_rc_channels(
-                            rc_chunk, rc_uid_of_rawid, on_spms_uids
-                        )
-                    except ValueError as e:
-                        msg = (
-                            f"RC data of {rc_runid or runid} does not match the "
-                            f"non-OFF SiPM channels of {runid}"
-                        )
-                        raise RuntimeError(msg) from e
+                    msg = (
+                        f"matching RC channels of {rc_runid or runid} to the "
+                        f"non-OFF SiPM channels of {runid} by name"
+                    )
+                    log.debug(msg)
+                    rc_chunk = spms_pars.reorder_rc_channels(
+                        rc_chunk, rc_uid_of_rawid, on_spms_uids
+                    )
 
                     out_table.add_field(
                         "spms/rc_energy",

@@ -84,7 +84,7 @@ def _rc_data(rawid):
 
 
 def test_reorder_rc_channels_recabled():
-    # sim uids 1, 2, 3 were recabled to DAQ rawids 103, 101, 102 in the RC run
+    # sim uids 1, 2, 3 were recabled to rawids 103, 101, 102 in the RC run
     uid_of_rawid = {101: 2, 102: 3, 103: 1}
     rc = _rc_data([101, 102, 103])
 
