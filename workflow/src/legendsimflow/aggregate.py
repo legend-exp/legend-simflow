@@ -494,7 +494,7 @@ def gen_list_of_all_usabilities(
           'l200-p03-r000-phy': {
             'V00048A': {
               'usability': 'on',
-              'daq_rawid': 1084803,
+              'rawid': 1084803,
               'psd_usability': 'valid',
               'crystal_metadata_usability': 'valid',
             },
@@ -503,7 +503,7 @@ def gen_list_of_all_usabilities(
           ...
         }
 
-    ``daq_rawid`` is the ``daq.rawid`` field in the channel map of the run. It
+    ``rawid`` is the ``daq.rawid`` field in the channel map of the run. It
     changes when channels are recabled. The result also covers the runs that
     random coincidences are drawn from (``random_coincidence_runid`` in the evt
     tier settings).
@@ -543,7 +543,7 @@ def gen_list_of_all_usabilities(
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability
 
-                entry = {"usability": usability, "daq_rawid": chmap[chname].daq.rawid}
+                entry = {"usability": usability, "rawid": chmap[chname].daq.rawid}
                 if chmap[chname].system == "geds":
                     psd_usability = "valid"
                     try:
@@ -970,7 +970,7 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
         patterns.detinfo_filename(config, flag)
         for flag in (
             "usability",
-            "daq_rawid",
+            "rawid",
             "psd_usability",
             "crystal_metadata_usability",
             "is_modelable",
