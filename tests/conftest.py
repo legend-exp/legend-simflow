@@ -40,7 +40,7 @@ def _default_matplotlib_style():
 @pytest.fixture(scope="session")
 def legend_testdata():
     ldata = LegendTestData()
-    ldata.checkout("a87dddf")
+    ldata.checkout("8d7fd8c")
     return ldata
 
 
