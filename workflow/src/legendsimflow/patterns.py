@@ -47,6 +47,37 @@ def detinfo_filename(config: SimflowConfig, flag: str) -> Path:
     return config.paths.pars / "detinfo" / f"{flag}.yaml"
 
 
+def patched_optmap_filename(config: SimflowConfig, **kwargs) -> Path:
+    """Path to the LAr optical map with a locally simulated region substituted.
+
+    Produced by the ``patch_optical_map`` rule for each `simid` that configures a
+    patch in ``paths.optical_maps.lar_patch``. It is a workflow product rather
+    than a configured input, so it cannot go stale with respect to the two maps
+    it is built from.
+
+    Uses wildcard `simid`.
+    """
+    pat = (
+        config.paths.pars
+        / "optmap"
+        / (config.experiment + "-{simid}-optmap-lar-patched.lh5")
+    )
+    return _expand(pat, **kwargs)
+
+
+def patched_optmap_log_filename(config: SimflowConfig, **kwargs) -> Path:
+    """Path to the log file of the ``patch_optical_map`` rule.
+
+    Uses wildcard `simid`.
+    """
+    pat = (
+        log_dirname(config)
+        / "opt"
+        / (config.experiment + "-{simid}-optmap-lar-patched.log")
+    )
+    return _expand(pat, **kwargs)
+
+
 def _expand(pattern: str | Path, keep_list: bool = False, **kwargs) -> str | Path:
     """Expand a path pattern with Snakemake wildcards.
 

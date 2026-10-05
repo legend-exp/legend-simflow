@@ -42,6 +42,9 @@ paths:
   config: $_/inputs/simprod/config
   optical_maps:
     lar: $_/inputs/simprod/l200a-optical-map-lar.lh5
+    # optional: a map of a smaller region, simulated with hardware that `lar` does
+    # not have (a calibration source, say), that replaces that region of `lar`
+    # lar_patch: $_/inputs/simprod/l200a-optical-map-lar-source.lh5
 
   pars: $_/generated/pars
   macros: $_/generated/macros
