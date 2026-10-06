@@ -448,8 +448,10 @@ def main() -> None:
                 hitsel = (usability != OFF) & (energy > geds_energy_thr_kev)
 
                 # we want to still be able to know which detectors are ON (and not AC)
+                out_table.add_field("geds/quality", Table(size=len(unified_tcm)))
                 out_table.add_field(
-                    "geds/is_good_channel", VectorOfVectors(usability[hitsel] == ON)
+                    "geds/quality/is_good_channel",
+                    VectorOfVectors(usability[hitsel] == ON),
                 )
                 out_table.add_field(
                     "geds/energy",

@@ -77,8 +77,12 @@ def _geds_table() -> Table:
             "energy": VectorOfVectors(
                 data=[[500.0], [1000.0], [200.0, 300.0], [2000.0]]
             ),
-            "is_good_channel": VectorOfVectors(
-                data=[[True], [True], [True, True], [True]]
+            "quality": Table(
+                col_dict={
+                    "is_good_channel": VectorOfVectors(
+                        data=[[True], [True], [True, True], [True]]
+                    )
+                }
             ),
             "multiplicity": Array(np.array([1, 1, 2, 1], dtype=np.int32)),
             "psd": psd,
