@@ -646,7 +646,7 @@ level) and detector type (second level), mirroring the `tier/` structure.
 
 The operational voltages of the HPGe detectors are hardware data and are not
 stored here. The Simflow reads them from `hardware/configuration/opvs/` in the
-metadata (see {func}`legendsimflow.aggregate.get_hpge_voltage`).
+metadata (see {func}`legendsimflow.aggregate.gen_hpge_modeling_status`).
 
 (ssd-settings-meta)=
 

@@ -352,15 +352,12 @@ def test_par_plots_psd_gate(fresh_config):
 
 
 def test_hpge_voltage_functions(config):
-    runid = "l200-p02-r000-phy"
+    status = agg.gen_hpge_modeling_status(config, "l200-p02-r000-phy")
 
-    # test get_hpge_voltage
-    voltage = agg.get_hpge_voltage(config, "V99000A", runid)
+    # read from hardware/configuration/opvs, as an integer for the file names
+    voltage = status["V99000A"]["operational_voltage_in_V"]
     assert voltage == 4200
     assert isinstance(voltage, int)
-
-    with pytest.raises(KeyError):
-        agg.get_hpge_voltage(config, "V12345A", runid)
 
 
 def test_currmod_stuff(config):
