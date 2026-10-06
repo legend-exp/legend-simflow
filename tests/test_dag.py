@@ -352,3 +352,29 @@ def test_geom_plots_scheduled(tmp_path):
     rules = dag_rule_names(default_config, overrides(tmp_path))
     assert "plot_geom_rendering" in rules
     assert "plot_geom_hpge_mass" in rules
+
+
+def test_optmap_patch_rule_gated_on_config(tmp_path):
+    """`optical_maps.lar_patch` inserts `patch_optical_map` ahead of the opt tier.
+
+    Without the key the rule must not exist at all: it would otherwise have no
+    input, and productions that do not patch their map must be unaffected.
+    """
+    steps = ["vtx", "stp", "par", "opt"]
+
+    rules = dag_rule_names(
+        default_config, overrides(tmp_path / "nopatch", make_steps=steps)
+    )
+    assert "build_tier_opt" in rules
+    assert "patch_optical_map" not in rules
+
+    # the DAG never reads the maps, so the dummy map stands in for the patch too
+    dummy_map = "$_/inputs/simprod/l200cfg01-optmap-dummy.lh5"
+    cfg = overrides(tmp_path / "patch", make_steps=steps)
+    cfg["paths"]["optical_maps"] = {
+        "lar": dummy_map,
+        "lar_patch": {"lar_inside": dummy_map},
+    }
+
+    rules = dag_rule_names(default_config, cfg)
+    assert {"build_tier_opt", "patch_optical_map"} <= rules

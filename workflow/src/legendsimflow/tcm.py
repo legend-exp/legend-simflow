@@ -24,7 +24,7 @@ from lgdo import Table
 
 
 def merge_stp_n_opt_tcms(tcm_stp, tcm_opt, *, scintillator_uid):
-    """Merge `tcm_opt` rows into `tcm_stp` at the scintillator uid.
+    """Merge `tcm_opt` rows into `tcm_stp` at the scintillator UID.
 
     For each `axis=0` row of `tcm_stp`, if `tcm_stp.table_key` contains
     `scintillator_uid`, replace that single element by splicing in the next row

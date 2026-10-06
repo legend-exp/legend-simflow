@@ -1,5 +1,13 @@
 # AGENTS.md — Code Conventions
 
+## Naming
+
+- `uid`: detector ID in the simulated geometry (remage/reboost tables, TCM
+  `table_key`); `rawid`: channel ID in LEGEND-200 data (`daq.rawid` in channel
+  map). Keep distinct even when numerically equal. Exception: output fields
+  named after the data format (e.g. evt `geds/rawid`, `spms/rawid`)
+- Write "UID" in docs, docstrings, comments and messages
+
 ## Python
 
 - License statement at the top of every Python file (see existing files)

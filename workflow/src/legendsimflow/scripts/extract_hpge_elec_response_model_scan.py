@@ -47,14 +47,15 @@ from legendsimflow.superpulses import (
 DEFAULT_SETTINGS = {
     "angle": "000",
     "sigma_start": 10.0,
-    "tau_start": 50.0,
-    "sigma_limits": (0.0, 200.0),
-    "tau_limits": (0.0, 200.0),
+    "tau_start": 30.0,
+    "sigma_limits": (1.0, 50.0),
+    "tau_limits": (2.0, 100.0),
     "comparison_window": (-500.0, 500.0),
     "weight_power": 2.0,
-    "max_calls": 1000,
+    "max_calls": 100,
     "dt_range_tuning": (600.0, 3000.0),
     "max_num_superpulses": 5,
+    "minimiser_mode": "simplex",
 }
 
 
@@ -160,6 +161,7 @@ def main() -> None:
 
     if args.simflow_config is not None:
         config = utils.init_simflow_context(args.simflow_config, workflow=None).config
+
         metadata = config.metadata
 
         log_config = metadata.simprod.config.logging
@@ -219,17 +221,24 @@ def main() -> None:
     }
 
     psl_scan = {}
+    fits = 0
     with (
         PdfPages(args.plot_file) if args.plot_file is not None else nullcontext() as pdf
     ):
         for slope_group in lh5.ls(ideal_psl_scan, f"{args.hpge_detector}/psl_scan/"):
             slope = slope_group.split("/")[-1]
             psl_scan[slope] = {}
-            log.debug("... reading ideal waveforms from %s ...", slope)
+
+            sigma_start = settings.sigma_start
+            tau_start = settings.tau_start
 
             for depv_group in lh5.ls(
                 ideal_psl_scan, f"{args.hpge_detector}/psl_scan/{slope}/"
             ):
+                if fits % 20 == 0:
+                    msg = f"fitting electronics model #:{fits}"
+                    log.info(msg)
+
                 depv = depv_group.split("/")[-1]
 
                 with perf_block("read_ideal_wfs()"):
@@ -255,24 +264,25 @@ def main() -> None:
                     )
                     continue
 
-                # Run fit
-                log.info(
-                    "starting fit (sigma0=%.1f, tau0=%.1f) ...",
-                    settings.sigma_start,
-                    settings.tau_start,
-                )
                 with perf_block("fit_electronics_parameters()"):
                     result = fit_electronics_parameters(
                         **ideal_wfs,
                         data_superpulses=data_superpulses,
-                        sigma_start=settings.sigma_start,
-                        tau_start=settings.tau_start,
+                        sigma_start=sigma_start,
+                        tau_start=tau_start,
                         sigma_limits=tuple(settings.sigma_limits),
                         tau_limits=tuple(settings.tau_limits),
                         comparison_window=comparison_window,
                         weight_power=settings.weight_power,
                         max_calls=settings.max_calls,
+                        mode=settings.minimiser_mode,
+                        waveform_type="current",
                     )
+                    # seed
+
+                    sigma_start = result["sigma"]
+                    tau_start = result["tau"]
+                    fits += 1
 
                 # Write output
                 psl_scan[slope][depv] = {

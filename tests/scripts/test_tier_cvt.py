@@ -54,7 +54,7 @@ def test_union_detector_uids_uid_collision_raises(tmp_path):
     _write_detector_uids(f1, {"V01": 11})
     _write_detector_uids(f2, {"V02": 11})
 
-    with pytest.raises(ValueError, match="uid 11 maps to"):
+    with pytest.raises(ValueError, match="UID 11 maps to"):
         cvt.union_detector_uids([f1, f2])
 
 
