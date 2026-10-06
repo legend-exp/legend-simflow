@@ -11,26 +11,17 @@ _tier_setting = partial(deferred_tier_setting, config)
 
 
 def _optmap_patch(config, simid):
-    """The patch map configured for `simid`, or ``None`` if it has none.
+    # a single map for every simid, or a mapping <simid> -> <patch map>; no patch is []
+    patch = config.paths.optical_maps.get("lar_patch", [])
 
-    ``optical_maps.lar_patch`` is either a single map applied to every simid, or
-    a mapping ``<simid> -> <patch map>``: each SIS position needs its own patch,
-    and simids without a source need none.
-    """
-    patch = config.paths.optical_maps.get("lar_patch", None)
-
-    if patch is None or not isinstance(patch, Mapping):
+    if not isinstance(patch, Mapping):
         return patch
 
-    return patch.get(simid, None)
+    return patch.get(simid, [])
 
 
 def _optmap_lar(config, simid):
-    """The LAr optical map the opt tier reads for `simid`.
-
-    The patched map where a patch is configured, otherwise the map itself.
-    """
-    if _optmap_patch(config, simid) is not None:
+    if _optmap_patch(config, simid):
         return patterns.patched_optmap_filename(config, simid=simid)
 
     return config.paths.optical_maps.lar
@@ -43,35 +34,31 @@ rule gen_all_tier_opt:
         aggregate.gen_list_of_all_plots_outputs(config, tier="opt"),
 
 
-# defined only when a patch map is configured: without one the rule would have
-# no input, and the opt tier reads the base map directly
-if config.paths.optical_maps.get("lar_patch") is not None:
+rule patch_optical_map:
+    """Substitute a separately simulated region into the LAr optical map.
 
-    rule patch_optical_map:
-        """Substitute a separately simulated region into the LAr optical map.
+    The base map is simulated without hardware that is only present in some runs
+    -- a calibration source and its absorber, say -- so its detection
+    probabilities are wrong in the volume around it. This rule replaces that
+    region with a map of a smaller volume simulated with the hardware in place.
 
-        The base map is simulated without hardware that is only present in some
-        runs -- a calibration source and its absorber -- so its detection
-        probabilities are wrong in the volume around it. This rule replaces that
-        region with a map of a smaller volume simulated with the hardware in place.
+    Only runs for simids that configure a patch in
+    ``paths.optical_maps.lar_patch``; the opt tier of the others reads the base
+    map directly.
 
-        Runs only when ``paths.optical_maps.lar_patch`` is configured. The output is
-        a workflow product, so Snakemake builds it once and rebuilds it only if
-        either input map changes.
-
-        No wildcards are used.
-        """
-        message:
-            "Patching the LAr optical map"
-        input:
-            base=on_scratch_smk(config.paths.optical_maps.lar),
-            patch=lambda wc: on_scratch_smk(_optmap_patch(config, wc.simid)),
-        output:
-            patterns.patched_optmap_filename(config),
-        log:
-            patterns.patched_optmap_log_filename(config),
-        shell:
-            "reboost-optical -v patchmap {input.base} {input.patch} {output} &> {log}"
+    Uses wildcard `simid`.
+    """
+    message:
+        "Patching the LAr optical map for {wildcards.simid}"
+    input:
+        base=on_scratch_smk(config.paths.optical_maps.lar),
+        patch=lambda wc: on_scratch_smk(_optmap_patch(config, wc.simid)),
+    output:
+        temp(patterns.patched_optmap_filename(config)),
+    log:
+        patterns.patched_optmap_log_filename(config),
+    shell:
+        "reboost-optical -v patchmap {input.base} {input.patch} {output} &> {log}"
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.
