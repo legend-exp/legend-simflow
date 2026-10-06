@@ -9,6 +9,7 @@ from dbetto import AttrsDict
 
 import legendsimflow.aggregate as agg_mod
 from legendsimflow import aggregate as agg
+from legendsimflow import patterns
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings
 
@@ -369,6 +370,16 @@ def test_currmod_stuff(config):
     assert len(agg.gen_list_of_elecmods(config, runid)) == 1
     assert len(agg.gen_list_of_merged_elecmods(config, simid)) == 1
     assert len(agg.gen_list_of_currmod_plots_outputs(config, simid)) == 1
+
+    # one electronics-model scan file per detector, across all runs
+    cache = {
+        "l200-p02-r000-phy": {"V99000A": {}, "V99000B": {}},
+        "l200-p02-r001-phy": {"V99000A": {}},
+    }
+    assert agg.gen_list_of_elecmod_scans(config, cache) == [
+        patterns.output_elecmod_scan_filename(config, hpge_detector=det)
+        for det in ["V99000A", "V99000B"]
+    ]
 
     # the current-model fit plots are par-tier plot targets
     par_plots = agg.gen_list_of_plots_outputs(config, "par", simid)
