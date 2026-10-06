@@ -94,10 +94,14 @@ def get_simconfig(
 
 def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
     """Return the settings block for *tier* and the current experiment, empty if absent."""
-    try:
-        return config.metadata.simprod.config.tier[tier][config.experiment].settings
-    except FileNotFoundError:
-        return AttrsDict({})
+    tiers = config.metadata.simprod.config.tier
+    if (
+        tier in tiers
+        and config.experiment in tiers[tier]
+        and "settings" in tiers[tier][config.experiment]
+    ):
+        return tiers[tier][config.experiment].settings
+    return AttrsDict({})
 
 
 def simulates_hpge_psd(config: SimflowConfig) -> bool:
