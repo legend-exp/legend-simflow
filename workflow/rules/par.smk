@@ -600,6 +600,14 @@ rule build_superpulses_from_data:
     """
     message:
         "Building data superpulses for detector {wildcards.hpge_detector}"
+    input:
+        # params.opv reads the modelable-HPGe checkpoint, which Snakemake
+        # allows only if the checkpoint output is an input
+        _hpge_cache=(
+            []
+            if _build_per_runid
+            else patterns.detinfo_filename(config, "is_modelable")
+        ),
     params:
         # all runs of the Simflow, whether or not the detector is modelable in
         # them: the superpulses are a useful product on their own
@@ -645,6 +653,8 @@ rule build_hpge_psl_scan:
         unpack(smk_hpge_psd_simulation_inputs),
         scan_settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/ssd/scan_settings.yaml",
+        # params.opv reads the modelable-HPGe checkpoint
+        _hpge_cache=patterns.detinfo_filename(config, "is_modelable"),
     params:
         opv=smk_hpge_single_voltage,
     output:
