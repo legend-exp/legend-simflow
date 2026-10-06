@@ -66,6 +66,17 @@ STD_PSD_RULES = {
     "merge_current_pulse_model_pars",
 }
 
+# rules fitting the HPGe impurity profiles to data; gated by the hit-tier
+# `tune_hpge_impurities_on_data` setting
+IMPURITY_TUNING_RULES = {
+    "build_hpge_psl_scan",
+    "extract_elecmod_scan",
+    "merge_electronics_model_scan_pars",
+    "extract_drift_time_scan",
+    "merge_hpge_drift_time_scans",
+    "extract_hpge_impurity_models",
+}
+
 
 def _output_paths(base: Path) -> dict:
     """Redirect every generated output under *base* (a throwaway directory)."""
@@ -132,12 +143,15 @@ def overrides(
     return cfg
 
 
-def dag_rule_names(configfile: Path, config_overrides: Mapping) -> set[str]:
+def dag_rule_names(
+    configfile: Path, config_overrides: Mapping, targets: set[str] | None = None
+) -> set[str]:
     """Return the set of rule names making up the resolved workflow DAG.
 
     Built with the touch executor (see the module docstring), so rules both
     upstream and downstream of the modelable-HPGe checkpoint appear, independent
-    of what exists on disk. Raises if the DAG cannot be resolved (e.g. an input
+    of what exists on disk. *targets* are rule names to build instead of the
+    default ``all`` rule. Raises if the DAG cannot be resolved (e.g. an input
     has no producing rule).
     """
     output = smkapi.OutputSettings(verbose=False)
@@ -151,7 +165,7 @@ def dag_rule_names(configfile: Path, config_overrides: Mapping) -> set[str]:
             storage_settings=smkapi.StorageSettings(),
             resource_settings=smkapi.ResourceSettings(cores=all_cores),
         )
-        dag = wf_api.dag()
+        dag = wf_api.dag(dag_settings=smkapi.DAGSettings(targets=targets or set()))
         # the touch executor dumps the full job list to stdout; swallow it
         with contextlib.redirect_stdout(io.StringIO()):
             dag.execute_workflow(executor="touch")
@@ -270,6 +284,29 @@ def test_simulate_psd_toggles_dtmap_rules(tmp_path):
     assert STD_PSD_RULES.isdisjoint(off)
     # flipping the switch changes nothing but the drift-time map rules
     assert on - off == STD_PSD_RULES
+
+
+def test_tune_hpge_impurities_builds_tuning_chain(tmp_path):
+    """The impurity fit resolves down to the scan simulations and the data.
+
+    The fit output is requested directly: the default target reaches it only
+    through the par step, which needs every simid to have a single run. The
+    simlist selects the one tuning simid, which has a single run.
+    """
+    cfg = overrides(
+        tmp_path,
+        simlist="hit.birds_nest_K40",
+        experiment="legend",
+        settings_by_tier={
+            "hit": {"simulate_psd": True, "tune_hpge_impurities_on_data": True}
+        },
+    )
+    cfg["paths"]["l200data"] = str(Path(__file__).parent / "l200data/v3.0.0")
+    rules = dag_rule_names(
+        default_config, cfg, targets={"extract_hpge_impurity_models"}
+    )
+    assert rules >= IMPURITY_TUNING_RULES
+    assert {"build_superpulses_from_data", "build_tier_stp"} <= rules
 
 
 def test_skip_opt_drops_opt_tier(tmp_path):

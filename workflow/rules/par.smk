@@ -709,7 +709,6 @@ rule merge_electronics_model_scan_pars:
     run:
         import dbetto
 
-
         out_dict = {}
         for i, f in enumerate(input):
             out_dict |= dbetto.utils.load_dict(f)
