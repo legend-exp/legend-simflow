@@ -71,26 +71,6 @@ def load_vis_scene(config: SimflowConfig) -> dict:
     return scene
 
 
-def channel_names(config: SimflowConfig) -> list[str] | None:
-    """Return the names of the channels in the LEGEND-1000 geometry.
-
-    Resolve the template geometry configuration with
-    ``pygeoml1000.config.resolve_config()``, which looks up each channel in
-    the metadata. Return ``None`` for other geometry generators. The
-    ``geom_config_extra`` options of a simulation are not applied.
-    """
-    template = patterns.geom_template_config_filename(config)
-    gconfig = dbetto.utils.load_dict(template)
-    if gconfig.pop("executable", None) != "legend-pygeom-l1000":
-        return None
-
-    from pygeoml1000.config import resolve_config  # noqa: PLC0415
-
-    dbetto.Props.subst_vars(gconfig, var_values={"_": template.parent.resolve()})
-    os.environ["LEGEND1000_METADATA"] = str(config.paths.metadata)
-    return list(resolve_config(gconfig)["channelmap"])
-
-
 def make_hpge_mass_plot(
     config: SimflowConfig, geom_config: Mapping, output: str
 ) -> None:

@@ -40,7 +40,7 @@ from legendmeta import Legend1000Metadata, LegendMetadata, MetadataRepository
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
-from . import SimflowConfig, geometry, nersc
+from . import SimflowConfig, nersc, patterns
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
@@ -340,10 +340,19 @@ def init_simflow_context(
                 log_.warning(msg)
 
         # legend1000-metadata holds only default records, the channels come
-        # from the geometry
+        # from the template geometry config (geom_config_extra is not applied)
         kwargs = {}
         if metadata_cls is Legend1000Metadata:
-            kwargs["channels"] = geometry.channel_names(config)
+            from pygeoml1000.config import resolve_config  # noqa: PLC0415
+
+            template = patterns.geom_template_config_filename(config)
+            gconfig = dbetto.utils.load_dict(template)
+            gconfig.pop("executable", None)
+            dbetto.Props.subst_vars(
+                gconfig, var_values={"_": template.parent.resolve()}
+            )
+            os.environ["LEGEND1000_METADATA"] = str(config.paths.metadata)
+            kwargs["channels"] = list(resolve_config(gconfig)["channelmap"])
 
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB

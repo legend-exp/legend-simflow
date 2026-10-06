@@ -55,8 +55,9 @@ Here's a basic description of its fields:
   either `legend-metadata` or `legend1000-metadata`. It selects the
   {class}`~legendmeta.LegendMetadata` or {class}`~legendmeta.Legend1000Metadata`
   class to read the metadata. For LEGEND-1000, the Simflow takes the list of
-  channels from the geometry (see {func}`legendsimflow.geometry.channel_names`),
-  and the geometry generator reads the metadata at `paths.metadata` through the
+  channels from the template geometry configuration
+  (`<paths.config>/geom/<experiment>-geom-config.yaml`), and the geometry
+  generator reads the metadata at `paths.metadata` through the
   `LEGEND1000_METADATA` environment variable.
 - `benchmark`: section used to configure a benchmarking run:
   - `enabled`: boolean flag to enable/disable the feature
