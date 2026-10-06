@@ -124,25 +124,25 @@ def main() -> None:
     # PSD cuts as (A/E model, flag, pass if flag is False, description). The
     # flags are defined in legendsimflow.reboost.
     psd_cuts = {
-        "psd_st": (
+        "aoe_st": (
             "single_temp",
             "is_single_site",
             False,
             "low-side A/E cut (single template)",
         ),
-        "psd_psl_low": (
+        "aoe_psl_low": (
             "pulse_lib",
             "is_single_site",
             False,
             "low-side A/E cut (pulse library)",
         ),
-        "psd_psl_high": (
+        "aoe_psl_high": (
             "pulse_lib",
             "is_high_aoe",
             True,
             "high-side A/E cut (pulse library)",
         ),
-        "psd_psl": (
+        "aoe_psl": (
             "pulse_lib",
             "is_bb_like",
             False,
@@ -167,7 +167,7 @@ def main() -> None:
 
     # path in the output struct -> description. The levels of a path are cuts
     # applied in the order mul1, lar, psd; not_<cut> selects events failing
-    # <cut>. Events without a valid A/E pass neither <psd> nor not_<psd>.
+    # <cut>. Events without a valid A/E pass neither <aoe> nor not_<aoe>.
     descriptions: dict[str, str] = {}
     if has_geds:
         descriptions["hit"] = "all HPGe energy deposits in ON channels"

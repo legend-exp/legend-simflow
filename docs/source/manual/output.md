@@ -362,7 +362,7 @@ are configured with the `detector_groups` setting (see
 present. For example, with `detector_groups: {icpc: "V.*", bege: "B.*"}`, the
 output contains `pdf/mul1/lar/icpc`, `pdf/mul1/lar/bege` and `pdf/mul1/lar/all`.
 A level holds the group histograms of its selection next to the deeper levels,
-so group names cannot be cut levels (`lar`, `not_lar`, `psd_st`, ...).
+so group names cannot be cut levels (`lar`, `not_lar`, `aoe_st`, ...).
 
 Example, with the `all` group only:
 
@@ -374,13 +374,13 @@ pdf/
     ├── all
     ├── lar/
     │   ├── all
-    │   └── psd_psl/all
+    │   └── aoe_psl/all
     ├── not_lar/all
-    ├── psd_psl/all
-    └── not_psd_psl/all
+    ├── aoe_psl/all
+    └── not_aoe_psl/all
 ```
 
-`pdf/mul1/lar/psd_psl/all` contains multiplicity-1 events with no light in the
+`pdf/mul1/lar/aoe_psl/all` contains multiplicity-1 events with no light in the
 LAr instrumentation that pass both A/E cuts.
 
 #### Levels
@@ -397,33 +397,33 @@ OFF), i.e. `geds.quality.is_good_channel` is `True`.
 
 | PSD level      | A/E model           | Condition on all hits                                    |
 | -------------- | ------------------- | -------------------------------------------------------- |
-| `psd_st`       | single template     | `psd.single_temp.is_single_site` (low-side A/E cut)      |
-| `psd_psl_low`  | pulse-shape library | `psd.pulse_lib.is_single_site` (low-side A/E cut)        |
-| `psd_psl_high` | pulse-shape library | not `psd.pulse_lib.is_high_aoe` (high-side A/E cut)      |
-| `psd_psl`      | pulse-shape library | `psd.pulse_lib.is_bb_like` (low- and high-side A/E cuts) |
+| `aoe_st`       | single template     | `psd.single_temp.is_single_site` (low-side A/E cut)      |
+| `aoe_psl_low`  | pulse-shape library | `psd.pulse_lib.is_single_site` (low-side A/E cut)        |
+| `aoe_psl_high` | pulse-shape library | not `psd.pulse_lib.is_high_aoe` (high-side A/E cut)      |
+| `aoe_psl`      | pulse-shape library | `psd.pulse_lib.is_bb_like` (low- and high-side A/E cuts) |
 
 The single-template levels are present when the `hit` tier runs with
 `simulate_psd`, the pulse-shape library levels when it runs with
 `simulate_psd_with_psl` (see {ref}`hit-tier-settings`).
 
-The following paths are written, for each PSD level `<psd>` available:
+The following paths are written, for each PSD level `<aoe>` available:
 
 | Path                           | Selection                                        |
 | ------------------------------ | ------------------------------------------------ |
 | `hit`                          | all HPGe energy deposits                         |
 | `mul1`                         | multiplicity 1                                   |
 | `mul1/lar`, `mul1/not_lar`     | multiplicity 1, passing / failing the LAr veto   |
-| `mul1/<psd>`, `mul1/not_<psd>` | multiplicity 1, passing / failing the PSD cut    |
-| `mul1/lar/<psd>`               | multiplicity 1, passing the LAr veto and PSD cut |
+| `mul1/<aoe>`, `mul1/not_<aoe>` | multiplicity 1, passing / failing the PSD cut    |
+| `mul1/lar/<aoe>`               | multiplicity 1, passing the LAr veto and PSD cut |
 
 :::{warning}
 
 A PSD cut has three outcomes. Events with `psd.is_good` or `has_aoe` set to
-`False` for any hit pass neither `<psd>` nor `not_<psd>`. This is the case when
+`False` for any hit pass neither `<aoe>` nor `not_<aoe>`. This is the case when
 a detector is ON with valid PSD in data but its PSD response could not be
 simulated (e.g. because it is not included in the simulation model). These
 events are treated as background: rather than keeping events we cannot
-characterise, we cut them. As a consequence, `mul1/<psd>` and `mul1/not_<psd>`
+characterise, we cut them. As a consequence, `mul1/<aoe>` and `mul1/not_<aoe>`
 do not add up to `mul1`.
 
 :::
