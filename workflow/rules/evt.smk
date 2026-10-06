@@ -68,7 +68,9 @@ rule build_tier_evt:
         usability=rules.cache_detector_usabilities.output.usability,
     params:
         add_random_coincidences=_tier_setting("evt", "add_random_coincidences"),
-        geds_energy_thr_kev=_tier_setting("evt", "geds_energy_thr_kev"),
+        geds_energy_thr_kev=(
+            None if _skip_hit else _tier_setting("evt", "geds_energy_thr_kev")
+        ),
         spms_energy_thr_pe=_tier_setting("evt", "spms_energy_thr_pe"),
         lar_veto_multiplicity_thr=_tier_setting("evt", "lar_veto_multiplicity_thr"),
         lar_veto_energy_sum_pe_thr=_tier_setting("evt", "lar_veto_energy_sum_pe_thr"),

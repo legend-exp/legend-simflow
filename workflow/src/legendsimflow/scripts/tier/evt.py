@@ -146,7 +146,7 @@ def main() -> None:
     log_file = args.log_file
     metadata = config.metadata
     tier_evt_settings = get_tier_settings(config, "evt")
-    geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
+    geds_energy_thr_kev = None if skip_hit else tier_evt_settings.geds_energy_thr_kev
     spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr

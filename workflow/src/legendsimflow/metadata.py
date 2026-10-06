@@ -93,8 +93,24 @@ def get_simconfig(
 
 
 def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
-    """Return the settings block for *tier* and the current experiment."""
-    return config.metadata.simprod.config.tier[tier][config.experiment].settings
+    """Return the settings block for *tier* and the current experiment.
+
+    With ``skip_hit`` in the evt settings, the hit settings may be absent. All
+    HPGe modeling (pulse shapes, impurity tuning) is then switched off.
+    """
+    try:
+        return config.metadata.simprod.config.tier[tier][config.experiment].settings
+    except FileNotFoundError:
+        if tier == "hit" and get_tier_settings(config, "evt").get("skip_hit", False):
+            return AttrsDict(
+                {
+                    "simulate_psd": False,
+                    "simulate_psd_with_psl": False,
+                    "tune_hpge_impurities_on_data": False,
+                    "two_pass_aoe_correction": False,
+                }
+            )
+        raise
 
 
 def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:

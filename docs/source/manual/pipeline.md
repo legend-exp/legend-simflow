@@ -428,7 +428,9 @@ skip_hit: false
   HPGe data (no `spms` or `coincident/spms` tables).
 - `skip_hit` (bool, default `false`) — when `true`, the `hit` (HPGe) tier is
   skipped: the hit Snakemake rule is not run and the evt output contains only
-  SiPM data (no `geds` or `coincident/geds` tables).
+  SiPM data (no `geds` or `coincident/geds` tables). The hit tier settings and
+  `geds_energy_thr_kev` are then optional. Without hit tier settings, no HPGe
+  pulse shapes are simulated and no HPGe impurities are tuned.
 
 :::{note}
 
