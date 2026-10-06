@@ -227,14 +227,14 @@ Constant fields identifying each event.
 Per-event arrays collecting HPGe hits that pass the energy threshold (25 keV)
 and are from non-OFF detectors.
 
-| Field             | Type              | Units | Description                                                                                                             |
-| ----------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| `energy`          | `VectorOfVectors` | keV   | Hit energies from ON and AC detectors above threshold. Variable-length per event.                                       |
-| `energy_sum`      | `Array`           | keV   | Summed energy from ON detectors only (excludes AC). Scalar per event.                                                   |
-| `rawid`           | `VectorOfVectors` | —     | Detector channel UID for each hit, matching the channel identifiers used in LEGEND-200 data. Variable-length per event. |
-| `hit_idx`         | `VectorOfVectors` | —     | Row index in the `hit`-tier table, for looking up additional hit-level fields. Variable-length per event.               |
-| `is_good_channel` | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                             |
-| `multiplicity`    | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                        |
+| Field             | Type              | Units | Description                                                                                                                                                                                               |
+| ----------------- | ----------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `energy`          | `VectorOfVectors` | keV   | Hit energies from ON and AC detectors above threshold. Variable-length per event.                                                                                                                         |
+| `energy_sum`      | `Array`           | keV   | Summed energy from ON detectors only (excludes AC). Scalar per event.                                                                                                                                     |
+| `rawid`           | `VectorOfVectors` | —     | Detector UID in the simulated geometry for each hit. Named `rawid` to match LEGEND-200 data; equal to the data rawid only if the geometry was built from the same channel map. Variable-length per event. |
+| `hit_idx`         | `VectorOfVectors` | —     | Row index in the `hit`-tier table, for looking up additional hit-level fields. Variable-length per event.                                                                                                 |
+| `is_good_channel` | `VectorOfVectors` | —     | Boolean. `True` if the detector usability is ON (not AC or OFF). Variable-length per event.                                                                                                               |
+| `multiplicity`    | `Array`           | —     | Number of HPGe hits above threshold per event. Scalar per event.                                                                                                                                          |
 
 #### `geds/psd/` — PSD fields
 
@@ -276,7 +276,7 @@ argon.
 
 | Field          | Type              | Units | Description                                                                                                                                                                                                                                                                               |
 | -------------- | ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rawid`        | `VectorOfVectors` | —     | SiPM channel UIDs of the simulated geometry (the rawids of the channel map it was built with). Always the full list of non-OFF channels per event.                                                                                                                                        |
+| `rawid`        | `VectorOfVectors` | —     | SiPM channel UIDs in the simulated geometry. Named `rawid` to match LEGEND-200 data; equal to the data rawids only if the geometry was built from the same channel map. Always the full list of non-OFF channels per event.                                                               |
 | `energy`       | `VectorOfVectors` | —     | PE amplitudes per channel per event, filtered by the PE energy threshold. Nested variable-length array.                                                                                                                                                                                   |
 | `time`         | `VectorOfVectors` | ns    | PE times per channel per event, relative to `trigger/timestamp`. Nested variable-length array matching `energy`. Unlike `spms/t0` in LEGEND-200 data, which counts from the start of the waveform.                                                                                        |
 | `is_saturated` | `VectorOfVectors` | —     | Boolean SiPM saturation flag per channel. `True` if PE count exceeds threshold.                                                                                                                                                                                                           |

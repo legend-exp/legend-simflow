@@ -31,14 +31,14 @@ from legendsimflow.scripts import log_script_invocation
 
 
 def union_detector_uids(evt_files: list[str | Path]) -> dict[str, int]:
-    """Build the union ``name -> uid`` mapping over a set of evt files.
+    """Build the union detector name to UID mapping over a set of evt files.
 
     Different jobs in the same simid can produce evt files with different
     detector subsets when low-rate decays leave some detectors with zero hits.
     Their ``detector_uids`` structs then disagree on which detector names are
-    present, even though the underlying ``name -> uid`` mapping is consistent.
+    present, even though the underlying name to UID mapping is consistent.
     This helper unions the entries; any genuine collision (a name mapped to
-    different uids, or a uid mapped to different names, across files) is
+    different UIDs, or a UID mapped to different names, across files) is
     treated as a real inconsistency and raises.
     """
     union: dict[str, int] = {}
@@ -55,7 +55,7 @@ def union_detector_uids(evt_files: list[str | Path]) -> dict[str, int]:
                 raise ValueError(msg)
             if uid in uid_to_name and uid_to_name[uid] != name:
                 msg = (
-                    f"detector_uids inconsistency: uid {uid} maps to "
+                    f"detector_uids inconsistency: UID {uid} maps to "
                     f"'{uid_to_name[uid]}' in earlier evt files but to '{name}' in {f}"
                 )
                 raise ValueError(msg)
@@ -108,7 +108,7 @@ def main() -> None:
     else:
         # detector_uids may differ across jobs because low-rate decays can leave
         # some detectors with zero hits in some jobs (and thus absent from
-        # detector_uids). We union the mappings; a real (name, uid) collision is
+        # detector_uids). We union the mappings; a real (name, UID) collision is
         # raised by union_detector_uids.
         merged_uids = union_detector_uids(list(evt_files))
         merged = Struct({name: Scalar(uid) for name, uid in merged_uids.items()})

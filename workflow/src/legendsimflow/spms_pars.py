@@ -305,7 +305,7 @@ def reorder_rc_channels(
 
     `rc_data` comes from :func:`get_chunk_rc_data`. Its ``rawid`` field holds the
     rawids of the source run, which change when channels are recabled.
-    `uid_of_rawid` maps them to simulation uids (the detector IDs in the simulated
+    `uid_of_rawid` maps them to simulation UIDs (the detector IDs in the simulated
     geometry), matched by channel name. Raises if the events do not share the same
     channel list, or if the channels differ from `spms_uids`.
     """
@@ -321,7 +321,7 @@ def reorder_rc_channels(
             int(r) for r, u in zip(rawid[0], uids, strict=True) if u not in spms_uids
         ]
         msg = (
-            f"RC channels do not match the simulated SiPM channels: uids missing "
+            f"RC channels do not match the simulated SiPM channels: UIDs missing "
             f"in RC {missing}, RC rawids without a simulated channel {extra}"
         )
         raise ValueError(msg)
@@ -566,7 +566,7 @@ def get_rc_library(
     Returns
     -------
     ak.Array
-        Record array with fields ``rawid`` (channel UIDs, shape
+        Record array with fields ``rawid`` (rawids of the source run, shape
         ``(n_rc_events, n_channels)``), ``npe`` (PE energies, shape
         ``(n_rc_events, n_channels, n_pe)``), and ``t0`` (times relative to
         each window start, same shape as ``npe``).  Channel ordering within

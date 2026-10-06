@@ -230,7 +230,7 @@ def main() -> None:
             msg += f", opt={lh5.read_n_rows('tcm', hit_file['opt'])}"
         raise ValueError(msg)
 
-    # get the mapping of detector name to uid
+    # get the mapping of detector name to UID
     # NOTE: we check on disk because we are not sure which tables were processed in
     # the hit tiers
     det2uid = {}
@@ -363,7 +363,7 @@ def main() -> None:
                 )
 
             # the RC channels carry the rawids of the run they are drawn
-            # from: map them to the simulation uids through the channel names
+            # from: map them to the simulation UIDs through the channel names
             rc_uid_of_rawid = {
                 rawid: det2uid["opt"][name]
                 for name, rawid in rawid_map[rc_runid or runid].items()
@@ -602,11 +602,11 @@ def main() -> None:
                 # are ascending by UID.
                 n_events = len(unified_tcm)
                 is_empty_opt = ak.num(tcm["opt"].table_key) == 0
-                rawid = ak.Array([on_spms_uids] * n_events)
+                uids = ak.Array([on_spms_uids] * n_events)
 
-                # rawid is the same canonical list for every event (non-empty events
+                # the UIDs are the same canonical list for every event (non-empty events
                 # already carry all non-OFF channels in ascending UID order)
-                out_table.add_field("spms/rawid", VectorOfVectors(rawid))
+                out_table.add_field("spms/rawid", VectorOfVectors(uids))
 
                 energy_sel = energy[pesel][chansel]
                 # fill in empty arrays for events with no LAr edep

@@ -79,7 +79,7 @@ def main() -> None:
         for k in lh5.ls(_cvt_file_str, "evt/coincident/")
     }
 
-    # resolve detector-group regexes against the name->uid map written at
+    # resolve detector-group regexes against the name to UID map written at
     # evt-tier build time; the implicit "all" group is always emitted.
     detector_uids = lh5.read("detector_uids", str(cvt_file))
     name_to_uid = {name: int(detector_uids[name].value) for name in detector_uids}
@@ -165,9 +165,9 @@ def main() -> None:
         if has_geds:
             # awkward 2.x has no ak.isin: build per-group masks via flatten / np.isin / unflatten.
             counts = ak.num(data.geds.rawid)
-            flat_rawid = ak.flatten(data.geds.rawid)
+            flat_uid = ak.flatten(data.geds.rawid)
             det_in_group = {
-                g: ak.unflatten(np.isin(flat_rawid, uids), counts)
+                g: ak.unflatten(np.isin(flat_uid, uids), counts)
                 for g, uids in group_uids.items()
             }
 

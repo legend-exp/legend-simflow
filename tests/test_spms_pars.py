@@ -84,13 +84,13 @@ def _rc_data(rawid):
 
 
 def test_reorder_rc_channels_recabled():
-    # sim uids 1, 2, 3 were recabled to rawids 103, 101, 102 in the RC run
+    # sim UIDs 1, 2, 3 were recabled to rawids 103, 101, 102 in the RC run
     uid_of_rawid = {101: 2, 102: 3, 103: 1}
     rc = _rc_data([101, 102, 103])
 
     out = spms_pars.reorder_rc_channels(rc, uid_of_rawid, [1, 2, 3])
 
-    # uid 1 <- rawid 103 (slot 2), uid 2 <- rawid 101 (slot 0), uid 3 <- rawid 102 (slot 1)
+    # UID 1 <- rawid 103 (slot 2), UID 2 <- rawid 101 (slot 0), UID 3 <- rawid 102 (slot 1)
     assert ak.to_list(out.rawid) == [[103, 101, 102]] * 2
     assert ak.to_list(out.npe) == [[[3.0], [1.0], [2.0]]] * 2
     assert ak.to_list(out.t0) == [[[30.0], [10.0], [20.0]]] * 2
