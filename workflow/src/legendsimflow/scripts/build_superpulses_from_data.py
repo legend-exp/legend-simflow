@@ -244,7 +244,9 @@ def main() -> int:
     # for each we have a AttrsDict with fields
     # "hit_idx", "file_idx", "n_sel"
 
-    rawid = lmeta.channelmap(lmeta.datasets.runinfo["p16"]["r000"].phy.start_key)[args.detector].daq.rawid
+    rawid = lmeta.channelmap(lmeta.datasets.runinfo["p16"]["r000"].phy.start_key)[
+        args.detector
+    ].daq.rawid
     wf_indices, drift_times = lookup_wfs_indices(
         slices,
         rawid=rawid,
@@ -275,7 +277,6 @@ def main() -> int:
                 msg = f"... not enough waveforms {slice_wfs_indices.n_sel} found for {current_slice} skipping"
                 log.warning(msg)
                 continue
-                
 
             # extract the waveform
             wf_data = get_wfs_for_slice(

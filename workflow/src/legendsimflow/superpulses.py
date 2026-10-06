@@ -285,12 +285,17 @@ def lookup_superpulse_inputs(
 
     evt_path = df_cfg[f"tier_{evt_tier_name}"]
     raw_path = df_cfg.tier_raw
-    
-    evt_files = sorted(
-        (evt_path / data_type / period / run).glob("*.lh5")
-    )[:max_files]
 
-    raw_files = [Path(str(file).replace(str(evt_path),str(raw_path)).replace(evt_tier_name,"raw")) for file in evt_files]
+    evt_files = sorted((evt_path / data_type / period / run).glob("*.lh5"))[:max_files]
+
+    raw_files = [
+        Path(
+            str(file)
+            .replace(str(evt_path), str(raw_path))
+            .replace(evt_tier_name, "raw")
+        )
+        for file in evt_files
+    ]
     if not evt_files:
         msg = f"no evt tier files found for {data_runid}."
         raise FileNotFoundError(msg)
@@ -330,7 +335,7 @@ def _read_and_sel_evts(
         & (evt_data.geds.multiplicity == 1)
         & (ak.all(evt_data.geds.rawid == rawid, axis=-1))
     )
-        
+
     # `t0_field` names the event start time used for the drift time; it is set
     # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
     # those are exactly the low-p.e. events. `t0_field` is None only when the

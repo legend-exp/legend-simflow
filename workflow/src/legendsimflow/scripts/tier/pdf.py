@@ -127,7 +127,14 @@ def main() -> None:
     mul2_hist = None
 
     if has_geds:
-        for cut in ("hit", "mul", "mul_psd","mul_psd_psl","mul_psd_high","mul_psd_two_side"):
+        for cut in (
+            "hit",
+            "mul",
+            "mul_psd",
+            "mul_psd_psl",
+            "mul_psd_high",
+            "mul_psd_two_side",
+        ):
             histograms[cut] = {g: h1() for g in groups}
         fail_histograms["psd"] = {g: h1() for g in groups}
         fail_histograms["psd_psl"] = {g: h1() for g in groups}
@@ -139,7 +146,13 @@ def main() -> None:
     # the LAr-veto histograms are HPGe-energy spectra: without hit-tier data
     # (i.e. skip_hit productions) there is nothing to fill them with.
     if has_geds and has_spms_coinc:
-        for cut in ("mul_lar", "mul_lar_psd","mul_lar_psd_psl","mul_lar_psd_high","mul_lar_psd_two_side"):
+        for cut in (
+            "mul_lar",
+            "mul_lar_psd",
+            "mul_lar_psd_psl",
+            "mul_lar_psd_high",
+            "mul_lar_psd_two_side",
+        ):
             histograms[cut] = {g: h1() for g in groups}
         fail_histograms["lar"] = {g: h1() for g in groups}
 
@@ -161,7 +174,7 @@ def main() -> None:
             & d.geds.psd.single_temp.is_single_site,
             axis=-1,
         )
-    
+
     def _psd_mask_psl(d: ak.Array) -> ak.Array:
         return ak.all(
             d.geds.psd.is_good
@@ -169,6 +182,7 @@ def main() -> None:
             & d.geds.psd.pulse_lib.is_single_site,
             axis=-1,
         )
+
     def _psd_mask_high(d: ak.Array) -> ak.Array:
         return ak.all(
             d.geds.psd.is_good
@@ -176,6 +190,7 @@ def main() -> None:
             & (~d.geds.psd.pulse_lib.is_high_aoe),
             axis=-1,
         )
+
     def _psd_mask_two_side(d: ak.Array) -> ak.Array:
         return ak.all(
             d.geds.psd.is_good
@@ -183,7 +198,6 @@ def main() -> None:
             & (d.geds.psd.pulse_lib.is_bb_like),
             axis=-1,
         )
-        
 
     for chunk in iterator:
         data = chunk.view_as("ak")
@@ -232,26 +246,37 @@ def main() -> None:
             data_m1_psd = data_m1[psd_pass_m1]
             det_m1_psd = {g: m[psd_pass_m1] for g, m in det_m1.items()}
             _fill_per_group(histograms["mul_psd"], data_m1_psd.geds.energy, det_m1_psd)
-            
+
             # psl
             psd_psl_pass_m1 = _psd_mask_psl(data_m1)
             data_m1_psd_psl = data_m1[psd_psl_pass_m1]
             det_m1_psd_psl = {g: m[psd_psl_pass_m1] for g, m in det_m1.items()}
-            _fill_per_group(histograms["mul_psd_psl"], data_m1_psd_psl.geds.energy, det_m1_psd_psl)
+            _fill_per_group(
+                histograms["mul_psd_psl"], data_m1_psd_psl.geds.energy, det_m1_psd_psl
+            )
 
             # high
             psd_high_pass_m1 = _psd_mask_high(data_m1)
             data_m1_psd_high = data_m1[psd_high_pass_m1]
             det_m1_psd_high = {g: m[psd_high_pass_m1] for g, m in det_m1.items()}
-            _fill_per_group(histograms["mul_psd_high"], data_m1_psd_high.geds.energy, det_m1_psd_high)
+            _fill_per_group(
+                histograms["mul_psd_high"],
+                data_m1_psd_high.geds.energy,
+                det_m1_psd_high,
+            )
 
             # two side
             psd_two_side_pass_m1 = _psd_mask_two_side(data_m1)
             data_m1_psd_two_side = data_m1[psd_two_side_pass_m1]
-            det_m1_psd_two_side = {g: m[psd_two_side_pass_m1] for g, m in det_m1.items()}
-            _fill_per_group(histograms["mul_psd_two_side"], data_m1_psd_two_side.geds.energy, det_m1_psd_two_side)
+            det_m1_psd_two_side = {
+                g: m[psd_two_side_pass_m1] for g, m in det_m1.items()
+            }
+            _fill_per_group(
+                histograms["mul_psd_two_side"],
+                data_m1_psd_two_side.geds.energy,
+                det_m1_psd_two_side,
+            )
 
-            
             if has_spms_coinc:
                 psd_pass_m1_lar = _psd_mask(data_m1_lar)
                 data_m1_lar_psd = data_m1_lar[psd_pass_m1_lar]
@@ -265,7 +290,9 @@ def main() -> None:
                 # psl
                 psd_psl_pass_m1_lar = _psd_mask_psl(data_m1_lar)
                 data_m1_lar_psd_psl = data_m1_lar[psd_psl_pass_m1_lar]
-                det_m1_lar_psd_psl = {g: m[psd_psl_pass_m1_lar] for g, m in det_m1_lar.items()}
+                det_m1_lar_psd_psl = {
+                    g: m[psd_psl_pass_m1_lar] for g, m in det_m1_lar.items()
+                }
                 _fill_per_group(
                     histograms["mul_lar_psd_psl"],
                     data_m1_lar_psd_psl.geds.energy,
@@ -275,7 +302,9 @@ def main() -> None:
                 # high
                 psd_high_pass_m1_lar = _psd_mask_high(data_m1_lar)
                 data_m1_lar_psd_high = data_m1_lar[psd_high_pass_m1_lar]
-                det_m1_lar_psd_high = {g: m[psd_high_pass_m1_lar] for g, m in det_m1_lar.items()}
+                det_m1_lar_psd_high = {
+                    g: m[psd_high_pass_m1_lar] for g, m in det_m1_lar.items()
+                }
                 _fill_per_group(
                     histograms["mul_lar_psd_high"],
                     data_m1_lar_psd_high.geds.energy,
@@ -284,14 +313,16 @@ def main() -> None:
                 # two side
                 psd_two_side_pass_m1_lar = _psd_mask_two_side(data_m1_lar)
                 data_m1_lar_psd_two_side = data_m1_lar[psd_two_side_pass_m1_lar]
-                det_m1_lar_psd_two_side = {g: m[psd_two_side_pass_m1_lar] for g, m in det_m1_lar.items()}
+                det_m1_lar_psd_two_side = {
+                    g: m[psd_two_side_pass_m1_lar] for g, m in det_m1_lar.items()
+                }
                 _fill_per_group(
                     histograms["mul_lar_psd_two_side"],
                     data_m1_lar_psd_two_side.geds.energy,
                     det_m1_lar_psd_two_side,
                 )
 
-            #default
+            # default
             psd_fail_mask = (
                 ak.all(
                     data_m1.geds.psd.is_good & data_m1.geds.psd.single_temp.has_aoe,
@@ -364,7 +395,6 @@ def main() -> None:
         "fail/psd": "multiplicity-1 events with valid PSD failing the single site PSD cut",
         "fail/psd_psl": "multiplicity-1 events with valid PSD failing the single site PSD cut with pulse library",
         "fail/psd_high": "multiplicity-1 events with valid PSD failing the high A/E PSD cut",
-
     }
 
     output_dict: dict[str, Struct | Histogram] = {
