@@ -194,6 +194,60 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert _sum("pdf/fail/psd/all") == 1
 
 
+def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
+    # all events m1; columns: has_aoe, is_single_site, is_high_aoe, is_bb_like
+    # - event 0: 500 keV,  T, T, F, T, spms=False -> passes all cuts
+    # - event 1: 1000 keV, T, F, F, F, spms=False -> fails low side
+    # - event 2: 1500 keV, T, T, T, F, spms=False -> fails high side
+    # - event 3: 2000 keV, F, F, F, F, spms=False -> no A/E, excluded
+    # - event 4: 2500 keV, T, T, F, T, spms=True  -> passes all, LAr vetoed
+    def _vov(values):
+        return VectorOfVectors(data=[[v] for v in values])
+
+    pulse_lib = Table(
+        col_dict={
+            "has_aoe": _vov([True, True, True, False, True]),
+            "is_single_site": _vov([True, False, True, False, True]),
+            "is_high_aoe": _vov([False, False, True, False, False]),
+            "is_bb_like": _vov([True, False, False, False, True]),
+        }
+    )
+    psd = Table(col_dict={"is_good": _vov([True] * 5), "pulse_lib": pulse_lib})
+    geds = Table(
+        col_dict={
+            "energy": _vov([500.0, 1000.0, 1500.0, 2000.0, 2500.0]),
+            "rawid": _vov([1] * 5),
+            "is_good_channel": _vov([True] * 5),
+            "multiplicity": Array(np.ones(5, dtype=np.int32)),
+            "psd": psd,
+        }
+    )
+    spms = Array(np.array([False, False, False, False, True]))
+    evt = Table(col_dict={"geds": geds, "coincident": Table(col_dict={"spms": spms})})
+
+    cvt_file = tmp_path / "cvt.lh5"
+    lh5.write(evt, "evt", cvt_file, wo_mode="write_safe")
+    _write_cvt_root(cvt_file, ["V01"], [1])
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
+
+    # no single_temp model in the input: no single-template histograms
+    assert "pdf/mul_psd" not in lh5.ls(pdf_file, "pdf/")
+    assert "pdf/fail/psd" not in lh5.ls(pdf_file, "pdf/fail/")
+
+    def _sum(path):
+        return lh5.read_as(path, pdf_file, "hist").sum()
+
+    expected = {
+        "psd_psl": (3, 2, 1),
+        "psd_high": (3, 2, 1),
+        "psd_two_side": (2, 1, 2),
+    }
+    for cut, (n_pass, n_pass_lar, n_fail) in expected.items():
+        assert _sum(f"pdf/mul_{cut}/all") == n_pass
+        assert _sum(f"pdf/mul_lar_{cut}/all") == n_pass_lar
+        assert _sum(f"pdf/fail/{cut}/all") == n_fail
+
+
 def _make_cvt_file_no_spms(path: Path) -> None:
     """Write a minimal cvt LH5 file with no spms field (mimics ``--skip-opt``)."""
     multiplicity = Array(np.array([1, 1, 1, 1, 2, 1], dtype=np.int32))
