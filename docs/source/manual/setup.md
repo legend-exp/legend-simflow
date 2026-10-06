@@ -49,7 +49,8 @@ Here's a basic description of its fields:
 
 - `legend_metadata_version`: optionally specify a revision (anything that
   `git checkout` accepts) for the _legend-metadata_ instance used by the
-  simflow. If you are _developing_ metadata, comment this option.
+  simflow. If you are _developing_ metadata, comment this option. The revision
+  must contain the HPGe operational voltages in `hardware/configuration/opvs/`.
 - `benchmark`: section used to configure a benchmarking run:
   - `enabled`: boolean flag to enable/disable the feature
   - `n_primaries`: number of primary events to be simulated in the lower tiers

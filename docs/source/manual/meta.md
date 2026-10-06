@@ -667,6 +667,10 @@ detector_groups:
 Metadata is organized in this directory by experimental configuration (first
 level) and detector type (second level), mirroring the `tier/` structure.
 
+The operational voltages of the HPGe detectors are hardware data and are not
+stored here. The Simflow reads them from `hardware/configuration/opvs/` in the
+metadata (see {func}`legendsimflow.aggregate.gen_hpge_modeling_status`).
+
 (ssd-settings-meta)=
 
 ### Pulse shape simulation settings
@@ -737,7 +741,7 @@ resolution parameters. When present, it can supplement or fully replace
 `l200data` as the source of energy resolution parameters — enabling simulations
 for experiments that have not yet collected data (e.g. LEGEND-1000). The
 structure follows the same validity-based format as
-`pars/{experiment}/geds/opv/`.
+`pars/{experiment}/geds/skip/`.
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/eresmod/l200-p03-r%-T%-all-eresmod.yaml

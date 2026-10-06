@@ -368,13 +368,15 @@ def gen_hpge_modeling_status(
             "min_voltage_above_depletion_in_V", 100
         )
 
+    opvs = metadata.hardware.configuration.opvs.on(timestamp)
+
     status = {}
     for _, hpge in chmap.group("system").geds.items():
         name = hpge.name
 
         # off detectors (and others without a bias) have no operational voltage
         try:
-            operational_voltage = get_hpge_voltage(config, name, runid)
+            operational_voltage = int(opvs[name].operational_voltage_in_V)
         except KeyError:
             operational_voltage = None
 
@@ -572,21 +574,6 @@ def gen_list_of_all_runids(config) -> set[str]:
     }
 
 
-def get_hpge_voltage(config: SimflowConfig, hpge: str, runid: str) -> int:
-    """Get the operational voltage for an HPGe in a given run.
-
-    Returns the voltage as an integer.
-    """
-    try:
-        opv = simpars(config.metadata, "geds.opv", runid, config.experiment)[
-            hpge
-        ].operational_voltage_in_V
-    except KeyError as e:
-        msg = f"operational voltage for hpge {hpge} not found in run {runid}"
-        raise KeyError(msg) from e
-    return int(opv)
-
-
 def get_hpge_crystal_metadata_usability(config: SimflowConfig, hpge: str) -> str | None:
     """Get the crystal metadata usability for an HPGe detector.
 
@@ -612,15 +599,15 @@ def gen_list_of_dtmaps(
     """Generate the list of HPGe drift-time map files for a `runid`."""
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+        opvs = config.metadata.hardware.configuration.opvs.on(start_key(config, runid))
         return [
             patterns.output_dtmap_filename(
                 config,
                 hpge_detector=hpge,
-                hpge_voltage=get_hpge_voltage(config, hpge, runid),
+                hpge_voltage=int(opvs[hpge].operational_voltage_in_V),
             )
             for hpge in hpges
         ]
-    # use the cache to avoid calling get_hpge_voltage()
     hpge_voltages = cache[runid]
     return [
         patterns.output_dtmap_filename(
@@ -698,15 +685,15 @@ def gen_list_of_ideal_psls(
     """
     if cache is None:
         hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+        opvs = config.metadata.hardware.configuration.opvs.on(start_key(config, runid))
         return [
             patterns.output_ideal_psl_filename(
                 config,
                 hpge_detector=hpge,
-                hpge_voltage=get_hpge_voltage(config, hpge, runid),
+                hpge_voltage=int(opvs[hpge].operational_voltage_in_V),
             )
             for hpge in hpges
         ]
-    # use the cache to avoid calling get_hpge_voltage()
     hpge_voltages = cache[runid]
     return [
         patterns.output_ideal_psl_filename(
@@ -772,16 +759,18 @@ def gen_list_of_dtmap_plots_outputs(
     for runid in get_runlist(config, simid):
         if cache is None:
             hpges = gen_list_of_hpges_valid_for_modeling(config, runid)
+            opvs = config.metadata.hardware.configuration.opvs.on(
+                start_key(config, runid)
+            )
             for hpge in hpges:
                 files.add(
                     patterns.plot_dtmap_filename(
                         config,
                         hpge_detector=hpge,
-                        hpge_voltage=get_hpge_voltage(config, hpge, runid),
+                        hpge_voltage=int(opvs[hpge].operational_voltage_in_V),
                     )
                 )
         else:
-            # use the cache to avoid calling get_hpge_voltage()
             for hpge, entry in cache[runid].items():
                 files.add(
                     patterns.plot_dtmap_filename(
