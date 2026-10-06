@@ -48,3 +48,22 @@ def test_tcm(legend_testdata):
 
     assert tcm_new.table_key.tolist() == tcm_sort.table_key.tolist()
     assert tcm_new.row_in_table.tolist() == tcm_sort.row_in_table.tolist()
+
+
+def test_ak_by_channel():
+    # channel 3 has two hits in the first event, channel 9 is not in the list
+    uids = ak.Array([[3, 1, 3], [], [2, 9]])
+    pes = ak.Array([[[1.0], [2.0, 2.5], [3.0]], [], [[4.0], [9.0]]])
+
+    out = awkward.ak_by_channel(pes, uids, [1, 2, 3])
+    assert out.to_list() == [
+        [[2.0, 2.5], [], [1.0, 3.0]],
+        [[], [], []],
+        [[], [4.0], []],
+    ]
+
+    counts = ak.Array([[1, 2, 3], [], [4, 9]])
+    out = awkward.ak_by_channel(counts, uids, [1, 2, 3], reduce=ak.sum)
+    assert out.to_list() == [[2, 0, 4], [0, 0, 0], [0, 4, 0]]
+
+    assert awkward.ak_by_channel(pes, uids, []).to_list() == [[], [], []]

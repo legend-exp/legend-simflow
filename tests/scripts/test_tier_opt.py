@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 
+import awkward as ak
+import h5py
 import lh5
 import numpy as np
+import pyg4ometry
+import pygeomtools
 import pytest
+import reboost
 import yaml
 from dbetto import AttrsDict
+from lgdo import Array, Table, VectorOfVectors
 
 from legendsimflow.scripts.tier import opt
 
@@ -159,3 +166,101 @@ def test_resolve_map_scaling_without_default_raises():
     """A missing channel is an error rather than a silent guess."""
     with pytest.raises(KeyError, match="no optmap_scaling_factor entry"):
         opt.resolve_map_scaling({_SIPM_ON: 0.42}, _SIPM_OFF)
+
+
+@pytest.mark.needs_remage
+def test_opt_script_tracked_photons(
+    tmp_path,
+    monkeypatch,
+    legend_stp_path,
+    legend_gdml_path,
+    legend_detector_usabilities_path,
+):
+    stp_file = tmp_path / "stp.lh5"
+    shutil.copy(legend_stp_path, stp_file)
+
+    lar = lh5.read_as("stp/liquid_argon", stp_file, library="ak")
+    n_lar = len(lar)
+    assert n_lar > 0, "no liquid argon rows in the stp file"
+
+    # add photons in one SiPM: one row 100 ns after each argon row, with k
+    # photons 1 us apart, so that no two of them are clustered. a last row, 1 ms
+    # after the last argon row, has no argon row in its TCM row
+    sens_tables = pygeomtools.detectors.get_all_senstables(
+        pyg4ometry.gdml.Reader(str(legend_gdml_path)).getRegistry()
+    )
+    evtid = np.append(np.asarray(lar.evtid), lar.evtid[-1])
+    t0 = np.append(np.asarray(lar.t0) + 100, lar.t0[-1] + 1e6)
+    n_ph = np.append(np.arange(n_lar) % 4, 2)
+    times = ak.Array([t + 1000 * np.arange(n) for t, n in zip(t0, n_ph, strict=True)])
+    sipm_table = Table(
+        {
+            "evtid": Array(evtid),
+            "t0": Array(t0, attrs={"units": "ns"}),
+            "time": VectorOfVectors(times, attrs={"units": "ns"}),
+        }
+    )
+    reboost.write_hit_table_chunk(
+        sipm_table, f"stp/{_SIPM_ON}", stp_file, uid=sens_tables[_SIPM_ON].uid
+    )
+    with h5py.File(stp_file, "a") as f:
+        del f["tcm"]
+    reboost.build_remage_tcm(stp_file, stp_file, lh5_group="stp")
+
+    n_tcm = lh5.read_n_rows("tcm", stp_file)
+    part_file = tmp_path / "partitions.yaml"
+    part_file.write_text(
+        yaml.safe_dump({"job_0000": {"l200-p03-r000-phy": [0, n_tcm - 1]}})
+    )
+
+    raw = yaml.safe_load((dummyprod / "simflow-config-l200.yaml").read_text())
+    raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    config_path = tmp_path / "simflow-config-l200.yaml"
+    config_path.write_text(yaml.safe_dump(raw))
+
+    opt_file = tmp_path / "opt.lh5"
+    monkeypatch.setattr(sys, "argv", [
+        "opt",
+        "--stp-file", str(stp_file),
+        "--geom-file", str(legend_gdml_path),
+        "--simstat-part-file", str(part_file),
+        "--usability-file", str(legend_detector_usabilities_path / "usability.yaml"),
+        "--jobid", "0000",
+        "--scintillator-volume-name", "liquid_argon",
+        "--opt-file", str(opt_file),
+        "--simflow-config", str(config_path),
+    ])  # fmt: skip
+    settings = opt.get_tier_settings
+    monkeypatch.setattr(
+        opt,
+        "get_tier_settings",
+        lambda config, tier: AttrsDict(
+            settings(config, tier)
+            | {
+                "light_source": "tracked_photons",
+                # ignored with tracked photons
+                "optmap_scaling_factor": 0.3,
+                "store_expected_pes": True,
+                "max_pes_per_hit_per_sipm": 2,
+            }
+        ),
+    )
+    opt.main()
+
+    # one row per row of the SiPM table, also the one without argon
+    out = lh5.read_as(f"hit/{_SIPM_ON}", opt_file, library="ak")
+    assert out.evtid.to_list() == evtid.tolist()
+    assert np.allclose(ak.to_numpy(out.t0), t0)
+    assert "expected_pes" not in out.fields
+    # capped at 2 photoelectrons per row, the first ones in time
+    n_kept = np.minimum(n_ph, 2)
+    assert ak.num(out.dt).to_list() == n_kept.tolist()
+    expected_dt = ak.Array([1000 * np.arange(n) for n in n_kept])
+    assert ak.all(abs(ak.flatten(out.dt - expected_dt)) < 1e-2)
+    assert out.is_saturated.to_list() == (n_ph >= 2).tolist()
+
+    # a SiPM without photons gets an empty table
+    assert lh5.read_n_rows(f"hit/{_SIPM_AC}", opt_file) == 0
+    assert sens_tables[_SIPM_AC].uid in reboost.get_remage_detector_uids(
+        opt_file, lh5_table="hit"
+    )
