@@ -94,14 +94,10 @@ def get_simconfig(
 
 def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
     """Return the settings block for *tier* and the current experiment, empty if absent."""
-    tiers = config.metadata.simprod.config.tier
-    if (
-        tier in tiers
-        and config.experiment in tiers[tier]
-        and "settings" in tiers[tier][config.experiment]
-    ):
-        return tiers[tier][config.experiment].settings
-    return AttrsDict({})
+    try:
+        return config.metadata.simprod.config.tier[tier][config.experiment].settings
+    except FileNotFoundError:
+        return AttrsDict({})
 
 
 def simulates_hpge_psd(config: SimflowConfig) -> bool:
@@ -116,15 +112,11 @@ def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callabl
 
 
 def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
-    """Return the settings block for *par* and the current experiment."""
-    if (
-        config.experiment in config.metadata.simprod.config.pars
-        and par in config.metadata.simprod.config.pars[config.experiment].geds
-        and "settings"
-        in config.metadata.simprod.config.pars[config.experiment].geds[par]
-    ):
+    """Return the settings block for *par* and the current experiment, empty if absent."""
+    try:
         return config.metadata.simprod.config.pars[config.experiment].geds[par].settings
-    return AttrsDict({})
+    except FileNotFoundError:
+        return AttrsDict({})
 
 
 def smk_hash_simconfig(
