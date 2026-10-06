@@ -628,7 +628,7 @@ def output_elecmod_scan_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the electronics-model scan parameter file for a detector."""
     pat = (
         config.paths.pars
-        / "hpge/impurityscan/elecmod/{hpge_detector}-elecmod-scan.yaml"
+        / "hpge/impurityscan/elecmod/singles/{hpge_detector}-elecmod-scan.yaml"
     )
     return _expand(pat, **kwargs)
 
@@ -649,6 +649,11 @@ def log_elecmod_scan_filename(config: SimflowConfig, **kwargs) -> Path:
         / "hpge/impurityscan/elecmod/{hpge_detector}-elecmod-scan.log"
     )
     return _expand(pat, **kwargs)
+
+
+def output_elecmod_scan_merged_filename(config: SimflowConfig) -> Path:
+    """The path to the merged electronics-model scan parameter file for a `simid`."""
+    return config.paths.pars / "hpge/impurityscan/elecmod/elecmod-scan.yaml"
 
 
 # drift time scan

@@ -229,6 +229,17 @@ def test_currmod_filenames(config):
     assert result.suffix == ".yaml"
     assert "elecmod" in str(result)
 
+    result = p.output_elecmod_scan_filename(config, hpge_detector=DET)
+    assert isinstance(result, Path)
+    assert DET in str(result)
+    assert result.suffix == ".yaml"
+    assert result.parent.name == "singles"
+
+    merged = p.output_elecmod_scan_merged_filename(config)
+    assert isinstance(merged, Path)
+    assert merged.suffix == ".yaml"
+    assert merged.parent == result.parent.parent
+
     result = p.output_superpulses_filename(config, hpge_detector=DET)
     assert isinstance(result, Path)
     assert DET in str(result)

@@ -37,12 +37,8 @@ from legendsimflow.drift_time import (
     get_drift_time_chi2,
     get_simulated_drift_time_obs,
     get_simulated_drift_times,
-    plot_drift_time_obs,
 )
-from legendsimflow.impurity_tuning import (
-    plot_cost_surface,
-    read_evt_data,
-)
+from legendsimflow.impurity_tuning import get_wf_chi2, plot_cost_surface, read_evt_data
 from legendsimflow.metadata import get_runlist
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
@@ -66,6 +62,7 @@ def _map_to_runs(
     mapping={
         "drift_time_files": "input.drift_time",
         "data_path": "params.data_path",
+        "elecmod_file": "input.elecmod_file",
         "pars_file": "output.pars_file",
         "plot_file": "output.plot_file",
         "settings": "input.settings",
@@ -98,7 +95,7 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--elecmod",
+        "--elecmod-file",
         help="input YAML file for the electronics model",
     )
     parser.add_argument(
@@ -169,7 +166,12 @@ def main() -> None:
         dbetto.utils.load_dict(args.settings) if args.settings is not None else {}
     ).get("impurity_fit", {})
     energy_range = settings.get("energy_range_in_keV", [1500, 2500])
+
+    # scale for in cost functions
     dt_uncertainty = settings.get("drift_time_uncertainty_in_ns", 50)
+    wf_scale = settings.get("waveform_uncertainty", 0.5)
+
+    # settings of the drift time observables, e.g. percentile, smoothing, peak threshold
     obs_settings = settings.get("drift_time_observables", {})
     dt_kwargs = {
         "percentile": obs_settings.get("percentile", 90),
@@ -179,6 +181,7 @@ def main() -> None:
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 
     run_files = _map_to_runs(config, args.simids, drift_time_files)
+    elecmod = dbetto.AttrsDict(dbetto.utils.load_dict(args.elecmod_file))
 
     # 1. load data
     msg = f"... loading data from runs {list(run_files)} and {args.data_path}"
@@ -195,27 +198,19 @@ def main() -> None:
             msg = f"... processing {det}"
             log.info(msg)
 
-            # 3. get data observables
+            # get data observables
             with perf_block("get_data_drift_times()"):
                 dts = get_data_drift_times(data, det, ranges=energy_range)
 
                 n = {run: len(dt) for run, dt in dts.items()}
 
-                data_dt_obs, weights, edges = get_data_drift_time_obs(
+                data_dt_obs, _, _ = get_data_drift_time_obs(
                     np.concatenate(dts.values()), **dt_kwargs
                 )
 
-            with perf_block("plot_drift_time_obs()"):
-                fig = plot_drift_time_obs(
-                    np.concatenate(dts.values()), data_dt_obs, weights, edges
-                )
-                decorate(fig)
-                pdf.savefig()
-                plt.close(fig)
-
             log.info("... found data observables (%f, %f)", *data_dt_obs)
 
-            # 4. get mc observables
+            # get mc observables
             with perf_block("get_simulated_drift_times()"):
                 drift_times_mc, grid_info = get_simulated_drift_times(
                     run_files,
@@ -246,16 +241,59 @@ def main() -> None:
                 dt_chi2.min(),
                 dt_chi2.max(),
             )
+            # extract electronics model parameters
+            elecmod_det = elecmod[det]
+            depv_wf, slope_wf, wf_chi2 = get_wf_chi2(
+                elecmod_det["psl_scan"], elecmod_det["grid_info"], wf_scale
+            )
+
+            if any(depv != depv_wf) or any(slope != slope_wf):
+                msg = f"Depletion voltage and slope grids do not match between drift time and waveform chi2 for {det}."
+                raise RuntimeError(msg)
+
             with perf_block("plot_cost_surface()"):
-                fig, _, best_dep, best_slope, best_cost = plot_cost_surface(
+                fig, _, _, _, _ = plot_cost_surface(
                     depv,
                     slope,
                     dt_chi2,
                     r"$\chi^2$",
                     det,
                     vrange=(0, 10),
-                    levels=[2, 5, 10],
-                    method="nearest",
+                    levels=[1, 2, 5, 10],
+                    method="linear",
+                    ftype="drift time",
+                )
+
+                decorate(fig)
+                pdf.savefig()
+                plt.close(fig)
+
+                fig, _, _, _, _ = plot_cost_surface(
+                    depv,
+                    slope,
+                    wf_chi2,
+                    r"$\chi^2$",
+                    det,
+                    vrange=(0, 10),
+                    levels=[1, 2, 5, 10],
+                    method="linear",
+                    ftype="waveform",
+                )
+
+                decorate(fig)
+                pdf.savefig()
+                plt.close(fig)
+
+                fig, _, best_dep, best_slope, best_cost = plot_cost_surface(
+                    depv,
+                    slope,
+                    dt_chi2 + wf_chi2,
+                    r"$\chi^2$",
+                    det,
+                    vrange=(0, 20),
+                    levels=[1, 2, 5, 20],
+                    method="linear",
+                    ftype="sum",
                 )
 
                 decorate(fig)
@@ -265,14 +303,7 @@ def main() -> None:
             msg = f"For {det} found minimum Vdep = {best_dep:1f}, slope {best_slope:.1f} with chi2 {best_cost:.2f}"
             log.info(msg)
 
-            # 5. extract electronics model parameters
-
-            # elecmod = dbetto.utils.load_dict(args.elecmod)
-
-            # wf_chi2 = get_wf_chi2(elecmod, ...)
-
             # find the best fit
-            # best_slope, best_dep  = fit_impurities(det,wf_chi2,dt_chi2,pdf)
 
             out[det] = {
                 "slope": float(best_slope),

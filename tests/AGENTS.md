@@ -82,6 +82,10 @@ real `generated*` dirs.
   / `simulate_psd` settings (edited in a temp metadata copy) add/remove exactly
   the PSL / drift-time-map rules; guards the YAML-to-DAG wiring the dead
   `has_detailed_psd` key broke.
+- `test_tune_hpge_impurities_builds_tuning_chain`: with
+  `tune_hpge_impurities_on_data` on, the impurity-fit target resolves the whole
+  tuning chain. Targets the fit rule directly (`dag_rule_names(targets=...)`):
+  `all` reaches it only via the `par` step, which needs single-run simids.
 - `test_skip_{opt,hit}_drops_*` / `..._mutually_exclusive`: the evt-tier
   `skip_opt` / `skip_hit` switches drop the opt / hit jobs (negative case: the
   same `make_steps` is unsatisfiable without the switch); both-skip is rejected

@@ -600,6 +600,14 @@ rule build_superpulses_from_data:
     """
     message:
         "Building data superpulses for detector {wildcards.hpge_detector}"
+    input:
+        # params.opv reads the modelable-HPGe checkpoint, which Snakemake
+        # allows only if the checkpoint output is an input
+        _hpge_cache=(
+            []
+            if _build_per_runid
+            else patterns.detinfo_filename(config, "is_modelable")
+        ),
     params:
         # all runs of the Simflow, whether or not the detector is modelable in
         # them: the superpulses are a useful product on their own
@@ -645,6 +653,8 @@ rule build_hpge_psl_scan:
         unpack(smk_hpge_psd_simulation_inputs),
         scan_settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/ssd/scan_settings.yaml",
+        # params.opv reads the modelable-HPGe checkpoint
+        _hpge_cache=patterns.detinfo_filename(config, "is_modelable"),
     params:
         opv=smk_hpge_single_voltage,
     output:
@@ -653,7 +663,7 @@ rule build_hpge_psl_scan:
         patterns.log_psl_scan_filename(config),
     benchmark:
         patterns.benchmark_psl_scan_filename(config)
-    threads: 4
+    threads: 8
     # NOTE: not using the `script` directive here since Snakemake has no nice
     # way to handle package dependencies nor Project.toml
     shell:
@@ -690,6 +700,30 @@ rule extract_elecmod_scan:
         patterns.log_elecmod_scan_filename(config),
     script:
         "../src/legendsimflow/scripts/extract_hpge_elec_response_model_scan.py"
+
+
+rule merge_electronics_model_scan_pars:
+    """Merge the HPGe electronics-response model scan parameters in a single file.
+
+    Collect the individual best-fit parameter files (one per detector) and
+    write them into a single YAML file keyed by detector name.
+    """
+    message:
+        "Merging electronics model parameters."
+    input:
+        lambda wc: aggregate.gen_list_of_elecmod_scans(
+            config, cache=smk_load_hpge_cache()
+        ),
+    output:
+        patterns.output_elecmod_scan_merged_filename(config),
+    run:
+        import dbetto
+
+        out_dict = {}
+        for i, f in enumerate(input):
+            out_dict |= dbetto.utils.load_dict(f)
+
+        dbetto.utils.write_dict(out_dict, output[0])
 
 
 rule extract_drift_time_scan:
@@ -812,6 +846,7 @@ rule extract_hpge_impurity_models:
         drift_time=aggregate.gen_list_of_merged_drift_time_scans(config),
         settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/impurityscan/settings.yaml",
+        elecmod_file=patterns.output_elecmod_scan_merged_filename(config),
     params:
         data_path=config.paths.get("l200data", None),
         simids=aggregate.gen_list_of_tuning_simids(config),
