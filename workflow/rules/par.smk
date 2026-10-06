@@ -653,7 +653,7 @@ rule build_hpge_psl_scan:
         patterns.log_psl_scan_filename(config),
     benchmark:
         patterns.benchmark_psl_scan_filename(config)
-    threads: 4
+    threads: 8
     # NOTE: not using the `script` directive here since Snakemake has no nice
     # way to handle package dependencies nor Project.toml
     shell:
@@ -697,11 +697,9 @@ rule merge_electronics_model_scan_pars:
 
     Collect the individual best-fit parameter files (one per detector) and
     write them into a single YAML file keyed by detector name.
-
-    Uses wildcard `runid`.
     """
     message:
-        "Merging electronics model parameters in {wildcards.runid}"
+        "Merging electronics model parameters."
     input:
         lambda wc: aggregate.gen_list_of_elecmod_scans(
             config, cache=smk_load_hpge_cache()
@@ -839,7 +837,7 @@ rule extract_hpge_impurity_models:
         drift_time=aggregate.gen_list_of_merged_drift_time_scans(config),
         settings=Path(config.paths.metadata)
         / f"simprod/config/pars/{config.experiment}/geds/impurityscan/settings.yaml",
-        elecmod_file=patterns.output_elecmod_merged_filename(config),
+        elecmod_file=patterns.output_elecmod_scan_merged_filename(config),
     params:
         data_path=config.paths.get("l200data", None),
         simids=aggregate.gen_list_of_tuning_simids(config),

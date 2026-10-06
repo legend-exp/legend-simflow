@@ -171,11 +171,12 @@ def get_wf_chi2(
     dep = []
     slope = []
     wf_rms = []
-
+    
     for slope_val, slope_dict in elecmod.items():
         for depv_val, depv_dict in slope_dict.items():
-            dep.append(get_grid_value(depv_val, grid_info, name="dep"))
-            slope.append(get_grid_value(slope_val, grid_info, name="slope"))
-            wf_rms.append(depv_dict["wf_rms"] ** 2 / wf_scale**2)
+            
+            dep.append(get_grid_value(float(depv_val.split("_")[-1]), grid_info, name="dep"))
+            slope.append(get_grid_value(float(slope_val.split("_")[-1]), grid_info, name="slope"))
+            wf_rms.append(depv_dict["rms"] ** 2 / wf_scale**2)
 
     return dep, slope, wf_rms

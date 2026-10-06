@@ -868,7 +868,9 @@ def gen_list_of_elecmod_scans(config: SimflowConfig, cache: dict) -> list[Path]:
     r"""Generate the list of HPGe electronics model scan files."""
     return [
         patterns.output_elecmod_scan_filename(config, hpge_detector=hpge_detector)
-        for hpge_detector in cache
+        for hpge_detector in gen_list_of_all_modelable_hpges(
+                cache
+            )
     ]
 
 

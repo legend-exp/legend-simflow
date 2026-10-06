@@ -259,8 +259,8 @@ def main() -> None:
                     r"$\chi^2$",
                     det,
                     vrange=(0, 10),
-                    levels=[2, 5, 10],
-                    method="nearest",
+                    levels=[1, 2, 5, 10],
+                    method="linear",
                     ftype="drift time",
                 )
 
@@ -275,8 +275,8 @@ def main() -> None:
                     r"$\chi^2$",
                     det,
                     vrange=(0, 10),
-                    levels=[2, 5, 10],
-                    method="nearest",
+                    levels=[1, 2, 5, 10],
+                    method="linear",
                     ftype="waveform",
                 )
 
@@ -290,10 +290,10 @@ def main() -> None:
                     dt_chi2 + wf_chi2,
                     r"$\chi^2$",
                     det,
-                    vrange=(0, 10),
-                    levels=[2, 5, 10],
-                    method="nearest",
-                    ftype="drift time",
+                    vrange=(0, 20),
+                    levels=[1, 2, 5, 20],
+                    method="linear",
+                    ftype="sum",
                 )
 
                 decorate(fig)
