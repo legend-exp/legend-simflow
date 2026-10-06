@@ -18,6 +18,7 @@
 
 import argparse
 from collections.abc import Mapping
+from functools import partial
 
 import awkward as ak
 import legenddataflowscripts as ldfs
@@ -31,7 +32,7 @@ from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, spms_pars, utils
-from legendsimflow.awkward import ak_isin
+from legendsimflow.awkward import ak_by_channel, ak_isin
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
     encode_psd_usability,
@@ -157,9 +158,15 @@ def main() -> None:
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
-    store_expected_pes = not args.skip_opt and get_tier_settings(config, "opt").get(
-        "store_expected_pes", False
+    light_source = (
+        None
+        if args.skip_opt
+        else get_tier_settings(config, "opt").get("light_source", "optmap")
     )
+    # with tracked photons there is no expectation at unit efficiency
+    store_expected_pes = light_source == "optmap" and get_tier_settings(
+        config, "opt"
+    ).get("store_expected_pes", False)
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
@@ -209,13 +216,32 @@ def main() -> None:
                     msg, f"simprod.config.tier.opt.{config.experiment}.settings"
                 )
 
-            merge_stp_n_opt_tcms_to_lh5(
-                stp_file,
-                hit_file["opt"],
-                evt_file,
-                scintillator_uid=scintillator_uid,
-                buffer_len=buffer_len,
-            )
+            if light_source == "tracked_photons":
+                # the stp TCM already lists the SiPM rows, which the opt tier
+                # keeps one by one. no tier holds the argon rows, so drop them
+                wo = "write_safe"
+                for chunk in lh5.LH5Iterator(
+                    str(stp_file), "tcm", buffer_len=buffer_len
+                ):
+                    tcm_stp = chunk.view_as("ak")
+                    keep = tcm_stp.table_key != scintillator_uid
+                    tcm_evt = ak.zip(
+                        {
+                            "table_key": tcm_stp.table_key[keep],
+                            "row_in_table": tcm_stp.row_in_table[keep],
+                        },
+                        depth_limit=1,
+                    )
+                    lh5.write(Table(tcm_evt), "tcm", str(evt_file), wo_mode=wo)
+                    wo = "append"
+            else:
+                merge_stp_n_opt_tcms_to_lh5(
+                    stp_file,
+                    hit_file["opt"],
+                    evt_file,
+                    scintillator_uid=scintillator_uid,
+                    buffer_len=buffer_len,
+                )
 
     # test that the evt tcm has the same amount of rows as the stp tcm
     if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
@@ -312,15 +338,6 @@ def main() -> None:
             if not skip_opt
             else []
         )
-
-        # placeholders for events with no LAr edep, see below. they only depend
-        # on on_spms_uids, so build them once here as length-1 arrays: ak.where()
-        # broadcasts them over the chunk, no need to materialize one per event
-        empty_energy = ak.Array([[[] for _ in on_spms_uids]])
-        empty_time = ak.Array([[[] for _ in on_spms_uids]])
-        empty_is_saturated = ak.Array([[False for _ in on_spms_uids]])
-        empty_hit_idx = ak.Array([[-1 for _ in on_spms_uids]])
-        empty_expected_pes = ak.Array([[0.0 for _ in on_spms_uids]])
 
         if add_random_coincidences:
             with perf_block("lookup_l200data_evts_for_rc()"):
@@ -584,70 +601,56 @@ def main() -> None:
             if not skip_opt:
                 out_table.add_field("spms", Table(size=len(unified_tcm)))
 
-                # also here, we exclude the non usable channels. this is in line with what
-                # done in the evt tier in pygama
-                usability = _read_hits(tcm, "opt", "usability")
+                # as in data, every event lists all channels that are not OFF,
+                # also those without light. hits of OFF channels are dropped, in
+                # line with the evt tier in pygama. with tracked photons an event
+                # holds only the SiPMs that saw light, and a SiPM can have more
+                # than one hit
+                n_events = len(unified_tcm)
+                by_channel = partial(
+                    ak_by_channel,
+                    uids=tcm["opt"].table_key,
+                    channels=on_spms_uids,
+                )
+                out_table.add_field(
+                    "spms/rawid", VectorOfVectors(ak.Array([on_spms_uids] * n_events))
+                )
+
                 energy = _read_hits(tcm, "opt", "energy")
-                chansel = usability != OFF
                 # we also discard all pulses with amplitude below threshold
                 pesel = energy > spms_energy_thr_pe
-
-                # in simulation the opt TCM does not record events for which there is
-                # no energy in LAr. This means that in the unified TCM these events
-                # will be characterized by spms empty arrays.  pad those events with
-                # the canonical non-OFF channel list (empty PE arrays) to match the
-                # real-data convention where all non-OFF channels are always present.
-                # NOTE: the on_spms_uids ordering must match the ordering
-                # used by non-empty events (i.e. the TCM ordering). Currently both
-                # are ascending by UID.
-                n_events = len(unified_tcm)
-                is_empty_opt = ak.num(tcm["opt"].table_key) == 0
-                uids = ak.Array([on_spms_uids] * n_events)
-
-                # the UIDs are the same canonical list for every event (non-empty events
-                # already carry all non-OFF channels in ascending UID order)
-                out_table.add_field("spms/rawid", VectorOfVectors(uids))
-
-                energy_sel = energy[pesel][chansel]
-                # fill in empty arrays for events with no LAr edep
-                energy_sel = ak.where(is_empty_opt, empty_energy, energy_sel)
+                energy_sel = by_channel(energy[pesel])
                 out_table.add_field(
                     "spms/energy",
                     VectorOfVectors(ak.values_astype(energy_sel, np.float32)),
                 )
 
-                is_saturated = _read_hits(tcm, "opt", "is_saturated")
-                is_saturated_sel = is_saturated[chansel]
-                # fill in Falses for events with no LAr edep
-                is_saturated_sel = ak.where(
-                    is_empty_opt, empty_is_saturated, is_saturated_sel
+                is_saturated = by_channel(
+                    _read_hits(tcm, "opt", "is_saturated"), reduce=ak.any
                 )
-                out_table.add_field(
-                    "spms/is_saturated", VectorOfVectors(is_saturated_sel)
-                )
+                out_table.add_field("spms/is_saturated", VectorOfVectors(is_saturated))
 
                 if store_expected_pes:
-                    expected_pes = _read_hits(tcm, "opt", "expected_pes")[chansel]
-                    expected_pes = ak.where(
-                        is_empty_opt, empty_expected_pes, expected_pes
+                    expected_pes = by_channel(
+                        _read_hits(tcm, "opt", "expected_pes"), reduce=ak.sum
                     )
                     out_table.add_field(
                         "spms/expected_pes",
                         VectorOfVectors(ak.values_astype(expected_pes, np.float32)),
                     )
 
-                hit_idx = tcm["opt"].row_in_table[chansel]
-                # fill in -1 hit index for events with no LAr edep
-                hit_idx = ak.where(is_empty_opt, empty_hit_idx, hit_idx)
+                # -1 for channels without a hit
+                hit_idx = by_channel(
+                    tcm["opt"].row_in_table,
+                    reduce=lambda a, axis: ak.fill_none(ak.firsts(a, axis=axis), -1),
+                )
                 out_table.add_field("spms/hit_idx", VectorOfVectors(hit_idx))
 
                 # relative to the trigger, t0 difference taken in float64
                 dt = _read_hits(tcm, "opt", "dt")
-                lar_hit_t0 = _read_hits(tcm, "opt", "t0")
-                time = dt + (lar_hit_t0 - timestamp)
-                time_sel = time[pesel][chansel]
-                # fill in empty arrays for events with no LAr edep
-                time_sel = ak.where(is_empty_opt, empty_time, time_sel)
+                hit_t0 = _read_hits(tcm, "opt", "t0")
+                time = dt + (hit_t0 - timestamp)
+                time_sel = by_channel(time[pesel])
                 out_table.add_field(
                     "spms/time",
                     VectorOfVectors(
@@ -685,14 +688,14 @@ def main() -> None:
                     )
 
                 # total amount of light per event
-                energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
+                energy_sum = ak.sum(ak.sum(energy_sel, axis=-1), axis=-1)
                 out_table.add_field(
                     "spms/energy_sum",
                     Array(np.asarray(energy_sum, dtype=np.float32)),
                 )
 
                 # how many channels saw some light
-                spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
+                spms_multiplicity = ak.sum(ak.num(energy_sel, axis=-1) > 0, axis=-1)
                 out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
             else:
                 energy_sum = ak.Array(np.zeros(len(unified_tcm), dtype=np.float32))
