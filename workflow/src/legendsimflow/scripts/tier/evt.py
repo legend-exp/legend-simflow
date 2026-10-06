@@ -60,6 +60,7 @@ VALID_PSD = encode_psd_usability("valid")
         ),
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
+        "rawid_file": "input.rawid",
         "jobid": "wildcards.jobid",
         "simid": "wildcards.simid",
         "evt_file": "output[0]",
@@ -88,6 +89,11 @@ def main() -> None:
         "--usability-file",
         required=True,
         help="detector usability YAML file",
+    )
+    parser.add_argument(
+        "--rawid-file",
+        required=True,
+        help="detector rawid YAML file",
     )
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
     parser.add_argument(
@@ -146,7 +152,7 @@ def main() -> None:
     log_file = args.log_file
     metadata = config.metadata
     tier_evt_settings = get_tier_settings(config, "evt")
-    geds_energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
+    geds_energy_thr_kev = None if skip_hit else tier_evt_settings.geds_energy_thr_kev
     spms_energy_thr_pe = tier_evt_settings.spms_energy_thr_pe
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
@@ -158,6 +164,7 @@ def main() -> None:
     add_random_coincidences = args.add_random_coincidences
     l200data = config.paths.get("l200data", None)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
+    rawid_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.rawid_file)))
 
     # get the psd settings
     tier_hit_settings = get_tier_settings(config, "hit")
@@ -223,7 +230,7 @@ def main() -> None:
             msg += f", opt={lh5.read_n_rows('tcm', hit_file['opt'])}"
         raise ValueError(msg)
 
-    # get the mapping of detector name to uid
+    # get the mapping of detector name to UID
     # NOTE: we check on disk because we are not sure which tables were processed in
     # the hit tiers
     det2uid = {}
@@ -354,6 +361,14 @@ def main() -> None:
                 rc_index_lookup = spms_pars.build_rc_evt_index_lookup(
                     rc_evt_files, mode=rc_mode
                 )
+
+            # the RC channels carry the rawids of the run they are drawn
+            # from: map them to the simulation UIDs through the channel names
+            rc_uid_of_rawid = {
+                rawid: det2uid["opt"][name]
+                for name, rawid in rawid_map[rc_runid or runid].items()
+                if name in det2uid["opt"]
+            }
             # state is reset per partition so RC events are drawn independently
             # for each run slice
             rc_file_state: dict = {}
@@ -587,11 +602,11 @@ def main() -> None:
                 # are ascending by UID.
                 n_events = len(unified_tcm)
                 is_empty_opt = ak.num(tcm["opt"].table_key) == 0
-                rawid = ak.Array([on_spms_uids] * n_events)
+                uids = ak.Array([on_spms_uids] * n_events)
 
-                # rawid is the same canonical list for every event (non-empty events
+                # the UIDs are the same canonical list for every event (non-empty events
                 # already carry all non-OFF channels in ascending UID order)
-                out_table.add_field("spms/rawid", VectorOfVectors(rawid))
+                out_table.add_field("spms/rawid", VectorOfVectors(uids))
 
                 energy_sel = energy[pesel][chansel]
                 # fill in empty arrays for events with no LAr edep
@@ -648,16 +663,15 @@ def main() -> None:
                             len(unified_tcm),
                             rc_index_lookup,
                         )
-                    # FIXME: this assertion fails because we haven't thought about
-                    # cases when there is a DAQ recabling without hardware changes.
-                    # right now this fails with p18 because SiPMs were recabled.
-                    #
-                    # assert rawid alignment: RC and simulation must use the same
-                    # channel ordering (both are ascending by UID)
-                    # assert ak.to_list(rc_chunk.rawid[0]) == on_spms_uids, (
-                    #     "RC rawid does not match simulation spms/rawid: "
-                    #     f"{rc_chunk.rawid[0].to_list()} != {on_spms_uids}"
-                    # )
+                    msg = (
+                        f"matching RC channels of {rc_runid or runid} to the "
+                        f"non-OFF SiPM channels of {runid} by name"
+                    )
+                    log.debug(msg)
+                    rc_chunk = spms_pars.reorder_rc_channels(
+                        rc_chunk, rc_uid_of_rawid, on_spms_uids
+                    )
+
                     out_table.add_field(
                         "spms/rc_energy",
                         VectorOfVectors(ak.values_astype(rc_chunk.npe, np.float32)),

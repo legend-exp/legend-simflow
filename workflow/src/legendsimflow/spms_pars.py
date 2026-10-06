@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -296,6 +296,43 @@ def get_chunk_rc_data(
     return ak.concatenate(rc_parts) if len(rc_parts) > 1 else rc_parts[0]
 
 
+def reorder_rc_channels(
+    rc_data: ak.Array,
+    uid_of_rawid: Mapping[int, int],
+    spms_uids: Sequence[int],
+) -> ak.Array:
+    """Reorder the SiPM channels of random-coincidence data to the order of `spms_uids`.
+
+    `rc_data` comes from :func:`get_chunk_rc_data`. Its ``rawid`` field holds the
+    rawids of the source run, which change when channels are recabled.
+    `uid_of_rawid` maps them to simulation UIDs (the detector IDs in the simulated
+    geometry), matched by channel name. Raises if the events do not share the same
+    channel list, or if the channels differ from `spms_uids`.
+    """
+    rawid = ak.to_numpy(rc_data.rawid)
+    if not (rawid == rawid[0]).all():
+        msg = "RC events do not share the same channel list"
+        raise ValueError(msg)
+
+    uids = [uid_of_rawid.get(int(r), -1) for r in rawid[0]]
+    if sorted(uids) != sorted(spms_uids):
+        missing = [u for u in spms_uids if u not in uids]
+        extra = [
+            int(r) for r, u in zip(rawid[0], uids, strict=True) if u not in spms_uids
+        ]
+        msg = (
+            f"RC channels do not match the simulated SiPM channels: UIDs missing "
+            f"in RC {missing}, RC rawids without a simulated channel {extra}"
+        )
+        raise ValueError(msg)
+
+    pos = {u: i for i, u in enumerate(uids)}
+    order = [pos[u] for u in spms_uids]
+    if order == list(range(len(order))):
+        return rc_data
+    return rc_data[:, np.array(order)]
+
+
 def _process_spms_windows(
     time: ak.Array,
     energy: ak.Array,
@@ -529,7 +566,7 @@ def get_rc_library(
     Returns
     -------
     ak.Array
-        Record array with fields ``rawid`` (channel UIDs, shape
+        Record array with fields ``rawid`` (rawids of the source run, shape
         ``(n_rc_events, n_channels)``), ``npe`` (PE energies, shape
         ``(n_rc_events, n_channels, n_pe)``), and ``t0`` (times relative to
         each window start, same shape as ``npe``).  Channel ordering within

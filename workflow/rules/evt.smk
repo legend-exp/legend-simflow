@@ -35,6 +35,8 @@ rule build_tier_evt:
     - optionally, random-coincidence (RC) SiPM data from real evt files is
       added as `spms/rc_energy` and `spms/rc_time` (controlled by
       ``add_random_coincidences`` in ``tier/evt/{experiment}/settings.yaml``).
+      The RC channels are matched to the simulated ones by name, through the
+      rawids of the run they are drawn from.
 
     A top-level `detector_uids` struct mapping detector names to reboost UIDs
     (union of hit and opt tiers) is also written, to enable downstream
@@ -66,9 +68,12 @@ rule build_tier_evt:
         ),
         simstat_part_file=patterns.simstat_part_filename(config),
         usability=rules.cache_detector_usabilities.output.usability,
+        rawid=rules.cache_detector_usabilities.output.rawid,
     params:
         add_random_coincidences=_tier_setting("evt", "add_random_coincidences"),
-        geds_energy_thr_kev=_tier_setting("evt", "geds_energy_thr_kev"),
+        geds_energy_thr_kev=(
+            None if _skip_hit else _tier_setting("evt", "geds_energy_thr_kev")
+        ),
         spms_energy_thr_pe=_tier_setting("evt", "spms_energy_thr_pe"),
         lar_veto_multiplicity_thr=_tier_setting("evt", "lar_veto_multiplicity_thr"),
         lar_veto_energy_sum_pe_thr=_tier_setting("evt", "lar_veto_energy_sum_pe_thr"),

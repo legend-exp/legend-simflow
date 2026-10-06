@@ -449,7 +449,7 @@ buffer_len: "500*MB"
 simulate_psd: True
 simulate_psd_with_psl: False
 two_pass_aoe_correction: False
-tune_hpge_impurities_on_data: True
+tune_hpge_impurities_on_data: False
 
 eresmod_default:
   expression: FWHMLinear
@@ -500,7 +500,7 @@ aoemeanmod_default:
   written to the `psd/pulse_lib` subtable. The two flags are independent: enable
   either, both, or neither. Setting both to `False` disables the HPGe PSD
   simulation entirely.
-- `tune_hpge_impurities_on_data` (bool, default `True`): select the HPGe
+- `tune_hpge_impurities_on_data` (bool, default `False`): select the HPGe
   modeling criteria based on the tuning of the crystal impurity curve to data.
   When `False`, detectors are selected by their operational voltage margin above
   depletion instead. See {ref}`hpge-modeling-criteria`.
@@ -586,7 +586,9 @@ skip_hit: false
   HPGe data (no `spms` or `coincident/spms` tables).
 - `skip_hit` (bool, default `false`) — when `true`, the `hit` (HPGe) tier is
   skipped: the hit Snakemake rule is not run and the evt output contains only
-  SiPM data (no `geds` or `coincident/geds` tables).
+  SiPM data (no `geds` or `coincident/geds` tables). The hit tier settings and
+  `geds_energy_thr_kev` are then optional, and no HPGe pulse shapes are
+  simulated.
 
 :::{note}
 

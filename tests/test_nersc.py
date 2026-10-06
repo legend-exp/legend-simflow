@@ -59,3 +59,6 @@ def test_scratch(fresh_config):
     scr_path = nersc.on_scratch(c, "test.ext")
     assert scr_path.name == "test.ext"
     assert scr_path.parent.parent == Path(c.nersc.scratch)
+
+    scr_path = nersc.on_scratch(c, "/some/test.ext", run_folder=False)
+    assert scr_path == tmp / "some/test.ext"

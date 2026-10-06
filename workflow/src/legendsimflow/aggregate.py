@@ -34,6 +34,7 @@ from .metadata import (
     get_tier_settings,
     runinfo,
     simpars,
+    simulates_hpge_psd,
 )
 
 log = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ def gen_list_of_plots_outputs(
     if tier == "par":
         # HPGe drift-time map plots, a byproduct of the par step; only produced
         # when PSD is simulated in the hit tier
-        if not get_tier_settings(config, "hit").get("simulate_psd", True):
+        if not simulates_hpge_psd(config):
             return []
         if cache is None:
             cache = build_hpge_modeling_cache(config)
@@ -148,11 +149,7 @@ def gen_list_of_all_plots_outputs(
 ) -> list[Path]:
     r"""Generate a list of all plot files that belong to a `tier`."""
     # the cache does not depend on the simid: build it once for all of them
-    if (
-        cache is None
-        and tier == "par"
-        and get_tier_settings(config, "hit").get("simulate_psd", True)
-    ):
+    if cache is None and tier == "par" and simulates_hpge_psd(config):
         cache = build_hpge_modeling_cache(config)
 
     mlist = []
@@ -363,7 +360,7 @@ def gen_hpge_modeling_status(
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
     tune_hpge_impurities_on_data = get_tier_settings(config, "hit").get(
-        "tune_hpge_impurities_on_data", True
+        "tune_hpge_impurities_on_data", False
     )
     min_voltage_above_depletion = None
     if not tune_hpge_impurities_on_data:
@@ -494,6 +491,7 @@ def gen_list_of_all_usabilities(
           'l200-p03-r000-phy': {
             'V00048A': {
               'usability': 'on',
+              'rawid': 1084803,
               'psd_usability': 'valid',
               'crystal_metadata_usability': 'valid',
             },
@@ -501,6 +499,11 @@ def gen_list_of_all_usabilities(
           },
           ...
         }
+
+    ``rawid`` is the ``daq.rawid`` field in the channel map of the run. It
+    changes when channels are recabled. The result also covers the runs that
+    random coincidences are drawn from (``random_coincidence_runid`` in the evt
+    tier settings).
 
     ``psd_usability`` is the ``psd.status.low_aoe`` field in the channel map
     status for germanium detectors (encoded later via
@@ -522,6 +525,12 @@ def gen_list_of_all_usabilities(
     for simid in gen_list_of_all_simids(config):
         all_runids.update(get_runlist(config, simid))
 
+    rc_runid = get_tier_settings(config, "evt").get("random_coincidence_runid")
+    if isinstance(rc_runid, Mapping):
+        all_runids.update(rc_runid.values())
+    elif rc_runid is not None:
+        all_runids.add(rc_runid)
+
     out_dict = {}
     for runid in all_runids:
         out_dict[runid] = {}
@@ -531,7 +540,7 @@ def gen_list_of_all_usabilities(
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability
 
-                entry = {"usability": usability}
+                entry = {"usability": usability, "rawid": chmap[chname].daq.rawid}
                 if chmap[chname].system == "geds":
                     psd_usability = "valid"
                     try:
@@ -958,6 +967,7 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
         patterns.detinfo_filename(config, flag)
         for flag in (
             "usability",
+            "rawid",
             "psd_usability",
             "crystal_metadata_usability",
             "is_modelable",
@@ -1043,11 +1053,7 @@ def process_simlist(
         # cumulative: build all tiers up to the requested one
         for t in make_steps[: make_steps.index(tier) + 1]:
             # build the cache at most once, and share it across the simids
-            if (
-                t == "par"
-                and cache is None
-                and get_tier_settings(config, "hit").get("simulate_psd", True)
-            ):
+            if t == "par" and cache is None and simulates_hpge_psd(config):
                 cache = build_hpge_modeling_cache(config)
             mlist += gen_list_of_plots_outputs(config, t, simid, cache=cache)
 
