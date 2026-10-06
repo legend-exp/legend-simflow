@@ -75,6 +75,14 @@ Here's a basic description of its fields:
     various scintillators used in the `opt` tier. These maps are currently not
     produced by the Simflow and therefore supplied as external input.
     - `lar`: the liquid argon optical map file.
+    - `lar_patch` (optional): map of a smaller, separately simulated region that
+      replaces the corresponding region of `lar` -- typically a volume
+      containing a calibration source and its absorber, which `lar` was
+      simulated without. Either a single map applied to every simid, or a
+      mapping `<simid> -> <patch map>`, since each source position needs its own
+      patch and simids without a source need none. The patched map is built once
+      by the `patch_optical_map` rule and read by the `opt` tier in place of
+      `lar`.
   - `pars` (output): root folder for all generated parameter files (e.g. YAML
     files storing parameters extracted from the LEGEND-200 data, geometry files,
     drift-time maps).
