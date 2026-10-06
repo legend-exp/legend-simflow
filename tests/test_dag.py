@@ -333,6 +333,30 @@ def test_skip_hit_drops_hit_tier(tmp_path):
         )
 
 
+def test_skip_hit_needs_no_hit_settings(tmp_path):
+    """With `skip_hit`, the hit settings and the HPGe threshold may be absent.
+
+    The HPGe pulse-shape rules are dropped, although `simulate_psd` defaults to
+    true and par is in `make_steps`.
+    """
+    cfg = overrides(
+        tmp_path,
+        make_steps=["vtx", "stp", "par", "opt", "evt"],
+        experiment="l200cfg01",
+        settings_by_tier={"evt": {"skip_hit": True}},
+    )
+    tier_dir = Path(cfg["paths"]["config"]) / "tier"
+    (tier_dir / "hit/l200cfg01/settings.yaml").unlink()
+    evt_settings = tier_dir / "evt/l200cfg01/settings.yaml"
+    data = yaml.safe_load(evt_settings.read_text())
+    del data["geds_energy_thr_kev"]
+    evt_settings.write_text(yaml.safe_dump(data))
+
+    rules = dag_rule_names(l200_config, cfg)
+    assert {"build_tier_evt", "build_tier_opt"} <= rules
+    assert (STD_PSD_RULES | PSL_PSD_RULES).isdisjoint(rules)
+
+
 def test_skip_opt_and_hit_are_mutually_exclusive(tmp_path):
     """Skipping both the opt and hit tiers is rejected at DAG-build time."""
     with pytest.raises(WorkflowError, match="skip_opt and skip_hit"):

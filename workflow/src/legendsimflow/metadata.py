@@ -93,8 +93,17 @@ def get_simconfig(
 
 
 def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
-    """Return the settings block for *tier* and the current experiment."""
-    return config.metadata.simprod.config.tier[tier][config.experiment].settings
+    """Return the settings block for *tier* and the current experiment, empty if absent."""
+    try:
+        return config.metadata.simprod.config.tier[tier][config.experiment].settings
+    except FileNotFoundError:
+        return AttrsDict({})
+
+
+def simulates_hpge_psd(config: SimflowConfig) -> bool:
+    """Whether HPGe pulse shapes are simulated: ``simulate_psd`` and no ``skip_hit``."""
+    skip_hit = get_tier_settings(config, "evt").get("skip_hit", False)
+    return not skip_hit and get_tier_settings(config, "hit").get("simulate_psd", True)
 
 
 def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:
@@ -103,15 +112,11 @@ def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callabl
 
 
 def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
-    """Return the settings block for *par* and the current experiment."""
-    if (
-        config.experiment in config.metadata.simprod.config.pars
-        and par in config.metadata.simprod.config.pars[config.experiment].geds
-        and "settings"
-        in config.metadata.simprod.config.pars[config.experiment].geds[par]
-    ):
+    """Return the settings block for *par* and the current experiment, empty if absent."""
+    try:
         return config.metadata.simprod.config.pars[config.experiment].geds[par].settings
-    return AttrsDict({})
+    except FileNotFoundError:
+        return AttrsDict({})
 
 
 def smk_hash_simconfig(
