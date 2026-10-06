@@ -66,6 +66,7 @@ rule build_tier_evt:
                 )
             ]
         ),
+
         simstat_part_file=patterns.simstat_part_filename(config),
         usability=rules.cache_detector_usabilities.output.usability,
         rawid=rules.cache_detector_usabilities.output.rawid,

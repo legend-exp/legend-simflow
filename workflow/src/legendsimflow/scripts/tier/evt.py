@@ -40,6 +40,7 @@ from legendsimflow.metadata import (
     get_tier_settings,
     parse_runid,
     runinfo,
+    get_simconfig,
 )
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.tcm import merge_stp_n_opt_tcms_to_lh5
@@ -65,6 +66,7 @@ VALID_PSD = encode_psd_usability("valid")
         "simid": "wildcards.simid",
         "evt_file": "output[0]",
         "log_file": "log[0]",
+        "simid": "wildcards.simid",
         "add_random_coincidences": "params.add_random_coincidences",
         "skip_opt": "params.skip_opt",
         "skip_hit": "params.skip_hit",
@@ -95,6 +97,8 @@ def main() -> None:
         required=True,
         help="detector rawid YAML file",
     )
+    parser.add_argument("--simid", required=True, help="simulation ID wildcard")
+
     parser.add_argument("--jobid", required=True, help="job ID wildcard")
     parser.add_argument(
         "--simid",
@@ -148,6 +152,7 @@ def main() -> None:
         hit_file["opt"] = nersc.dvs_ro(config, args.opt_file)
     if not skip_hit:
         hit_file["hit"] = nersc.dvs_ro(config, args.hit_file)
+        
     evt_file = args.evt_file
     log_file = args.log_file
     metadata = config.metadata
@@ -735,12 +740,20 @@ def main() -> None:
     # forward the number of simulated primary events that remage stores at the
     # root of the stp file, so it can be summed across jobs at the cvt tier and
     # used to normalise the pdf histograms.
+    try:
+        number_of_primaries = lh5.read("number_of_simulated_events", stp_file)
+    except Exception as e:
+        # fall back to the config
+        simconfig_block = get_simconfig(config, "stp", args.simid)
+        number_of_primaries = Scalar(
+            simconfig_block.primaries_per_job * simconfig_block.number_of_jobs
+        )
     lh5.write(
-        lh5.read("number_of_simulated_events", stp_file),
-        "number_of_simulated_events",
-        evt_file,
-        wo_mode="append",
-    )
+            number_of_primaries,
+            "number_of_simulated_events",
+            evt_file,
+            wo_mode="append",
+        )
 
     with perf_block("move_to_cfs()"):
         move2cfs()

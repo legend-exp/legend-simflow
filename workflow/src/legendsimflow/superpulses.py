@@ -283,13 +283,14 @@ def lookup_superpulse_inputs(
     run = f"r{run_int:03d}"
     df_cfg = utils.lookup_dataflow_config(l200data).paths
 
-    raw_files = sorted((df_cfg.tier_raw / data_type / period / run).glob("*.lh5"))[
-        :max_files
-    ]
+    evt_path = df_cfg[f"tier_{evt_tier_name}"]
+    raw_path = df_cfg.tier_raw
+    
     evt_files = sorted(
-        (df_cfg[f"tier_{evt_tier_name}"] / data_type / period / run).glob("*.lh5")
+        (evt_path / data_type / period / run).glob("*.lh5")
     )[:max_files]
 
+    raw_files = [Path(str(file).replace(str(evt_path),str(raw_path)).replace(evt_tier_name,"raw")) for file in evt_files]
     if not evt_files:
         msg = f"no evt tier files found for {data_runid}."
         raise FileNotFoundError(msg)
@@ -305,7 +306,7 @@ def lookup_superpulse_inputs(
 
 def _read_and_sel_evts(
     evt_files: str | list[str],
-    detector: str,
+    rawid: str,
     t0_field: str | None = None,
     aoe_low_threshold: float = -3.0,
     aoe_high_threshold: float = 3.0,
@@ -324,15 +325,12 @@ def _read_and_sel_evts(
 
     mask = (
         ak.all(evt_data.geds.quality.is_good_channel, axis=-1)
-        & (~evt_data.trigger.is_forced)
         & (~evt_data.coincident.puls)
-        & (~evt_data.coincident.muon)
-        & (~evt_data.coincident.muon_offline)
         & evt_data.geds.quality.is_bb_like
         & (evt_data.geds.multiplicity == 1)
-        & (ak.all(evt_data.geds.detector_name == detector, axis=-1))
+        & (ak.all(evt_data.geds.rawid == rawid, axis=-1))
     )
-
+        
     # `t0_field` names the event start time used for the drift time; it is set
     # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
     # those are exactly the low-p.e. events. `t0_field` is None only when the
@@ -390,7 +388,7 @@ def lookup_wfs_indices(
     *,
     evt_files: list[str],
     n_target: int,
-    detector: str,
+    rawid: int,
     t0_field: str | None = "spms/event_t0",
     end_time_field: str = "geds/psd/low_aoe/time",
 ) -> list[AttrsDict]:
@@ -408,8 +406,8 @@ def lookup_wfs_indices(
         List of evt files.
     n_target
         The maximum number of waveforms to select.
-    detector
-        The detector to use.
+    rawid
+        The detector id to use.
     t0_field
         Field for the start time, if `None` will be set to 0.
     end_time_field
@@ -437,7 +435,7 @@ def lookup_wfs_indices(
             msg = f"Reading file {file_idx} out of {len(evt_files)} {m} target ({n_target})"
             log.info(msg)
 
-        evts = _read_and_sel_evts(evt_file, detector=detector, t0_field=t0_field)
+        evts = _read_and_sel_evts(evt_file, rawid=rawid, t0_field=t0_field)
         drift_time = get_drift_time(evts, end_time_field, t0_field)
 
         all_drift_times = (
