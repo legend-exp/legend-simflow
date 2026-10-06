@@ -288,6 +288,8 @@ def lookup_superpulse_inputs(
 
     evt_files = sorted((evt_path / data_type / period / run).glob("*.lh5"))[:max_files]
 
+    # the raw and evt tiers can hold a different number of files, so derive
+    # each raw file from its evt file to make sure the two lists correspond
     raw_files = [
         Path(
             str(file)
@@ -311,7 +313,7 @@ def lookup_superpulse_inputs(
 
 def _read_and_sel_evts(
     evt_files: str | list[str],
-    rawid: str,
+    rawid: int,
     t0_field: str | None = None,
     aoe_low_threshold: float = -3.0,
     aoe_high_threshold: float = 3.0,

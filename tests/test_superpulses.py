@@ -178,7 +178,7 @@ def test_lookup_wfs_indices(legend_testdata):
         slices,
         evt_files=files,
         n_target=10,
-        detector="V07302A",
+        rawid=1107201,  # V07302A
         t0_field=None,
         end_time_field="geds/psd/drift_time",
     )

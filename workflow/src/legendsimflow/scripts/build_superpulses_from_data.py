@@ -244,9 +244,7 @@ def main() -> int:
     # for each we have a AttrsDict with fields
     # "hit_idx", "file_idx", "n_sel"
 
-    rawid = lmeta.channelmap(lmeta.datasets.runinfo["p16"]["r000"].phy.start_key)[
-        args.detector
-    ].daq.rawid
+    rawid = tab_map[args.detector]
     wf_indices, drift_times = lookup_wfs_indices(
         slices,
         rawid=rawid,
