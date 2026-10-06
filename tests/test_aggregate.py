@@ -35,7 +35,7 @@ def test_simid_harvesting(config):
     simids = agg.gen_list_of_all_simids(config)
     assert isinstance(simids, type({}.keys()))
     assert all(isinstance(s, str) for s in simids)
-    assert len(simids) == 11
+    assert len(simids) == 12
 
 
 def test_simid_outputs(config):
@@ -395,7 +395,7 @@ def test_psl_stuff(config):
 
 def test_tier_evt_stuff(config):
     files = agg.gen_list_of_all_tier_cvt_outputs(config)
-    assert len(files) == 11
+    assert len(files) == 12
 
 
 def test_usability_harvesting(config):
@@ -417,15 +417,38 @@ def test_usability_harvesting(config):
     assert usability["l200-p02-r000-phy"] == {
         "V99000A": {
             "usability": "on",
+            "rawid": 1234568,
             "psd_usability": "valid",
             "crystal_metadata_usability": "valid",
         },
         "B99000A": {
             "usability": "off",
+            "rawid": 1234569,
             "psd_usability": "missing",
             "crystal_metadata_usability": "valid",
         },
     }
+
+
+@pytest.mark.parametrize(
+    "rc_runid", ["l200-p03-r000-phy", {"l200-p02-r000-phy": "l200-p03-r000-phy"}]
+)
+def test_usability_harvesting_includes_rc_runs(config, monkeypatch, rc_runid):
+    """The RC source runs are cached too, from a single runid or a mapping."""
+    evt_settings = AttrsDict(
+        {**get_tier_settings(config, "evt"), "random_coincidence_runid": rc_runid}
+    )
+    monkeypatch.setattr(agg_mod, "get_tier_settings", lambda *_: evt_settings)
+
+    usability = agg.gen_list_of_all_usabilities(config)
+
+    assert "l200-p02-r000-phy" in usability
+    assert "l200-p03-r000-phy" in usability
+    assert usability["l200-p03-r000-phy"]
+    assert all(
+        isinstance(entry["rawid"], int)
+        for entry in usability["l200-p03-r000-phy"].values()
+    )
 
 
 def test_psd_usability_unknown_value(config, monkeypatch, caplog):

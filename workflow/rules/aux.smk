@@ -18,13 +18,17 @@ from pathlib import Path
 import dbetto
 from legendsimflow import aggregate, nersc, patterns
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.metadata import get_tier_settings, get_par_settings
+from legendsimflow.metadata import (
+    get_tier_settings,
+    get_par_settings,
+    simulates_hpge_psd,
+)
 
 # the HPGe modeling cache is only needed by the PSD-gated par outputs. aux.smk
 # is always included, so the flag is available to the other rule modules too
-_simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
+_simulate_psd = simulates_hpge_psd(config)
 _tune_impurity = get_tier_settings(config, "hit").get(
-    "tune_hpge_impurities_on_data", True
+    "tune_hpge_impurities_on_data", False
 )
 _impurity_settings = get_par_settings(config, "impurityscan")
 # a fit window starting below the scan cut would compare data with an
@@ -218,7 +222,8 @@ rule cache_detector_usabilities:
     Querying the metadata for detector usability can be slow and constitute
     the bottleneck in post-processing (``opt`` and ``hit`` tiers). This rule
     caches, under ``pars/detinfo/``, one file per flag (``usability.yaml``,
-    ``psd_usability.yaml``, ``crystal_metadata_usability.yaml``), each a mapping
+    ``rawid.yaml``, ``psd_usability.yaml``,
+    ``crystal_metadata_usability.yaml``), each a mapping
     ``runid -> detector -> value``.
     """
     localrule: True
@@ -226,8 +231,12 @@ rule cache_detector_usabilities:
         "Caching detector usabilities"
     params:
         runlist=config.runlist,
+        random_coincidence_runid=get_tier_settings(config, "evt").get(
+            "random_coincidence_runid"
+        ),
     output:
         usability=patterns.detinfo_filename(config, "usability"),
+        rawid=patterns.detinfo_filename(config, "rawid"),
         psd_usability=patterns.detinfo_filename(config, "psd_usability"),
         crystal_metadata_usability=patterns.detinfo_filename(
             config, "crystal_metadata_usability"
@@ -237,6 +246,7 @@ rule cache_detector_usabilities:
             aggregate.gen_list_of_all_usabilities(config).to_dict()
         )
         dbetto.utils.write_dict(detinfo.get("usability", {}), output.usability)
+        dbetto.utils.write_dict(detinfo.get("rawid", {}), output.rawid)
         dbetto.utils.write_dict(detinfo.get("psd_usability", {}), output.psd_usability)
         dbetto.utils.write_dict(
             detinfo.get("crystal_metadata_usability", {}),

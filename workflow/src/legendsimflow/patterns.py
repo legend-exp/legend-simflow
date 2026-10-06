@@ -33,7 +33,7 @@ from pathlib import Path
 from legendmeta.police import validate_dict_schema
 from snakemake.io import expand
 
-from . import SimflowConfig
+from . import SimflowConfig, nersc
 from . import metadata as metautils
 
 
@@ -45,6 +45,33 @@ def detinfo_filename(config: SimflowConfig, flag: str) -> Path:
     ``runid -> detector -> value``.
     """
     return config.paths.pars / "detinfo" / f"{flag}.yaml"
+
+
+def patched_optmap_filename(config: SimflowConfig, **kwargs) -> Path:
+    """Path to the LAr optical map with a locally simulated region substituted.
+
+    If ``nersc.scratch`` is set, the file lives only on the scratch disk, under
+    the same relative path as in ``paths.pars``.
+    """
+    pat = (
+        config.paths.pars
+        / "optmap"
+        / (config.experiment + "-{simid}-optmap-lar-patched.lh5")
+    )
+    if nersc.is_scratch_enabled(config):
+        pat = nersc.on_scratch(config, pat, run_folder=False)
+
+    return _expand(pat, **kwargs)
+
+
+def patched_optmap_log_filename(config: SimflowConfig, **kwargs) -> Path:
+    """Path to the log file of the ``patch_optical_map`` rule."""
+    pat = (
+        log_dirname(config)
+        / "opt"
+        / (config.experiment + "-{simid}-optmap-lar-patched.log")
+    )
+    return _expand(pat, **kwargs)
 
 
 def _expand(pattern: str | Path, keep_list: bool = False, **kwargs) -> str | Path:

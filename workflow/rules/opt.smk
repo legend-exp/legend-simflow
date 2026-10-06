@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from functools import partial
 
 from dbetto.utils import load_dict
@@ -9,11 +10,56 @@ from legendsimflow.metadata import deferred_tier_setting
 _tier_setting = partial(deferred_tier_setting, config)
 
 
+def _optmap_patch(config, simid):
+    # a single map for every simid, or a mapping <simid> -> <patch map>; no patch is []
+    patch = config.paths.optical_maps.get("lar_patch", [])
+
+    if not isinstance(patch, Mapping):
+        return patch
+
+    return patch.get(simid, [])
+
+
+def _optmap_lar(config, simid):
+    # the patched map is already on scratch, if enabled
+    if _optmap_patch(config, simid):
+        return patterns.patched_optmap_filename(config, simid=simid)
+
+    return on_scratch_smk(config.paths.optical_maps.lar)
+
+
 rule gen_all_tier_opt:
     """Aggregate and produce all the opt tier files."""
     input:
         aggregate.gen_list_of_all_simid_outputs(config, tier="opt"),
         aggregate.gen_list_of_all_plots_outputs(config, tier="opt"),
+
+
+rule patch_optical_map:
+    """Substitute a separately simulated region into the LAr optical map.
+
+    The base map is simulated without hardware that is only present in some runs
+    -- a calibration source and its absorber, say -- so its detection
+    probabilities are wrong in the volume around it. This rule replaces that
+    region with a map of a smaller volume simulated with the hardware in place.
+
+    Only runs for simids that configure a patch in
+    ``paths.optical_maps.lar_patch``; the opt tier of the others reads the base
+    map directly.
+
+    Uses wildcard `simid`.
+    """
+    message:
+        "Patching the LAr optical map for {wildcards.simid}"
+    input:
+        base=on_scratch_smk(config.paths.optical_maps.lar),
+        patch=lambda wc: on_scratch_smk(_optmap_patch(config, wc.simid)),
+    output:
+        temp(patterns.patched_optmap_filename(config)),
+    log:
+        patterns.patched_optmap_log_filename(config),
+    shell:
+        "reboost-optical -v patchmap {input.base} {input.patch} {output} &> {log}"
 
 
 # NOTE: we don't rely on rules from other tiers here (e.g.
@@ -52,7 +98,7 @@ rule build_tier_opt:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=on_scratch_smk(config.paths.optical_maps.lar),
+        optmap_lar=lambda wc: _optmap_lar(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),

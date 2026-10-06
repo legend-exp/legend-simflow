@@ -377,13 +377,41 @@ def make_remage_macro(
                 raise SimflowConfigError(msg, block) from e
 
         elif gen_query.startswith("~vertices:"):
+            vtx_name = gen_query.removeprefix("~vertices:").strip()
+            product = get_simconfig(config, "vtx", vtx_name, field="product")
+            if product not in ("kinematics", "kinematics_and_positions"):
+                msg = (
+                    f"vtx generator {vtx_name!r} has product {product!r}, but a "
+                    "generator needs 'kinematics' or 'kinematics_and_positions'",
+                    f"{block}.generator",
+                )
+                raise SimflowConfigError(*msg)
+
+            if product == "kinematics" and "confinement" not in sim_cfg:
+                msg = (
+                    f"vtx generator {vtx_name!r} gives no positions, "
+                    "a confinement must supply them",
+                    f"{block}.generator",
+                )
+                raise SimflowConfigError(*msg)
+
+            if product == "kinematics_and_positions" and "confinement" in sim_cfg:
+                msg = (
+                    f"vtx generator {vtx_name!r} already gives the positions, "
+                    "no confinement allowed",
+                    f"{block}.confinement",
+                )
+                raise SimflowConfigError(*msg)
+
             vtx_file = patterns.vtx_filename_for_stp(config, simid, jobid="{JOBID}")
-            generator_lines = [
-                "/RMG/Generator/Confine FromFile",
-                f"/RMG/Generator/Confinement/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}",
-            ]
-            # in this case, vertex confinement is not required
-            mac_subs["CONFINEMENT"] = None
+            generator_lines = ["/RMG/Generator/Select FromFile"]
+            if product == "kinematics_and_positions":
+                # remage requires IncludePosition before FileName
+                generator_lines.append("/RMG/Generator/FromFile/IncludePosition true")
+                mac_subs["CONFINEMENT"] = ""
+            generator_lines.append(
+                f"/RMG/Generator/FromFile/FileName {nersc.dvs_ro(config, vtx_file)}"
+            )
         else:
             msg = (
                 "the field must be prefixed with ~vertices: or ~defines:",
@@ -403,6 +431,16 @@ def make_remage_macro(
                 if sim_cfg.get("generator", "").strip().startswith("~vertices:"):
                     msg = (
                         "no vertices in confinement field allowed if vertices are already specified as the generator",
+                        f"{block}.confinement",
+                    )
+                    raise SimflowConfigError(*msg)
+
+                vtx_name = conf_query.removeprefix("~vertices:").strip()
+                product = get_simconfig(config, "vtx", vtx_name, field="product")
+                if product != "positions":
+                    msg = (
+                        f"vtx generator {vtx_name!r} has product {product!r}, but "
+                        "a confinement needs 'positions'",
                         f"{block}.confinement",
                     )
                     raise SimflowConfigError(*msg)

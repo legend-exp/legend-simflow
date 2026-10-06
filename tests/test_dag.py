@@ -333,6 +333,30 @@ def test_skip_hit_drops_hit_tier(tmp_path):
         )
 
 
+def test_skip_hit_needs_no_hit_settings(tmp_path):
+    """With `skip_hit`, the hit settings and the HPGe threshold may be absent.
+
+    The HPGe pulse-shape rules are dropped, although `simulate_psd` defaults to
+    true and par is in `make_steps`.
+    """
+    cfg = overrides(
+        tmp_path,
+        make_steps=["vtx", "stp", "par", "opt", "evt"],
+        experiment="l200cfg01",
+        settings_by_tier={"evt": {"skip_hit": True}},
+    )
+    tier_dir = Path(cfg["paths"]["config"]) / "tier"
+    (tier_dir / "hit/l200cfg01/settings.yaml").unlink()
+    evt_settings = tier_dir / "evt/l200cfg01/settings.yaml"
+    data = yaml.safe_load(evt_settings.read_text())
+    del data["geds_energy_thr_kev"]
+    evt_settings.write_text(yaml.safe_dump(data))
+
+    rules = dag_rule_names(l200_config, cfg)
+    assert {"build_tier_evt", "build_tier_opt"} <= rules
+    assert (STD_PSD_RULES | PSL_PSD_RULES).isdisjoint(rules)
+
+
 def test_skip_opt_and_hit_are_mutually_exclusive(tmp_path):
     """Skipping both the opt and hit tiers is rejected at DAG-build time."""
     with pytest.raises(WorkflowError, match="skip_opt and skip_hit"):
@@ -352,3 +376,29 @@ def test_geom_plots_scheduled(tmp_path):
     rules = dag_rule_names(default_config, overrides(tmp_path))
     assert "plot_geom_rendering" in rules
     assert "plot_geom_hpge_mass" in rules
+
+
+def test_optmap_patch_rule_gated_on_config(tmp_path):
+    """`optical_maps.lar_patch` inserts `patch_optical_map` ahead of the opt tier.
+
+    Without the key the rule must not exist at all: it would otherwise have no
+    input, and productions that do not patch their map must be unaffected.
+    """
+    steps = ["vtx", "stp", "par", "opt"]
+
+    rules = dag_rule_names(
+        default_config, overrides(tmp_path / "nopatch", make_steps=steps)
+    )
+    assert "build_tier_opt" in rules
+    assert "patch_optical_map" not in rules
+
+    # the DAG never reads the maps, so the dummy map stands in for the patch too
+    dummy_map = "$_/inputs/simprod/l200cfg01-optmap-dummy.lh5"
+    cfg = overrides(tmp_path / "patch", make_steps=steps)
+    cfg["paths"]["optical_maps"] = {
+        "lar": dummy_map,
+        "lar_patch": {"lar_inside": dummy_map},
+    }
+
+    rules = dag_rule_names(default_config, cfg)
+    assert {"build_tier_opt", "patch_optical_map"} <= rules
