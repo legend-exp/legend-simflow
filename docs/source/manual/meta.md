@@ -661,7 +661,7 @@ detector_groups:
   output: every named group is produced in addition to `all`, which is always
   emitted regardless of the config. See {ref}`pdf-tier` for the resulting output
   schema. Group names cannot be cut levels of the output paths (`lar`,
-  `not_lar`, `psd_st`, ...).
+  `not_lar`, `aoe_st`, ...).
 
 ## `pars/` — simulation parameters
 

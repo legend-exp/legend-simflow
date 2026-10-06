@@ -92,7 +92,7 @@ def _make_cvt_file(path: Path) -> None:
     """Write a minimal cvt LH5 file with the fields expected by the pdf script."""
     # 6 events:
     # - event 0: m1, 500 keV,      spms=False, PSD valid+simulated+single-site → passes all cuts
-    # - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → mul1/not_psd_st
+    # - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → mul1/not_aoe_st
     # - event 2: m1, 1500 keV,     spms=False, PSD not valid                   → cut (no observable)
     # - event 3: m1, 2000 keV,     spms=True,  PSD valid+simulated+single-site → mul1/not_lar
     # - event 4: m2, 200+300 keV,  spms=False
@@ -162,9 +162,9 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
         "pdf/mul1",
         "pdf/mul1/lar",
         "pdf/mul1/not_lar",
-        "pdf/mul1/psd_st",
-        "pdf/mul1/not_psd_st",
-        "pdf/mul1/lar/psd_st",
+        "pdf/mul1/aoe_st",
+        "pdf/mul1/not_aoe_st",
+        "pdf/mul1/lar/aoe_st",
         "pdf/mul2",
     ):
         assert _exists(pdf_file, name), name
@@ -182,10 +182,10 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert _sum("pdf/mul1/lar/all") == 4
 
     # events 0 and 3 pass PSD (valid+simulated+SS); events 1 (MS), 2 (invalid), 5 (not simulated) cut
-    assert _sum("pdf/mul1/psd_st/all") == 2
+    assert _sum("pdf/mul1/aoe_st/all") == 2
 
     # event 3 also fails LAr, so only event 0 survives both
-    assert _sum("pdf/mul1/lar/psd_st/all") == 1
+    assert _sum("pdf/mul1/lar/aoe_st/all") == 1
 
     # 1 m2 event
     assert _sum("pdf/mul2") == 1
@@ -194,7 +194,7 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert _sum("pdf/mul1/not_lar/all") == 1
 
     # event 1 (valid+simulated PSD, multi-site) fails PSD; event 5 (not simulated) excluded
-    assert _sum("pdf/mul1/not_psd_st/all") == 1
+    assert _sum("pdf/mul1/not_aoe_st/all") == 1
 
 
 def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
@@ -234,16 +234,16 @@ def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
     pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
 
     # no single_temp model in the input: no single-template histograms
-    assert not _exists(pdf_file, "pdf/mul1/psd_st")
-    assert not _exists(pdf_file, "pdf/mul1/not_psd_st")
+    assert not _exists(pdf_file, "pdf/mul1/aoe_st")
+    assert not _exists(pdf_file, "pdf/mul1/not_aoe_st")
 
     def _sum(path):
         return lh5.read_as(path, pdf_file, "hist").sum()
 
     expected = {
-        "psd_psl_low": (3, 2, 1),
-        "psd_psl_high": (3, 2, 1),
-        "psd_psl": (2, 1, 2),
+        "aoe_psl_low": (3, 2, 1),
+        "aoe_psl_high": (3, 2, 1),
+        "aoe_psl": (2, 1, 2),
     }
     for cut, (n_pass, n_pass_lar, n_fail) in expected.items():
         assert _sum(f"pdf/mul1/{cut}/all") == n_pass
@@ -323,8 +323,8 @@ def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
     for name in (
         "pdf/hit",
         "pdf/mul1",
-        "pdf/mul1/psd_st",
-        "pdf/mul1/not_psd_st",
+        "pdf/mul1/aoe_st",
+        "pdf/mul1/not_aoe_st",
         "pdf/mul2",
     ):
         assert _exists(pdf_file, name), name
@@ -375,8 +375,8 @@ def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
         "pdf/hit",
         "pdf/mul1",
         "pdf/mul1/lar",
-        "pdf/mul1/psd_st",
-        "pdf/mul1/lar/psd_st",
+        "pdf/mul1/aoe_st",
+        "pdf/mul1/lar/aoe_st",
         "pdf/mul2",
     ):
         assert _exists(pdf_file, name), name
@@ -388,9 +388,9 @@ def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
     n_mul = _sum("pdf/mul1/all")
     assert _sum("pdf/hit/all") >= n_mul
     assert _sum("pdf/mul1/lar/all") <= n_mul
-    assert _sum("pdf/mul1/psd_st/all") <= n_mul
-    assert _sum("pdf/mul1/lar/psd_st/all") <= _sum("pdf/mul1/lar/all")
-    assert _sum("pdf/mul1/lar/psd_st/all") <= _sum("pdf/mul1/psd_st/all")
+    assert _sum("pdf/mul1/aoe_st/all") <= n_mul
+    assert _sum("pdf/mul1/lar/aoe_st/all") <= _sum("pdf/mul1/lar/all")
+    assert _sum("pdf/mul1/lar/aoe_st/all") <= _sum("pdf/mul1/aoe_st/all")
 
 
 _ALL_CUTS = (
@@ -398,9 +398,9 @@ _ALL_CUTS = (
     "mul1",
     "mul1/lar",
     "mul1/not_lar",
-    "mul1/psd_st",
-    "mul1/not_psd_st",
-    "mul1/lar/psd_st",
+    "mul1/aoe_st",
+    "mul1/not_aoe_st",
+    "mul1/lar/aoe_st",
 )
 
 
