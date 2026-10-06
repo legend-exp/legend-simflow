@@ -21,10 +21,11 @@ def _optmap_patch(config, simid):
 
 
 def _optmap_lar(config, simid):
+    # the patched map is already on scratch, if enabled
     if _optmap_patch(config, simid):
         return patterns.patched_optmap_filename(config, simid=simid)
 
-    return config.paths.optical_maps.lar
+    return on_scratch_smk(config.paths.optical_maps.lar)
 
 
 rule gen_all_tier_opt:
@@ -97,7 +98,7 @@ rule build_tier_opt:
     input:
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=lambda wc: on_scratch_smk(_optmap_lar(config, wc.simid)),
+        optmap_lar=lambda wc: _optmap_lar(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),

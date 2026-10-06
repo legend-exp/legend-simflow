@@ -128,10 +128,24 @@ def scratch_dir(config: SimflowConfig) -> Path:
     return Path(config.nersc.scratch) / config._proctime
 
 
-def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
+def on_scratch(
+    config: SimflowConfig, path: str | Path, run_folder: bool = True
+) -> Path:
     """Return the path of the file in the scratch folder.
 
     Also makes sure the parent folder exists.
+
+    Parameters
+    ----------
+    config
+        the Simflow configuration.
+    path
+        path to the file outside of the scratch folder.
+    run_folder
+        place the file in the folder of the current workflow run (see
+        :func:`scratch_dir`). Set it to false if the path must be the same in
+        every Snakemake process, for example for rule inputs and outputs, since
+        cluster jobs might not share the run folder.
     """
     path = Path(path)
 
@@ -144,7 +158,8 @@ def on_scratch(config: SimflowConfig, path: str | Path) -> Path:
 
     path = Path(*parts)
 
-    new_path = scratch_dir(config) / path
+    base = scratch_dir(config) if run_folder else Path(config.nersc.scratch)
+    new_path = base / path
     new_path.parent.mkdir(parents=True, exist_ok=True)
     return new_path
 
