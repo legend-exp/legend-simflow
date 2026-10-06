@@ -41,7 +41,7 @@ and save them to an LH5 file.
 """
 function main()
     T = Float64
-    
+
     s = ArgParseSettings()
 
 
