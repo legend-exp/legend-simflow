@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import shutil
 from pathlib import Path
 
@@ -24,6 +25,10 @@ from legendsimflow.utils import apply_path_defaults
 l200data = Path(__file__).parent / "l200data" / "v3.0.0"
 dummyprod = Path(__file__).parent / "dummyprod"
 config_filename = dummyprod / "simflow-config.yaml"
+
+# the test metadata is not a Git checkout: let pylegendmeta read it as a plain
+# directory, also when pytest does not run in the pixi test environment
+os.environ.setdefault("METADATA_NO_GIT_REPO", "1")
 
 
 @pytest.fixture(scope="session", autouse=True)
