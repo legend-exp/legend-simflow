@@ -291,11 +291,11 @@ def lookup_superpulse_inputs(
     # the raw and evt tiers can hold a different number of files, so derive
     # each raw file from its evt file to make sure the two lists correspond
     raw_files = [
-        Path(
-            str(file)
-            .replace(str(evt_path), str(raw_path))
-            .replace(evt_tier_name, "raw")
-        )
+        raw_path
+        / data_type
+        / period
+        / run
+        / f"{file.name.rpartition('-tier_')[0]}-tier_raw.lh5"
         for file in evt_files
     ]
     if not evt_files:

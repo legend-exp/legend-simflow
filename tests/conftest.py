@@ -155,7 +155,9 @@ def test_make_ssc_data():
     rng = np.random.default_rng(seed=42)
 
     # basic info
+    rawid = 1108804
     detector_name = ak.unflatten(np.full(size, b"V03422A"), np.ones(size, dtype=int))
+    rawids = ak.unflatten(np.full(size, rawid), np.ones(size, dtype=int))
     hit_idx = ak.unflatten(np.arange(size), np.ones(size, dtype=int))
 
     energy_sum = rng.uniform(5, 100, size=size)
@@ -201,6 +203,7 @@ def test_make_ssc_data():
                 },
                 "multiplicity": multiplicity,
                 "detector_name": detector_name,
+                "rawid": rawids,
             },
         }
     )
@@ -223,14 +226,12 @@ def test_make_ssc_data():
             / "ssc"
             / "p16"
             / "r008"
-            / "l200-p16-r008-ssc-20230322T170202Z-tier_evt.lh5"
+            / "l200-p16-r008-ssc-20230322T170202Z-tier_pet.lh5"
         ),
         wo_mode="of",
     )
 
     # now also make a raw file with the same number of entries, we can just make empty waveforms
-
-    rawid = 1108804
 
     mu = 51 * 10**3
     sigma = 100
