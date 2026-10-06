@@ -51,8 +51,8 @@ Here's a basic description of its fields:
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option. The revision
   must contain the HPGe operational voltages in `hardware/configuration/opvs/`.
-- `metadata_repo`: the metadata repository at `paths.metadata`, either
-  `legend-metadata` (default) or `legend1000-metadata`. It selects the
+- `metadata_repo` (required): the metadata repository at `paths.metadata`,
+  either `legend-metadata` or `legend1000-metadata`. It selects the
   {class}`~legendmeta.LegendMetadata` or {class}`~legendmeta.Legend1000Metadata`
   class to read the metadata. For LEGEND-1000, the Simflow takes the list of
   channels from the geometry (see {func}`legendsimflow.geometry.channel_names`),

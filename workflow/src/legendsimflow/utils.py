@@ -232,13 +232,13 @@ def link_external_paths(
 
 def metadata_class(config: AttrsDict) -> type[MetadataRepository]:
     """Return the metadata class selected by the ``metadata_repo`` config key."""
-    repo = config.get("metadata_repo", "legend-metadata")
+    repo = config.get("metadata_repo")
     if repo == "legend-metadata":
         return LegendMetadata
     if repo == "legend1000-metadata":
         return Legend1000Metadata
 
-    msg = f"unknown value {repo!r}, must be 'legend-metadata' or 'legend1000-metadata'"
+    msg = f"got {repo!r}, must be 'legend-metadata' or 'legend1000-metadata'"
     raise SimflowConfigError(msg, "metadata_repo")
 
 

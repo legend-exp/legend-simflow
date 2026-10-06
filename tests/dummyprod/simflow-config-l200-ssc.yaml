@@ -1,4 +1,5 @@
 experiment: l200cfg09
+metadata_repo: legend-metadata
 
 runlist: []
 benchmark:

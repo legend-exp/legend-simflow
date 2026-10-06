@@ -28,7 +28,7 @@ make_steps:
 # legend_metadata_version: main
 
 # metadata repository at paths.metadata: legend-metadata or legend1000-metadata
-# metadata_repo: legend-metadata
+metadata_repo: legend-metadata
 
 benchmark:
   enabled: false
