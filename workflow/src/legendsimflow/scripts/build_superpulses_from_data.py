@@ -244,9 +244,10 @@ def main() -> int:
     # for each we have a AttrsDict with fields
     # "hit_idx", "file_idx", "n_sel"
 
+    rawid = tab_map[args.detector]
     wf_indices, drift_times = lookup_wfs_indices(
         slices,
-        detector=args.detector,
+        rawid=rawid,
         evt_files=file_info.evt,
         n_target=settings.target_wfs,
         t0_field=settings.t0_field,

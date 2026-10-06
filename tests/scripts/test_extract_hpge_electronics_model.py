@@ -38,7 +38,7 @@ def test_lookup_inputs(test_make_ssc_data):
     assert dsp_config.exists()
 
     assert raw_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
-    assert evt_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_evt.lh5"
+    assert evt_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_pet.lh5"
 
     assert tab_map[DETECTOR] == 1108804
 

@@ -363,16 +363,31 @@ themselves are unchanged and applied globally.
 | `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires `psd.is_good`, `psd.single_temp.has_aoe`, and `psd.single_temp.is_single_site` for all hits. Events where PSD is not valid or not simulated are classified as background and excluded. |
 | `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`). Present only when both HPGe and SiPM data are available.                                                                |
 
+The `mul_psd` and `mul_lar_psd` histograms are present only when the `hit` tier
+simulates PSD with a single template (`simulate_psd`). When it simulates PSD
+with a pulse library (`simulate_psd_with_psl`), the A/E observables are stored
+under `psd.pulse_lib` and three more PSD cuts are built. Each requires
+`psd.is_good` and `psd.pulse_lib.has_aoe` for all hits, plus:
+
+| Cut            | Requirement on all hits                                  |
+| -------------- | -------------------------------------------------------- |
+| `psd_psl`      | `psd.pulse_lib.is_single_site` (low-side A/E cut)        |
+| `psd_high`     | not `psd.pulse_lib.is_high_aoe` (high-side A/E cut)      |
+| `psd_two_side` | `psd.pulse_lib.is_bb_like` (low- and high-side A/E cuts) |
+
+For each cut `<psd>` in this table, the output contains `mul_<psd>` and, when
+SiPM data are available, `mul_lar_<psd>`.
+
 :::{warning}
 
 When a detector is ON with valid PSD in the data but its PSD response could not
 be simulated (e.g. because it is not included in the simulation model), the
-corresponding events will have `psd.single_temp.has_aoe = False` in the `cvt`
-tier. Such events are treated as background and excluded from `mul_psd` and
-`mul_lar_psd`. This is a conservative choice: rather than keeping events we
-cannot characterise, we cut them. The `fail/psd` histogram does **not** include
-these events either, since it is restricted to events where both
-`psd.is_good = True` and `psd.single_temp.has_aoe = True`.
+corresponding events will have `has_aoe = False` in the `cvt` tier. Such events
+are treated as background and excluded from all PSD histograms. This is a
+conservative choice: rather than keeping events we cannot characterise, we cut
+them. The `fail/` PSD histograms do **not** include these events either, since
+they are restricted to events where both `psd.is_good = True` and
+`has_aoe = True`.
 
 :::
 
@@ -393,7 +408,8 @@ explicitly rejected by a cut, providing a way to characterise the vetoed
 background. Like the pass histograms, each cut contains one `Histogram` per
 detector group (`pdf/fail/<cut>/<group>`).
 
-| Cut   | Description                                                                                                                                                                             |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lar` | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when both HPGe and SiPM data are available.                                                        |
-| `psd` | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.single_temp.is_single_site == False`). Events without valid PSD are not included here. |
+| Cut                                   | Description                                                                                                                                                                             |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lar`                                 | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when both HPGe and SiPM data are available.                                                        |
+| `psd`                                 | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.single_temp.is_single_site == False`). Events without valid PSD are not included here. |
+| `psd_psl`, `psd_high`, `psd_two_side` | Multiplicity-1 events with valid PSD (`psd.is_good == True` and `psd.pulse_lib.has_aoe == True`) that fail the corresponding pulse-library A/E cut.                                     |
