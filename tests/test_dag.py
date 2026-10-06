@@ -336,7 +336,8 @@ def test_skip_hit_drops_hit_tier(tmp_path):
 def test_skip_hit_needs_no_hit_settings(tmp_path):
     """With `skip_hit`, the hit settings and the HPGe threshold may be absent.
 
-    The HPGe pulse-shape rules are then dropped, even with par in `make_steps`.
+    The HPGe pulse-shape rules are dropped, although `simulate_psd` defaults to
+    true and par is in `make_steps`.
     """
     cfg = overrides(
         tmp_path,

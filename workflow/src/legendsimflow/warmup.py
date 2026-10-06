@@ -107,7 +107,7 @@ def _resolve_dsp_config(simflow_config: str | Path | dict | None) -> Path | None
     import dbetto
 
     from legendsimflow import utils
-    from legendsimflow.metadata import get_tier_settings
+    from legendsimflow.metadata import get_tier_settings, simulates_hpge_psd
 
     # cheap peek before the heavier full context init
     raw = (
@@ -119,8 +119,10 @@ def _resolve_dsp_config(simflow_config: str | Path | dict | None) -> Path | None
         return None
 
     config = utils.init_simflow_context(simflow_config).config
-    hit = get_tier_settings(config, "hit")
-    if not (hit.get("simulate_psd", True) and hit.get("simulate_psd_with_psl", True)):
+    if not (
+        simulates_hpge_psd(config)
+        and get_tier_settings(config, "hit").get("simulate_psd_with_psl", True)
+    ):
         return None
 
     return utils.lookup_dsp_config(config.paths.l200data)

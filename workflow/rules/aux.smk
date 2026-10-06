@@ -18,13 +18,17 @@ from pathlib import Path
 import dbetto
 from legendsimflow import aggregate, nersc, patterns
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.metadata import get_tier_settings, get_par_settings
+from legendsimflow.metadata import (
+    get_tier_settings,
+    get_par_settings,
+    simulates_hpge_psd,
+)
 
 # the HPGe modeling cache is only needed by the PSD-gated par outputs. aux.smk
 # is always included, so the flag is available to the other rule modules too
-_simulate_psd = get_tier_settings(config, "hit").get("simulate_psd", True)
+_simulate_psd = simulates_hpge_psd(config)
 _tune_impurity = get_tier_settings(config, "hit").get(
-    "tune_hpge_impurities_on_data", True
+    "tune_hpge_impurities_on_data", False
 )
 _impurity_settings = get_par_settings(config, "impurityscan")
 # a fit window starting below the scan cut would compare data with an

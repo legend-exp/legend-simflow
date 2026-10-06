@@ -104,13 +104,14 @@ operational voltage and its crystal metadata provides an impurity curve. The
 remaining criteria depend on the `tune_hpge_impurities_on_data` setting in
 {ref}`hit-tier-settings`:
 
-- `True` (default): the detector PSD status (`analysis.psd.status.low_aoe` in
-  the channel map, taken as `valid` when absent) is `valid`. The depletion
-  voltage is not required.
-- `False`: the detector is operated at least `min_voltage_above_depletion_in_V`
-  (default 100 V, configurable per experiment via the
-  {ref}`modeling settings <modeling-settings-meta>`) above its depletion voltage
-  (`characterization.l200_site.depletion_voltage_in_V` in the diode metadata).
+- `True`: the detector PSD status (`analysis.psd.status.low_aoe` in the channel
+  map, taken as `valid` when absent) is `valid`. The depletion voltage is not
+  required.
+- `False` (default): the detector is operated at least
+  `min_voltage_above_depletion_in_V` (default 100 V, configurable per experiment
+  via the {ref}`modeling settings <modeling-settings-meta>`) above its depletion
+  voltage (`characterization.l200_site.depletion_voltage_in_V` in the diode
+  metadata).
 
 The eligibility is assessed by
 {func}`~legendsimflow.aggregate.gen_list_of_hpges_valid_for_modeling`.
@@ -429,8 +430,8 @@ skip_hit: false
 - `skip_hit` (bool, default `false`) — when `true`, the `hit` (HPGe) tier is
   skipped: the hit Snakemake rule is not run and the evt output contains only
   SiPM data (no `geds` or `coincident/geds` tables). The hit tier settings and
-  `geds_energy_thr_kev` are then optional. Without hit tier settings, no HPGe
-  pulse shapes are simulated and no HPGe impurities are tuned.
+  `geds_energy_thr_kev` are then optional, and no HPGe pulse shapes are
+  simulated.
 
 :::{note}
 

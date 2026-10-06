@@ -34,6 +34,7 @@ from .metadata import (
     get_tier_settings,
     runinfo,
     simpars,
+    simulates_hpge_psd,
 )
 
 log = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ def gen_list_of_plots_outputs(
     if tier == "par":
         # HPGe drift-time map plots, a byproduct of the par step; only produced
         # when PSD is simulated in the hit tier
-        if not get_tier_settings(config, "hit").get("simulate_psd", True):
+        if not simulates_hpge_psd(config):
             return []
         if cache is None:
             cache = build_hpge_modeling_cache(config)
@@ -148,11 +149,7 @@ def gen_list_of_all_plots_outputs(
 ) -> list[Path]:
     r"""Generate a list of all plot files that belong to a `tier`."""
     # the cache does not depend on the simid: build it once for all of them
-    if (
-        cache is None
-        and tier == "par"
-        and get_tier_settings(config, "hit").get("simulate_psd", True)
-    ):
+    if cache is None and tier == "par" and simulates_hpge_psd(config):
         cache = build_hpge_modeling_cache(config)
 
     mlist = []
@@ -363,7 +360,7 @@ def gen_hpge_modeling_status(
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
     tune_hpge_impurities_on_data = get_tier_settings(config, "hit").get(
-        "tune_hpge_impurities_on_data", True
+        "tune_hpge_impurities_on_data", False
     )
     min_voltage_above_depletion = None
     if not tune_hpge_impurities_on_data:
@@ -1043,11 +1040,7 @@ def process_simlist(
         # cumulative: build all tiers up to the requested one
         for t in make_steps[: make_steps.index(tier) + 1]:
             # build the cache at most once, and share it across the simids
-            if (
-                t == "par"
-                and cache is None
-                and get_tier_settings(config, "hit").get("simulate_psd", True)
-            ):
+            if t == "par" and cache is None and simulates_hpge_psd(config):
                 cache = build_hpge_modeling_cache(config)
             mlist += gen_list_of_plots_outputs(config, t, simid, cache=cache)
 

@@ -234,6 +234,11 @@ def test_get_tier_settings_evt(config):
     assert settings.buffer_len == "50*MB"
 
 
+def test_get_tier_settings_missing(config):
+    """get_tier_settings returns an empty block for a tier without settings."""
+    assert metadata.get_tier_settings(config, "no-such-tier") == {}
+
+
 def test_get_par_settings(config):
     """get_par_settings returns the settings object for the par directory."""
     settings = metadata.get_par_settings(config, "ssd")
