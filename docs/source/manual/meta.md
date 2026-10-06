@@ -660,7 +660,8 @@ detector_groups:
   to `detector_groups: {all: ".*"}`). Specifying `detector_groups` extends the
   output: every named group is produced in addition to `all`, which is always
   emitted regardless of the config. See {ref}`pdf-tier` for the resulting output
-  schema.
+  schema. Group names cannot be cut levels of the output paths (`lar`,
+  `not_lar`, `psd_st`, ...).
 
 ## `pars/` — simulation parameters
 

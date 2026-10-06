@@ -121,45 +121,80 @@ def main() -> None:
     # 1 keV/bin over 0-6000 keV; boost-histogram only provides Double (float64) storage
     h1 = hist.new.Reg(6000, 0, 6000).Double
 
-    # 1-D histograms are split per detector group; mul2 stays global.
-    histograms: dict[str, dict[str, hist.Hist]] = {}
-    fail_histograms: dict[str, dict[str, hist.Hist]] = {}
-    mul2_hist = None
+    # PSD cuts as (A/E model, flag, pass if flag is False, description). The
+    # flags are defined in legendsimflow.reboost.
+    psd_cuts = {
+        "psd_st": (
+            "single_temp",
+            "is_single_site",
+            False,
+            "low-side A/E cut (single template)",
+        ),
+        "psd_psl_low": (
+            "pulse_lib",
+            "is_single_site",
+            False,
+            "low-side A/E cut (pulse library)",
+        ),
+        "psd_psl_high": (
+            "pulse_lib",
+            "is_high_aoe",
+            True,
+            "high-side A/E cut (pulse library)",
+        ),
+        "psd_psl": (
+            "pulse_lib",
+            "is_bb_like",
+            False,
+            "low- and high-side A/E cuts (pulse library)",
+        ),
+    }
 
-    # PSD cuts as (A/E model, flag, pass if flag is False). The flags are
-    # defined in legendsimflow.reboost: is_single_site is the low-side A/E
-    # cut, is_high_aoe is above the high-side cut, is_bb_like is both.
+    # the per-group histograms sit next to the deeper cut levels in the output
+    cut_levels = {"lar", *psd_cuts}
+    clash = set(groups) & (cut_levels | {f"not_{c}" for c in cut_levels})
+    if clash:
+        msg = f"detector group names {sorted(clash)} are reserved for cut levels"
+        raise ValueError(msg)
+
     psd_models = set()
     if has_geds and "evt/geds/psd" in lh5.ls(_cvt_file_str, "evt/geds/"):
         psd_models = {
             k.removeprefix("evt/geds/psd/")
             for k in lh5.ls(_cvt_file_str, "evt/geds/psd/")
         }
-    psd_cuts = {
-        cut: v
-        for cut, v in {
-            "psd": ("single_temp", "is_single_site", False),
-            "psd_psl": ("pulse_lib", "is_single_site", False),
-            "psd_high": ("pulse_lib", "is_high_aoe", True),
-            "psd_two_side": ("pulse_lib", "is_bb_like", False),
-        }.items()
-        if v[0] in psd_models
-    }
+    psd_cuts = {c: v for c, v in psd_cuts.items() if v[0] in psd_models}
 
+    # path in the output struct -> description. The levels of a path are cuts
+    # applied in the order mul1, lar, psd; not_<cut> selects events failing
+    # <cut>. Events without a valid A/E pass neither <psd> nor not_<psd>.
+    descriptions: dict[str, str] = {}
     if has_geds:
-        for cut in ("hit", "mul", *(f"mul_{c}" for c in psd_cuts)):
-            histograms[cut] = {g: h1() for g in groups}
-        for cut in psd_cuts:
-            fail_histograms[cut] = {g: h1() for g in groups}
-        # 2-D: (E_min, E_max) for multiplicity-2 events; not split by group
-        mul2_hist = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
+        descriptions["hit"] = "all HPGe energy deposits in ON channels"
+        descriptions["mul1"] = "multiplicity-1 events: exactly one ON detector fired"
+        for c, (*_, desc) in psd_cuts.items():
+            descriptions[f"mul1/{c}"] = f"multiplicity 1 + passing the {desc}"
+            descriptions[f"mul1/not_{c}"] = (
+                f"multiplicity 1 + valid A/E, failing the {desc}"
+            )
 
     # the LAr-veto histograms are HPGe-energy spectra: without hit-tier data
     # (i.e. skip_hit productions) there is nothing to fill them with.
     if has_geds and has_spms_coinc:
-        for cut in ("mul_lar", *(f"mul_lar_{c}" for c in psd_cuts)):
-            histograms[cut] = {g: h1() for g in groups}
-        fail_histograms["lar"] = {g: h1() for g in groups}
+        descriptions["mul1/lar"] = "multiplicity 1 + LAr anti-coincidence"
+        descriptions["mul1/not_lar"] = "multiplicity 1 + failing the LAr veto"
+        for c, (*_, desc) in psd_cuts.items():
+            descriptions[f"mul1/lar/{c}"] = (
+                f"multiplicity 1 + LAr anti-coincidence + passing the {desc}"
+            )
+
+    # 1-D histograms are split per detector group; mul2 stays global.
+    histograms = {path: {g: h1() for g in groups} for path in descriptions}
+
+    mul2_hist = None
+    if has_geds:
+        # 2-D: (E_min, E_max) for multiplicity-2 events; not split by group
+        mul2_hist = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
 
     log.info("... beginning iteration over cvt file")
 
@@ -192,28 +227,28 @@ def main() -> None:
             m1_event_mask = (data.geds.multiplicity == 1) & good_channel_mask
             data_m1 = data[m1_event_mask]
             det_m1 = {g: m[m1_event_mask] for g, m in det_in_group.items()}
-            _fill_per_group(histograms["mul"], data_m1.geds.energy, det_m1)
+            _fill_per_group(histograms["mul1"], data_m1.geds.energy, det_m1)
 
             if has_spms_coinc:
                 lar_pass_m1 = ~data_m1.coincident.spms
                 data_m1_lar = data_m1[lar_pass_m1]
                 det_m1_lar = {g: m[lar_pass_m1] for g, m in det_m1.items()}
                 _fill_per_group(
-                    histograms["mul_lar"], data_m1_lar.geds.energy, det_m1_lar
+                    histograms["mul1/lar"], data_m1_lar.geds.energy, det_m1_lar
                 )
 
                 lar_fail_m1 = data_m1.coincident.spms
                 data_m1_lar_fail = data_m1[lar_fail_m1]
                 det_m1_lar_fail = {g: m[lar_fail_m1] for g, m in det_m1.items()}
                 _fill_per_group(
-                    fail_histograms["lar"],
+                    histograms["mul1/not_lar"],
                     data_m1_lar_fail.geds.energy,
                     det_m1_lar_fail,
                 )
 
             # events without a valid or simulated A/E are classified as
             # background (cut), and are not counted as failing the cut.
-            for cut, (model, flag, pass_if_false) in psd_cuts.items():
+            for cut, (model, flag, pass_if_false, _) in psd_cuts.items():
                 psd = data_m1.geds.psd
                 has_aoe = ak.all(psd.is_good & psd[model].has_aoe, axis=-1)
                 passed = psd[model][flag]
@@ -224,7 +259,7 @@ def main() -> None:
                 data_m1_psd = data_m1[psd_pass_m1]
                 det_m1_psd = {g: m[psd_pass_m1] for g, m in det_m1.items()}
                 _fill_per_group(
-                    histograms[f"mul_{cut}"], data_m1_psd.geds.energy, det_m1_psd
+                    histograms[f"mul1/{cut}"], data_m1_psd.geds.energy, det_m1_psd
                 )
 
                 if has_spms_coinc:
@@ -234,7 +269,7 @@ def main() -> None:
                         g: m[psd_pass_m1_lar] for g, m in det_m1_lar.items()
                     }
                     _fill_per_group(
-                        histograms[f"mul_lar_{cut}"],
+                        histograms[f"mul1/lar/{cut}"],
                         data_m1_lar_psd.geds.energy,
                         det_m1_lar_psd,
                     )
@@ -243,7 +278,7 @@ def main() -> None:
                 data_m1_psd_fail = data_m1[psd_fail_mask]
                 det_m1_psd_fail = {g: m[psd_fail_mask] for g, m in det_m1.items()}
                 _fill_per_group(
-                    fail_histograms[cut],
+                    histograms[f"mul1/not_{cut}"],
                     data_m1_psd_fail.geds.energy,
                     det_m1_psd_fail,
                 )
@@ -257,54 +292,31 @@ def main() -> None:
 
     log.info("... convert histograms to lgdo")
 
-    _descriptions = {
-        "hit": "all individual HPGe energy deposits in ON channels",
-        "mul": "multiplicity-1 events: exactly one ON detector fired",
-        "mul_lar": "multiplicity-1 + LAr anti-coincidence",
-        "mul_psd": "multiplicity-1 + low-side A/E cut (single template)",
-        "mul_psd_psl": "multiplicity-1 + low-side A/E cut (pulse library)",
-        "mul_psd_high": "multiplicity-1 + high-side A/E cut (pulse library)",
-        "mul_psd_two_side": "multiplicity-1 + two-sided A/E cut (pulse library)",
-        "mul_lar_psd": "multiplicity-1 + LAr anti-coincidence + low-side A/E cut (single template)",
-        "mul_lar_psd_psl": "multiplicity-1 + LAr anti-coincidence + low-side A/E cut (pulse library)",
-        "mul_lar_psd_high": "multiplicity-1 + LAr anti-coincidence + high-side A/E cut (pulse library)",
-        "mul_lar_psd_two_side": "multiplicity-1 + LAr anti-coincidence + two-sided A/E cut (pulse library)",
-        "mul2": "multiplicity-2 events: (E_low, E_high) for pairs of ON detectors",
-        "fail/lar": "multiplicity-1 events failing the LAr veto",
-        "fail/psd": "multiplicity-1 events with valid A/E failing the low-side A/E cut (single template)",
-        "fail/psd_psl": "multiplicity-1 events with valid A/E failing the low-side A/E cut (pulse library)",
-        "fail/psd_high": "multiplicity-1 events with valid A/E failing the high-side A/E cut (pulse library)",
-        "fail/psd_two_side": "multiplicity-1 events with valid A/E failing the two-sided A/E cut (pulse library)",
-    }
-
-    output_dict: dict[str, Struct | Histogram] = {
-        cut: Struct(
+    tree: dict = {}
+    for path, per_group in histograms.items():
+        node = tree
+        for level in path.split("/"):
+            node = node.setdefault(level, {})
+        node.update(
             {
-                g: Histogram(h, attrs={"description": _descriptions[cut]})
+                g: Histogram(h, attrs={"description": descriptions[path]})
                 for g, h in per_group.items()
             }
         )
-        for cut, per_group in histograms.items()
-    }
-    if fail_histograms:
-        output_dict["fail"] = Struct(
-            {
-                cut: Struct(
-                    {
-                        g: Histogram(
-                            h, attrs={"description": _descriptions[f"fail/{cut}"]}
-                        )
-                        for g, h in per_group.items()
-                    }
-                )
-                for cut, per_group in fail_histograms.items()
-            }
-        )
     if mul2_hist is not None:
-        output_dict["mul2"] = Histogram(
-            mul2_hist, attrs={"description": _descriptions["mul2"]}
+        tree["mul2"] = Histogram(
+            mul2_hist,
+            attrs={
+                "description": "multiplicity-2 events: (E_low, E_high) for pairs of ON detectors"
+            },
         )
-    output = Struct(output_dict)
+
+    def _to_struct(node: dict) -> Struct:
+        return Struct(
+            {k: _to_struct(v) if isinstance(v, dict) else v for k, v in node.items()}
+        )
+
+    output = _to_struct(tree)
     lh5.write(output, "pdf", pdf_file, wo_mode="w")
     lh5.write(
         Scalar(int(number_of_primaries)), "nr_sim_events", pdf_file, wo_mode="append"
