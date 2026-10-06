@@ -4,6 +4,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import h5py
 import lh5
 import numpy as np
 import pytest
@@ -34,6 +35,11 @@ def _write_cvt_root(
 
 _SIMID_LEGEND = "birds_nest_K40"
 _SIMID_L1000 = "ultem_insulators_Pb214_to_Po214"
+
+
+def _exists(pdf_file: Path, path: str) -> bool:
+    with h5py.File(pdf_file, "r") as f:
+        return path in f
 
 
 def _make_metadata_with_pdf_settings(tmp_path: Path, extra_pdf_settings: dict) -> Path:
@@ -86,9 +92,9 @@ def _make_cvt_file(path: Path) -> None:
     """Write a minimal cvt LH5 file with the fields expected by the pdf script."""
     # 6 events:
     # - event 0: m1, 500 keV,      spms=False, PSD valid+simulated+single-site → passes all cuts
-    # - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → fail/psd
+    # - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → mul1/not_psd_st
     # - event 2: m1, 1500 keV,     spms=False, PSD not valid                   → cut (no observable)
-    # - event 3: m1, 2000 keV,     spms=True,  PSD valid+simulated+single-site → fail/lar
+    # - event 3: m1, 2000 keV,     spms=True,  PSD valid+simulated+single-site → mul1/not_lar
     # - event 4: m2, 200+300 keV,  spms=False
     # - event 5: m1, 2500 keV,     spms=False, PSD valid+not simulated         → cut (no observable)
     multiplicity = Array(np.array([1, 1, 1, 1, 2, 1], dtype=np.int32))
@@ -151,20 +157,17 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     # the pdf script must read number_of_events back from the cvt file
     assert nr_sim_events.value == _N_SIM_EVENTS
 
-    inner_keys = lh5.ls(pdf_file, "pdf/")
     for name in (
         "pdf/hit",
-        "pdf/mul",
-        "pdf/mul_lar",
-        "pdf/mul_psd",
-        "pdf/mul_lar_psd",
+        "pdf/mul1",
+        "pdf/mul1/lar",
+        "pdf/mul1/not_lar",
+        "pdf/mul1/psd_st",
+        "pdf/mul1/not_psd_st",
+        "pdf/mul1/lar/psd_st",
         "pdf/mul2",
-        "pdf/fail",
     ):
-        assert name in inner_keys
-    fail_keys = lh5.ls(pdf_file, "pdf/fail/")
-    for name in ("pdf/fail/lar", "pdf/fail/psd"):
-        assert name in fail_keys
+        assert _exists(pdf_file, name), name
 
     def _sum(path):
         return lh5.read_as(path, pdf_file, "hist").sum()
@@ -173,25 +176,25 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert _sum("pdf/hit/all") == 7
 
     # 5 m1 events
-    assert _sum("pdf/mul/all") == 5
+    assert _sum("pdf/mul1/all") == 5
 
     # event 3 (spms=True) is vetoed: 4 survive
-    assert _sum("pdf/mul_lar/all") == 4
+    assert _sum("pdf/mul1/lar/all") == 4
 
     # events 0 and 3 pass PSD (valid+simulated+SS); events 1 (MS), 2 (invalid), 5 (not simulated) cut
-    assert _sum("pdf/mul_psd/all") == 2
+    assert _sum("pdf/mul1/psd_st/all") == 2
 
     # event 3 also fails LAr, so only event 0 survives both
-    assert _sum("pdf/mul_lar_psd/all") == 1
+    assert _sum("pdf/mul1/lar/psd_st/all") == 1
 
     # 1 m2 event
     assert _sum("pdf/mul2") == 1
 
     # event 3 fails LAr
-    assert _sum("pdf/fail/lar/all") == 1
+    assert _sum("pdf/mul1/not_lar/all") == 1
 
     # event 1 (valid+simulated PSD, multi-site) fails PSD; event 5 (not simulated) excluded
-    assert _sum("pdf/fail/psd/all") == 1
+    assert _sum("pdf/mul1/not_psd_st/all") == 1
 
 
 def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
@@ -231,21 +234,21 @@ def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
     pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
 
     # no single_temp model in the input: no single-template histograms
-    assert "pdf/mul_psd" not in lh5.ls(pdf_file, "pdf/")
-    assert "pdf/fail/psd" not in lh5.ls(pdf_file, "pdf/fail/")
+    assert not _exists(pdf_file, "pdf/mul1/psd_st")
+    assert not _exists(pdf_file, "pdf/mul1/not_psd_st")
 
     def _sum(path):
         return lh5.read_as(path, pdf_file, "hist").sum()
 
     expected = {
-        "psd_psl": (3, 2, 1),
-        "psd_high": (3, 2, 1),
-        "psd_two_side": (2, 1, 2),
+        "psd_psl_low": (3, 2, 1),
+        "psd_psl_high": (3, 2, 1),
+        "psd_psl": (2, 1, 2),
     }
     for cut, (n_pass, n_pass_lar, n_fail) in expected.items():
-        assert _sum(f"pdf/mul_{cut}/all") == n_pass
-        assert _sum(f"pdf/mul_lar_{cut}/all") == n_pass_lar
-        assert _sum(f"pdf/fail/{cut}/all") == n_fail
+        assert _sum(f"pdf/mul1/{cut}/all") == n_pass
+        assert _sum(f"pdf/mul1/lar/{cut}/all") == n_pass_lar
+        assert _sum(f"pdf/mul1/not_{cut}/all") == n_fail
 
 
 def _make_cvt_file_no_spms(path: Path) -> None:
@@ -316,25 +319,19 @@ def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
 
     assert pdf_file.exists()
 
-    inner_keys = lh5.ls(pdf_file, "pdf/")
-
     # geds-based histograms must all be present
-    for name in ("pdf/hit", "pdf/mul", "pdf/mul_psd", "pdf/mul2", "pdf/fail"):
-        assert name in inner_keys, f"'{name}' missing from pdf/; got {inner_keys}"
-
-    fail_keys = lh5.ls(pdf_file, "pdf/fail/")
-    assert "pdf/fail/psd" in fail_keys, (
-        f"'pdf/fail/psd' missing from pdf/fail/; got {fail_keys}"
-    )
+    for name in (
+        "pdf/hit",
+        "pdf/mul1",
+        "pdf/mul1/psd_st",
+        "pdf/mul1/not_psd_st",
+        "pdf/mul2",
+    ):
+        assert _exists(pdf_file, name), name
 
     # LAr histograms must be absent: no spms coincidence data was present
-    for name in ("pdf/mul_lar", "pdf/mul_lar_psd"):
-        assert name not in inner_keys, (
-            f"'{name}' should be absent when has_spms_coinc=False; got {inner_keys}"
-        )
-    assert "pdf/fail/lar" not in fail_keys, (
-        f"'pdf/fail/lar' should be absent when has_spms_coinc=False; got {fail_keys}"
-    )
+    for name in ("pdf/mul1/lar", "pdf/mul1/not_lar"):
+        assert not _exists(pdf_file, name), name
 
 
 def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
@@ -348,20 +345,9 @@ def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
 
     assert pdf_file.exists()
 
-    inner_keys = lh5.ls(pdf_file, "pdf/")
-
-    # geds-based histograms must be absent (never initialised when has_geds=False)
-    for name in ("pdf/hit", "pdf/mul", "pdf/mul_psd", "pdf/mul2"):
-        assert name not in inner_keys, (
-            f"'{name}' should be absent when has_geds=False; got {inner_keys}"
-        )
-
-    # the LAr histograms are HPGe-energy spectra: nothing fills them without
-    # hit-tier data, so they must not be written either
-    for name in ("pdf/mul_lar", "pdf/mul_lar_psd", "pdf/fail"):
-        assert name not in inner_keys, (
-            f"'{name}' should be absent when has_geds=False; got {inner_keys}"
-        )
+    # no histogram is filled without HPGe data, including the LAr-veto ones
+    for name in ("pdf/hit", "pdf/mul1", "pdf/mul2"):
+        assert not _exists(pdf_file, name), name
 
 
 @pytest.mark.needs_remage
@@ -385,28 +371,37 @@ def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
     assert np.issubdtype(type(nr_sim_events.value), np.integer)
     assert nr_sim_events.value > 0
 
-    inner_keys = lh5.ls(pdf_file, "pdf/")
     for name in (
         "pdf/hit",
-        "pdf/mul",
-        "pdf/mul_lar",
-        "pdf/mul_psd",
-        "pdf/mul_lar_psd",
+        "pdf/mul1",
+        "pdf/mul1/lar",
+        "pdf/mul1/psd_st",
+        "pdf/mul1/lar/psd_st",
         "pdf/mul2",
-        "pdf/fail",
     ):
-        assert name in inner_keys
+        assert _exists(pdf_file, name), name
 
     def _sum(path):
         return lh5.read_as(path, pdf_file, "hist").sum()
 
     # cut hierarchy must be non-increasing
-    n_mul = _sum("pdf/mul/all")
+    n_mul = _sum("pdf/mul1/all")
     assert _sum("pdf/hit/all") >= n_mul
-    assert _sum("pdf/mul_lar/all") <= n_mul
-    assert _sum("pdf/mul_psd/all") <= n_mul
-    assert _sum("pdf/mul_lar_psd/all") <= _sum("pdf/mul_lar/all")
-    assert _sum("pdf/mul_lar_psd/all") <= _sum("pdf/mul_psd/all")
+    assert _sum("pdf/mul1/lar/all") <= n_mul
+    assert _sum("pdf/mul1/psd_st/all") <= n_mul
+    assert _sum("pdf/mul1/lar/psd_st/all") <= _sum("pdf/mul1/lar/all")
+    assert _sum("pdf/mul1/lar/psd_st/all") <= _sum("pdf/mul1/psd_st/all")
+
+
+_ALL_CUTS = (
+    "hit",
+    "mul1",
+    "mul1/lar",
+    "mul1/not_lar",
+    "mul1/psd_st",
+    "mul1/not_psd_st",
+    "mul1/lar/psd_st",
+)
 
 
 def test_pdf_detector_groups_schema(tmp_path, monkeypatch):
@@ -426,25 +421,11 @@ def test_pdf_detector_groups_schema(tmp_path, monkeypatch):
     assert "nr_sim_events" in root_keys
     assert "mul2" not in root_keys  # mul2 is under pdf/, not root
 
-    inner_keys = lh5.ls(str(pdf_file), "pdf/")
-    assert "pdf/mul2" in inner_keys  # global, not split by group
+    assert _exists(pdf_file, "pdf/mul2")  # global, not split by group
 
-    for cut in ("hit", "mul", "mul_lar", "mul_psd", "mul_lar_psd"):
-        assert f"pdf/{cut}" in inner_keys, f"pdf/{cut} missing"
-        cut_keys = lh5.ls(str(pdf_file), f"pdf/{cut}/")
+    for cut in _ALL_CUTS:
         for group in ("icpc", "bege", "all"):
-            assert f"pdf/{cut}/{group}" in cut_keys, (
-                f"pdf/{cut}/{group} missing; got {cut_keys}"
-            )
-
-    fail_keys = lh5.ls(str(pdf_file), "pdf/fail/")
-    for fail_cut in ("psd", "lar"):
-        assert f"pdf/fail/{fail_cut}" in fail_keys, f"pdf/fail/{fail_cut} missing"
-        fc_keys = lh5.ls(str(pdf_file), f"pdf/fail/{fail_cut}/")
-        for group in ("icpc", "bege", "all"):
-            assert f"pdf/fail/{fail_cut}/{group}" in fc_keys, (
-                f"pdf/fail/{fail_cut}/{group} missing; got {fc_keys}"
-            )
+            assert _exists(pdf_file, f"pdf/{cut}/{group}"), f"pdf/{cut}/{group}"
 
 
 def test_pdf_no_detector_groups_schema(tmp_path, monkeypatch):
@@ -457,27 +438,12 @@ def test_pdf_no_detector_groups_schema(tmp_path, monkeypatch):
     pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
     assert pdf_file.exists()
 
-    inner_keys = lh5.ls(str(pdf_file), "pdf/")
-    assert "pdf/mul2" in inner_keys
+    assert _exists(pdf_file, "pdf/mul2")
 
-    for cut in ("hit", "mul", "mul_lar", "mul_psd", "mul_lar_psd"):
-        assert f"pdf/{cut}" in inner_keys, f"pdf/{cut} missing"
-        cut_keys = lh5.ls(str(pdf_file), f"pdf/{cut}/")
-        assert f"pdf/{cut}/all" in cut_keys, f"pdf/{cut}/all missing"
+    for cut in _ALL_CUTS:
+        assert _exists(pdf_file, f"pdf/{cut}/all"), f"pdf/{cut}/all"
         for group in ("icpc", "bege"):
-            assert f"pdf/{cut}/{group}" not in cut_keys, (
-                f"pdf/{cut}/{group} should be absent without detector_groups; got {cut_keys}"
-            )
-
-    fail_keys = lh5.ls(str(pdf_file), "pdf/fail/")
-    for fail_cut in ("psd", "lar"):
-        assert f"pdf/fail/{fail_cut}" in fail_keys
-        fc_keys = lh5.ls(str(pdf_file), f"pdf/fail/{fail_cut}/")
-        assert f"pdf/fail/{fail_cut}/all" in fc_keys
-        for group in ("icpc", "bege"):
-            assert f"pdf/fail/{fail_cut}/{group}" not in fc_keys, (
-                f"pdf/fail/{fail_cut}/{group} should be absent without detector_groups"
-            )
+            assert not _exists(pdf_file, f"pdf/{cut}/{group}"), f"pdf/{cut}/{group}"
 
 
 def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
@@ -494,16 +460,7 @@ def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
     def _counts(path):
         return lh5.read_as(path, str(pdf_file), "hist").values()
 
-    cuts_to_check = [
-        "hit",
-        "mul",
-        "mul_lar",
-        "mul_psd",
-        "mul_lar_psd",
-        "fail/psd",
-        "fail/lar",
-    ]
-    for cut in cuts_to_check:
+    for cut in _ALL_CUTS:
         icpc = _counts(f"pdf/{cut}/icpc")
         bege = _counts(f"pdf/{cut}/bege")
         all_counts = _counts(f"pdf/{cut}/all")
@@ -512,3 +469,14 @@ def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
             all_counts,
             err_msg=f"sum(icpc + bege) != all for cut '{cut}'",
         )
+
+
+def test_pdf_group_name_reserved(tmp_path, monkeypatch):
+    meta_dir = _make_metadata_with_pdf_settings(
+        tmp_path, {"detector_groups": {"not_lar": "V.*"}}
+    )
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file(cvt_file)
+
+    with pytest.raises(ValueError, match="reserved"):
+        _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)

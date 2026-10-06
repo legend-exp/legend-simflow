@@ -341,58 +341,90 @@ attribute in the LH5 attrs.
 | --------------- | -------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nr_sim_events` | `Scalar` | —     | Total number of simulated primary events, read from the `number_of_simulated_events` scalar that _remage_ stores in each `stp` file and that is summed over all jobs at the `cvt` tier. Used to normalise PDFs to physical event rates. |
 
-### `pdf/` — histogram struct
+### `pdf/` histogram struct
 
-The 1-D histograms are organised cut-first, then by detector group:
-`pdf/<cut>/<group>`. Each leaf is an lgdo `Histogram`. The detector groups are
-configured via the `detector_groups` setting (see {ref}`pdf-tier-settings`); the
-`all` group containing every detector is always present.
+The 1D histograms are stored at paths of the form
 
-For example, with `detector_groups: {icpc: "V.*", bege: "B.*"}`, the output
-contains `pdf/hit/icpc`, `pdf/hit/bege`, and `pdf/hit/all`, and similarly for
-every other cut.
+```text
+pdf/<level_1>/<level_2>/.../<level_n>/<group>
+```
 
-#### 1D histograms
+Each level is one event selection, and a histogram contains the events that
+satisfy all levels on its path. A level is either `<cut>`, for events passing
+the cut, or `not_<cut>`, for events failing it. The levels always appear in the
+order `mul1`, `lar`, PSD cut. A cut absent from a path is not applied.
 
-Each of the following cuts produces one `Histogram` per detector group. The
-`good_channel_mask` applied before all cuts requires every channel in the event
-to be an ON detector (not AC or OFF). Per-group filtering restricts which
-detector energies are accumulated into the histogram; the event-level cuts
-themselves are unchanged and applied globally.
+The last path element is the detector group. Each group is a `Histogram` of the
+energies (in keV, 1 keV bins from 0 to 6000 keV) of the hits in the detectors of
+that group. The cuts select whole events, independent of the group. The groups
+are configured with the `detector_groups` setting (see
+{ref}`pdf-tier-settings`), and the `all` group with every detector is always
+present. For example, with `detector_groups: {icpc: "V.*", bege: "B.*"}`, the
+output contains `pdf/mul1/lar/icpc`, `pdf/mul1/lar/bege` and `pdf/mul1/lar/all`.
+A level holds the group histograms of its selection next to the deeper levels,
+so group names cannot be cut levels (`lar`, `not_lar`, `psd_st`, ...).
 
-| Cut           | Description                                                                                                                                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hit`         | All individual HPGe energy deposits in ON-channel events, with no multiplicity requirement.                                                                                                                                                            |
-| `mul`         | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`).                                                                                                                                                                       |
-| `mul_lar`     | Multiplicity-1 events passing the LAr anti-coincidence cut. Events are vetoed when `coincident.spms` is `True` (SiPMs detected scintillation light in liquid argon). Present only when both HPGe and SiPM data are available.                          |
-| `mul_psd`     | Multiplicity-1 events passing the PSD single-site cut. Requires `psd.is_good`, `psd.single_temp.has_aoe`, and `psd.single_temp.is_single_site` for all hits. Events where PSD is not valid or not simulated are classified as background and excluded. |
-| `mul_lar_psd` | Multiplicity-1 events passing both the LAr anti-coincidence and PSD single-site cuts (combination of `mul_lar` and `mul_psd`). Present only when both HPGe and SiPM data are available.                                                                |
+Example, with the `all` group only:
 
-The `mul_psd` and `mul_lar_psd` histograms are present only when the `hit` tier
-simulates PSD with a single template (`simulate_psd`). When it simulates PSD
-with a pulse library (`simulate_psd_with_psl`), the A/E observables are stored
-under `psd.pulse_lib` and three more PSD cuts are built. Each requires
-`psd.is_good` and `psd.pulse_lib.has_aoe` for all hits, plus:
+```text
+pdf/
+├── hit/all
+├── mul2
+└── mul1/
+    ├── all
+    ├── lar/
+    │   ├── all
+    │   └── psd_psl/all
+    ├── not_lar/all
+    ├── psd_psl/all
+    └── not_psd_psl/all
+```
 
-| Cut            | Requirement on all hits                                  |
-| -------------- | -------------------------------------------------------- |
-| `psd_psl`      | `psd.pulse_lib.is_single_site` (low-side A/E cut)        |
-| `psd_high`     | not `psd.pulse_lib.is_high_aoe` (high-side A/E cut)      |
-| `psd_two_side` | `psd.pulse_lib.is_bb_like` (low- and high-side A/E cuts) |
+`pdf/mul1/lar/psd_psl/all` contains multiplicity-1 events with no light in the
+LAr instrumentation that pass both A/E cuts.
 
-For each cut `<psd>` in this table, the output contains `mul_<psd>` and, when
-SiPM data are available, `mul_lar_<psd>`.
+#### Levels
+
+All selections require every hit in the event to be in an ON detector (not AC or
+OFF), i.e. `geds.quality.is_good_channel` is `True`.
+
+| Level  | Selection                                                                                                                                          |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hit`  | All HPGe energy deposits, no multiplicity requirement. Top level only, no further levels below.                                                    |
+| `mul1` | Multiplicity-1 events: exactly one ON detector fired (`geds.multiplicity == 1`). All other levels are below `mul1`.                                |
+| `lar`  | LAr anti-coincidence: no light seen by the SiPMs (`coincident.spms` is `False`). `not_lar` selects events with light. Present only with SiPM data. |
+| PSD    | PSD cuts, see the table below. Each requires `psd.is_good` and the `has_aoe` flag of its A/E model for all hits, plus the cut condition.           |
+
+| PSD level      | A/E model           | Condition on all hits                                    |
+| -------------- | ------------------- | -------------------------------------------------------- |
+| `psd_st`       | single template     | `psd.single_temp.is_single_site` (low-side A/E cut)      |
+| `psd_psl_low`  | pulse-shape library | `psd.pulse_lib.is_single_site` (low-side A/E cut)        |
+| `psd_psl_high` | pulse-shape library | not `psd.pulse_lib.is_high_aoe` (high-side A/E cut)      |
+| `psd_psl`      | pulse-shape library | `psd.pulse_lib.is_bb_like` (low- and high-side A/E cuts) |
+
+The single-template levels are present when the `hit` tier runs with
+`simulate_psd`, the pulse-shape library levels when it runs with
+`simulate_psd_with_psl` (see {ref}`hit-tier-settings`).
+
+The following paths are written, for each PSD level `<psd>` available:
+
+| Path                           | Selection                                        |
+| ------------------------------ | ------------------------------------------------ |
+| `hit`                          | all HPGe energy deposits                         |
+| `mul1`                         | multiplicity 1                                   |
+| `mul1/lar`, `mul1/not_lar`     | multiplicity 1, passing / failing the LAr veto   |
+| `mul1/<psd>`, `mul1/not_<psd>` | multiplicity 1, passing / failing the PSD cut    |
+| `mul1/lar/<psd>`               | multiplicity 1, passing the LAr veto and PSD cut |
 
 :::{warning}
 
-When a detector is ON with valid PSD in the data but its PSD response could not
-be simulated (e.g. because it is not included in the simulation model), the
-corresponding events will have `has_aoe = False` in the `cvt` tier. Such events
-are treated as background and excluded from all PSD histograms. This is a
-conservative choice: rather than keeping events we cannot characterise, we cut
-them. The `fail/` PSD histograms do **not** include these events either, since
-they are restricted to events where both `psd.is_good = True` and
-`has_aoe = True`.
+A PSD cut has three outcomes. Events with `psd.is_good` or `has_aoe` set to
+`False` for any hit pass neither `<psd>` nor `not_<psd>`. This is the case when
+a detector is ON with valid PSD in data but its PSD response could not be
+simulated (e.g. because it is not included in the simulation model). These
+events are treated as background: rather than keeping events we cannot
+characterise, we cut them. As a consequence, `mul1/<psd>` and `mul1/not_<psd>`
+do not add up to `mul1`.
 
 :::
 
@@ -405,16 +437,3 @@ they are restricted to events where both `psd.is_good = True` and
 `mul2` is a single global histogram and is **not** split by detector group.
 Per-channel or per-pair 2-D PDFs are out of scope for the current
 implementation.
-
-### `pdf/fail/` — cut-failure histograms
-
-The `fail/` sub-struct contains histograms for multiplicity-1 events that are
-explicitly rejected by a cut, providing a way to characterise the vetoed
-background. Like the pass histograms, each cut contains one `Histogram` per
-detector group (`pdf/fail/<cut>/<group>`).
-
-| Cut                                   | Description                                                                                                                                                                             |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lar`                                 | Multiplicity-1 events failing the LAr veto (`coincident.spms == True`). Present only when both HPGe and SiPM data are available.                                                        |
-| `psd`                                 | Multiplicity-1 events with valid PSD (`psd.is_good == True`) that fail the single-site cut (`psd.single_temp.is_single_site == False`). Events without valid PSD are not included here. |
-| `psd_psl`, `psd_high`, `psd_two_side` | Multiplicity-1 events with valid PSD (`psd.is_good == True` and `psd.pulse_lib.has_aoe == True`) that fail the corresponding pulse-library A/E cut.                                     |
