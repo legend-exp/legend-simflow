@@ -92,13 +92,13 @@ def _panel_energy_basic(ax):
         linewidth=1,
         label="evt.coincident.geds",
     )
-    base_mask = lambda evt: evt.coincident.geds & evt.geds.is_good_channel  # noqa: E731
+    base_mask = lambda evt: evt.coincident.geds & evt.geds.quality.is_good_channel  # noqa: E731
     _plot_ehist(
         ax,
         base_mask,
         color="tab:gray",
         fill=False,
-        label="geds.is_good_channel",
+        label="geds.quality.is_good_channel",
     )
     _plot_ehist(
         ax,
@@ -126,7 +126,7 @@ def _panel_energy_psd(ax):
         lambda evt: (
             evt.coincident.geds
             & (evt.geds.multiplicity == 1)
-            & evt.geds.is_good_channel
+            & evt.geds.quality.is_good_channel
             & evt.geds.psd.single_temp.has_aoe
             & evt.geds.psd.is_good
         )
@@ -135,7 +135,7 @@ def _panel_energy_psd(ax):
         ax,
         base_mask,
         color="silver",
-        label="geds.is_good_channel & geds.psd.single_temp.has_aoe & geds.psd.is_good & geds.multiplicity == 1",
+        label="geds.quality.is_good_channel & geds.psd.single_temp.has_aoe & geds.psd.is_good & geds.multiplicity == 1",
     )
     _plot_ehist(
         ax,

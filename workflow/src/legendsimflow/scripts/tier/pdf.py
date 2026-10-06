@@ -183,7 +183,7 @@ def main() -> None:
                 for g, uids in group_uids.items()
             }
 
-            good_channel_mask = ak.all(data.geds.is_good_channel, axis=-1)
+            good_channel_mask = ak.all(data.geds.quality.is_good_channel, axis=-1)
 
             data_hit = data[good_channel_mask]
             det_hit = {g: m[good_channel_mask] for g, m in det_in_group.items()}

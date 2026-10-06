@@ -126,7 +126,7 @@ def _make_cvt_file(path: Path) -> None:
         col_dict={
             "energy": energy,
             "rawid": rawid,
-            "is_good_channel": is_good_channel,
+            "quality": Table(col_dict={"is_good_channel": is_good_channel}),
             "multiplicity": multiplicity,
             "psd": psd,
         }
@@ -217,7 +217,7 @@ def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
         col_dict={
             "energy": _vov([500.0, 1000.0, 1500.0, 2000.0, 2500.0]),
             "rawid": _vov([1] * 5),
-            "is_good_channel": _vov([True] * 5),
+            "quality": Table(col_dict={"is_good_channel": _vov([True] * 5)}),
             "multiplicity": Array(np.ones(5, dtype=np.int32)),
             "psd": psd,
         }
@@ -283,7 +283,7 @@ def _make_cvt_file_no_spms(path: Path) -> None:
         col_dict={
             "energy": energy,
             "rawid": rawid,
-            "is_good_channel": is_good_channel,
+            "quality": Table(col_dict={"is_good_channel": is_good_channel}),
             "multiplicity": multiplicity,
             "psd": psd,
         }

@@ -75,13 +75,15 @@ def test_evt_script_cli(
     for field in (
         "energy",
         "energy_sum",
-        "is_good_channel",
+        "quality",
         "multiplicity",
         "rawid",
         "hit_idx",
         "psd",
     ):
         assert field in geds_fields, f"'geds/{field}' missing; got {geds_fields}"
+
+    assert "evt/geds/quality/is_good_channel" in lh5.ls(evt_file, "evt/geds/quality/")
 
     psd_fields = {
         f.removeprefix("evt/geds/psd/") for f in lh5.ls(evt_file, "evt/geds/psd/")
