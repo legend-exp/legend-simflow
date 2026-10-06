@@ -36,11 +36,11 @@ import numpy as np
 import yaml
 from dbetto import AttrsDict, TextDB
 from git.exc import GitCommandError
-from legendmeta import LegendMetadata
+from legendmeta import Legend1000Metadata, LegendMetadata, MetadataRepository
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
-from . import SimflowConfig, nersc
+from . import SimflowConfig, nersc, patterns
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
@@ -230,6 +230,18 @@ def link_external_paths(
         default.symlink_to(rel, target_is_directory=True)
 
 
+def metadata_class(config: AttrsDict) -> type[MetadataRepository]:
+    """Return the metadata class selected by the ``metadata_repo`` config key."""
+    repo = config.get("metadata_repo")
+    if repo == "legend-metadata":
+        return LegendMetadata
+    if repo == "legend1000-metadata":
+        return Legend1000Metadata
+
+    msg = f"got {repo!r}, must be 'legend-metadata' or 'legend1000-metadata'"
+    raise SimflowConfigError(msg, "metadata_repo")
+
+
 def init_simflow_context(
     raw_config: dict | AttrsDict | str | Path,
     workflow=None,
@@ -244,9 +256,10 @@ def init_simflow_context(
     - substitute ``$_`` and environment variables;
     - convert to :class:`~dbetto.attrsdict.AttrsDict`;
     - cast filesystem paths to :class:`pathlib.Path`;
-    - clone and configure `legend-metadata`;
-    - attach a :class:`~legendmeta.legendmetadata.LegendMetadata` instance to
-      the Simflow configuration;
+    - clone and configure the metadata repository selected by
+      ``metadata_repo`` (see :func:`metadata_class`);
+    - attach a :class:`~legendmeta.MetadataRepository` instance to the
+      Simflow configuration;
     - export important environment variables.
 
     Parameters
@@ -279,7 +292,7 @@ def init_simflow_context(
         raise TypeError(msg)
 
     if isinstance(raw_config, AttrsDict) and isinstance(
-        raw_config.get("metadata"), LegendMetadata
+        raw_config.get("metadata"), MetadataRepository
     ):
         config = raw_config
     else:
@@ -312,23 +325,40 @@ def init_simflow_context(
         if "l200data" in config.paths:
             config["paths"]["l200data"] = nersc.dvs_ro(config, config.paths.l200data)
 
-        # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
-        metadata = LegendMetadata(config.paths.metadata, lazy=True)
+        metadata_cls = metadata_class(config)
+
+        # NOTE: this will attempt a clone of the metadata, if the directory does not exist
+        metadata = metadata_cls(config.paths.metadata, lazy=True)
 
         if "legend_metadata_version" in config:
-            msg = (
-                f"checking out legend-metadata version {config.legend_metadata_version}"
-            )
+            msg = f"checking out metadata version {config.legend_metadata_version}"
             log_.info(msg)
             try:
                 metadata.checkout(config.legend_metadata_version)
             except GitCommandError as e:
-                msg = f"could not checkout legend-metadata version: {e}"
+                msg = f"could not checkout metadata version: {e}"
                 log_.warning(msg)
+
+        # legend1000-metadata holds only default records, the channels come
+        # from the template geometry config (geom_config_extra is not applied)
+        kwargs = {}
+        if metadata_cls is Legend1000Metadata:
+            from pygeoml1000.config import resolve_config  # noqa: PLC0415
+
+            template = patterns.geom_template_config_filename(config)
+            gconfig = dbetto.utils.load_dict(template)
+            gconfig.pop("executable", None)
+            dbetto.Props.subst_vars(
+                gconfig, var_values={"_": template.parent.resolve()}
+            )
+            os.environ["LEGEND1000_METADATA"] = str(config.paths.metadata)
+            kwargs["channels"] = list(resolve_config(gconfig)["channelmap"])
 
         # NOTE: read only path on NERSC, we are not going to modify the db
         # NOTE: don't use lazy=True, we need a fully functional TextDB
-        config["metadata"] = LegendMetadata(nersc.dvs_ro(config, config.paths.metadata))
+        config["metadata"] = metadata_cls(
+            nersc.dvs_ro(config, config.paths.metadata), **kwargs
+        )
 
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)

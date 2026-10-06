@@ -17,7 +17,7 @@ import dbetto
 import lh5
 import numpy as np
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata
+from legendmeta import MetadataRepository
 from lgdo import Array, Scalar, Struct
 from matplotlib import colormaps
 from matplotlib import pyplot as plt
@@ -228,7 +228,7 @@ class Superpulse:
 
 def lookup_superpulse_inputs(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     hpge: str,
     max_files: int | None = None,
@@ -305,7 +305,7 @@ def lookup_superpulse_inputs(
     dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
     tstamp = mutils.runinfo(metadata, data_runid).start_key
-    chmap = metadata.channelmap(tstamp, skip_version_check=True)
+    chmap = metadata.channelmap(tstamp)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
     return raw_files, evt_files, dsp_cfg_file, tab_map, data_runid

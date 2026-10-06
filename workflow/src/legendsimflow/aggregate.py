@@ -355,7 +355,7 @@ def gen_hpge_modeling_status(
     """
     timestamp = start_key(config, runid)
     metadata = config.metadata
-    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+    chmap = metadata.channelmap(timestamp)
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
@@ -537,7 +537,7 @@ def gen_list_of_all_usabilities(
     for runid in all_runids:
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
-        chmap = config.metadata.channelmap(rinfo.start_key, skip_version_check=True)
+        chmap = config.metadata.channelmap(rinfo.start_key)
         for chname in chmap:
             if "analysis" in chmap[chname]:
                 usability = chmap[chname].analysis.usability

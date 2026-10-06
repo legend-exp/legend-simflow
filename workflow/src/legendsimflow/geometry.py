@@ -111,6 +111,7 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
     from pygeomtools import viewer  # noqa: PLC0415
 
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
+    os.environ["LEGEND1000_METADATA"] = str(config.paths.metadata)
 
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry

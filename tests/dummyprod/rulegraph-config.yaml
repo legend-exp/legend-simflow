@@ -1,4 +1,5 @@
 experiment: legend
+metadata_repo: legend-metadata
 
 runlist:
   - l200-p02-r000-phy

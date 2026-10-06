@@ -51,6 +51,14 @@ Here's a basic description of its fields:
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option. The revision
   must contain the HPGe operational voltages in `hardware/configuration/opvs/`.
+- `metadata_repo` (required): the metadata repository at `paths.metadata`,
+  either `legend-metadata` or `legend1000-metadata`. It selects the
+  {class}`~legendmeta.LegendMetadata` or {class}`~legendmeta.Legend1000Metadata`
+  class to read the metadata. For LEGEND-1000, the Simflow takes the list of
+  channels from the template geometry configuration
+  (`<paths.config>/geom/<experiment>-geom-config.yaml`), and the geometry
+  generator reads the metadata at `paths.metadata` through the
+  `LEGEND1000_METADATA` environment variable.
 - `benchmark`: section used to configure a benchmarking run:
   - `enabled`: boolean flag to enable/disable the feature
   - `n_primaries`: number of primary events to be simulated in the lower tiers
@@ -67,8 +75,10 @@ Here's a basic description of its fields:
   - `benchmarks` (output): Snakemake rule benchmark files
   - `log` (output): Snakemake rule log files
   - `metadata` (input): Simflow input metadata. This is a clone of the
-    [legend-metadata](https://github.com/legend-exp/legend-metadata) repository.
-    If not present at runtime, the Simflow will attempt a fresh clone.
+    [legend-metadata](https://github.com/legend-exp/legend-metadata) or the
+    [legend1000-metadata](https://github.com/legend-exp/legend1000-metadata)
+    repository (see `metadata_repo`). If not present at runtime, the Simflow
+    will attempt a fresh clone.
   - `config` (input): clone of
     [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config).
     This is distributed as a submodule of legend-metadata.

@@ -25,9 +25,9 @@ from pathlib import Path
 import yaml
 from dbetto import AttrsDict
 from legenddataflowscripts.workflow.utils import subst_vars
-from legendmeta import LegendMetadata
 
 from . import aggregate
+from .utils import metadata_class
 
 log = logging.getLogger(__name__)
 
@@ -83,12 +83,12 @@ def snakemake_nersc_cli():
     )
     config = AttrsDict(config)
 
-    # NOTE: this will attempt a clone of legend-metadata, if the directory does not exist
-    metadata = LegendMetadata(config.paths.metadata, lazy=True)
+    # NOTE: this will attempt a clone of the metadata, if the directory does not exist
+    metadata = metadata_class(config)(config.paths.metadata, lazy=True)
 
     if "legend_metadata_version" in config:
         log.info(
-            "checking out legend-metadata version %s",
+            "checking out metadata version %s",
             config.legend_metadata_version,
         )
         metadata.checkout(config.legend_metadata_version)

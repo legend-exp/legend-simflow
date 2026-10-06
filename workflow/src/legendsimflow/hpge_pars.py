@@ -29,7 +29,7 @@ import numpy as np
 from dbetto import AttrsDict, TextDB
 from dspeed import build_dsp, build_processing_chain
 from iminuit import Minuit, cost
-from legendmeta import LegendMetadata
+from legendmeta import MetadataRepository
 from lgdo import WaveformTable
 from matplotlib import pyplot as plt
 from numpy.typing import ArrayLike, NDArray
@@ -824,7 +824,7 @@ def lookup_file_paths(l200data: str, runid: str, hit_tier_name: str) -> AttrsDic
 
 def lookup_currmod_fit_inputs(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     hpge: str,
     hit_tier_name: str = "hit",
@@ -908,7 +908,7 @@ def lookup_currmod_fit_inputs(
 
 def _lookup_generated_pars_file(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -929,7 +929,7 @@ def _lookup_generated_pars_file(
 
     # get the pars file at the correct timestamp
     tstamp = mutils.runinfo(metadata, runid).start_key
-    chmap = metadata.channelmap(tstamp, skip_version_check=True)
+    chmap = metadata.channelmap(tstamp)
     pars_file = pars_db.on(tstamp)
 
     return pars_file, chmap
@@ -937,7 +937,7 @@ def _lookup_generated_pars_file(
 
 def lookup_energy_res_metadata(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -1002,7 +1002,7 @@ def lookup_energy_res_metadata(
 
 def lookup_aoe_res_metadata(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -1124,7 +1124,7 @@ def build_aoe_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
 
 def build_energy_res_func_dict(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -1186,7 +1186,7 @@ def build_energy_res_func_dict(
 
 def build_aoe_res_func_dict(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     *,
     hit_tier_name: str = "hit",
@@ -1333,7 +1333,7 @@ def build_aoe_mean_func_from_entry(
 
 def lookup_psd_cut_values(
     l200data: str | Path,
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     runid: str,
     *,
     hit_tier_name: str = "hit",

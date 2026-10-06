@@ -22,7 +22,7 @@ from pathlib import Path
 
 import lh5
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata
+from legendmeta import MetadataRepository
 from legendmeta.police import validate_dict_schema
 from snakemake.iocontainers import Wildcards
 
@@ -168,7 +168,7 @@ def extract_integer(file_path: Path) -> int:
 
 
 def usability(
-    metadata: LegendMetadata, det_name: str, runid: str, default: str | None = None
+    metadata: MetadataRepository, det_name: str, runid: str, default: str | None = None
 ) -> str:
     """Get the usability for analysis of `det_name` in run `runid`.
 
@@ -177,7 +177,7 @@ def usability(
     to a non-None value, it will be returned.
     """
     rinfo = runinfo(metadata, runid)
-    chmap = metadata.channelmap(rinfo.start_key, skip_version_check=True)
+    chmap = metadata.channelmap(rinfo.start_key)
     if det_name in chmap and "analysis" in chmap[det_name]:
         return chmap[det_name].analysis.usability
 
@@ -228,7 +228,7 @@ def parse_runid(runid: str) -> (str, int, int, str):
     return experiment, int(period[1:]), int(run[1:]), datatype
 
 
-def runinfo(metadata: LegendMetadata, runid: str) -> str:
+def runinfo(metadata: MetadataRepository, runid: str) -> str:
     """Get the `datasets.runinfo` entry for a LEGEND run identifier.
 
     Parameters
@@ -243,7 +243,7 @@ def runinfo(metadata: LegendMetadata, runid: str) -> str:
     return metadata.datasets.runinfo[period][run][datatype]
 
 
-def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
+def reference_cal_run(metadata: MetadataRepository, runid: str) -> str:
     """The reference calibration run for `runid`.
 
     Warning
@@ -286,7 +286,7 @@ def reference_cal_run(metadata: LegendMetadata, runid: str) -> str:
 
 
 def simpars(
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     par: str,
     runid: str,
     experiment: str,
@@ -359,7 +359,7 @@ def get_vtx_simconfig(config: SimflowConfig, simid: str) -> AttrsDict:
     return get_simconfig(config, "vtx", vtx_key.pop())
 
 
-def get_sanitized_fccd(metadata: LegendMetadata, det_name: str) -> float:
+def get_sanitized_fccd(metadata: MetadataRepository, det_name: str) -> float:
     """Return the FCCD value for `det_name`, falling back to 1 mm if the FCCD field is absent.
 
     Parameters
@@ -440,7 +440,7 @@ def validate_simconfig_keys(simconfig: Mapping, block: str | None = None) -> Non
         raise SimflowConfigError(msg, block)
 
 
-def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
+def query_runlist_db(metadata: MetadataRepository, query: str) -> list[str]:
     """Query the runlist DB stored in legend-datasets.
 
     Run expressions of the form ``r00n..r00m`` are automatically expanded into
@@ -480,7 +480,9 @@ def query_runlist_db(metadata: LegendMetadata, query: str) -> list[str]:
     return sorted(runs)
 
 
-def expand_runlist(metadata: LegendMetadata, runlist: str | Iterable[str]) -> list[str]:
+def expand_runlist(
+    metadata: MetadataRepository, runlist: str | Iterable[str]
+) -> list[str]:
     """Expands a runlist as passed to the Simflow configuration.
 
     A runlist is a list of:
@@ -540,7 +542,7 @@ def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
 
 # FIXME: this should be removed once the PRL25 data is reprocessed
 def _get_lh5_table(
-    metadata: LegendMetadata,
+    metadata: MetadataRepository,
     fname: str | Path,
     hpge: str,
     tier: str,
@@ -558,7 +560,7 @@ def _get_lh5_table(
     # otherwise fall back to the old format
     timestamp = runinfo(metadata, runid).start_key
 
-    chmap = metadata.channelmap(timestamp, skip_version_check=True)
+    chmap = metadata.channelmap(timestamp)
 
     rawid = chmap[hpge].daq.rawid
     return f"ch{rawid}/{tier}"
