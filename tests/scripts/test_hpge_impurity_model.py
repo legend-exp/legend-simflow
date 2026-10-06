@@ -80,8 +80,25 @@ def make_sim_drift_time(tmp_path):
     return sim_file
 
 
+@pytest.fixture
+def make_elecmod_scan(tmp_path):
+    elecmod_file = tmp_path / "elecmod-scan.yaml"
+    psl_scan = {
+        f"slope_{slope}": {
+            f"dep_{depv}": {"rms": 0.01 * (abs(slope - 5) + abs(depv - 5))}
+            for depv in range(1, 10)
+        }
+        for slope in range(1, 10)
+    }
+    grid_info = {"slope_min": -1, "slope_step": 0.1, "dep_min": 1000, "dep_step": 100}
+    dbetto.utils.write_dict(
+        {DETECTOR: {"psl_scan": psl_scan, "grid_info": grid_info}}, elecmod_file
+    )
+    return elecmod_file
+
+
 def test_hpge_impurity_cli_with_data(
-    test_make_ssc_data, make_sim_drift_time, tmp_path, monkeypatch
+    test_make_ssc_data, make_sim_drift_time, make_elecmod_scan, tmp_path, monkeypatch
 ):
     run_norms = {"l200-p16-r008-ssc": 1.0}
     Path(tmp_path / "outputs").mkdir(parents=True)
@@ -94,6 +111,8 @@ def test_hpge_impurity_cli_with_data(
             "extract-hpge-impurity-model",
             "--drift-time-files",
             str(make_sim_drift_time),
+            "--elecmod-file",
+            str(make_elecmod_scan),
             "--pars-file",
             str(tmp_path / "outputs" / f"{DETECTOR}_electronics_pars.yaml"),
             "--simflow-config",

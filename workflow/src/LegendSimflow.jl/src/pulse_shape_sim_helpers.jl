@@ -29,19 +29,19 @@ const NEIGHBOR_OFFSETS_8CONN = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1,
 
 
 """
-    load_detector_metadata(meta_path::String, det::String, opv_val::Union{Float32, Nothing})
+    load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real, Nothing} = nothing)
 
 Load detector and crystal metadata from legend-metadata, and set the operational voltage.
 
 # Arguments
 - `meta_path`: Path to legend-metadata
 - `det`: HPGe detector name (e.g. "V03422A")
-- `opv_val`: Operational voltage in V (Float32). If `nothing`, the value from metadata is used.
+- `opv_val`: Operational voltage in V. If `nothing`, the value from metadata is used.
 
 # Returns
 - `Tuple`: `(meta, xtal, opv_val)` where `meta` is the detector metadata (PropDict),
   `xtal` is the crystal metadata (PropDict), and `opv_val` is the operational voltage
-  as Float32 (either from metadata or as provided)
+  in V (as provided, or the metadata value as Float32)
 """
 function load_detector_metadata(meta_path::String, det::String, opv_val::Union{Real,Nothing} = nothing)
 
@@ -473,8 +473,8 @@ voltages are returned in `info`.
 - `meta_path`: Path to legend-metadata
 - `meta`: Detector metadata (PropDict)
 - `xtal`: Crystal metadata (PropDict)
-- `opv_val`: Operational voltage in V (Float32)
-- `T`: Floating-point precision type (typically Float32)
+- `opv_val`: Operational voltage in V
+- `T`: Floating-point precision type (typically Float64)
 - `refinement_limits`: Vector of refinement thresholds for SSD
 -  `threshold`: Maximum allowed difference between simulated and measured depletion voltage (default: 200 V)
 - `medium`: Detector environment medium (default: "LAr")
@@ -631,7 +631,7 @@ edge effects (see `extend_pulse_shape_lib()`).
 # Arguments
 - `sim`: SolidStateDetectors Simulation object
 - `meta`: Detector metadata (PropDict) containing geometry fields
-- `T`: Floating-point precision type (typically Float32)
+- `T`: Floating-point precision type (typically Float64)
 - `angle_deg`: Azimuthal angle in degrees for the r-z plane rotation
 - `only_holes`: If true, extract only hole contribution; if false, use full waveform
 - `grid_size`: Grid spacing in meters
@@ -768,7 +768,7 @@ Compute a drift time map for an HPGe detector at a specific crystal axis angle.
 - `grid_step`: Grid spacing in meters
 - `padding`: Number of pixel layers used to pad the map and avoid grid edge
   effects (see `extend_drift_time_map()`)
-- `T`: Numeric type (e.g., Float32)
+- `T`: Floating-point precision type (typically Float64)
 
 # Returns
 - `NamedTuple`: Contains `:r`, `:z` axes and `:drift_time_XXX_deg` matrix 2D array

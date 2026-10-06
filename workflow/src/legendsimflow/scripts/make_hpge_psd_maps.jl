@@ -40,7 +40,7 @@ Generate HPGe ideal pulse-shape libraries or drift-time maps for a detector
 and save them to an LH5 file.
 """
 function main()
-    T = Float32
+    T = Float64
 
     s = ArgParseSettings()
 
