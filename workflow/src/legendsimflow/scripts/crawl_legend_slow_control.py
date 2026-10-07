@@ -94,10 +94,10 @@ for name in sorted(chmap):
     # use monitored voltage: I noticed that sometimes vset can be different
     # from vmon for a long time period (and vmon is always correct)
     voltages[name] = {"operational_voltage_in_V": round_step_5(status.vmon)}
-    if "cc4" in status:
-        voltages[name]["cc4_voltages"] = {
-            f"{rail}_in_V": round_step_05(v) for rail, v in status.cc4.items()
-        }
+    # if "cc4" in status:
+    #     voltages[name]["cc4_voltages"] = {
+    #         f"{rail}_in_V": round_step_05(v) for rail, v in status.cc4.items()
+    #     }
 
 # now we check what we need to write
 if args.opv_db is not None:
