@@ -38,7 +38,6 @@ from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
 from legendsimflow import nersc, utils
-from legendsimflow import reboost as reboost_utils
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings
 from legendsimflow.scripts import log_script_invocation
@@ -168,15 +167,13 @@ def main() -> None:
 
     # load the geometry and retrieve registered sensitive volume tables
     geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
-    sens_tables = pygeomtools.detectors.get_all_senstables(geom)
+    scintillators = pygeomtools.detectors.get_all_senstables(
+        geom, type_filter="scintillator"
+    )
+    sipms = pygeomtools.detectors.get_all_senstables(geom, type_filter="optical")
 
     # fail early and loudly: without a matching volume the loop below would
     # silently do nothing and the output file would never be created
-    scintillators = [
-        name
-        for name, meta in sens_tables.items()
-        if meta.detector_type == "scintillator"
-    ]
     if scintillator_volume_name not in scintillators:
         msg = (
             f"scintillator volume {scintillator_volume_name} not found in "
@@ -349,12 +346,9 @@ def main() -> None:
         log.info(msg)
 
         # loop over the sensitive volume tables registered in the geometry
-        for det_name, geom_meta in sens_tables.items():
+        for det_name, geom_meta in scintillators.items():
             # process the scintillator output
-            if not (
-                geom_meta.detector_type == "scintillator"
-                and det_name == scintillator_volume_name
-            ):
+            if det_name != scintillator_volume_name:
                 continue
 
             msg = f"looking for data from sensitive volume {det_name} table (uid={geom_meta.uid})..."
@@ -386,8 +380,8 @@ def main() -> None:
                 )
 
             if optmap_per_sipm:
-                for sipm in sorted(reboost_utils.get_senstables(geom, "optical")):
-                    sipm_uid = sens_tables[sipm].uid
+                for sipm in sorted(sipms):
+                    sipm_uid = sipms[sipm].uid
 
                     # get the usability
                     usability = usability_map[runid].get(sipm)
