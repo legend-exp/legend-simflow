@@ -317,42 +317,57 @@ def _read_and_sel_evts(
     t0_field: str | None = None,
     aoe_low_threshold: float = -3.0,
     aoe_high_threshold: float = 3.0,
+    tier_name: str = "evt"
 ) -> ak.Array:
     """Read evt data and perform basic selections."""
     field_mask = ["geds", "coincident", "trigger"]
     if t0_field is not None:
         field_mask.append(t0_field)
 
-    evt_data = lh5.read_as(
-        "evt",
-        evt_files,
-        library="ak",
-        field_mask=field_mask,
-    )
+    if tier_name == "evt":
+        evt_data = lh5.read_as(
+            tier_name,
+            evt_files,
+            library="ak",
+            field_mask=field_mask,
+        )
+    
+        mask = (
+            ak.all(evt_data.geds.quality.is_good_channel, axis=-1)
+            & (~evt_data.coincident.puls)
+            & evt_data.geds.quality.is_bb_like
+            & (evt_data.geds.multiplicity == 1)
+            & (ak.all(evt_data.geds.rawid == rawid, axis=-1))
+        )
+    
+        # `t0_field` names the event start time used for the drift time; it is set
+        # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
+        # those are exactly the low-p.e. events. `t0_field` is None only when the
+        # drift time is taken directly from `end_time_field`, in which case there is
+        # no t0 to cut.
+        if t0_field is not None:
+            mask = mask & ~np.isnan(_get_nested_field(evt_data, t0_field))
+    
+        evt_data = evt_data[mask]
+    
+        psd_mask = ak.all(
+            evt_data.geds.psd.low_aoe.value > aoe_low_threshold, axis=-1
+        ) & ak.all(evt_data.geds.psd.high_aoe.value < aoe_high_threshold, axis=-1)
+        return evt_data[psd_mask]
 
-    mask = (
-        ak.all(evt_data.geds.quality.is_good_channel, axis=-1)
-        & (~evt_data.coincident.puls)
-        & evt_data.geds.quality.is_bb_like
-        & (evt_data.geds.multiplicity == 1)
-        & (ak.all(evt_data.geds.rawid == rawid, axis=-1))
-    )
+    else:
+        hit_data = lh5.read_as(
+                f"ch{rawid}/{tier_name}",
+                evt_files,
+                library  = "ak",
+        )
+        hit_data["hit_idx"] = np.arange(len(hit_data))
+        # cut on AoE
+        mask = hit_data.is_valid_cal
+        psd_mask = (hit_data.AoE_Classifier > aoe_low_threshold) & (hit_data.AoE_Classifier < aoe_high_threshold)
+        
+        return hit_data[mask & psd_mask]
 
-    # `t0_field` names the event start time used for the drift time; it is set
-    # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
-    # those are exactly the low-p.e. events. `t0_field` is None only when the
-    # drift time is taken directly from `end_time_field`, in which case there is
-    # no t0 to cut.
-    if t0_field is not None:
-        mask = mask & ~np.isnan(_get_nested_field(evt_data, t0_field))
-
-    evt_data = evt_data[mask]
-
-    psd_mask = ak.all(
-        evt_data.geds.psd.low_aoe.value > aoe_low_threshold, axis=-1
-    ) & ak.all(evt_data.geds.psd.high_aoe.value < aoe_high_threshold, axis=-1)
-
-    return evt_data[psd_mask]
 
 
 def _get_nested_field(data: ak.Array, field: str) -> ak.Array:
@@ -380,15 +395,23 @@ def _select_data_in_slice(
     drift_time: ak.Array,
     energy: ak.Array,
     drift_slice: Slice,
+    tier_name  = "evt"
 ) -> ak.Array:
     """Filter single-detector event data to one energy-drift-time slice."""
-    return (
-        ak.all(energy >= drift_slice.energy_range[0], axis=-1)
-        & ak.all(energy <= drift_slice.energy_range[1], axis=-1)
-        & ak.all(drift_time >= drift_slice.drift_time_range[0], axis=-1)
-        & ak.all(drift_time <= drift_slice.drift_time_range[1], axis=-1)
-    )
-
+    if tier_name == "evt":
+        return (
+            ak.all(energy >= drift_slice.energy_range[0], axis=-1)
+            & ak.all(energy <= drift_slice.energy_range[1], axis=-1)
+            & ak.all(drift_time >= drift_slice.drift_time_range[0], axis=-1)
+            & ak.all(drift_time <= drift_slice.drift_time_range[1], axis=-1)
+        )
+    else:
+        return (
+            (energy >= drift_slice.energy_range[0])
+            & (energy <= drift_slice.energy_range[1]) 
+            & (drift_time >= drift_slice.drift_time_range[0])
+            & (drift_time <= drift_slice.drift_time_range[1])
+        )
 
 def lookup_wfs_indices(
     slices: list[Slice],
@@ -398,6 +421,7 @@ def lookup_wfs_indices(
     rawid: int,
     t0_field: str | None = "spms/event_t0",
     end_time_field: str = "geds/psd/low_aoe/time",
+    tier_name: str = "evt"
 ) -> list[AttrsDict]:
     """Extract the indices of the waveforms to use in superpulse construction.
 
@@ -442,27 +466,35 @@ def lookup_wfs_indices(
             msg = f"Reading file {file_idx} out of {len(evt_files)} {m} target ({n_target})"
             log.info(msg)
 
-        evts = _read_and_sel_evts(evt_file, rawid=rawid, t0_field=t0_field)
+        evts = _read_and_sel_evts(evt_file, rawid=rawid, t0_field=t0_field, tier_name = tier_name)
         drift_time = get_drift_time(evts, end_time_field, t0_field)
 
+        if drift_time.ndim > 1:
+            drift_time = ak.flatten(drift_time)
+            
         all_drift_times = (
-            np.concatenate((all_drift_times, ak.flatten(drift_time)))
+            np.concatenate((all_drift_times, drift_time))
             if all_drift_times is not None
-            else ak.flatten(drift_time).to_numpy()
+            else drift_time.to_numpy()
         )
 
         for out_tmp, drift_slice in zip(output, slices, strict=True):
             if out_tmp.n_sel >= n_target:
                 continue
 
+            energy = evts.geds.energy if tier_name == "evt" else evts.cuspEmax_cal
             # evts in our slice
             evts_slice = evts[
                 _select_data_in_slice(
-                    drift_time, evts.geds.energy, drift_slice=drift_slice
+                    drift_time, energy, drift_slice=drift_slice, tier_name = "hit"
                 )
             ]
-            hit_indices = ak.flatten(evts_slice.geds.hit_idx).to_list()
-
+            
+            if (tier_name == "evt"):
+                hit_indices = ak.flatten(evts_slice.geds.hit_idx).to_list()
+            else:
+                hit_indices = evts_slice.hit_idx.to_list()
+            
             out_tmp.hit_idx.extend(hit_indices)
             out_tmp.file_idx.extend(list(np.full_like(hit_indices, file_idx)))
             out_tmp.n_sel += len(hit_indices)
