@@ -53,7 +53,7 @@ dependencies = [
     "h5py",
     "hist",
     "legend-dataflow-scripts >=0.3.0a5",
-    "legend-lh5io >=0.2",
+    "legend-lh5io >=0.2.4",
     "legend-pydataobj >=2",
     "legend-pygeom-l200 >=0.10.1",
     "legend-pygeom-l1000 >=0.5",
@@ -117,7 +117,7 @@ legend-simflow = { path = ".", editable = true }
 awkward = "*"
 dbetto = ">=1.4.1,<1.5"
 # legend-dataflow-scripts = "..."  # not on conda-forge
-legend-lh5io = ">=0.2,<0.3"
+legend-lh5io = ">=0.2.4,<0.3"
 legend-pydataobj = ">=2,<2.1"
 pylegendmeta = ">=1.10,<1.11"
 legend-pygeom-l200 = ">=0.10.1,<0.11"
