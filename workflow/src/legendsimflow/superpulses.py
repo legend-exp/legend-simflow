@@ -299,7 +299,7 @@ def lookup_superpulse_inputs(
         for file in evt_files
     ]
     if not evt_files:
-        msg = f"no evt tier files found for {data_runid}."
+        msg = f"no evt tier files found for {data_runid} {evt_tier_name} ( {evt_path / data_type / period / run}"
         raise FileNotFoundError(msg)
 
     dsp_cfg_file = utils.lookup_dsp_config(l200data)
