@@ -1040,6 +1040,9 @@ drift-time slices, via Minuit) to extract the per-detector `sigma` and `tau`.
 Settings are read via `get_par_settings(config, "elecmod")` from an optional
 `settings.yaml` in the {ref}`elecmod-metadata-dir`. Keys set in the file
 override the built-in defaults below; missing keys keep their default.
+`extract_elecmod_scan` uses different defaults for three keys:
+`tau_start: 30.0`, `tau_limits: [2.0, 100.0]` and `max_calls: 100`. It does not
+read `plot_window`.
 
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/elecmod/settings.yaml (values shown are the built-in defaults)
@@ -1047,8 +1050,8 @@ override the built-in defaults below; missing keys keep their default.
 angle: "000"
 sigma_start: 10.0
 tau_start: 50.0
-sigma_limits: [0.0, 200.0]
-tau_limits: [0.0, 200.0]
+sigma_limits: [1.0, 50.0]
+tau_limits: [1.0, 200.0]
 comparison_window: [-500.0, 500.0]
 plot_window: [-600.0, 600.0]
 weight_power: 2.0
@@ -1063,8 +1066,8 @@ minimiser_mode: "simplex"
 | `angle`               | str            | `"000"`           | Crystal-axis angle tag selecting which PSL waveform set (`waveform_{angle}_deg`) is used from the ideal pulse-shape library.                                                                                  |
 | `sigma_start`         | float          | `10.0`            | Initial value (ns) for the Gaussian digitizer-bandwidth `sigma`.                                                                                                                                              |
 | `tau_start`           | float          | `50.0`            | Initial value (ns) for the preamplifier exponential decay `tau`.                                                                                                                                              |
-| `sigma_limits`        | [float, float] | `[0.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `sigma` during the fit.                                                                                                                                                       |
-| `tau_limits`          | [float, float] | `[0.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `tau` during the fit.                                                                                                                                                         |
+| `sigma_limits`        | [float, float] | `[1.0, 50.0]`     | Hard `(lo, hi)` bounds (ns) for `sigma` during the fit.                                                                                                                                                       |
+| `tau_limits`          | [float, float] | `[1.0, 200.0]`    | Hard `(lo, hi)` bounds (ns) for `tau` during the fit.                                                                                                                                                         |
 | `comparison_window`   | [float, float] | `[-500.0, 500.0]` | `(t_min, t_max)` window (ns) relative to the current peak over which the simulation/data RMS is computed; `null` uses the full waveform overlap.                                                              |
 | `plot_window`         | [float, float] | `[-600.0, 600.0]` | `(t_min, t_max)` window (ns) relative to the current peak shown in the best-fit diagnostic plots; `null` falls back to `comparison_window`. Does not affect the fit.                                          |
 | `weight_power`        | float          | `2.0`             | Data-amplitude weight exponent `p` (`w = \|data\|**p`) applied to the squared residuals before the RMS; `0` is the plain equal-weight RMS, larger values bias the fit toward the current peak and its flanks. |
