@@ -686,15 +686,20 @@ def main() -> None:
                         ),
                     )
 
+                # derived observables use simulated and random-coincidence pulses
+                energy_all = energy_sel
+                if add_random_coincidences:
+                    energy_all = ak.concatenate([energy_sel, rc_chunk.npe], axis=-1)
+
                 # total amount of light per event
-                energy_sum = ak.sum(ak.sum(energy[pesel][chansel], axis=-1), axis=-1)
+                energy_sum = ak.sum(ak.sum(energy_all, axis=-1), axis=-1)
                 out_table.add_field(
                     "spms/energy_sum",
                     Array(np.asarray(energy_sum, dtype=np.float32)),
                 )
 
                 # how many channels saw some light
-                spms_multiplicity = ak.sum(ak.any(chansel & pesel, axis=-1), axis=-1)
+                spms_multiplicity = ak.sum(ak.num(energy_all, axis=-1) > 0, axis=-1)
                 out_table.add_field("spms/multiplicity", Array(spms_multiplicity))
             else:
                 energy_sum = ak.Array(np.zeros(len(unified_tcm), dtype=np.float32))
