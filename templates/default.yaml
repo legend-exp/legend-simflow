@@ -15,6 +15,9 @@ experiment: l200cfg09
 
 simlist: all
 
+# simlist_exclude:
+# - hpge_bulk_2vbb
+
 make_steps:
   - vtx
   - stp
