@@ -185,7 +185,7 @@ def main() -> int:
                 runid=runid,
                 hpge=args.detector,
                 max_files=settings.max_files,
-                evt_tier_name=settings.evt_tier_name,
+                evt_tier_name="pht",
             )
         )
 
@@ -252,6 +252,7 @@ def main() -> int:
         n_target=settings.target_wfs,
         t0_field=settings.t0_field,
         end_time_field=settings.end_time_field,
+        tier_name = "hit"
     )
 
     superpulses = {}

@@ -160,6 +160,7 @@ def main() -> None:
         hpge,
         "raw",
         runid,
+        use_rawid = True
     )
 
     log.info("... fetching %d current pulse(s)", len(raw_wf_pairs))

@@ -578,6 +578,7 @@ def _get_lh5_table(
     hpge: str,
     tier: str,
     runid: str,
+    use_rawid = False
 ) -> str:
     """The correct LH5 table path.
 
@@ -585,7 +586,7 @@ def _get_lh5_table(
     """
     # check if the latest format is available
     path = f"{tier}/{hpge}"
-    if lh5.ls(fname, path) == [path]:
+    if (not use_rawid) & (lh5.ls(fname, path) == [path]):
         return path
 
     # otherwise fall back to the old format
