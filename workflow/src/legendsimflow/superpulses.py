@@ -347,9 +347,13 @@ def _read_and_sel_evts(
     # in the metadata settings. Drop events where it is NaN: for `spms/event_t0`
     # those are exactly the low-p.e. events. `t0_field` is None only when the
     # drift time is taken directly from `end_time_field`, in which case there is
-    # no t0 to cut.
+    # no t0 to cut. A per-hit field (e.g. `geds/t0`) is NaN for the event if
+    # it is NaN for any hit.
     if t0_field is not None:
-        mask = mask & ~np.isnan(_get_nested_field(evt_data, t0_field))
+        t0_is_nan = np.isnan(_get_nested_field(evt_data, t0_field))
+        if t0_is_nan.ndim > 1:
+            t0_is_nan = ak.any(t0_is_nan, axis=-1)
+        mask = mask & ~t0_is_nan
 
     evt_data = evt_data[mask]
 

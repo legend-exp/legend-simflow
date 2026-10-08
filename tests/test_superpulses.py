@@ -190,6 +190,25 @@ def test_lookup_wfs_indices(legend_testdata):
         assert len(fi.file_idx) == len(fi.hit_idx) == fi.n_sel
 
 
+def test_lookup_wfs_indices_per_hit_t0(legend_testdata):
+    path = legend_testdata.get_path(
+        "lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"
+    )
+    slices = [Slice(energy_range=(300.0, 2000.0), drift_time_range=(0.0, 5000.0))]
+
+    file_idx, drift_times = lookup_wfs_indices(
+        slices,
+        evt_files=[str(path)],
+        n_target=10,
+        rawid=1107201,  # V07302A
+        t0_field="geds/t0",
+        end_time_field="geds/psd/low_aoe/time",
+    )
+
+    assert file_idx[0].n_sel > 0
+    assert not np.any(np.isnan(ak.flatten(drift_times, axis=None)))
+
+
 def test_get_wfs_for_slice(legend_testdata):
     ref_path = legend_testdata.get_path("lh5/prod-ref-l200/")
     path = ref_path / Path("generated/tier/raw/phy/p03/r001")
