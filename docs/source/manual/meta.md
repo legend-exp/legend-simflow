@@ -659,9 +659,10 @@ detector_groups:
   When this key is absent, only the implicit `all` group is emitted (equivalent
   to `detector_groups: {all: ".*"}`). Specifying `detector_groups` extends the
   output: every named group is produced in addition to `all`, which is always
-  emitted regardless of the config. See {ref}`pdf-tier` for the resulting output
-  schema. Group names cannot be cut levels of the output paths (`lar`,
-  `not_lar`, `aoe_st`, ...).
+  emitted regardless of the config. An explicit `all` entry must be `".*"`; any
+  other value is replaced by `".*"` with a warning. See {ref}`pdf-tier` for the
+  resulting output schema. Group names cannot be cut levels of the output paths
+  (`lar`, `not_lar`, `aoe_st`, ...).
 
 ## `pars/` — simulation parameters
 
