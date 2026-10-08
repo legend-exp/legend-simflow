@@ -161,7 +161,7 @@ rule merge_hpge_drift_time_maps:
     """Merge HPGe drift-time maps in a single file.
 
     Copy the top-level LH5 objects from each individual detector drift-time map
-    file into a single merged file using `h5copy`.
+    file into a single merged file with `scripts/merge_hdf5_files.sh`.
 
     Uses wildcard `runid`.
     """
@@ -174,29 +174,7 @@ rule merge_hpge_drift_time_maps:
     output:
         patterns.output_dtmap_merged_filename(config),
     shell:
-        r"""
-        out={output}
-
-        # turn the input file list into positional arguments
-        set -- {input}
-
-        # if there is no input, create an empty hdf5 file
-        if [ "$#" -eq 0 ]; then
-          python -c "import h5py; h5py.File('$out', 'w')"
-          exit 0
-        fi
-
-        # seed with the first file
-        cp "$1" "$out"
-        shift
-
-        # merge top-level objects from the rest
-        for f in "$@"; do
-          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
-            h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
-          done
-        done
-        """
+        "bash workflow/src/legendsimflow/scripts/merge_hdf5_files.sh {output} {input}"
 
 
 rule aggregate_hpge_ssd_modeling_info:
@@ -354,7 +332,7 @@ rule merge_hpge_realistic_psls:
     """Merge HPGe realistic PSL in a single file.
 
     Copy the top-level LH5 objects from each individual detector realistic-PSL
-    file into a single merged file using `h5copy`.
+    file into a single merged file with `scripts/merge_hdf5_files.sh`.
 
     Uses wildcard `runid`.
     """
@@ -367,29 +345,7 @@ rule merge_hpge_realistic_psls:
     output:
         patterns.output_realistic_psl_merged_filename(config),
     shell:
-        r"""
-        out={output}
-
-        # turn the input file list into positional arguments
-        set -- {input}
-
-        # if there is no input, create an empty hdf5 file
-        if [ "$#" -eq 0 ]; then
-          python -c "import h5py; h5py.File('$out', 'w')"
-          exit 0
-        fi
-
-        # seed with the first file
-        cp "$1" "$out"
-        shift
-
-        # merge top-level objects from the rest
-        for f in "$@"; do
-          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
-            h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
-          done
-        done
-        """
+        "bash workflow/src/legendsimflow/scripts/merge_hdf5_files.sh {output} {input}"
 
 
 rule extract_current_pulse_model:
@@ -766,7 +722,8 @@ rule merge_hpge_drift_time_scans:
     """Merge the HPGe drift-time scans of a `simid` in a single file.
 
     Copy the top-level LH5 objects (one group per detector) from each
-    detector drift-time scan file into a single merged file using `h5copy`.
+    detector drift-time scan file into a single merged file with
+    `scripts/merge_hdf5_files.sh`.
 
     Uses wildcard `simid`.
     """
@@ -784,29 +741,7 @@ rule merge_hpge_drift_time_scans:
     output:
         patterns.output_drift_time_scan_merged_filename(config),
     shell:
-        r"""
-        out={output}
-
-        # turn the input file list into positional arguments
-        set -- {input}
-
-        # if there is no input, create an empty hdf5 file
-        if [ "$#" -eq 0 ]; then
-          python -c "import h5py; h5py.File('$out', 'w')"
-          exit 0
-        fi
-
-        # seed with the first file
-        cp "$1" "$out"
-        shift
-
-        # merge top-level objects from the rest
-        for f in "$@"; do
-          h5ls "$f" | awk '{{print $1}}' | while read -r o; do
-            h5copy -i "$f" -o "$out" -s "/$o" -d "/$o"
-          done
-        done
-        """
+        "bash workflow/src/legendsimflow/scripts/merge_hdf5_files.sh {output} {input}"
 
 
 if _tune_impurity:
