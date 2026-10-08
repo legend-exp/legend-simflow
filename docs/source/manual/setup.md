@@ -26,6 +26,10 @@ Here's a basic description of its fields:
 - `simlist`: list of simulation identifiers to be processed by Snakemake. Can be
   a list of strings or a path to a text file. If `*` or `all`, will process all
   simulations defined in the metadata.
+- `simlist_exclude`: optional list of simulation identifiers (`simid`s, without
+  the tier prefix) to remove from the simulations to process, whether they come
+  from `simlist` or from `all`. Can be a list of strings or a comma-separated
+  string.
 - `runlist`: list of LEGEND data taking runs to build pdfs for, in the standard
   format `<experiment>-<period>-<run>-<type>` (e.g. `l200-p03-r000-phy`)
 - `make_steps`: list the workflow steps to include in the DAG. Only the

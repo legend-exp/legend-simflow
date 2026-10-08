@@ -109,7 +109,9 @@ def snakemake_nersc_cli():
     # trick: there won't be anything to do for some simids (targets already
     # done), this could result in a very inefficient partitioning. as a
     # mitigation, we randomly shuffle the simlist first
-    simlist = list(simlist)  # make a copy so we don't modify the input simlist in place
+    exclude = aggregate.get_simlist_exclude(config)
+    # make a copy so we don't modify the input simlist in place
+    simlist = [s for s in simlist if s.split(".")[-1].strip() not in exclude]
     random.shuffle(simlist)
 
     chunks = [chunk for chunk in _partition(simlist, args.nodes) if chunk]

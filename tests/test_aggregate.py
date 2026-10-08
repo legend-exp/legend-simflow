@@ -34,7 +34,7 @@ def test_simid_aggregates(fresh_config):
 
 def test_simid_harvesting(config):
     simids = agg.gen_list_of_all_simids(config)
-    assert isinstance(simids, type({}.keys()))
+    assert isinstance(simids, list)
     assert all(isinstance(s, str) for s in simids)
     assert len(simids) == 12
 
@@ -597,3 +597,19 @@ def test_pivot_detinfo_keeps_flags_carried_by_some_detectors():
 
     assert set(out) == {"usability", "psd_usability"}
     assert out["psd_usability"]["l200-p03-r000-phy"] == {"V02160A": "valid"}
+
+
+def test_simlist_exclude(fresh_config):
+    config = fresh_config
+    assert "birds_nest_K40" in agg.gen_list_of_all_simids(config)
+
+    config["simlist_exclude"] = ["birds_nest_K40"]
+    assert "birds_nest_K40" not in agg.gen_list_of_all_simids(config)
+
+    config["simlist"] = ["stp.birds_nest_K40", "stp.lar_inside"]
+    assert agg.process_simlist(config, make_steps=["stp"]) == agg.process_simlist(
+        config, simlist=["stp.lar_inside"], make_steps=["stp"]
+    )
+
+    config["simlist_exclude"] = "birds_nest_K40, lar_inside"
+    assert agg.gen_list_of_tuning_simids(config) == []
