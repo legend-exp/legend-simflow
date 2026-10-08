@@ -22,11 +22,12 @@ it segfault. Warming each kernel once here leaves them only reading the cache.
 """
 # heavy imports are kept inside the function so importing this module stays
 # cheap (e.g. sphinx autodoc can import it without the full runtime stack).
-# ruff: noqa: F401, ICN001, PLC0415
+# ruff: noqa: F401, PLC0415
 
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -34,11 +35,16 @@ log = logging.getLogger(__name__)
 
 def warm_numba_caches(simflow_config: str | Path | dict | None = None) -> None:
     """Warm the heavy imports and the Numba kernels the workflow calls."""
-    # importing these pays their one-off cost (Matplotlib font cache, ...) and
-    # compiles their vectorized kernels
+    # the Simflow keeps the Matplotlib config, and so its font cache, in the
+    # package folder (see utils.init_simflow_context): build the cache there
+    # once, before parallel jobs race to write it
+    os.environ["MPLCONFIGDIR"] = str(Path(__file__).resolve().parent)
+
+    # importing these pays their one-off cost and compiles their vectorized
+    # kernels
     import dspeed.utils
     import lh5.compression
-    import matplotlib
+    import matplotlib.font_manager
     import numpy as np
     import pygama
     import pygeomhpges
