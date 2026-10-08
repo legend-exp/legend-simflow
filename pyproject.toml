@@ -174,8 +174,8 @@ test = { features = ["test"], solve-group = "default" }
 [tool.pixi.tasks]
 snakemake = { cmd = "snakemake", depends-on = ["warmup"] }
 snakemake-nersc = { cmd = "snakemake-nersc", depends-on = ["warmup"] }
-dry = { cmd = "snakemake --dry-run" }
-touch = { cmd = "snakemake --touch" }
+dry = { cmd = "snakemake --logger rich --dry-run" }
+touch = { cmd = "snakemake --logger rich --touch" }
 
 tier-opt = { cmd = "python -m legendsimflow.scripts.tier.opt" }
 tier-hit = { cmd = "python -m legendsimflow.scripts.tier.hit" }
@@ -199,7 +199,6 @@ args = [
 depends-on = ["warmup"]
 
 [tool.pixi.tasks.prodnodes]
-# NOTE: snkmt does not work here because of race condition
 cmd = "snakemake-nersc --nodes {{ n_nodes }}"
 args = ["n_nodes"]
 depends-on = ["warmup"]
