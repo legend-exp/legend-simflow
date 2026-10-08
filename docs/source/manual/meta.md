@@ -1124,3 +1124,23 @@ drift-time map or current-pulse model for any other reason: PSD output columns
 are filled with NaN and the fallback A/E resolution and PSD cuts
 (`aoeresmod_default` / `psdcuts_default`) are used. No hard error is raised. See
 {ref}`build-tier-hit-hpge` for the full fallback policy.
+
+(predefined-simlists)=
+
+## Predefined simlists
+
+Named lists of simulations are stored in `simprod/config/simlists.yaml`, by
+experiment. Items have the `<tier>.<simid>` format of the `simlist`:
+
+```{code-block} yaml
+:caption: simprod/config/simlists.yaml
+
+l200cfg09:
+  lar_backgrounds:
+    - evt.lar_inside
+    - evt.lar_outside
+```
+
+Select a list in the `simlist` field of the main configuration file with
+`~simlists:NAME`, alone or together with other items. On the command line, quote
+the value: `--config simlist="~simlists:lar_backgrounds"`.

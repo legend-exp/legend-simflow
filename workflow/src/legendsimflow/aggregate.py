@@ -28,6 +28,7 @@ from . import SimflowConfig, patterns
 from .exceptions import SimflowConfigError
 from .metadata import (
     encode_psd_usability,
+    expand_simlist,
     get_par_settings,
     get_runlist,
     get_simconfig,
@@ -883,15 +884,14 @@ def gen_list_of_elecmod_scans(config: SimflowConfig, cache: dict) -> list[Path]:
 def gen_list_of_tuning_simids(config: SimflowConfig) -> list[str]:
     r"""The `simid`\ s used to tune the HPGe impurities.
 
-    Those named in ``config.simlist`` (items are ``<tier>.<simid>``, see
-    :func:`process_simlist`), or all the `simid`\ s of the Simflow when the
-    simlist is ``all``.
+    Those named in ``config.simlist`` (items are ``<tier>.<simid>`` or
+    ``~simlists:NAME``, see :func:`process_simlist`), or all the `simid`\ s of
+    the Simflow when the simlist is ``all``.
     """
     simlist = config.get("simlist", "all")
     if simlist in ("all", "*"):
         return list(gen_list_of_all_simids(config))
-    if not isinstance(simlist, list):
-        simlist = simlist.split(",")
+    simlist = expand_simlist(config, simlist)
     exclude = get_simlist_exclude(config)
     simids = [item.split(".")[1].strip() for item in simlist]
     return [s for s in simids if s not in exclude]
@@ -1017,7 +1017,8 @@ def process_simlist(
 ) -> list[Path]:
     """Produce a list of all output files that refer to a `simlist`.
 
-    Each simlist item is ``<tier>.<simid>``. The tier is interpreted as the
+    Each simlist item is ``<tier>.<simid>`` or ``~simlists:NAME`` (see
+    :func:`~legendsimflow.metadata.expand_simlist`). The tier is interpreted as the
     *latest* tier requested for that simid; outputs are produced cumulatively
     for all tiers up to (and including) that tier in `make_steps`.
     """
@@ -1026,10 +1027,7 @@ def process_simlist(
     if make_steps is None:
         make_steps = STEPS_ORDERED
 
-    # if it's a list, every item is a simid
-    # otherwise, interpret as comma-separated list
-    if not isinstance(simlist, list):
-        simlist = simlist.split(",")
+    simlist = expand_simlist(config, simlist)
 
     exclude = get_simlist_exclude(config)
 

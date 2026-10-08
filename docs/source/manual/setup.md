@@ -25,7 +25,9 @@ Here's a basic description of its fields:
   for a list of currently supported experiment labels.
 - `simlist`: list of simulation identifiers to be processed by Snakemake. Can be
   a list of strings or a path to a text file. If `*` or `all`, will process all
-  simulations defined in the metadata.
+  simulations defined in the metadata. Items can be `<tier>.<simid>` or
+  `~simlists:NAME`, which expands to the predefined simlist `NAME` (see
+  {ref}`predefined-simlists`).
 - `simlist_exclude`: optional list of simulation identifiers (`simid`s, without
   the tier prefix) to remove from the simulations to process, whether they come
   from `simlist` or from `all`. Can be a list of strings or a comma-separated
