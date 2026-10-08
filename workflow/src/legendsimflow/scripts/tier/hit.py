@@ -16,21 +16,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
-import copy
 
-import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lgdo
 import lh5
 import numpy as np
-import pint
 import pyg4ometry
 import pygeomhpges
 import pygeomtools
 import reboost
-import reboost.hpge
-import reboost.math
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Table
@@ -56,7 +51,7 @@ from legendsimflow.scripts import log_script_invocation
         "usability_file": "input.usability",
         "psd_usability_file": "input.psd_usability",
         "crystal_metadata_usability_file": "input.crystal_metadata_usability",
-        "aoemean_file": "input.aoemean_file",
+        "aoemean_files": "input.hpge_aoemeanmods",
         "log_file": "log[0]",
         "simflow_config": "config",
     }
@@ -97,15 +92,13 @@ def main() -> None:
         help="crystal metadata usability YAML file",
     )
     parser.add_argument(
-        "--aoemean-file",
-        dest="aoemean_file",
-        default=None,
-        required=False,
+        "--aoemean-files",
+        nargs="*",
+        default=[],
         help=(
-            "merged, per-detector A/E energy-dependence correction YAML "
-            "(optional; only present when two_pass_aoe_correction is enabled). "
-            "When absent, the per-detector correction falls back to "
-            "aoemeanmod_default from the hit-tier settings."
+            "per-run A/E mean energy-dependence model YAML files; detectors "
+            "without an entry fall back to aoemeanmod_default from the "
+            "hit-tier settings"
         ),
     )
     parser.add_argument("--log-file", default=None, help="log file")
@@ -154,26 +147,16 @@ def main() -> None:
 
     # A/E mean energy-dependence correction: an explicit default from the hit
     # tier settings (like the resolution/cut defaults above), optionally
-    # overridden per detector by the two-pass correction file (--aoemean-file)
+    # overridden per detector and run by the models extracted from the
+    # electron-gun simulations (see extract_hpge_aoemean_energy_dependence)
     aoemean_default = hpge_pars.build_aoe_mean_func_from_entry(
         tier_hit_settings.aoemeanmod_default, sim_type="single_template"
     )
     aoemean_default_psl = hpge_pars.build_aoe_mean_func_from_entry(
         tier_hit_settings.aoemeanmod_default, sim_type="psl"
     )
-    aoemean_mod = (
-        AttrsDict(load_dict(nersc.dvs_ro(config, args.aoemean_file)))
-        if args.aoemean_file is not None
-        else AttrsDict({})
-    )
-    aoemean_func = hpge_pars.build_aoe_mean_func_dict(
-        aoemean_mod, sim_type="single_template"
-    )
-    aoemean_func_psl = hpge_pars.build_aoe_mean_func_dict(aoemean_mod, sim_type="psl")
 
     hit_file, move2cfs = nersc.make_on_scratch(config, hit_file)
-
-    u = pint.UnitRegistry()
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -198,14 +181,8 @@ def main() -> None:
     log.debug("loading TCM")
     tcm = lh5.read_as("tcm", stp_file, library="ak")
 
-    # extract the detector origin
-    det_loc = lh5.read("detector_origins", stp_file)
-    # convert to right format and add units
-    # FIXME: units should be already present, to be fixed in remage
-    det_loc = {
-        k: [v[field].value for field in ("xloc", "yloc", "zloc")] * u.m
-        for k, v in det_loc.items()
-    }
+    # extract the detector origins
+    det_loc = reboost_utils.read_detector_origins(stp_file)
 
     # loop over the partitions for this file
     for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -249,6 +226,21 @@ def main() -> None:
         log.debug("loading PSD cut values")
         psdcuts_file = patterns.output_psdcuts_filename(config, runid=runid)
         psdcuts_all = load_dict(psdcuts_file)
+
+        log.debug("loading A/E mean energy-dependence models")
+        aoemean_mod = AttrsDict(
+            load_dict(
+                nersc.dvs_ro(
+                    config, patterns.output_aoemeanmod_filename(config, runid=runid)
+                )
+            )
+        )
+        aoemean_func = hpge_pars.build_aoe_mean_func_dict(
+            aoemean_mod, sim_type="single_template"
+        )
+        aoemean_func_psl = hpge_pars.build_aoe_mean_func_dict(
+            aoemean_mod, sim_type="psl"
+        )
 
         # loop over the sensitive volume tables registered in the geometry
         for det_idx, (det_name, geom_meta) in enumerate(sens_tables.items()):
@@ -337,37 +329,18 @@ def main() -> None:
             fccd = mutils.get_sanitized_fccd(metadata, det_name)
 
             # NOTE: we don't use the script arg but we use the (known) file patterns. more robust
-
-            dt_map = (
-                reboost_utils.load_hpge_dtmaps(config, det_name, runid)
-                if simulate_psd
-                else None
+            # free the previous detector's inputs before loading the next, so
+            # peak memory holds one detector's PSL rather than two
+            psd_inputs = None
+            psd_inputs = reboost_utils.load_hpge_psd_inputs(
+                config,
+                det_name,
+                runid,
+                simulate_psd=simulate_psd,
+                simulate_psd_with_psl=simulate_psd_with_psl,
+                currmod_pars_all=currmod_pars_all,
             )
-
-            if simulate_psd_with_psl:
-                # free the previous detector's library before loading the next,
-                # so peak memory holds one detector's PSL rather than two
-                psl_dt_maps = realistic_psl = None
-                psl_dt_maps, realistic_psl = reboost_utils.load_hpge_realistic_psl(
-                    config, det_name, runid
-                )
-
-            # load parameters of the current model
-            pars = (
-                currmod_pars_all.get(det_name, None)
-                if currmod_pars_all is not None
-                else None
-            )
-            currmod_pars = (
-                pars.get("current_pulse_pars", None) if pars is not None else None
-            )
-
-            can_model_psd = (
-                dt_map is not None and currmod_pars is not None
-            ) and simulate_psd
-            can_model_psd_with_psl = simulate_psd_with_psl and (
-                realistic_psl is not None
-            )
+            can_model_psd = psd_inputs.can_model_psd
 
             if not can_model_psd and usability == "on" and psd_usability == "valid":
                 log.warning(
@@ -380,27 +353,10 @@ def main() -> None:
             for lgdo_chunk in iterator:
                 chunk = lgdo_chunk.view_as("ak", with_units=True)
 
-                with perf_block("distance_to_surface()"):
-                    _distance_to_nplus = reboost.hpge.distance_to_surface(
-                        chunk.xloc,
-                        chunk.yloc,
-                        chunk.zloc,
-                        pyobj,
-                        det_loc[det_name],
-                        distances_precompute=chunk.dist_to_surf,
-                        precompute_cutoff=(fccd + 1),
-                        surface_type="nplus",
+                with perf_block("hpge_active_energy()"):
+                    edep_active, energy_true = reboost_utils.hpge_active_energy(
+                        chunk, pyobj, det_loc[det_name], fccd, dead_layer_fraction
                     )
-
-                with perf_block("piecewise_linear_activeness()"):
-                    _activeness = reboost.math.piecewise_linear_activeness(
-                        _distance_to_nplus,
-                        fccd_in_mm=fccd,
-                        dlf=dead_layer_fraction,
-                    )
-
-                edep_active = chunk.edep * _activeness
-                energy_true = ak.sum(edep_active, axis=-1)
 
                 # Validation counterpart to the collection in
                 # extract_hpge_observables_models: ON detectors must have curves
@@ -477,61 +433,22 @@ def main() -> None:
                     energy_res / 2.35482,
                 )
 
-                # PSD: if the drift-time map is none, it means that we don't
-                # have the detector model to simulate PSD in a more advanced
-                # way
-
-                # default to NaN
-                psd_fields = ak.Array(
-                    {
-                        "aoe": np.full(len(chunk), np.nan),
-                        "aoe_class": np.full(len(chunk), np.nan),
-                        "aoe_corr": np.full(len(chunk), np.nan),
-                        "is_single_site": np.full(len(chunk), False),
-                        "t_max": np.full(len(chunk), np.nan),
-                    }
-                )
-                psd_fields_detailed = copy.deepcopy(psd_fields)
-                psd_fields_detailed["is_bb_like"] = np.full(len(chunk), False)
-                psd_fields_detailed["is_high_aoe"] = np.full(len(chunk), False)
-
-                if can_model_psd:
-                    log.info("computing standard PSD observables")
-
-                    # extract observables related to PSD.
-                    with perf_block("extract_psd_observables()"):
-                        psd_fields = reboost_utils.extract_psd_observables(
+                # PSD observables with all the enabled methods (NaN where the
+                # detector model is missing)
+                with perf_block("compute_hpge_psd_observables()"):
+                    psd_fields, psd_fields_detailed = (
+                        reboost_utils.compute_hpge_psd_observables(
                             chunk,
                             edep_active,
                             energy,
-                            dt_map,
-                            currmod_pars,
                             det_loc[det_name],
+                            psd_inputs,
                             aoe_res=aoe_res,
                             aoe_mean=aoe_mean,
+                            aoe_mean_psl=aoe_mean_psl,
                             psdcuts=psdcuts,
-                            current_reso=pars.current_reso / pars.mean_aoe,
                         )
-
-                if can_model_psd_with_psl:
-                    log.info(
-                        "computing detailed PSD observables based on realistic pulse-shape libraries"
                     )
-                    with perf_block("extract_detailed_psd_observables()"):
-                        psd_fields_detailed = (
-                            reboost_utils.extract_detailed_psd_observables(
-                                chunk,
-                                edep_active,
-                                energy,
-                                psl_dt_maps,
-                                realistic_psl[0],
-                                det_loc[det_name],
-                                aoe_res=aoe_res,
-                                aoe_mean=aoe_mean_psl,
-                                psdcuts=psdcuts,
-                                current_reso=pars.current_reso / pars.mean_aoe,
-                            )
-                        )
 
                 out_table = reboost.init_hit_table(lgdo_chunk)
 
