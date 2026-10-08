@@ -219,8 +219,8 @@ def get_rz(det_loc: pint.Quantity, chunk: ak.Array) -> tuple[ak.Array, ak.Array]
     """Compute the cylindrical coordinates of each step in the detector frame.
 
     `det_loc` is the position of the detector origin in the global frame. The
-    returned radius `r` and height `z`, both in mm, are measured from that
-    origin, with `z` along the symmetry axis of the crystal.
+    returned radius `r` and height `z` are measured from that origin, with `z`
+    along the symmetry axis of the crystal. Both carry the units of `det_loc`.
     """
     det_loc_pint = reboost.units.pg4_to_pint(det_loc)
 
@@ -238,8 +238,11 @@ def get_rz(det_loc: pint.Quantity, chunk: ak.Array) -> tuple[ak.Array, ak.Array]
     _x = xloc * xloc_conv - det_loc_pint[0].m
     _y = yloc * yloc_conv - det_loc_pint[1].m
 
-    _z = reboost.units.attach_units(1000 * (zloc * zloc_conv - det_loc_pint[2].m), "mm")
-    _r = reboost.units.attach_units(1000 * np.sqrt(_x**2 + _y**2), "mm")
+    # the coordinates are now in the units of the detector origin, whatever
+    # those are: label them so that reboost converts them itself
+    units = str(det_loc_pint.units)
+    _z = reboost.units.attach_units(zloc * zloc_conv - det_loc_pint[2].m, units)
+    _r = reboost.units.attach_units(np.sqrt(_x**2 + _y**2), units)
 
     return _r, _z
 

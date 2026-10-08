@@ -3,6 +3,7 @@ from __future__ import annotations
 import awkward as ak
 import lh5
 import numpy as np
+import pint
 import reboost.hpge
 import reboost.units
 
@@ -245,3 +246,22 @@ def test_gauss_smear_zero_replaced_by_tiny():
     assert isinstance(result, ak.Array)
     assert len(result) == 1
     assert result[0] >= 0
+
+
+def test_get_rz_detector_origin_in_mm():
+    # steps in metres, detector origin in millimetres
+    chunk = ak.Array(
+        {
+            "xloc": reboost.units.attach_units(ak.Array([[0.103, 0.100]]), "m"),
+            "yloc": reboost.units.attach_units(ak.Array([[0.204, 0.200]]), "m"),
+            "zloc": reboost.units.attach_units(ak.Array([[0.350, 0.330]]), "m"),
+        }
+    )
+    det_loc = pint.Quantity([100.0, 200.0, 300.0], "mm")
+
+    r, z = rutils.get_rz(det_loc, chunk)
+
+    r_mm = ak.flatten(r) * reboost.units.units_convfact(r, "mm")
+    z_mm = ak.flatten(z) * reboost.units.units_convfact(z, "mm")
+    np.testing.assert_allclose(ak.to_numpy(r_mm), [5.0, 0.0], atol=1e-9)
+    np.testing.assert_allclose(ak.to_numpy(z_mm), [50.0, 30.0])
