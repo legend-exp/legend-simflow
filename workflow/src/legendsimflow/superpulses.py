@@ -233,7 +233,7 @@ def lookup_superpulse_inputs(
     hpge: str,
     max_files: int | None = None,
     *,
-    evt_tier_name: str = "evt",
+    evt_tier_name: str = "auto",
 ) -> tuple[list[Path], list[Path], Path, dict[str, int], str]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
@@ -250,7 +250,8 @@ def lookup_superpulse_inputs(
     max_files
         Limit the number of files per tier. Default: all.
     evt_tier_name
-        Name of the evt tier to look for, e.g. "evt" or "pet". Default: "evt".
+        Name of the evt tier to look for, e.g. "evt" or "pet". With "auto", use
+        "pet" if the data production has it, otherwise "evt". Default: "auto".
 
     Returns
     -------
@@ -283,6 +284,10 @@ def lookup_superpulse_inputs(
     run = f"r{run_int:03d}"
     df_cfg = utils.lookup_dataflow_config(l200data).paths
 
+    if evt_tier_name == "auto":
+        evt_tier_name = utils.get_evt_tier_name(l200data)
+        log.debug("using the %s tier", evt_tier_name)
+
     evt_path = df_cfg[f"tier_{evt_tier_name}"]
     raw_path = df_cfg.tier_raw
 
@@ -299,7 +304,7 @@ def lookup_superpulse_inputs(
         for file in evt_files
     ]
     if not evt_files:
-        msg = f"no evt tier files found for {data_runid}."
+        msg = f"no {evt_tier_name} tier files found for {data_runid} in {evt_path}"
         raise FileNotFoundError(msg)
 
     dsp_cfg_file = utils.lookup_dsp_config(l200data)

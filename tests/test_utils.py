@@ -379,6 +379,19 @@ paths:
         utils.get_hit_tier_name(str(tmp_path))
 
 
+@pytest.mark.parametrize(
+    ("tiers", "expected"), [(["evt"], "evt"), (["pet"], "pet"), (["evt", "pet"], "pet")]
+)
+def test_get_evt_tier_name(tmp_path, tiers, expected):
+    (tmp_path / "config.yaml").write_text(
+        "paths:\n  tier_evt: $_/generated/tier/evt\n  tier_pet: $_/generated/tier/pet\n"
+    )
+    for tier in tiers:
+        (tmp_path / "generated" / "tier" / tier).mkdir(parents=True)
+
+    assert utils.get_evt_tier_name(str(tmp_path)) == expected
+
+
 def test_init_generated_pars_db(tier_test_data):
     """Test init_generated_pars_db initializes pars database correctly."""
     # Test getting the full par database

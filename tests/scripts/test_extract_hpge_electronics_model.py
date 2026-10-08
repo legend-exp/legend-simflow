@@ -24,10 +24,11 @@ l200data = Path(__file__).parent.parent / "l200data" / "v3.0.0"
 DETECTOR = "V03422A"
 
 
-def test_lookup_inputs(test_make_ssc_data):
+@pytest.mark.parametrize("evt_tier_name", ["pet", "auto"])
+def test_lookup_inputs(test_make_ssc_data, evt_tier_name):
     meta = LegendMetadata(test_make_ssc_data / "inputs")
     raw_files, evt_files, dsp_config, tab_map, _ = lookup_superpulse_inputs(
-        l200data, meta, "l200-p16-r008-ssc", DETECTOR, evt_tier_name="pet"
+        l200data, meta, "l200-p16-r008-ssc", DETECTOR, evt_tier_name=evt_tier_name
     )
 
     assert len(raw_files) == 1
