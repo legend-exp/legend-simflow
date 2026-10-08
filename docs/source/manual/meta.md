@@ -949,7 +949,7 @@ chi2_threshold: 3
 t0_field: spms/event_t0
 end_time_field: geds/psd/low_aoe/time
 drift_time_slices: "1000:200:2000"
-evt_tier_name: pet
+evt_tier_name: auto
 max_files: null
 charge_output: wf_pz_win
 curr_output: curr_av
@@ -965,7 +965,7 @@ energy_output: cuspEmax
 | `t0_field`          | str         | `spms/event_t0`         | Event-level field used as the start time for drift-time calculation. Events where this field is NaN are discarded; for `spms/event_t0` this removes events without a coincident SiPM signal. |
 | `end_time_field`    | str         | `geds/psd/low_aoe/time` | Event-level field used as the end time for drift-time calculation.                                                                                                                           |
 | `drift_time_slices` | str         | `"1000:200:2000"`       | Drift-time bins as `start:step:stop` in ns; the default creates 200 ns-wide bins from 1000 to 2000 ns.                                                                                       |
-| `evt_tier_name`     | str         | `pet`                   | Name of the evt tier to read from the data production (e.g. `pet` or `evt`).                                                                                                                 |
+| `evt_tier_name`     | str         | `auto`                  | Name of the evt tier to read from the data production (`pet` or `evt`). With `auto`, use `pet` if the data production has it, otherwise `evt`.                                               |
 | `max_files`         | int or null | `null`                  | If set, limits the number of raw and evt files processed per run (useful for testing).                                                                                                       |
 | `charge_output`     | str         | `wf_pz_win`             | DSP processing chain output name for the charge waveform.                                                                                                                                    |
 | `curr_output`       | str         | `curr_av`               | DSP processing chain output name for the current waveform.                                                                                                                                   |

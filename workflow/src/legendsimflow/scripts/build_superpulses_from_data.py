@@ -51,7 +51,7 @@ DEFAULT_SETTINGS = {
     "target_wfs": 100,
     "chi2_threshold": 3,
     "max_files": None,
-    "evt_tier_name": "pet",
+    "evt_tier_name": "auto",
     "charge_output": "wf_pz_win",
     "curr_output": "curr_av",
     "energy_output": "cuspEmax",
