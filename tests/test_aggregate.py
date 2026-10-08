@@ -613,3 +613,23 @@ def test_simlist_exclude(fresh_config):
 
     config["simlist_exclude"] = "birds_nest_K40, lar_inside"
     assert agg.gen_list_of_tuning_simids(config) == []
+
+
+def test_simlist_named(fresh_config):
+    config = fresh_config
+    config["simlist"] = ["~simlists:test_list", "stp.lar_inside"]
+    assert agg.process_simlist(config, make_steps=["stp", "opt", "hit"]) == (
+        agg.process_simlist(
+            config,
+            simlist=["stp.birds_nest_K40", "hit.lar_inside", "stp.lar_inside"],
+            make_steps=["stp", "opt", "hit"],
+        )
+    )
+
+    config["simlist"] = "~simlists:test_list"
+    config["simlist_exclude"] = ["lar_inside"]
+    assert agg.gen_list_of_tuning_simids(config) == ["birds_nest_K40"]
+
+    config["simlist"] = ["~simlists:nope"]
+    with pytest.raises(SimflowConfigError):
+        agg.process_simlist(config)

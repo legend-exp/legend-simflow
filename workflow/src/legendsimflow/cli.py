@@ -27,6 +27,7 @@ from dbetto import AttrsDict
 from legenddataflowscripts.workflow.utils import subst_vars
 
 from . import aggregate
+from .metadata import expand_simlist
 from .utils import metadata_class
 
 log = logging.getLogger(__name__)
@@ -110,8 +111,12 @@ def snakemake_nersc_cli():
     # done), this could result in a very inefficient partitioning. as a
     # mitigation, we randomly shuffle the simlist first
     exclude = aggregate.get_simlist_exclude(config)
-    # make a copy so we don't modify the input simlist in place
-    simlist = [s for s in simlist if s.split(".")[-1].strip() not in exclude]
+    # expanding also makes a copy, so the input simlist is not modified in place
+    simlist = [
+        s
+        for s in expand_simlist(config, simlist)
+        if s.split(".")[-1].strip() not in exclude
+    ]
     random.shuffle(simlist)
 
     chunks = [chunk for chunk in _partition(simlist, args.nodes) if chunk]

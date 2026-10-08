@@ -513,6 +513,37 @@ def expand_runlist(
     return sorted(set(runs))
 
 
+def expand_simlist(config: SimflowConfig, simlist: str | Iterable[str]) -> list[str]:
+    """Expand a simlist as passed to the Simflow configuration.
+
+    A simlist is a list (or a comma-separated string) of:
+
+    - items in the form ``<tier>.<simid>``;
+    - ``~simlists:NAME``, replaced by the list stored under ``NAME`` for the
+      experiment in ``simprod/config/simlists.yaml`` of the Simflow metadata.
+
+    The order is preserved and duplicates are removed.
+    """
+    if isinstance(simlist, str):
+        simlist = simlist.split(",")
+
+    items: list[str] = []
+    for raw in simlist:
+        item = raw.strip()
+        if item.startswith("~simlists:"):
+            name = item.partition("~simlists:")[2].strip()
+            try:
+                named = config.metadata.simprod.config.simlists[config.experiment][name]
+            except KeyError as e:
+                msg = f"no simlist named {name!r} for experiment {config.experiment!r}"
+                raise SimflowConfigError(msg, "simflow-config.simlist") from e
+            items.extend(i.strip() for i in named)
+        elif item:
+            items.append(item)
+
+    return list(dict.fromkeys(items))
+
+
 def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
     """Gets the runlist assigned to a simulation.
 
