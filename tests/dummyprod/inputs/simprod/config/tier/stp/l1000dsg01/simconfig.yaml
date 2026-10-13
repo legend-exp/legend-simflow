@@ -1,0 +1,6 @@
+ultem_insulators_Pb214_to_Po214:
+  template: $_/template.mac
+  generator: ~defines:Pb214_to_Po214
+  confinement: ~volumes.bulk:hpge_assembly_insulator_ultem_.*
+  primaries_per_job: 100_000
+  number_of_jobs: 1

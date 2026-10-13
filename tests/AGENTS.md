@@ -19,21 +19,33 @@ The metadata comes from two places:
 - `tests/dummyprod/inputs/`: a standalone metadata instance (hardware detector
   specs, channelmaps, datasets, simflow configuration) committed directly to
   this repository. It serves the **unit tests** and the tier-script tests.
-- the mock `legend-metadata` in
+- the mock `legend-metadata` and `legend1000-metadata` in
   [legend-testdata](https://github.com/legend-exp/legend-testdata), fetched by
-  `legendtestdata`. It holds the hardware and the datasets of the **full-chain
-  workflow test**.
+  `legendtestdata`. They hold the hardware and the datasets of the **full-chain
+  workflow tests**.
 
-The `dummyprod_testdata` fixture assembles what that test reads, in
-`tests/dummyprod/legend-metadata`: the hardware and datasets above, next to the
-`simprod` configuration committed here, which changes far more often.
-`legend-pygeom-l200` builds the geometry from it, always the same one: two
-strings of four germanium channels, every one of them the test ICPC `V99999Z`,
-surrounded by the fiber shroud and its 58 SiPM channels. Only `V00001A` and
-`V00001B` are `on`, so only those two are modelled. The test simulates both the
-pulse shape discrimination and the optics.
+The `dummyprod_testdata` fixture assembles what these tests read, in
+`tests/dummyprod/legend-metadata` and `tests/dummyprod/legend1000-metadata`: the
+hardware and datasets above, next to the `simprod` configuration committed here,
+which changes far more often. `legend-pygeom-l200` builds the geometry from it,
+always the same one: two strings of four germanium channels, every one of them
+the test ICPC `V99999Z`, surrounded by the fiber shroud and its 58 SiPM
+channels. Only `V00001A` and `V00001B` are `on`, so only those two are modelled.
+The test simulates both the pulse shape discrimination and the optics.
 
-The dummy production uses two experiments:
+`legend-pygeom-l1000` builds the LEGEND-1000 array from the `raw_config` in
+`geom/l1000dsg01-geom-config.yaml`: one string with two germanium channels,
+`V00101Z` and `V00102Z`, and three SiPM modules, `S0101T`/`S0101B` to
+`S0103T`/`S0103B`. The channel names come from this configuration. The mock
+`legend1000-metadata` holds only the default records (`V99999Z`, `S9999Z`,
+`PMT9999`): pylegendmeta derives the records, statuses and operational voltages
+of all channels from them, and `write_l1000_hpge_metadata` writes the germanium
+records for the pulse-shape simulation. Both germanium detectors are copies of
+`V99999Z`, and both are modelled. The PMT channel names are in the channel list,
+but the default detail level does not build the PMTs. The optics use the
+combined map (`optmap_per_sipm: false`) of the LEGEND-200 dummy optical map.
+
+The dummy production uses three experiments:
 
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist contains real p02 run IDs but is not intended to run an
@@ -41,6 +53,9 @@ The dummy production uses two experiments:
 - `l200cfg01`: the LEGEND-200 experiment. `test_l200_workflow` runs it in CI on
   the mock metadata; `test_l200_nersc_workflow` (`needs_nersc`) runs the same
   experiment against `l200data` at NERSC
+- `l1000dsg01`: the LEGEND-1000 experiment
+  (`metadata_repo: legend1000-metadata`). `test_l1000_workflow` runs it in CI on
+  the mock metadata
 
 `legend_testdata` (from `legendtestdata`) is still available as a pytest fixture
 for tests that require LH5 data files or other binary assets from the testdata
@@ -81,7 +96,12 @@ real `generated*` dirs.
 - `test_simulate_psd[_with_psl]_toggles_*`: the hit-tier `simulate_psd_with_psl`
   / `simulate_psd` settings (edited in a temp metadata copy) add/remove exactly
   the PSL / drift-time-map rules; guards the YAML-to-DAG wiring the dead
-  `has_detailed_psd` key broke.
+  `has_detailed_psd` key broke. The PSL switch is tested for both `l200cfg01`
+  and `l1000dsg01`.
+- `test_l1000_dag`: the LEGEND-1000 DAG resolves on the mock
+  `legend1000-metadata`, with the PSD chains of both modelled detectors on the
+  germanium records written by `write_l1000_hpge_metadata`, and without the
+  LEGEND-200-only HPGe mass plot.
 - `test_tune_hpge_impurities_builds_tuning_chain`: with
   `tune_hpge_impurities_on_data` on, the impurity-fit target resolves the whole
   tuning chain. Targets the fit rule directly (`dag_rule_names(targets=...)`):
@@ -97,7 +117,9 @@ real `generated*` dirs.
   avoid Snakemake cache cross-contamination.
 - Remember: the `legend` experiment name is reserved for generic unit tests.
 - The metadata directory for the experiment to be tested is taken from
-  `legend-testdata` (through `pylegendtestdata`), inside `data/metadata`.
+  `legend-testdata` (through `pylegendtestdata`), inside `data/metadata`. To
+  test changes to it before they are merged, point `LEGEND_TESTDATA` at a clone
+  of legend-testdata and pin the commit in `conftest.py`.
 - The `legend-metadata/inputs/simprod/config` module is instead stored here, in
   `dummyprod/inputs/simprod/config`. It contains metadata for all tested
   experiments. This part of the metadata stays here because it changes
@@ -119,3 +141,6 @@ Current full-chain tests:
 2. **`test_l200_nersc_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
    pipeline, same experiment, requires `l200data`, NERSC-only. Run with:
    `pixi run -e test test-l200-nersc-workflow`
+3. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage on
+   the mock `legend1000-metadata`, experiment `l1000dsg01`; runs in CI:
+   `pixi run -e test test-l1000-workflow`.

@@ -31,6 +31,7 @@ from snakemake.exceptions import MissingInputException, WorkflowError
 dummyprod = Path(__file__).parent / "dummyprod"
 default_config = dummyprod / "simflow-config.yaml"
 l200_config = dummyprod / "simflow-config-l200.yaml"
+l1000_config = dummyprod / "simflow-config-l1000.yaml"
 all_cores = os.cpu_count() or 1
 
 # the file-producing rule of each tier, used to assert tier (de)selection
@@ -77,6 +78,12 @@ IMPURITY_TUNING_RULES = {
     "extract_hpge_impurity_models",
 }
 
+# metadata folder (under dummyprod) of the experiments of the full-chain tests
+FULL_CHAIN_METADATA = {
+    "l200cfg01": "legend-metadata",
+    "l1000dsg01": "legend1000-metadata",
+}
+
 
 def _output_paths(base: Path) -> dict:
     """Redirect every generated output under *base* (a throwaway directory)."""
@@ -97,13 +104,13 @@ def _metadata_paths(
 ) -> dict:
     """Copy the dummyprod metadata under *base* with overridden tier settings.
 
-    The `l200cfg01` experiment runs on the metadata assembled by the
-    ``dummyprod_testdata`` fixture, the other ones on the metadata committed
-    here. ``settings_by_tier`` maps a tier name to the settings keys to
+    The `l200cfg01` and `l1000dsg01` experiments run on the metadata assembled
+    by the ``dummyprod_testdata`` fixture, the other ones on the metadata
+    committed here. ``settings_by_tier`` maps a tier name to the settings keys to
     overwrite for *experiment* (e.g. ``{"evt": {"skip_opt": True}}``). Editing
     the copy keeps the committed metadata untouched.
     """
-    source = "legend-metadata" if experiment == "l200cfg01" else "inputs"
+    source = FULL_CHAIN_METADATA.get(experiment, "inputs")
     meta = base / source
     shutil.copytree(dummyprod / source, meta, symlinks=False)
     for tier, overlay in settings_by_tier.items():
@@ -231,23 +238,27 @@ def test_vtx_only_make_steps_warns(tmp_path, caplog):
 STEPS_TO_HIT = ["vtx", "stp", "par", "opt", "hit"]
 
 
-def test_simulate_psd_with_psl_toggles_psl_rules(tmp_path):
+@pytest.mark.parametrize(
+    ("configfile", "experiment"),
+    [(l200_config, "l200cfg01"), (l1000_config, "l1000dsg01")],
+)
+def test_simulate_psd_with_psl_toggles_psl_rules(tmp_path, configfile, experiment):
     """The hit-tier `simulate_psd_with_psl` setting gates the PSL build chain."""
     on = dag_rule_names(
-        l200_config,
+        configfile,
         overrides(
             tmp_path / "on",
             make_steps=STEPS_TO_HIT,
-            experiment="l200cfg01",
+            experiment=experiment,
             settings_by_tier={"hit": {"simulate_psd_with_psl": True}},
         ),
     )
     off = dag_rule_names(
-        l200_config,
+        configfile,
         overrides(
             tmp_path / "off",
             make_steps=STEPS_TO_HIT,
-            experiment="l200cfg01",
+            experiment=experiment,
             settings_by_tier={"hit": {"simulate_psd_with_psl": False}},
         ),
     )
@@ -414,6 +425,24 @@ def test_geom_plots_scheduled(tmp_path):
     rules = dag_rule_names(default_config, overrides(tmp_path))
     assert "plot_geom_rendering" in rules
     assert "plot_geom_hpge_mass" in rules
+
+
+def test_l1000_dag(tmp_path):
+    """The LEGEND-1000 DAG resolves on the mock `legend1000-metadata`.
+
+    The channel names come from the `legend-pygeom-l1000` configuration. The
+    metadata holds only the default records, so the detector records are
+    derived from them, and `write_l1000_hpge_metadata` writes the HPGe records.
+    Both HPGe detectors are modelable, so the drift-time map and PSL chains are
+    scheduled. The HPGe mass plot exists only for `legend-pygeom-l200`.
+    """
+    rules = dag_rule_names(l1000_config, overrides(tmp_path))
+    # the only simulation confines its primaries to volumes, so no vertices
+    assert set(TIER_BUILD_RULE.values()) - rules == {"build_tier_vtx"}
+    assert rules >= STD_PSD_RULES | PSL_PSD_RULES
+    assert "write_l1000_hpge_metadata" in rules
+    assert "plot_geom_rendering" in rules
+    assert "plot_geom_hpge_mass" not in rules
 
 
 def test_optmap_patch_rule_gated_on_config(tmp_path):

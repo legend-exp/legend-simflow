@@ -222,6 +222,7 @@ test-julia = { cmd = "julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "work
 test-julia-ci = { cmd = "julia --code-coverage=user --project=. -e 'using Pkg; Pkg.test(coverage=true)'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
 test-python-pixi = { cmd = "pytest -vvv -m 'not needs_nersc' --ignore=tests/test_workflow.py --cov=legendsimflow --cov-report=xml", depends-on = ["warmup", "init-julia-env"] }
 test-l200-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' tests/test_workflow.py::test_l200_workflow", depends-on = ["warmup"] }
+test-l1000-workflow = { cmd = "pytest -s -m 'needs_remage and not needs_nersc' tests/test_workflow.py::test_l1000_workflow", depends-on = ["warmup"] }
 test-l200-nersc-workflow = { cmd = "pytest -s -m needs_nersc", depends-on = [{ task = "warmup", args = ["tests/dummyprod/simflow-config-l200-nersc.yaml"] }] }
 test = { depends-on = ["test-python", "test-julia"] }
 
