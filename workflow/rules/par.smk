@@ -26,9 +26,10 @@ _impurity_model = config.paths.get("hpge_impurity_model", None)
 _impurity_opt = f"--impurity {_impurity_model}" if _impurity_model else ""
 
 # legend1000-metadata holds only default records, the SSD rules read the HPGe
-# records written by init_simflow_context to paths.hpge_metadata
+# records from a temporary folder written by write_l1000_hpge_metadata
 _is_l1000 = config.metadata_repo == "legend1000-metadata"
-_hpge_metadata = config.paths.hpge_metadata if _is_l1000 else config.paths.metadata
+_l1000_hpge_metadata = config.paths.generated / "compiled_metadata"
+_hpge_metadata = _l1000_hpge_metadata if _is_l1000 else config.paths.metadata
 
 
 rule gen_all_tier_par:
@@ -87,6 +88,19 @@ rule make_simstat_partition_file:
         "../src/legendsimflow/scripts/make_simstat_partition_file.py"
 
 
+rule write_l1000_hpge_metadata:
+    """Write the LEGEND-1000 HPGe diode and crystal records for the SSD rules.
+
+    `legend1000-metadata` holds only default records. This writes the records of
+    all HPGes in the channel list, under `hardware/detectors/germanium`, to a
+    temporary folder. Snakemake deletes it when the SSD jobs are done.
+    """
+    output:
+        temp(directory(_l1000_hpge_metadata)),
+    run:
+        config.metadata.write_hardware_detectors_germanium_folder(output[0])
+
+
 def smk_hpge_psd_simulation_inputs(wildcards):
     """Prepare inputs for the HPGe PSD simulation (SSD) rules."""
     _m = Path(config.paths.metadata)
@@ -94,10 +108,12 @@ def smk_hpge_psd_simulation_inputs(wildcards):
         _m / f"simprod/config/pars/{config.experiment}/geds/ssd/settings.yaml"
     )
 
-    # the LEGEND-1000 HPGe records are rewritten on every start, so do not
-    # track them (their modification time would trigger a rerun)
     if _is_l1000:
-        return {"ssd_settings": ssd_settings, "_dummy": rules._init_julia_env.output}
+        return {
+            "hpge_metadata": rules.write_l1000_hpge_metadata.output,
+            "ssd_settings": ssd_settings,
+            "_dummy": rules._init_julia_env.output,
+        }
 
     meta = config.metadata.hardware.detectors.germanium.diodes[wildcards.hpge_detector]
     ids = {"bege": "B", "coax": "C", "ppc": "P", "icpc": "V"}
@@ -122,7 +138,7 @@ rule build_hpge_drift_time_map:
     Run a Julia script based on a pulse-shape simulation performed with the
     [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
     package, using crystal geometry information from `legend-metadata` (for
-    LEGEND-1000, from the records in `paths.hpge_metadata`). The drift time
+    LEGEND-1000, from the output of `write_l1000_hpge_metadata`). The drift time
     recorded at each grid point is the time at which the simulated hole
     charge-collection signal reaches its maximum current (the argmax of the
     charge-signal derivative); one map is produced per crystal-axis angle.
@@ -243,7 +259,7 @@ rule build_hpge_pulse_shape_library:
 
     Run a Julia script based on a pulse-shape simulation performed with the
     [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
-    package, using crystal geometry information from `legend-metadata` (for LEGEND-1000, from the records in `paths.hpge_metadata`).
+    package, using crystal geometry information from `legend-metadata` (for LEGEND-1000, from the output of `write_l1000_hpge_metadata`).
     It simulates the full charge-collection transient at every `(r, z, angle)` grid point. These are un-convolved (ideal) charge waveforms;
     the electronics transfer function is applied later, in `convolve_hpge_ideal_pulse_shape_lib`.
 

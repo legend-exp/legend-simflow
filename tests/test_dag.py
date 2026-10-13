@@ -179,6 +179,7 @@ def test_dag(tmp_path):
     rules = dag_rule_names(default_config, overrides(tmp_path))
     assert "all" in rules
     assert set(TIER_BUILD_RULE.values()) <= rules
+    assert "write_l1000_hpge_metadata" not in rules
 
 
 def test_dag_simlist(tmp_path):

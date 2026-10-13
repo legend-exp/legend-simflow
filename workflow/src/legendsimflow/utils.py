@@ -260,9 +260,6 @@ def init_simflow_context(
       ``metadata_repo`` (see :func:`metadata_class`);
     - attach a :class:`~legendmeta.MetadataRepository` instance to the
       Simflow configuration;
-    - for ``legend1000-metadata``, write the HPGe records to
-      ``paths.hpge_metadata`` (see
-      ``Legend1000Metadata.write_hardware_detectors_germanium_folder()``);
     - export important environment variables.
 
     Parameters
@@ -362,17 +359,6 @@ def init_simflow_context(
         config["metadata"] = metadata_cls(
             nersc.dvs_ro(config, config.paths.metadata), **kwargs
         )
-
-        # the Julia SSD scripts read the HPGe records from disk. Write them
-        # only in the main Snakemake process, not again in every job
-        if metadata_cls is Legend1000Metadata:
-            config["paths"]["hpge_metadata"] = (
-                config.paths.generated / "compiled_metadata"
-            )
-            if workflow is not None and workflow.is_main_process:
-                config.metadata.write_hardware_detectors_germanium_folder(
-                    config.paths.hpge_metadata
-                )
 
     # make sure all simflow plots are made with a consistent style
     # I have verified only that this variable is visible in scripts (not shell directives)
