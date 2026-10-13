@@ -367,7 +367,7 @@ def init_simflow_context(
         # only in the main Snakemake process, not again in every job
         if metadata_cls is Legend1000Metadata:
             config["paths"]["hpge_metadata"] = (
-                config.paths.generated / "pars/hpge/metadata"
+                config.paths.generated / "compiled_metadata"
             )
             if workflow is not None and workflow.is_main_process:
                 config.metadata.write_hardware_detectors_germanium_folder(

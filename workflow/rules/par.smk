@@ -123,15 +123,15 @@ rule build_hpge_drift_time_map:
     [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
     package, using crystal geometry information from `legend-metadata` (for
     LEGEND-1000, from the records in `paths.hpge_metadata`). The drift time
-    recorded at each grid point is the time at which the simulated hole charge-collection signal reaches its maximum current
-    (the argmax of the charge-signal derivative); one map is produced per
-    crystal-axis angle.
+    recorded at each grid point is the time at which the simulated hole
+    charge-collection signal reaches its maximum current (the argmax of the
+    charge-signal derivative); one map is produced per crystal-axis angle.
 
     The output is one LH5 file per `(detector, voltage)` pair with a single
     top-level group named after the detector, holding the gridded map in the
-    `(r, z)`-field format read back by
-    {func}`reboost.hpge.load_hpge_rz_field` and consumed by
-    {func}`reboost.hpge.drift_time_crystal_axes` when the `hit` tier is built:
+    `(r, z)`-field format read back by {func}`reboost.hpge.load_hpge_rz_field`
+    and consumed by {func}`reboost.hpge.drift_time_crystal_axes` when the
+    `hit` tier is built:
 
     | Field                    | Type         | Units | Description                                                                                                       |
     | ------------------------ | ------------ | ----- | --------------------------------------------------------------------------------------------------------------- |
@@ -243,11 +243,9 @@ rule build_hpge_pulse_shape_library:
 
     Run a Julia script based on a pulse-shape simulation performed with the
     [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
-    package, using crystal geometry information from `legend-metadata` (for
-    LEGEND-1000, from the records in `paths.hpge_metadata`). It simulates
-    the full charge-collection transient at every `(r, z, angle)` grid point. These are un-convolved (ideal) charge waveforms;
-    the electronics transfer function is applied later, in
-    `convolve_hpge_ideal_pulse_shape_lib`.
+    package, using crystal geometry information from `legend-metadata` (for LEGEND-1000, from the records in `paths.hpge_metadata`).
+    It simulates the full charge-collection transient at every `(r, z, angle)` grid point. These are un-convolved (ideal) charge waveforms;
+    the electronics transfer function is applied later, in `convolve_hpge_ideal_pulse_shape_lib`.
 
     The output is one LH5 file per `(detector, voltage)` pair with a single
     top-level group named after the detector:
