@@ -4,6 +4,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import awkward as ak
 import h5py
 import lh5
 import numpy as np
@@ -170,4 +171,21 @@ def test_hit_script_cli(
     is_valid_sim_vals = _field(first_det, "is_valid_sim")
     assert is_valid_sim_vals.dtype == bool, (
         f"is_valid_sim should be boolean, got {is_valid_sim_vals.dtype}"
+    )
+
+    # surface table, enabled by surface_steps_max_distance_in_mm: 3 in the
+    # test hit settings: the steps it holds and the bulk energy add up to the
+    # total energy deposited in the detector
+    surface = lh5.read("hit/V00001A/surface", hit_file).view_as("ak")
+    assert ak.sum(ak.num(surface.edep)) > 0
+    assert np.all(ak.flatten(surface.distance_to_nplus) < 3)
+    assert np.all(ak.flatten(surface.distance_to_nplus) >= 0)
+    assert np.all(surface.energy_bulk >= 0)
+    assert ak.all(ak.num(surface.edep) == ak.num(surface.distance_to_nplus))
+
+    stp_edep = lh5.read_as("stp/V00001A/edep", legend_stp_path, library="ak")
+    assert np.isclose(
+        ak.sum(surface.edep) + ak.sum(surface.energy_bulk),
+        ak.sum(stp_edep),
+        rtol=1e-4,
     )

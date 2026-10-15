@@ -94,6 +94,8 @@ This file is produced together with the drift-time maps, so it is written only
 when the `hit` tier is built with PSD enabled (`simulate_psd`, see
 {ref}`hit-tier-settings`).
 
+(hit-tier-output)=
+
 ## `hit` tier — HPGe detector post-processing
 
 The `hit` tier applies detector response models (energy resolution, pulse-shape
@@ -152,6 +154,20 @@ while the `pulse_lib` values come from the per-pixel pulse-shape library (see
 | `is_single_site`  | `Array` |       | `single_temp`, `pulse_lib` | Boolean PSD flag. `True` when the A/E classifier `aoe` exceeds the lower single-site cut `psdcuts.aoe.low_side` (extracted from LEGEND-200 data).                                                                                                                                                      |
 | `is_bb_like`      | `Array` |       | `pulse_lib`                | Boolean PSD flag. `True` for $0\nu\beta\beta$-like single-site events: `aoe` above `psdcuts.aoe.low_side` and not above the upper cut `psdcuts.aoe.high_side`.                                                                                                                                         |
 | `is_high_aoe`     | `Array` |       | `pulse_lib`                | Boolean PSD flag. `True` when `aoe` exceeds the upper cut `psdcuts.aoe.high_side` (high-A/E events, e.g. surface or $\alpha$).                                                                                                                                                                         |
+
+The `surface` subtable is written only when `store_surface_steps` is `true` in
+the {ref}`hit-tier-settings`. It holds the energy depositions (steps) closer
+than `surface_depth_in_mm` to the n+ surface one by one, and the summed energy
+of all other steps. From these, the energy of the hit can be recomputed for any
+dead-layer model with a full charge collection depth (FCCD) below
+`surface_depth_in_mm`. The energies are as deposited in the germanium, before
+any dead-layer or resolution model is applied.
+
+| Field               | Type              | Units | Description                                                                                       |
+| ------------------- | ----------------- | ----- | ------------------------------------------------------------------------------------------------- |
+| `edep`              | `VectorOfVectors` | keV   | Energy of each step closer than `surface_depth_in_mm` to the n+ surface.                          |
+| `distance_to_nplus` | `VectorOfVectors` | mm    | Distance of each of these steps to the n+ surface, in the same order as `edep`.                   |
+| `energy_bulk`       | `Array`           | keV   | Summed energy of all other steps of the hit. They are treated as fully active (charge collected). |
 
 (opt-tier)=
 

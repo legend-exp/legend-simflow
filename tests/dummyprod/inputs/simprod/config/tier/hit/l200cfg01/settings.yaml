@@ -1,4 +1,6 @@
 dead_layer_fraction: 0.5
+store_surface_steps: true
+surface_depth_in_mm: 3
 buffer_len: 500*MB
 simulate_psd_with_psl: true
 tune_hpge_impurities_on_data: false
