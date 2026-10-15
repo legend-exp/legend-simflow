@@ -100,6 +100,17 @@ def test_evt_script_cli(
             f"'geds/psd/single_temp/{field}' missing; got {single_temp_fields}"
         )
 
+    # surface steps (store_surface_steps in the test hit settings): one entry
+    # per stored hit, like geds/energy
+    geds = lh5.read("evt/geds", evt_file).view_as("ak")
+    for field in ("edep", "distance_to_nplus", "energy_bulk"):
+        assert ak.all(ak.num(geds.surface[field]) == ak.num(geds.energy))
+    assert ak.all(
+        ak.num(geds.surface.edep, axis=2)
+        == ak.num(geds.surface.distance_to_nplus, axis=2)
+    )
+    assert ak.all(ak.flatten(geds.surface.distance_to_nplus, axis=None) < 3)
+
     spms_fields = {f.removeprefix("evt/spms/") for f in lh5.ls(evt_file, "evt/spms/")}
     for field in (
         "energy",

@@ -170,6 +170,9 @@ def main() -> None:
     tier_hit_settings = get_tier_settings(config, "hit")
     simulate_psd = tier_hit_settings.get("simulate_psd", True)
     simulate_psd_with_psl = tier_hit_settings.get("simulate_psd_with_psl", False)
+    store_surface_steps = not skip_hit and tier_hit_settings.get(
+        "store_surface_steps", False
+    )
 
     evt_file, move2cfs = nersc.make_on_scratch(config, evt_file)
 
@@ -575,6 +578,32 @@ def main() -> None:
                         "geds/psd/pulse_lib/is_high_aoe",
                         VectorOfVectors(is_high_aoe[hitsel]),
                     )
+                # energy depositions near the n+ surface, one list per hit
+                if store_surface_steps:
+                    out_table.add_field("geds/surface", Table(size=len(unified_tcm)))
+                    for field, units in (
+                        ("edep", "keV"),
+                        ("distance_to_nplus", "mm"),
+                        ("energy_bulk", "keV"),
+                    ):
+                        data = _read_hits(tcm, "hit", f"surface/{field}")
+                        if field != "energy_bulk" and data.ndim == 2:
+                            # no hits in this chunk: the empty hit lists still
+                            # need the type of step lists to append to the file
+                            data = ak.unflatten(
+                                ak.unflatten(
+                                    np.zeros(0, np.float32), np.zeros(0, np.int64)
+                                ),
+                                ak.num(data),
+                            )
+                        out_table.add_field(
+                            f"geds/surface/{field}",
+                            VectorOfVectors(
+                                ak.values_astype(data[hitsel], np.float32),
+                                attrs={"units": units},
+                            ),
+                        )
+
                 # compute multiplicity
                 geds_multiplicity = ak.sum(hitsel, axis=-1)
                 out_table.add_field("geds/multiplicity", Array(geds_multiplicity))

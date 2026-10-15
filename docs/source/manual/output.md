@@ -289,6 +289,18 @@ from the corresponding `hit`-tier subtable and are `VectorOfVectors`
 | `is_bb_like`      |       | `pulse_lib`                | Boolean flag for $0\nu\beta\beta$-like single-site events, forwarded from `hit`.                                                                                                                        |
 | `is_high_aoe`     |       | `pulse_lib`                | Boolean high-A/E flag forwarded from the `hit` tier.                                                                                                                                                    |
 
+#### `geds/surface/` — energy depositions near the n+ surface
+
+Present only when `store_surface_steps: true` in {ref}`hit-tier-settings`. The
+fields are forwarded from the `surface` subtable of the
+[`hit` tier](hit-tier-output), for the same hits as `geds/energy`.
+
+| Field               | Type                               | Units | Description                                                                                                |
+| ------------------- | ---------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
+| `edep`              | `VectorOfVectors` (event/hit/step) | keV   | Energy of each step closer than `surface_depth_in_mm` to the n+ surface, one list per hit.                 |
+| `distance_to_nplus` | `VectorOfVectors` (event/hit/step) | mm    | Distance of each of these steps to the n+ surface, in the same order as `edep`.                            |
+| `energy_bulk`       | `VectorOfVectors` (event/hit)      | keV   | Summed energy of all other steps of the hit, before resolution smearing. They are treated as fully active. |
+
 ### `spms/` — SiPM (LAr scintillation) array
 
 Per-event arrays collecting SiPM data. All non-OFF channels are always present
