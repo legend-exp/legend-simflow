@@ -20,6 +20,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -112,6 +113,11 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
 
     os.environ["LEGEND_METADATA"] = str(config.paths.metadata)
     os.environ["LEGEND1000_METADATA"] = str(config.paths.metadata)
+
+    # without XDG_RUNTIME_DIR, Mesa creates one shared per-user folder in /tmp,
+    # and parallel rendering jobs fail when they create it at the same time
+    if "XDG_RUNTIME_DIR" not in os.environ:
+        os.environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp(prefix="simflow-xdg-")
 
     scene = load_vis_scene(config)
     if scene.pop("fine_mesh", False):  # must be applied before building the geometry
