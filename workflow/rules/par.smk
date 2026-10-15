@@ -17,7 +17,7 @@
 
 from pathlib import Path
 
-from legendsimflow import aggregate, patterns
+from legendsimflow import aggregate, patterns, utils
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_par_settings
 
@@ -30,6 +30,14 @@ _impurity_opt = f"--impurity {_impurity_model}" if _impurity_model else ""
 _is_l1000 = config.metadata_repo == "legend1000-metadata"
 _l1000_hpge_metadata = config.paths.generated / "compiled_metadata"
 _hpge_metadata = _l1000_hpge_metadata if _is_l1000 else config.paths.metadata
+
+
+def smk_curr_mwa(wildcards):
+    """Return the moving-window-average settings of the simulated current."""
+    return utils.lookup_curr_mw_pars(
+        config.paths.get("l200data", None),
+        settings=get_par_settings(config, "elecmod").get("curr_mwa"),
+    )
 
 
 rule gen_all_tier_par:
@@ -345,6 +353,9 @@ rule convolve_hpge_ideal_pulse_shape_lib:
         electronics_model=lambda wc: patterns.output_elecmod_merged_filename(
             config, runid=wc.runid
         ),
+    params:
+        # track the current smoothing so the rule reruns when it changes
+        _curr_mwa=smk_curr_mwa,
     output:
         psl_file=patterns.output_realistic_psl_filename(config),
         plot_file=patterns.plot_realistic_psl_filename(config),
@@ -678,6 +689,9 @@ rule extract_elecmod_scan:
     input:
         ideal_psl_scan=rules.build_hpge_psl_scan.output[0],
         superpulses=patterns.output_superpulses_filename(config),
+    params:
+        # track the current smoothing so the rule reruns when it changes
+        _curr_mwa=smk_curr_mwa,
     output:
         pars_file=patterns.output_elecmod_scan_filename(config),
         plot_file=patterns.plot_elecmod_scan_filename(config),
@@ -733,6 +747,8 @@ rule extract_drift_time_scan:
         psl_file=rules.build_hpge_psl_scan.output[0],
         elecmod=rules.extract_elecmod_scan.output.pars_file,
     params:
+        # track the current smoothing so the rule reruns when it changes
+        _curr_mwa=smk_curr_mwa,
         max_events=_impurity_settings.get("drift_time_scan", {}).get("max_events", None),
         energy_cut=_impurity_settings.get("drift_time_scan", {}).get(
             "min_energy_in_keV", 1500
@@ -872,6 +888,9 @@ rule extract_electronics_model_pars:
                 "operational_voltage_in_V"
             ],
         ),
+    params:
+        # track the current smoothing so the rule reruns when it changes
+        _curr_mwa=smk_curr_mwa,
     output:
         pars_file=temp(patterns.output_elecmod_filename(config)),
         plot_file=patterns.plot_elecmod_filename(config),

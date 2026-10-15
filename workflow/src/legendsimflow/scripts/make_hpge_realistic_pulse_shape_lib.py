@@ -32,6 +32,7 @@ from reboost import units
 from reboost.hpge import make_hpge_pulse_shape_library, plot_psl_aoe_maps
 from snakemake_argparse_bridge import snakemake_compatible
 
+from legendsimflow import metadata as mutils
 from legendsimflow import nersc, psl, utils
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
@@ -130,11 +131,19 @@ def main():
     )
 
     # 3. Process
+    mw_pars = utils.lookup_curr_mw_pars(
+        getattr(config.paths, "l200data", None),
+        dt=dt,
+        settings=mutils.get_par_settings(config, "elecmod").get("curr_mwa"),
+    )
+    log.info("... current moving-window-average settings: %s", mw_pars)
+
     realistic_dict = psl.make_realistic_pulse_shape_lib(
         ideal_map_obj,
         rf_kernel,
         ALIGNMENT_IDX,
         NSAMPLES_OUTPUT_CURRENT_WFS,
+        mw_pars=mw_pars,
         dtype=np.dtype(args.dtype),
         kernel_t0_idx=-2 * kernel_start,
     )

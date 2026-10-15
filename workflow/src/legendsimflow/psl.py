@@ -269,8 +269,9 @@ def convolve_elecmod(
         Length of the realistic current waveforms.
     mw_pars
         Moving-window-average parameters, see
-        :func:`make_realistic_pulse_shape_lib`. Defaults to the settings of the
-        LEGEND-200 production DSP chain.
+        :func:`make_realistic_pulse_shape_lib`. Use
+        :func:`.utils.lookup_curr_mw_pars` to read them from a data
+        production.
     dt_data
         Data sampling time step in ns. Defaults to the LEGEND-200 digitizer
         period.
@@ -633,8 +634,10 @@ def process_ideal_waveforms(
     nsamples_output
         Length of the output waveforms.
     mw_pars
-        MWA parameters: ``length``, ``num_mw``, ``mw_type``. Defaults to the
-        settings of the LEGEND-200 production DSP chain.
+        MWA parameters: ``length`` (in samples of period `dt`), ``num_mw``,
+        ``mw_type``. Defaults to ``{"length": 48, "num_mw": 3, "mw_type": 0}``.
+        Use :func:`.utils.lookup_curr_mw_pars` to read them from a data
+        production.
     dt_data
         Data sampling time step in ns. Defaults to the LEGEND-200 digitizer
         period.
@@ -746,7 +749,7 @@ def make_realistic_pulse_shape_lib(
         - mw_type: The type of moving window to apply (see
           ``dspeed.processors.moving_window_multi`` for details)
 
-        Defaults to the settings of the LEGEND-200 production DSP chain.
+        Defaults to the settings of :func:`process_ideal_waveforms`.
     dt_data
         The time step of the original data waveforms (in ns), used to scale
         the derivative. Defaults to the LEGEND-200 digitizer period.

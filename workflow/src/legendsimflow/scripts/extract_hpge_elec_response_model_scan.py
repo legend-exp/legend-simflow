@@ -185,8 +185,10 @@ def main() -> None:
     pars_file = args.pars_file
 
     settings = DEFAULT_SETTINGS
+    l200data = None
     if args.simflow_config is not None:
         settings = DEFAULT_SETTINGS | get_par_settings(config, "elecmod")
+        l200data = getattr(config.paths, "l200data", None)
     settings = dbetto.AttrsDict(settings)
 
     log.info(
@@ -277,6 +279,11 @@ def main() -> None:
                         max_calls=settings.max_calls,
                         mode=settings.minimiser_mode,
                         waveform_type="current",
+                        mw_pars=utils.lookup_curr_mw_pars(
+                            l200data,
+                            dt=ideal_wfs["dt"],
+                            settings=settings.get("curr_mwa"),
+                        ),
                     )
                     # seed
 

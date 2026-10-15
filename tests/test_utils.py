@@ -747,3 +747,30 @@ def test_metadata_class():
     # there is no default
     with pytest.raises(SimflowConfigError):
         utils.metadata_class(AttrsDict({}))
+
+
+def test_lookup_curr_mw_pars(test_l200data, caplog):
+    l200data = test_l200data / "v3.0.0"
+    settings = {"length": 96, "num_mw": 2, "mw_type": 1}
+
+    # the test data upsamples the current to 1 ns and smooths it over 48 samples
+    assert utils.lookup_curr_mw_pars(l200data, settings=settings) == {
+        "length": 48,
+        "num_mw": 3,
+        "mw_type": 0,
+    }
+    assert "are ignored" in caplog.text
+    assert utils.lookup_curr_mw_pars(l200data, dt=2)["length"] == 24
+
+    assert utils.lookup_curr_mw_pars(None, settings=settings) == settings
+    assert utils.lookup_curr_mw_pars(None, dt=2, settings=settings)["length"] == 48
+    assert utils.lookup_curr_mw_pars(None) == {
+        "length": 48,
+        "num_mw": 3,
+        "mw_type": 0,
+    }
+
+    with pytest.raises(ValueError, match="moving_window_multi"):
+        utils.lookup_curr_mw_pars(l200data, dsp_output="curr_up")
+    with pytest.raises(KeyError, match="not found"):
+        utils.lookup_curr_mw_pars(l200data, dsp_output="no_such_output")

@@ -231,6 +231,13 @@ def main() -> None:
         max(sl.drift_time_range[1] for sl in ideal_wfs["ideal_wfs_slice"]),
     )
 
+    mw_pars = utils.lookup_curr_mw_pars(
+        getattr(config.paths, "l200data", None),
+        dt=ideal_wfs["dt"],
+        settings=settings.get("curr_mwa"),
+    )
+    log.info("... current moving-window-average settings: %s", mw_pars)
+
     # Run fit
     log.info(
         "starting fit (sigma0=%.1f, tau0=%.1f) ...",
@@ -248,6 +255,7 @@ def main() -> None:
         weight_power=settings.weight_power,
         max_calls=settings.max_calls,
         mode=settings.minimiser_mode,
+        mw_pars=mw_pars,
     )
 
     # Print summary

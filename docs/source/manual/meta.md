@@ -1029,8 +1029,8 @@ These settings apply only when the pulse-shape-library (PSL) PSD simulation is
 enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
 `False`), and only when the fit actually runs, i.e. when the
 {ref}`elecmod-metadata-dir` has no `default` key. When a `default` key is
-present the fit is bypassed and these settings are ignored. See
-{ref}`hpge-psl-overview`.
+present the fit is bypassed and these settings are ignored, except `curr_mwa`.
+See {ref}`hpge-psl-overview`.
 
 :::
 
@@ -1060,6 +1060,10 @@ max_calls: 1000
 dt_range_tuning: [600.0, 3000.0]
 max_num_superpulses: 5
 minimiser_mode: "simplex"
+curr_mwa:
+  length: 48
+  num_mw: 3
+  mw_type: 0
 ```
 
 | Key                   | Type           | Default           | Description                                                                                                                                                                                                   |
@@ -1076,8 +1080,23 @@ minimiser_mode: "simplex"
 | `dt_range_tuning`     | [float, float] | `[600.0, 3000.0]` | Drift-time range (ns); only superpulse slices whose centre falls in this range are used in the fit.                                                                                                           |
 | `max_num_superpulses` | int            | `5`               | Maximum number of drift-time slices used in the fit.                                                                                                                                                          |
 | `minimiser_mode`      | str            | `simplex`         | Mode of minimisation to use `simplex` `migrad` or `both`                                                                                                                                                      |
+| `curr_mwa`            | dict           | see below         | Moving-window average applied to the simulated current, see below.                                                                                                                                            |
 
 |
+
+`curr_mwa` sets the moving-window average that smooths the simulated current
+waveforms, like the `curr_av` processor of the data DSP chain smooths the
+measured current used for A/E. It is used in the electronics-response fits, in
+the drift-time tuning and in the realistic pulse-shape libraries, also when the
+fit is bypassed. Keys:
+
+- `length`: window length in ns.
+- `num_mw`: number of windows applied in sequence.
+- `mw_type`: window type, see `dspeed.processors.moving_window_multi`.
+
+If `l200data` is configured, these settings are ignored (with a warning) and the
+values of the `curr_av` processor in the ICPC DSP configuration of `l200data`
+are used instead ({func}`legendsimflow.utils.lookup_curr_mw_pars`).
 
 (modeling-settings-meta)=
 

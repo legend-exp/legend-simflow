@@ -15,13 +15,14 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import inspect
 import json
 import logging
 import os
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from numbers import Real
 from pathlib import Path
@@ -479,6 +480,98 @@ def lookup_dsp_config(l200data: str | Path) -> Path:
         raise RuntimeError(msg)
 
     return dsp_cfg_files[0]
+
+
+def lookup_curr_mw_pars(
+    l200data: str | Path | None,
+    dt: float = 1.0,
+    settings: Mapping | None = None,
+    dsp_output: str = "curr_av",
+    dt_data: float = 16.0,
+) -> dict[str, int]:
+    """Get the moving-window-average settings of the simulated current.
+
+    The current waveform used for A/E (``curr_av``) is the derivative of the
+    charge waveform, optionally upsampled, smoothed with
+    ``dspeed.processors.moving_window_multi``. The window length, the number of
+    windows and the window type are taken from the first available source:
+
+    1. the ICPC DSP configuration of the LEGEND-200 data production `l200data`;
+    2. `settings`, with keys ``length`` (in ns), ``num_mw`` and ``mw_type``;
+    3. ``{"length": 48, "num_mw": 3, "mw_type": 0}``.
+
+    Parameters
+    ----------
+    l200data
+        path to the LEGEND-200 data production cycle, or ``None``.
+    dt
+        sampling period of the simulated waveforms in ns.
+    settings
+        moving-window-average settings, used if `l200data` is ``None``.
+        Otherwise they are ignored, with a warning.
+    dsp_output
+        name of the DSP output holding the smoothed current.
+    dt_data
+        sampling period of the data waveforms before upsampling, in ns.
+
+    Returns
+    -------
+    dictionary with keys ``length`` (in samples of period `dt`), ``num_mw``
+    and ``mw_type``, as accepted by :func:`.psl.process_ideal_waveforms`.
+    """
+    if l200data is not None:
+        pars = _read_curr_mw_pars(str(l200data), dsp_output, dt_data)
+        if settings is not None:
+            log.warning(
+                "current moving-window-average settings %s are ignored, "
+                "using %s from the DSP configuration of %s",
+                dict(settings),
+                pars,
+                l200data,
+            )
+    elif settings is not None:
+        pars = settings
+    else:
+        pars = {"length": 48, "num_mw": 3, "mw_type": 0}
+
+    return {
+        "length": round(float(pars["length"]) / dt),
+        "num_mw": int(pars["num_mw"]),
+        "mw_type": int(pars["mw_type"]),
+    }
+
+
+@functools.cache
+def _read_curr_mw_pars(l200data: str, dsp_output: str, dt_data: float) -> dict:
+    """Read the current moving-window-average settings (length in ns) from the DSP config."""
+    dsp_cfg_file = lookup_dsp_config(l200data)
+    processors = dbetto.utils.load_dict(dsp_cfg_file)["processors"]
+
+    def _get_proc(name):
+        for key, proc in processors.items():
+            if name in (k.strip() for k in key.split(",")):
+                return proc
+        msg = f"DSP output '{name}' not found in {dsp_cfg_file}"
+        raise KeyError(msg)
+
+    proc = _get_proc(dsp_output)
+    if proc["function"] != "moving_window_multi":
+        msg = (
+            f"DSP output '{dsp_output}' in {dsp_cfg_file} is computed by "
+            f"'{proc['function']}', expected 'moving_window_multi'"
+        )
+        raise ValueError(msg)
+
+    wf_in, length, num_mw, mw_type = proc["args"][:4]
+
+    # the window length is in samples of the input waveform, which may be
+    # upsampled with respect to the digitizer period
+    period = dt_data
+    proc_in = _get_proc(wf_in)
+    if proc_in["function"] == "upsampler":
+        period /= float(proc_in["args"][1])
+
+    return {"length": float(length) * period, "num_mw": num_mw, "mw_type": mw_type}
 
 
 def init_generated_pars_db(

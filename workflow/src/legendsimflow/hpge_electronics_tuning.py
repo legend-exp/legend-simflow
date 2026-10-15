@@ -201,6 +201,7 @@ def build_cost_function(
     comparison_window: tuple[float, float] | None = None,
     weight_power: float = 0.0,
     waveform_type="current",
+    mw_pars: Mapping[str, int] | None = None,
 ) -> Callable:
     """Build the scalar cost function for the Minuit minimiser.
 
@@ -227,6 +228,9 @@ def build_cost_function(
         to :func:`compute_rms_in_slice`. ``0`` (default) is the unweighted RMS.
     waveform_type
         ``"current"`` (default) or ``"charge"``, determines which waveform is used to fit.
+    mw_pars
+        moving-window-average parameters, see
+        :func:`.psl.process_ideal_waveforms`.
 
     Returns
     -------
@@ -248,6 +252,7 @@ def build_cost_function(
                 dt,
                 alignment_idx,
                 nsamples_output,
+                mw_pars=mw_pars,
                 return_mode=waveform_type,
             )
             sim_avg = np.mean(processed, axis=0)
@@ -370,6 +375,7 @@ def fit_electronics_parameters(
     errs=(5, 10),
     mode="simplex",
     waveform_type="current",
+    mw_pars: Mapping[str, int] | None = None,
 ) -> dict:
     """Fit the electronics response parameters sigma and tau.
 
@@ -412,13 +418,16 @@ def fit_electronics_parameters(
         Minimisation mode: ``"simplex"``, ``"migrad"``, or ``"both"``.
     waveform_type
         ``"current"`` (default) or ``"charge"``, determines which waveform is used to fit.
+    mw_pars
+        moving-window-average parameters, see
+        :func:`.psl.process_ideal_waveforms`.
 
     Returns
     -------
     dict
         Keys: ``sigma``, ``tau``, ``best_rms``,
         ``ideal_wfs_slice``, ``dt``, ``alignment_idx``,
-        ``nsamples_output``, ``minuit``, ``cost_history``.
+        ``nsamples_output``, ``mw_pars``, ``minuit``, ``cost_history``.
 
     """
     cost_fn = build_cost_function(
@@ -430,6 +439,7 @@ def fit_electronics_parameters(
         comparison_window,
         weight_power,
         waveform_type=waveform_type,
+        mw_pars=mw_pars,
     )
 
     history: list[tuple[tuple[float, float], float]] = []
@@ -475,6 +485,7 @@ def fit_electronics_parameters(
         "dt": dt,
         "alignment_idx": alignment_idx,
         "nsamples_output": nsamples_output,
+        "mw_pars": mw_pars,
         "minuit": m,
         "cost_history": history,
     }
@@ -644,6 +655,7 @@ def plot_best_fit(
             dt,
             alignment_idx,
             nsamples_output,
+            mw_pars=result.get("mw_pars"),
             return_mode="charge" if plot_charge else "current",
         )
 

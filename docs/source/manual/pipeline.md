@@ -316,8 +316,13 @@ merged electronics model file, and applies the following processing chain:
 
 1. Convolve the ideal charge waveforms with the electronics response kernel
    (Gaussian bandwidth combined with preamplifier decay).
-2. Differentiate to obtain current waveforms, then apply a three-stage
-   moving-window average.
+2. Differentiate to obtain current waveforms, then apply a multi-stage
+   moving-window average. The window length, the number of stages and the window
+   type are read from the `curr_av` processor (the smoothed current used for
+   A/E) in the ICPC DSP configuration of `l200data`. Without `l200data`, they
+   are taken from the `curr_mwa` key of the
+   {ref}`electronics-response settings <elecmod-fit-settings-meta>`. The same
+   settings are used in the electronics-response fit.
 3. Align waveforms by shifting the current peak to a fixed sample index.
 4. Compute the drift time for each (r, z) pixel: the filtered current peak (like
    `tp_aoe_max` in data) measured from the energy deposition time.

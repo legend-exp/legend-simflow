@@ -139,6 +139,8 @@ def main() -> None:
         gdml_file = nersc.dvs_ro(config, args.geom_file)
         psl_file = nersc.dvs_ro(config, args.psl_file)
         elecmod_file = nersc.dvs_ro(config, args.elecmod)
+        l200data = getattr(config.paths, "l200data", None)
+        mwa_settings = mutils.get_par_settings(config, "elecmod").get("curr_mwa")
 
     else:
         dt_file = args.drift_time_file
@@ -156,6 +158,8 @@ def main() -> None:
         gdml_file = args.geom_file
         psl_file = args.psl_file
         elecmod_file = args.elecmod
+        l200data = None
+        mwa_settings = None
 
     # other setup
     u = pint.get_application_registry()
@@ -282,6 +286,10 @@ def main() -> None:
     msg = f"... extracted electronics pars sigma ({sigma}), tau ({tau})"
     log.info(msg)
 
+    # convolve_elecmod() works with 1 ns samples
+    mw_pars = utils.lookup_curr_mw_pars(l200data, dt=1.0, settings=mwa_settings)
+    log.info("... current moving-window-average settings: %s", mw_pars)
+
     # lookup the psl scan groups and grid info
     psl_groups, grid_info = psl.lookup_ideal_psl_scan_groups(psl_file)
     idx = 0
@@ -296,7 +304,7 @@ def main() -> None:
                 ideal_psl = lh5.read(depv_psls[depv], psl_file)
 
                 realistic_psl, dt_maps = psl.convolve_elecmod(
-                    ideal_psl, sigma=sigma, tau=tau
+                    ideal_psl, sigma=sigma, tau=tau, mw_pars=mw_pars
                 )
 
             with perf_block("drift_time"):
