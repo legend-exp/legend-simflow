@@ -243,6 +243,14 @@ Constant fields identifying each event.
 Per-event arrays collecting HPGe hits that pass the energy threshold (25 keV)
 and are from non-OFF detectors.
 
+When `store_surface_steps` is `true` in the {ref}`hit-tier-settings`, the hits
+below the energy threshold are kept as well, so that observables can be
+recomputed from their energy for other dead-layer models. `energy_sum`,
+`multiplicity` and `coincident/geds` still count only the hits above the
+threshold, but `energy` and the other per-hit fields hold all hits: select
+`energy > geds_energy_thr_kev` (see {ref}`evt-tier-settings-meta`) before using
+them.
+
 | Field          | Type              | Units | Description                                                                                                                                                                                               |
 | -------------- | ----------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `energy`       | `VectorOfVectors` | keV   | Hit energies from ON and AC detectors above threshold. Variable-length per event.                                                                                                                         |

@@ -510,8 +510,9 @@ aoemeanmod_default:
 - `store_surface_steps` (bool, default `false`) — when `true`, the `hit` tier
   also stores the energy depositions near the n+ surface in the `surface`
   subtable (see {ref}`hit-tier-output`). The `evt` tier forwards them to
-  `geds/surface`. From them, the hit energy can be recomputed for other FCCD and
-  dead layer fraction values.
+  `geds/surface`, and then keeps the hits below its energy threshold too (see
+  {ref}`evt-tier`). From them, the hit energy can be recomputed for other FCCD
+  and dead layer fraction values.
 - `surface_depth_in_mm` (float, default `3`) — depositions closer than this
   distance to the n+ surface are stored in the `surface` subtable. It must be
   larger than the largest FCCD applied later, since all deeper depositions count

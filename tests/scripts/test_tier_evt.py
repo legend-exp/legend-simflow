@@ -117,6 +117,9 @@ def test_evt_script_cli(
         == ak.num(geds.surface.distance_to_nplus, axis=2)
     )
     assert ak.all(ak.flatten(geds.surface.distance_to_nplus, axis=None) < 3)
+    # the hits below the 25 keV threshold are kept, but not counted
+    assert ak.any(ak.flatten(geds.energy) <= 25)
+    assert ak.all(geds.multiplicity == ak.sum(geds.energy > 25, axis=-1))
 
     spms_fields = {f.removeprefix("evt/spms/") for f in lh5.ls(evt_file, "evt/spms/")}
     for field in (

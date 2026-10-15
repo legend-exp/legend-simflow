@@ -448,8 +448,11 @@ def main() -> None:
                 energy = _read_hits(tcm, "hit", "energy")
 
                 # we want to only store hits from events in ON and AC detectors and above
-                # our energy threshold
-                hitsel = (usability != OFF) & (energy > geds_energy_thr_kev)
+                # our energy threshold. With the surface steps, the hits below the
+                # threshold are kept too: the pdf tier recomputes their energy for
+                # other dead-layer models and then applies the threshold
+                above_thr = (usability != OFF) & (energy > geds_energy_thr_kev)
+                hitsel = (usability != OFF) if store_surface_steps else above_thr
 
                 # we want to still be able to know which detectors are ON (and not AC)
                 out_table.add_field("geds/quality", Table(size=len(unified_tcm)))
@@ -469,7 +472,7 @@ def main() -> None:
                     "geds/energy_sum",
                     Array(
                         np.asarray(
-                            ak.sum(energy[hitsel & (usability == ON)], axis=-1),
+                            ak.sum(energy[above_thr & (usability == ON)], axis=-1),
                             dtype=np.float32,
                         ),
                         attrs={"units": "keV"},
@@ -608,7 +611,7 @@ def main() -> None:
                         )
 
                 # compute multiplicity
-                geds_multiplicity = ak.sum(hitsel, axis=-1)
+                geds_multiplicity = ak.sum(above_thr, axis=-1)
                 out_table.add_field("geds/multiplicity", Array(geds_multiplicity))
             else:
                 geds_multiplicity = ak.Array(np.zeros(len(unified_tcm), dtype=np.int64))
