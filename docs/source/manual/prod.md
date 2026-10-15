@@ -67,7 +67,7 @@ Once the production is over, the `print_stats` rule can be used to display a
 table with runtime statistics:
 
 ```console
-> snakemake -q all print_stats
+> snakemake print_stats -q all
                                                     wall time [s]         wall time [s]
 simid                                                (cumulative)   jobs      (per job)  primaries
 -----                                               -------------   ----  -------------  ---------
@@ -216,7 +216,7 @@ Run the production as usual. Snakemake will spawn exactly one job per `simid`:
 Once all benchmark jobs have completed, summarize the results:
 
 ```console
-> snakemake -q all print_benchmark_stats
+> snakemake print_benchmark_stats -q all
 simid                                               runtime [sec]  speed (hot loop) [ev/sec]  evts / 1h  ...rounded  jobs (1h) / 10^8 evts  ...rounded
 -----                                               -------------  -------------------------  ---------  ----------  ---------------------  ----------
 stp.sis1_z8430_slot2_Bi212_to_Pb208                        139.0                     717.70    2583720     2500000                     38          40
