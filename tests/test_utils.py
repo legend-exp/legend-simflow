@@ -148,6 +148,30 @@ def test_setup_logdir_link():
         assert link.readlink() == Path(new_proctime)
 
 
+def test_write_warnings_report(tmp_path):
+    (tmp_path / "hit/sim1").mkdir(parents=True)
+    (tmp_path / "hit/sim1/job_0000.log").write_text(
+        "2026-01-01 00:00:00|INFO|legendsimflow >>> all good\n"
+        "2026-01-01 00:00:01|WARNING|legendsimflow >>> something odd\n"
+        "/path/to/x.py:12: UserWarning: deprecated\n"
+        "the word warnings alone does not count\n"
+    )
+    (tmp_path / "clean.log").write_text("nothing to see\n")
+
+    report, n = utils.write_warnings_report(tmp_path)
+
+    assert report == tmp_path / "warnings-report.log"
+    assert n == 2
+    text = report.read_text()
+    assert "hit/sim1/job_0000.log" in text
+    assert "  L2: 2026-01-01 00:00:01|WARNING|" in text
+    assert "  L3: /path/to/x.py:12: UserWarning" in text
+    assert "clean.log" not in text
+
+    # the report itself is not scanned on a second call
+    assert utils.write_warnings_report(tmp_path)[1] == 2
+
+
 def test_init_simflow_context_returns_initialized_config(config):
     """Ensure init_simflow_context returns pre-initialized configs unchanged."""
     context = utils.init_simflow_context(config, workflow=None)

@@ -404,6 +404,49 @@ def setup_logdir_link(config: SimflowConfig) -> None:
     link.symlink_to(config._proctime, target_is_directory=True)
 
 
+def write_warnings_report(logdir: str | Path) -> tuple[Path, int]:
+    """Collect the warnings found in the log files of a workflow run.
+
+    Scans all ``*.log`` files under `logdir` for lines containing the word
+    "warning" (case-insensitive, also as in ``UserWarning``) and writes them to
+    ``<logdir>/warnings-report.log``, grouped by log file and prefixed by their
+    line number.
+
+    Parameters
+    ----------
+    logdir
+        log directory of the workflow run.
+
+    Returns
+    -------
+    path to the report file and number of warnings found.
+    """
+    logdir = Path(logdir)
+    report = logdir / "warnings-report.log"
+    pattern = re.compile(r"warning\b", re.IGNORECASE)
+
+    n_warnings = 0
+    blocks = []
+    for log_file in sorted(logdir.rglob("*.log")):
+        if log_file == report:
+            continue
+        with log_file.open(errors="replace") as f:
+            lines = [
+                f"  L{i}: {line.rstrip()}"
+                for i, line in enumerate(f, start=1)
+                if pattern.search(line)
+            ]
+        if lines:
+            n_warnings += len(lines)
+            blocks.append("\n".join([str(log_file.relative_to(logdir)), *lines]))
+
+    logdir.mkdir(parents=True, exist_ok=True)
+    header = f"{n_warnings} warning(s) found in the log files under {logdir}"
+    report.write_text("\n\n".join([header, *blocks]) + "\n")
+
+    return report, n_warnings
+
+
 def lookup_dataflow_config(l200data: Path | str) -> AttrsDict:
     """Finds and loads the dataflow configuration file.
 

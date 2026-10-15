@@ -21,7 +21,7 @@ import time
 from snakemake.logging import logger
 from dbetto import AttrsDict
 
-from legendsimflow import aggregate, utils
+from legendsimflow import aggregate, patterns, utils
 
 
 logger.info("Initializing workflow context")
@@ -52,6 +52,11 @@ onstart:
     utils.link_external_paths(config, workflow.basedir, logger=logger)
 
     logger.info("Starting workflow")
+
+
+onsuccess:
+    report, n_warnings = utils.write_warnings_report(patterns.log_dirname(config))
+    logger.info(f"{n_warnings} warning(s) found, report generated at {report}")
 
 
 include: "rules/aux.smk"
