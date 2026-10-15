@@ -112,7 +112,7 @@ def gen_list_of_plots_outputs(
             cache = build_hpge_modeling_cache(config)
         files = gen_list_of_dtmap_plots_outputs(config, simid, cache=cache)
         files.extend(gen_list_of_currmod_plots_outputs(config, simid, cache=cache))
-        if get_tier_settings(config, "hit").get("simulate_psd_with_psl", True):
+        if get_tier_settings(config, "hit").get("simulate_psd_with_psl", False):
             files.extend(
                 gen_list_of_superpulses_uniformity_plots_outputs(
                     config, simid, cache=cache
