@@ -58,6 +58,10 @@
   `inputs/`, use only `datasets`, `hardware` and `simprod`
 - Find tier and `par` paths with `utils.lookup_dataflow_config(l200data)`, not
   hardcoded paths
+- Keep `validate.py` in sync with every change to what is read from `l200data`
+  (files, folders, LH5 objects and fields, which runs, the settings that switch
+  a read on): update the specs (`L200DATA_SPEC`, `DATAFLOW_CONFIG_SPEC`,
+  `LH5_SPECS`), `_data_problems` and `tests/test_validate.py`
 
 ## Resource constraints
 

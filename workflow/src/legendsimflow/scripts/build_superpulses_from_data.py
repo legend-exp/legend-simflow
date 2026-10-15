@@ -34,6 +34,7 @@ from legendsimflow.metadata import get_par_settings
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
+    DEFAULT_SETTINGS,
     Slice,
     Superpulse,
     compute_chi2,
@@ -45,20 +46,6 @@ from legendsimflow.superpulses import (
     plot_wfs_and_superpulse,
     write_superpulses,
 )
-
-DEFAULT_SETTINGS = {
-    "min_number_wfs": 10,
-    "target_wfs": 100,
-    "chi2_threshold": 3,
-    "max_files": None,
-    "tier_name": "auto",
-    "charge_output": "wf_pz_win",
-    "curr_output": "curr_av",
-    "energy_output": "cuspEmax",
-    "drift_time_slices": "1000:200:2000",
-    "t0_field": "spms/event_t0",
-    "end_time_field": "geds/psd/low_aoe/time",
-}
 
 
 def plot_drift_times(dts, slices, tit):

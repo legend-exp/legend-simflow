@@ -57,10 +57,10 @@ Here's a basic description of its fields:
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option. The revision
   must contain the HPGe operational voltages in `hardware/configuration/opvs/`.
-- `allow_invalid_l200data`: if `true`, only log a warning when one of the
-  following checks of the data production at `paths.l200data` fails. By default
-  (`false`) the Simflow aborts. The checks are skipped if `paths.l200data` is
-  not set.
+- `validate_l200data`: check the data production at `paths.l200data` (default
+  `true`). The Simflow aborts if one of the following checks fails. If `false`,
+  the checks are skipped and a warning says that the data production is not
+  validated. The checks are also skipped if `paths.l200data` is not set.
   - Before any job starts: the data production has the files and folders the
     Simflow reads (see {func}`legendsimflow.validate.l200data_layout`).
   - When the detector usabilities are cached: the HPGe `usability` and

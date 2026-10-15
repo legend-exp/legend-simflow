@@ -30,9 +30,9 @@ make_steps:
 
 # legend_metadata_version: main
 
-# do not abort if the data production at paths.l200data does not have the
-# expected format, or if its HPGe usabilities differ from the Simflow metadata
-# allow_invalid_l200data: false
+# check the data production at paths.l200data before using it (format, HPGe
+# usabilities)
+# validate_l200data: true
 
 # metadata repository at paths.metadata: legend-metadata or legend1000-metadata
 metadata_repo: legend-metadata
