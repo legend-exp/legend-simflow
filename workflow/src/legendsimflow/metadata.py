@@ -578,15 +578,16 @@ def _get_lh5_table(
     hpge: str,
     tier: str,
     runid: str,
-    use_rawid = False
+    use_rawid: bool = False,
 ) -> str:
     """The correct LH5 table path.
 
-    Determines the correct path to a `hpge` detector table in tier `tier`.
+    Determines the correct path to a `hpge` detector table in tier `tier`. With
+    `use_rawid`, always return the old ``ch{rawid}/{tier}`` path.
     """
     # check if the latest format is available
     path = f"{tier}/{hpge}"
-    if (not use_rawid) & (lh5.ls(fname, path) == [path]):
+    if not use_rawid and lh5.ls(fname, path) == [path]:
         return path
 
     # otherwise fall back to the old format

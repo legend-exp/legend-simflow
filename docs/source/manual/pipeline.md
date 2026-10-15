@@ -243,8 +243,8 @@ follows:
 In both cases the script reads `raw`-tier LH5 waveforms and applies the
 production DSP configuration.
 
-**Analysis.** Events in a fixed energy range are read from the configured event
-tier (`evt_tier_name`, e.g. `evt` or `pet`), passed through standard quality
+**Analysis.** Events in a fixed energy range are read from the configured tier
+(`tier_name`: `evt`, `pet`, `hit` or `pht`), passed through standard quality
 cuts, and binned by drift time. The drift time is
 $t_\text{drift} = t_\text{end} - t_0$, where $t_\text{end}$ and $t_0$ are the
 `end_time_field` and `t0_field` configured in {ref}`superpulses-settings-meta`

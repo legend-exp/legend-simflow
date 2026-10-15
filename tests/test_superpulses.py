@@ -8,7 +8,7 @@ import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from lgdo import Array, Scalar, Struct
+from lgdo import Array, Scalar, Struct, Table
 
 from legendsimflow.superpulses import (
     Slice,
@@ -176,7 +176,7 @@ def test_lookup_wfs_indices(legend_testdata):
 
     file_idx, _ = lookup_wfs_indices(
         slices,
-        evt_files=files,
+        files=files,
         n_target=10,
         rawid=1107201,  # V07302A
         t0_field=None,
@@ -188,6 +188,34 @@ def test_lookup_wfs_indices(legend_testdata):
 
     for fi in file_idx:
         assert len(fi.file_idx) == len(fi.hit_idx) == fi.n_sel
+
+
+def test_lookup_wfs_indices_hit_tier(tmp_path):
+    path = tmp_path / "tier_hit.lh5"
+    hit = Table(
+        {
+            "cuspEmax_ctc_cal": Array(np.array([1600.0, 1600.0, 1600.0, 500.0])),
+            "AoE_Classifier": Array(np.array([0.0, 0.0, 5.0, 0.0])),
+            "is_valid_cal": Array(np.array([True, False, True, True])),
+            "dt_eff": Array(np.array([1000.0, 1000.0, 1000.0, 1000.0])),
+        }
+    )
+    lh5.write(hit, "ch1107201/hit", str(path))
+
+    file_idx, drift_times = lookup_wfs_indices(
+        [Slice(energy_range=(1500.0, 2000.0), drift_time_range=(900.0, 1100.0))],
+        files=[str(path)],
+        n_target=10,
+        rawid=1107201,
+        t0_field=None,
+        end_time_field="dt_eff",
+        tier_type="hit",
+    )
+
+    # rows 1 and 2 fail the quality and A/E cuts, row 3 is outside the slice
+    assert file_idx[0].hit_idx == [0]
+    assert file_idx[0].file_idx == [0]
+    assert len(drift_times) == 2
 
 
 def test_get_wfs_for_slice(legend_testdata):

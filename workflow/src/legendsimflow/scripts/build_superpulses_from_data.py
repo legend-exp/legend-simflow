@@ -51,7 +51,7 @@ DEFAULT_SETTINGS = {
     "target_wfs": 100,
     "chi2_threshold": 3,
     "max_files": None,
-    "evt_tier_name": "pet",
+    "tier_name": "pet",
     "charge_output": "wf_pz_win",
     "curr_output": "curr_av",
     "energy_output": "cuspEmax",
@@ -172,20 +172,20 @@ def main() -> int:
 
     lmeta = LegendMetadata(str(meta))
     raw_files = []
-    evt_files = []
+    files = []
     dsp_config = None
     tab_map = {}
     seen_data_runids = set()
 
     for runid in runids:
-        raw_run_files, evt_run_files, dsp_cfg_file, tab_map_run, data_runid = (
+        raw_run_files, run_files, dsp_cfg_file, tab_map_run, data_runid = (
             lookup_superpulse_inputs(
                 l200data=l200data,
                 metadata=lmeta,
                 runid=runid,
                 hpge=args.detector,
                 max_files=settings.max_files,
-                evt_tier_name="pht",
+                tier_name=settings.tier_name,
             )
         )
 
@@ -198,7 +198,7 @@ def main() -> int:
         seen_data_runids.add(data_runid)
 
         raw_files.extend(raw_run_files)
-        evt_files.extend(evt_run_files)
+        files.extend(run_files)
 
         if dsp_config is None:
             dsp_config = dsp_cfg_file
@@ -218,14 +218,15 @@ def main() -> int:
     file_info = AttrsDict(
         {
             "raw": [str(f) for f in raw_files],
-            "evt": [str(f) for f in evt_files],
+            "data": [str(f) for f in files],
         }
     )
 
     log.info(
-        "found %d raw files and %d evt files",
+        "found %d raw files and %d %s files",
         len(file_info.raw),
-        len(file_info.evt),
+        len(file_info.data),
+        settings.tier_name,
     )
     log.info("using DSP config: %s", dsp_config)
 
@@ -248,11 +249,11 @@ def main() -> int:
     wf_indices, drift_times = lookup_wfs_indices(
         slices,
         rawid=rawid,
-        evt_files=file_info.evt,
+        files=file_info.data,
         n_target=settings.target_wfs,
         t0_field=settings.t0_field,
         end_time_field=settings.end_time_field,
-        tier_name = "hit"
+        tier_type="hit" if settings.tier_name in ("hit", "pht") else "evt",
     )
 
     superpulses = {}

@@ -26,19 +26,19 @@ DETECTOR = "V03422A"
 
 def test_lookup_inputs(test_make_ssc_data):
     meta = LegendMetadata(test_make_ssc_data / "inputs")
-    raw_files, evt_files, dsp_config, tab_map, _ = lookup_superpulse_inputs(
-        l200data, meta, "l200-p16-r008-ssc", DETECTOR, evt_tier_name="pet"
+    raw_files, files, dsp_config, tab_map, _ = lookup_superpulse_inputs(
+        l200data, meta, "l200-p16-r008-ssc", DETECTOR, tier_name="pet"
     )
 
     assert len(raw_files) == 1
-    assert len(evt_files) == 1
+    assert len(files) == 1
 
     assert raw_files[0].exists()
-    assert evt_files[0].exists()
+    assert files[0].exists()
     assert dsp_config.exists()
 
     assert raw_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_raw.lh5"
-    assert evt_files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_pet.lh5"
+    assert files[0].name == "l200-p16-r008-ssc-20230322T170202Z-tier_pet.lh5"
 
     assert tab_map[DETECTOR] == 1108804
 
