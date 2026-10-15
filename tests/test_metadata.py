@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from dbetto import AttrsDict
+from dbetto import AttrsDict, TextDB
 
 from legendsimflow import metadata
 from legendsimflow.exceptions import SimflowConfigError
@@ -62,6 +62,22 @@ def test_all(config):
     assert isinstance(
         metadata.get_vtx_simconfig(config, "lar_hpge_shell_K42"), AttrsDict
     )
+
+
+def test_simpars_without_validity_file(tmp_path):
+    pars = tmp_path / "simprod/config/pars/l200cfg01/geds/elecmod"
+    pars.mkdir(parents=True)
+    (pars / "settings.yaml").write_text("angle: '000'\n")
+    meta = TextDB(tmp_path, lazy=True)
+
+    assert (
+        metadata.simpars(
+            meta, "geds.elecmod", "l200-p02-r002-phy", "l200cfg01", default=None
+        )
+        is None
+    )
+    with pytest.raises(FileNotFoundError):
+        metadata.simpars(meta, "geds.elecmod", "l200-p02-r002-phy", "l200cfg01")
 
 
 def test_run_stuff(config):

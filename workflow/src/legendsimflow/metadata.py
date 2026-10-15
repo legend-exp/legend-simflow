@@ -322,6 +322,8 @@ def simpars(
     datatype = re.split(r"\W+", runid)[-1]
     try:
         directory = metadata["simprod/config/pars"][experiment][par]
+        # raises FileNotFoundError if the folder holds only a settings.yaml
+        directory["validity"]
         return directory.on(runinfo(metadata, runid).start_key, category=datatype)
     except (KeyError, LookupError, FileNotFoundError):
         if default is _MISSING:

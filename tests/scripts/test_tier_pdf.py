@@ -471,6 +471,19 @@ def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
         )
 
 
+@pytest.mark.parametrize(("all_regex", "warns"), [(".*", False), ("V.*", True)])
+def test_pdf_explicit_all_group(tmp_path, monkeypatch, caplog, all_regex, warns):
+    meta_dir = _make_metadata_with_pdf_settings(
+        tmp_path, {"detector_groups": {"all": all_regex, "icpc": "V.*"}}
+    )
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file(cvt_file)
+
+    with caplog.at_level("WARNING"):
+        _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    assert ("overridden by the implicit all-detector group" in caplog.text) == warns
+
+
 def test_pdf_group_name_reserved(tmp_path, monkeypatch):
     meta_dir = _make_metadata_with_pdf_settings(
         tmp_path, {"detector_groups": {"not_lar": "V.*"}}

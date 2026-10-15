@@ -23,7 +23,6 @@ import lh5
 import numpy as np
 import pint
 import pyg4ometry
-import pygeomtools
 import reboost.hpge
 import reboost.math
 import reboost.units
@@ -36,15 +35,6 @@ from . import patterns
 from .utils import SimflowConfig
 
 log = logging.getLogger(__name__)
-
-
-def get_senstables(
-    geom: pyg4ometry.geant4.Registry, det_type: str | None = None
-) -> list[str]:
-    sensvols = pygeomtools.detectors.get_all_senstables(geom)
-    if det_type is not None:
-        return [k for k, v in sensvols.items() if v.detector_type == det_type]
-    return list(sensvols.keys())
 
 
 def load_hpge_realistic_psl(

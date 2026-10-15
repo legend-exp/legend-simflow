@@ -117,7 +117,7 @@ These apply also to test code style. See
   confirm success, only then commit.
 - PRs require passing CI
 - Make sure to include a concise description of the changes in a PR and link the
-  relevant related PRs or issues
+  relevant related PRs or issues.
 
 ## Boundaries
 

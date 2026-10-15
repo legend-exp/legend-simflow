@@ -85,9 +85,10 @@ def main() -> None:
     name_to_uid = {name: int(detector_uids[name].value) for name in detector_uids}
 
     groups: dict[str, str] = dict(tier_pdf_settings.get("detector_groups", {}))
-    if "all" in groups:
+    if groups.get("all", ".*") != ".*":
         log.warning(
-            "detector_groups contains an 'all' key; it will be overridden by the implicit all-detector group"
+            "detector_groups sets 'all' to %r; it will be overridden by the implicit all-detector group '.*'",
+            groups["all"],
         )
     groups["all"] = ".*"
 

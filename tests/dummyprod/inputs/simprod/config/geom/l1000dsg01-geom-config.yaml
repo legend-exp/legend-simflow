@@ -1,0 +1,13 @@
+executable: legend-pygeom-l1000
+# one string with two HPGe detectors and its three SiPM modules (the fiber
+# geometry needs a multiple of three), matching the mock legend1000-metadata in
+# legend-testdata
+raw_config:
+  array:
+    center:
+      x_in_mm: [0.0]
+      y_in_mm: [0.0]
+    angle_in_deg: [0]
+  string:
+    units:
+      n: 2

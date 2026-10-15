@@ -45,7 +45,7 @@ def _default_matplotlib_style():
 @pytest.fixture(scope="session")
 def legend_testdata():
     ldata = LegendTestData()
-    ldata.checkout("8d7fd8c")
+    ldata.checkout("ed46a59")
     return ldata
 
 
@@ -66,28 +66,32 @@ def dummyprod_optmap(legend_testdata):
 
 @pytest.fixture(scope="session", autouse=True)
 def dummyprod_testdata(legend_testdata):
-    """Assemble the metadata the full-chain test runs on, under ``dummyprod``.
+    """Assemble the metadata the full-chain tests run on, under ``dummyprod``.
 
-    The hardware and the datasets are the mock `legend-metadata` of
-    legend-testdata, while the `simprod` configuration of the production is the
-    one committed here, which changes far more often. ``$_/testdata`` points at
-    the rest of legend-testdata, for the optical map. Both are gitignored.
+    The hardware and the datasets are the mock `legend-metadata` and
+    `legend1000-metadata` of legend-testdata, while the `simprod` configuration
+    of the production is the one committed here, which changes far more often.
+    ``$_/testdata`` points at the rest of legend-testdata, for the optical map.
+    All are gitignored.
     """
     testdata = dummyprod / "testdata"
     testdata.unlink(missing_ok=True)
     testdata.symlink_to(Path(legend_testdata.get_path("metadata")).parent)
 
-    metadata = dummyprod / "legend-metadata"
-    shutil.rmtree(metadata, ignore_errors=True)
-    metadata.mkdir()
-    for folder in ("hardware", "datasets"):
-        (metadata / folder).symlink_to(testdata / "metadata/legend-metadata" / folder)
-    (metadata / "simprod").symlink_to(dummyprod / "inputs/simprod")
+    repos = ("legend-metadata", "legend1000-metadata")
+    for repo in repos:
+        metadata = dummyprod / repo
+        shutil.rmtree(metadata, ignore_errors=True)
+        metadata.mkdir()
+        for folder in ("hardware", "datasets"):
+            (metadata / folder).symlink_to(testdata / "metadata" / repo / folder)
+        (metadata / "simprod").symlink_to(dummyprod / "inputs/simprod")
 
     yield
 
     testdata.unlink(missing_ok=True)
-    shutil.rmtree(metadata, ignore_errors=True)
+    for repo in repos:
+        shutil.rmtree(dummyprod / repo, ignore_errors=True)
 
 
 @pytest.fixture(scope="session")

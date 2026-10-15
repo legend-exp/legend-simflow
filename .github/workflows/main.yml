@@ -85,8 +85,12 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   test-workflow:
-    name: Test LEGEND-200 workflow
+    name: Test ${{ matrix.experiment }} workflow
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        experiment: [l200, l1000]
     steps:
       - uses: actions/checkout@v7
 
@@ -97,7 +101,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pixi run -e test test-l200-workflow
+          pixi run -e test test-${{ matrix.experiment }}-workflow
 
   test_julia:
     name: Run Julia tests

@@ -233,7 +233,7 @@ def lookup_superpulse_inputs(
     hpge: str,
     max_files: int | None = None,
     *,
-    tier_name: str = "evt",
+    tier_name: str = "auto",
 ) -> tuple[list[Path], list[Path], Path, dict[str, int], str]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
@@ -251,7 +251,8 @@ def lookup_superpulse_inputs(
         Limit the number of files per tier. Default: all.
     tier_name
         Name of the tier to select events from: "evt" or "pet" (event tiers),
-        "hit" or "pht" (hit tiers). Default: "evt".
+        "hit" or "pht" (hit tiers). With "auto", use "pet" if the data
+        production has it, otherwise "evt". Default: "auto".
 
     Returns
     -------
@@ -284,6 +285,10 @@ def lookup_superpulse_inputs(
     period = f"p{period_int:02d}"
     run = f"r{run_int:03d}"
     df_cfg = utils.lookup_dataflow_config(l200data).paths
+
+    if tier_name == "auto":
+        tier_name = utils.get_evt_tier_name(l200data)
+        log.debug("using the %s tier", tier_name)
 
     tier_path = df_cfg[f"tier_{tier_name}"]
     raw_path = df_cfg.tier_raw
@@ -356,9 +361,13 @@ def _read_and_sel_data(
     # metadata settings. Drop events where it is NaN: for `spms/event_t0` those
     # are exactly the low-p.e. events. `t0_field` is None only when the drift
     # time is taken directly from `end_time_field`, in which case there is no t0
-    # to cut.
+    # to cut. A per-hit field (e.g. `geds/t0`) is NaN for the event if it is NaN
+    # for any hit.
     if t0_field is not None:
-        mask = mask & ~np.isnan(_get_nested_field(data, t0_field))
+        t0_is_nan = np.isnan(_get_nested_field(data, t0_field))
+        if t0_is_nan.ndim > 1:
+            t0_is_nan = ak.any(t0_is_nan, axis=-1)
+        mask = mask & ~t0_is_nan
 
     return data[mask]
 
