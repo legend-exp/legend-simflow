@@ -255,8 +255,10 @@ def main() -> None:
                 pe_times_micro = ak.sort(pe_times_micro, axis=-1)
 
             with perf_block("photoelectron_resolution()"):
+                # smear_photoelectrons() expects a FWHM, convert from sigma
                 pe_amps_micro = reboost.spms.smear_photoelectrons(
-                    pe_times_micro, photoelectron_resolution_sigma
+                    pe_times_micro,
+                    photoelectron_resolution_sigma * 2 * np.sqrt(2 * np.log(2)),
                 )
 
             if time_resolution_in_ns > 0:
