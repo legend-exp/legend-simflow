@@ -55,9 +55,9 @@ dependencies = [
     "legend-dataflow-scripts >=0.3.3,<0.4",
     "legend-lh5io >=0.2.4",
     "legend-pydataobj >=2",
-    "legend-pygeom-l200 >=0.10.1",
+    "legend-pygeom-l200 >=0.12",
     "legend-pygeom-l1000 >=0.6",
-    "legend-pygeom-tools >=0.6",
+    "legend-pygeom-tools >=0.7.1",
     "legend-pygeom-hpges >=0.11",
     "matplotlib",
     "mplhep >=1.0",
@@ -120,9 +120,9 @@ dbetto = ">=1.4.1,<1.5"
 legend-lh5io = ">=0.2.4,<0.3"
 legend-pydataobj = ">=2,<2.1"
 pylegendmeta = ">=1.11,<1.12"
-legend-pygeom-l200 = ">=0.10.1,<0.11"
+legend-pygeom-l200 = ">=0.12,<0.13"
 legend-pygeom-l1000 = ">=0.6,<0.7"
-legend-pygeom-tools = ">=0.6,<0.7"
+legend-pygeom-tools = ">=0.7.1,<0.8"
 dspeed = ">=2.4.1,<2.5"
 matplotlib = "*"
 numpy = "*"
