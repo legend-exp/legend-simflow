@@ -21,7 +21,7 @@ import time
 from snakemake.logging import logger
 from dbetto import AttrsDict
 
-from legendsimflow import aggregate, patterns, utils
+from legendsimflow import aggregate, patterns, utils, validate
 
 
 logger.info("Initializing workflow context")
@@ -47,6 +47,10 @@ wildcard_constraints:
 
 
 onstart:
+    # Snakemake runs onstart also with --touch, which only updates timestamps
+    if not workflow.touch:
+        validate.l200data_layout(config)
+
     utils.setup_logdir_link(config)
 
     utils.link_external_paths(config, workflow.basedir, logger=logger)
