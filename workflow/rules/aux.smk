@@ -16,7 +16,7 @@
 from pathlib import Path
 
 import dbetto
-from legendsimflow import aggregate, nersc, patterns
+from legendsimflow import aggregate, nersc, patterns, validate
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
     get_tier_settings,
@@ -253,7 +253,7 @@ rule cache_detector_usabilities:
             output.crystal_metadata_usability,
         )
         # abort if the metadata differs from the one used for the data
-        aggregate.validate_detinfo_against_l200data(config, detinfo)
+        validate.detinfo_against_l200data(config, detinfo)
 
 
 rule archive_plots:

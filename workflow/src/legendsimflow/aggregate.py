@@ -22,7 +22,6 @@ from pathlib import Path
 
 import dbetto
 from dbetto import AttrsDict
-from legendmeta import LegendMetadata
 from legendmeta.police import validate_dict_schema
 
 from . import SimflowConfig, patterns
@@ -257,68 +256,6 @@ def pivot_detinfo(
             for flag, value in entry.items():
                 out.setdefault(flag, {}).setdefault(runid, {})[det] = value
     return out
-
-
-def validate_detinfo_against_l200data(
-    config: SimflowConfig,
-    detinfo: Mapping[str, Mapping[str, Mapping[str, object]]],
-) -> None:
-    """Check that the detector usabilities match the data production metadata.
-
-    Does nothing if ``paths.l200data`` is not set. Logs a warning instead of
-    raising an error if ``allow_metadata_differences`` is true.
-
-    Parameters
-    ----------
-    config
-        Simflow configuration object.
-    detinfo
-        Detector info computed from the Simflow metadata, as returned by
-        :func:`pivot_detinfo`.
-    """
-    if "l200data" not in config.paths:
-        return
-
-    inputs = Path(config.paths.l200data) / "inputs"
-    data_config = dict(config)
-    data_config["metadata"] = LegendMetadata(str(inputs), lazy=True)
-    data_config = AttrsDict(data_config)
-
-    flags = ["usability", "psd_usability"]
-    # the data production metadata has no simprod config: query the same runs
-    runids = {runid for flag in flags for runid in detinfo.get(flag, {})}
-    data_detinfo = pivot_detinfo(
-        gen_list_of_all_usabilities(data_config, runids).to_dict()
-    )
-
-    for flag in flags:
-        sim = detinfo.get(flag, {})
-        data = data_detinfo.get(flag, {})
-        if sim == data:
-            continue
-
-        diffs = []
-        for runid in sorted(set(sim) | set(data)):
-            sim_run = sim.get(runid, {})
-            data_run = data.get(runid, {})
-            for det in sorted(set(sim_run) | set(data_run)):
-                sim_val = sim_run.get(det, "<missing>")
-                data_val = data_run.get(det, "<missing>")
-                if sim_val != data_val:
-                    diffs.append(
-                        f"  {runid} {det}: Simflow metadata has {sim_val!r}, "
-                        f"data production has {data_val!r}"
-                    )
-
-        msg = (
-            f"'{flag}' differs between the Simflow metadata and the data "
-            f"production metadata in {inputs} for {len(diffs)} detector(s):\n"
-            + "\n".join(diffs)
-        )
-        if config.get("allow_metadata_differences", False):
-            log.warning(msg)
-        else:
-            raise SimflowConfigError(msg)
 
 
 def _hpge_is_modelable(

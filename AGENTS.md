@@ -48,6 +48,8 @@ imported modules under `workflow/rules/`.
     - `hpge_pars.py`/`spms_pars.py`: routines to compute the HPGe/SiPM
       parameters to be used in the `hit` and `opt` tiers, based on information
       from the LEGEND-200 data
+    - `validate.py`: checks of the Simflow configuration against the LEGEND-200
+      data production at `paths.l200data`
     - `scripts`: scripts directly used in Snakemake rules
       - `tier/`: scripts used to build the various tiers
       - `plots/`: scripts used to generate validation plots
