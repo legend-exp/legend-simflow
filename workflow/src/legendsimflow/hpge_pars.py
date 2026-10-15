@@ -1051,7 +1051,12 @@ def lookup_aoe_res_metadata(
         hpge = (
             chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
         )
-        par = _getpar(detmeta, "results.aoe.correction_fit_results.SigmaFits")
+        # newer data productions store the A/E results under results.aoe.default
+        par = _getpar(
+            detmeta,
+            "results.aoe.default.correction_fit_results.SigmaFits",
+            _getpar(detmeta, "results.aoe.correction_fit_results.SigmaFits"),
+        )
         if par is not None:
             # normalise to "parameters"/"uncertainties" for consistency with eresmod
             out_dict[hpge] = {
@@ -1374,8 +1379,17 @@ def lookup_psd_cut_values(
         hpge = (
             chmap.map("daq.rawid")[int(key[2:])].name if key.startswith("ch") else key
         )
-        low = _getpar(detmeta, "results.aoe.low_cut")
-        high = _getpar(detmeta, "results.aoe.high_cut")
+        # newer data productions store the A/E results under results.aoe.default
+        low = _getpar(
+            detmeta,
+            "results.aoe.default.low_cut",
+            _getpar(detmeta, "results.aoe.low_cut"),
+        )
+        high = _getpar(
+            detmeta,
+            "results.aoe.default.high_cut",
+            _getpar(detmeta, "results.aoe.high_cut"),
+        )
         # l200data may store NaN for missing cuts; treat as absent so that
         # sanitize_dict_with_defaults (called in hit.py) can substitute the default
         if low is not None and math.isnan(low):

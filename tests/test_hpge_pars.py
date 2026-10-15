@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 
+import dbetto
 import lh5
 import numpy as np
 import pytest
-from dbetto import AttrsDict
+from dbetto import AttrsDict, TextDB
 from dspeed.vis import WaveformBrowser
 from iminuit import Minuit
 from matplotlib.axes import Axes
@@ -596,3 +598,23 @@ def test_lookup_psd_cut_vals(config, test_l200data):
         assert "aoe" in v
         assert "low_side" in v.aoe
         assert "high_side" in v.aoe
+
+
+def test_aoe_lookups_read_default_block(config, test_l200data, tmp_path):
+    # newer data productions store the A/E results under results.aoe.default
+    par_dir = test_l200data / "v3.0.0" / "generated" / "par" / "hit"
+    shutil.copytree(par_dir, tmp_path / "hit")
+    for f in (tmp_path / "hit").rglob("*-par_hit.yaml"):
+        pars = dbetto.utils.load_dict(f)
+        for detpars in pars.values():
+            if "aoe" in detpars.get("results", {}):
+                detpars["results"]["aoe"] = {"default": detpars["results"]["aoe"]}
+        dbetto.utils.write_dict(pars, f)
+
+    args = (test_l200data / "v3.0.0", config.metadata, "l200-p16-r008-ssc")
+    new_db = TextDB(tmp_path / "hit", lazy=False)
+
+    for lookup in (hpge_pars.lookup_aoe_res_metadata, hpge_pars.lookup_psd_cut_values):
+        expected = lookup(*args, hit_tier_name="hit")
+        assert len(expected) > 0
+        assert lookup(*args, hit_tier_name="hit", pars_db=new_db) == expected
