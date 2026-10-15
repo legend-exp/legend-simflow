@@ -31,6 +31,7 @@ import pygeomtools
 import reboost
 import reboost.hpge
 import reboost.math
+import reboost.units
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Table, VectorOfVectors
@@ -550,29 +551,25 @@ def main() -> None:
                     ),
                 )
 
-                # the steps near the n+ surface, kept one by one so that the
-                # energy can be recomputed later for other dead-layer models
+                # the steps near the n+ surface, so that the energy can be
+                # recomputed later for other dead-layer models
                 if store_surface_steps:
+                    edep = reboost.units.units_conv_ak(chunk.edep, "keV")
+                    distance = reboost.units.units_conv_ak(_distance_to_nplus, "mm")
                     # NaN distances (beyond precompute_cutoff) are in the bulk
-                    near_nplus = _distance_to_nplus < surface_depth
+                    near_nplus = distance < surface_depth
                     surface_table = Table(size=len(out_table))
                     surface_table.add_field(
                         "edep",
                         VectorOfVectors(
-                            ak.values_astype(
-                                ak.without_parameters(chunk.edep[near_nplus]),
-                                np.float32,
-                            ),
+                            ak.values_astype(edep[near_nplus], np.float32),
                             attrs={"units": "keV"},
                         ),
                     )
                     surface_table.add_field(
                         "distance_to_nplus",
                         VectorOfVectors(
-                            ak.values_astype(
-                                ak.without_parameters(_distance_to_nplus[near_nplus]),
-                                np.float32,
-                            ),
+                            ak.values_astype(distance[near_nplus], np.float32),
                             attrs={"units": "mm"},
                         ),
                     )
@@ -580,8 +577,7 @@ def main() -> None:
                         "energy_bulk",
                         lgdo.Array(
                             np.asarray(
-                                ak.sum(chunk.edep[~near_nplus], axis=-1),
-                                dtype=np.float32,
+                                ak.sum(edep[~near_nplus], axis=-1), dtype=np.float32
                             ),
                             attrs={"units": "keV"},
                         ),

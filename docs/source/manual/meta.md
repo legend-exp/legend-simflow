@@ -513,9 +513,9 @@ aoemeanmod_default:
   `geds/surface`. From them, the hit energy can be recomputed for other FCCD and
   dead layer fraction values.
 - `surface_depth_in_mm` (float, default `3`) — depositions closer than this
-  distance to the n+ surface are stored one by one in the `surface` subtable. It
-  must be larger than the largest FCCD applied later, since all deeper
-  depositions count as fully active.
+  distance to the n+ surface are stored in the `surface` subtable. It must be
+  larger than the largest FCCD applied later, since all deeper depositions count
+  as fully active.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
   usage during processing; does not affect the output.
 - `eresmod_default` — energy resolution model applied to non-ON detectors. See

@@ -25,6 +25,7 @@ import legenddataflowscripts.utils
 import lh5
 import numpy as np
 import reboost
+import reboost.units
 from dbetto import AttrsDict
 from dbetto.utils import load_dict
 from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
@@ -586,7 +587,9 @@ def main() -> None:
                         ("distance_to_nplus", "mm"),
                         ("energy_bulk", "keV"),
                     ):
-                        data = _read_hits(tcm, "hit", f"surface/{field}")
+                        data = reboost.units.units_conv_ak(
+                            _read_hits(tcm, "hit", f"surface/{field}"), units
+                        )
                         if field != "energy_bulk" and data.ndim == 2:
                             # no hits in this chunk: the empty hit lists still
                             # need the type of step lists to append to the file

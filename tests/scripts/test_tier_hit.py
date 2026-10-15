@@ -176,7 +176,11 @@ def test_hit_script_cli(
     # surface table, enabled by surface_steps_max_distance_in_mm: 3 in the
     # test hit settings: the steps it holds and the bulk energy add up to the
     # total energy deposited in the detector
-    surface = lh5.read("hit/V00001A/surface", hit_file).view_as("ak")
+    surface_lgdo = lh5.read("hit/V00001A/surface", hit_file)
+    assert surface_lgdo["edep"].attrs["units"] == "keV"
+    assert surface_lgdo["distance_to_nplus"].attrs["units"] == "mm"
+    assert surface_lgdo["energy_bulk"].attrs["units"] == "keV"
+    surface = surface_lgdo.view_as("ak")
     assert ak.sum(ak.num(surface.edep)) > 0
     assert np.all(ak.flatten(surface.distance_to_nplus) < 3)
     assert np.all(ak.flatten(surface.distance_to_nplus) >= 0)

@@ -157,11 +157,11 @@ while the `pulse_lib` values come from the per-pixel pulse-shape library (see
 
 The `surface` subtable is written only when `store_surface_steps` is `true` in
 the {ref}`hit-tier-settings`. It holds the energy depositions (steps) closer
-than `surface_depth_in_mm` to the n+ surface one by one, and the summed energy
-of all other steps. From these, the energy of the hit can be recomputed for any
-dead-layer model with a full charge collection depth (FCCD) below
-`surface_depth_in_mm`. The energies are as deposited in the germanium, before
-any dead-layer or resolution model is applied.
+than `surface_depth_in_mm` to the n+ surface, and the summed energy of all other
+steps. From these, the energy of the hit can be recomputed for any dead-layer
+model with a full charge collection depth (FCCD) below `surface_depth_in_mm`.
+The energies are as deposited in the germanium, before any dead-layer or
+resolution model is applied.
 
 | Field               | Type              | Units | Description                                                                                       |
 | ------------------- | ----------------- | ----- | ------------------------------------------------------------------------------------------------- |

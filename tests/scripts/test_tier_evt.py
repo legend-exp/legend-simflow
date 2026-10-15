@@ -102,7 +102,14 @@ def test_evt_script_cli(
 
     # surface steps (store_surface_steps in the test hit settings): one entry
     # per stored hit, like geds/energy
-    geds = lh5.read("evt/geds", evt_file).view_as("ak")
+    geds_lgdo = lh5.read("evt/geds", evt_file)
+    for field, units in (
+        ("edep", "keV"),
+        ("distance_to_nplus", "mm"),
+        ("energy_bulk", "keV"),
+    ):
+        assert geds_lgdo["surface"][field].attrs["units"] == units
+    geds = geds_lgdo.view_as("ak")
     for field in ("edep", "distance_to_nplus", "energy_bulk"):
         assert ak.all(ak.num(geds.surface[field]) == ak.num(geds.energy))
     assert ak.all(
