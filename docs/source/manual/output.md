@@ -489,9 +489,9 @@ With `store_surface_steps: true` in the {ref}`hit-tier-settings`, the energy of
 each HPGe hit can be recomputed for another full charge collection depth (FCCD)
 and dead layer fraction (DLF) from the `geds/surface` fields of the `cvt` tier
 (see {ref}`evt-tier`). The example below builds the `hit` and multiplicity-1
-spectra on a grid of the FCCD, shifted by `fccd_sigma` times its uncertainty,
-and of the DLF. For brevity, it uses one FCCD for all detectors and no
-data-quality cuts:
+spectra of one detector on a grid of its FCCD, shifted by `fccd_sigma` times its
+uncertainty, and of its DLF. The other detectors keep their nominal energies.
+For brevity, it applies no data-quality cuts:
 
 ```python
 import awkward as ak
@@ -501,28 +501,40 @@ import numpy as np
 
 from legendsimflow.pdf_grid import build_pdf_grid
 
-geds = lh5.read("evt/geds", "cvt.lh5", field_mask=["energy", "surface"]).view_as("ak")
+geds = lh5.read(
+    "evt/geds", "cvt.lh5", field_mask=["energy", "rawid", "surface"]
+).view_as("ak")
+uid = lh5.read("detector_uids", "cvt.lh5")["V00001A"].value
 fccd, fccd_unc, dlf_nominal = 0.7, 0.1, 0.5  # FCCD and its uncertainty in mm
+
+# hits above the evt tier threshold (25 keV) in the other detectors, which do not
+# change on this grid
+in_det = geds.rawid == uid
+n_others = ak.sum((geds.energy > 25) & ~in_det, axis=-1)
+
+# select the hits of the detector once and copy them into contiguous arrays
+surface = ak.to_packed(geds.surface[in_det])
+energy_nominal = ak.to_packed(geds.energy[in_det])
 
 
 def true_energy(fccd, dlf):
     """Energy collected in each hit (keV), before resolution smearing."""
-    d = geds.surface.distance_to_nplus
+    d = surface.distance_to_nplus
     dead = dlf * fccd
     activeness = np.minimum(np.maximum((d - dead) / (fccd - dead), 0), 1)
-    return geds.surface.energy_bulk + ak.sum(geds.surface.edep * activeness, axis=-1)
+    return surface.energy_bulk + ak.sum(surface.edep * activeness, axis=-1)
 
 
 # keep the resolution smearing of the hit tier
-smearing = geds.energy - true_energy(fccd, dlf_nominal)
+smearing = energy_nominal - true_energy(fccd, dlf_nominal)
 
 
 def pdfs(pars):
     e = smearing + true_energy(fccd + pars["fccd_sigma"] * fccd_unc, pars["dlf"])
-    above = e > 25  # keV, the evt tier threshold
-    mul1 = ak.sum(above, axis=-1) == 1
+    above = e > 25
+    mul1 = (n_others == 0) & (ak.sum(above, axis=-1) == 1)
     out = {}
-    for path, energies in (("hit/all", e[above]), ("mul1/all", e[above][mul1])):
+    for path, energies in (("hit/V00001A", e[above]), ("mul1/V00001A", e[above][mul1])):
         out[path] = hist.new.Reg(6000, 0, 6000).Double().fill(ak.flatten(energies))
     return out
 
@@ -537,6 +549,15 @@ lh5.write(
     wo_mode="append",
 )
 ```
+
+Select the hits of the detector and call `ak.to_packed` once, before scanning
+the grid, as in the example. A selection such as `geds.surface[in_det]` keeps
+the full arrays and only points to the selected entries, so every later
+operation gathers them again. A value given per hit, such as a different FCCD
+for each detector, has to be spread over the steps of each hit at every
+operation. Both make each grid point several times slower: on a `cvt` file with
+6 million steps in the detector, the energies take 0.07 s per grid point as in
+the example, against 0.6 s when computed for all detectors with a value per hit.
 
 :::{warning}
 
