@@ -473,3 +473,81 @@ do not add up to `mul1`.
 `mul2` is a single global histogram and is **not** split by detector group.
 Per-channel or per-pair 2-D PDFs are out of scope for the current
 implementation.
+
+### Spectra on a grid of parameters
+
+{func}`legendsimflow.pdf_grid.build_pdf_grid` evaluates a PDF at every point of
+an evenly spaced grid of parameters, for example detector-model parameters that
+are not known well enough to fix in the simulation. It returns the grid as an
+LGDO struct in the format of a generalised histogram read by
+[Refit.jl](https://github.com/legend-exp/Refit.jl), which interpolates the PDF
+between the grid points. The PDF is a function of the parameter values, given as
+a dictionary, that returns one histogram.
+
+With `store_surface_steps: true` in the {ref}`hit-tier-settings`, the energy of
+each HPGe hit can be recomputed for another full charge collection depth (FCCD)
+and dead layer fraction (DLF) from the `geds/surface` fields of the `cvt` tier
+(see {ref}`evt-tier`). The example below builds the multiplicity-1 spectrum on a
+grid of the FCCD, shifted by `fccd_sigma` times its uncertainty, and of the DLF.
+For brevity, it uses one FCCD for all detectors and no data-quality cuts:
+
+```python
+import functools
+
+import awkward as ak
+import hist
+import lh5
+import numpy as np
+
+from legendsimflow.pdf_grid import build_pdf_grid
+
+geds = lh5.read("evt/geds", "cvt.lh5", field_mask=["energy", "surface"]).view_as("ak")
+fccd, fccd_unc, dlf_nominal = 0.7, 0.1, 0.5  # FCCD and its uncertainty in mm
+
+
+def true_energy(fccd, dlf):
+    """Energy collected in each hit (keV), before resolution smearing."""
+    d = geds.surface.distance_to_nplus
+    dead = dlf * fccd
+    activeness = np.minimum(np.maximum((d - dead) / (fccd - dead), 0), 1)
+    return geds.surface.energy_bulk + ak.sum(geds.surface.edep * activeness, axis=-1)
+
+
+# keep the resolution smearing of the hit tier
+smearing = geds.energy - true_energy(fccd, dlf_nominal)
+
+
+# computed once per grid point, also when several PDFs are built from it
+@functools.cache
+def energy(fccd_sigma, dlf):
+    return smearing + true_energy(fccd + fccd_sigma * fccd_unc, dlf)
+
+
+def pdf_mul1(pars):
+    e = energy(pars["fccd_sigma"], pars["dlf"])
+    above = e > 25  # keV, the evt tier threshold
+    mul1 = ak.sum(above, axis=-1) == 1
+    h = hist.new.Reg(6000, 0, 6000).Double()
+    h.fill(ak.flatten(e[above][mul1]))
+    return h
+
+
+grid = build_pdf_grid(pdf_mul1, {"fccd_sigma": (-5, 5, 1), "dlf": (0, 0.9, 0.3)})
+lh5.write(grid, "pdf_grid/mul1/all", "grid.lh5")
+lh5.write(
+    lh5.read("number_of_simulated_events", "cvt.lh5"),
+    "nr_sim_events",
+    "grid.lh5",
+    wo_mode="append",
+)
+```
+
+:::{warning}
+
+Each hit keeps the random shift of the energy resolution smearing drawn in the
+`hit` tier; the change of the resolution with energy is neglected. The FCCD must
+stay below `surface_depth_in_mm` of the {ref}`hit-tier-settings`, since deeper
+energy depositions are only stored as their sum (`energy_bulk`) and count as
+fully active.
+
+:::
