@@ -48,3 +48,28 @@ def test_build_pdf_grid_different_binning():
 
     with pytest.raises(ValueError, match="different binning"):
         build_pdf_grid(pdf, {"a": (0, 1, 1)})
+
+
+def test_build_pdf_grid_several_pdfs(tmp_path):
+    def pdf(pars):
+        return {"hit/all": _pdf(pars), "mul1/all": _pdf({"a": 0, "b": pars["b"]})}
+
+    grids = build_pdf_grid(pdf, {"a": (0, 2, 1), "b": (0, 1, 0.5)})
+    assert sorted(grids) == ["hit/all", "mul1/all"]
+    assert grids["hit/all"]["grid"]["a_2"]["b_1"].weights.nda[7] == 1
+    assert grids["mul1/all"]["grid"]["a_2"]["b_1"].weights.nda[5] == 1
+
+    for path, grid in grids.items():
+        lh5.write(grid, f"pdf_grid/{path}", tmp_path / "grid.lh5")
+    assert (
+        lh5.read("pdf_grid/mul1/all/grid/a_2/b_1", tmp_path / "grid.lh5").weights.nda[5]
+        == 1
+    )
+
+
+def test_build_pdf_grid_changing_keys():
+    def pdf(pars):
+        return {f"pdf_{int(pars['a'])}": _pdf(pars | {"b": 0})}
+
+    with pytest.raises(ValueError, match="differ from those"):
+        build_pdf_grid(pdf, {"a": (0, 1, 1)})

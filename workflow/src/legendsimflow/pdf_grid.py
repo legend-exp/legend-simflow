@@ -25,9 +25,11 @@ from lgdo import Histogram, Scalar, Struct
 
 
 def build_pdf_grid(
-    pdf: Callable[[dict[str, float]], hist.Hist | Histogram],
+    pdf: Callable[
+        [dict[str, float]], hist.Hist | Histogram | Mapping[str, hist.Hist | Histogram]
+    ],
     axes: Mapping[str, tuple[float, float, float]],
-) -> Struct:
+) -> Struct | dict[str, Struct]:
     """Evaluate a PDF at every point of an evenly spaced grid of parameters.
 
     The result is a generalised histogram as read by Refit.jl: a ``grid_info``
@@ -41,12 +43,19 @@ def build_pdf_grid(
     ----------
     pdf
         function of the parameter values, given as a dictionary ``{name:
-        value}``, that returns the histogram at this grid point. All histograms
-        must have the same binning and hold raw counts, from the same number of
-        simulated primaries.
+        value}``, that returns the histogram at this grid point, or a dictionary
+        of histograms ``{key: histogram}`` to build several PDFs in one scan,
+        with the same keys at every grid point. The histograms of each PDF must
+        have the same binning at all grid points and hold raw counts, from the
+        same number of simulated primaries.
     axes
         for each parameter, in the order of the grid axes, its ``(first, last,
         step)`` values.
+
+    Returns
+    -------
+    the generalised histogram, or a dictionary ``{key: generalised histogram}``
+    if `pdf` returns a dictionary.
 
     Examples
     --------
@@ -61,51 +70,70 @@ def build_pdf_grid(
             msg = f"axis {name} does not go from {first} to {last} in steps of {step}"
             raise ValueError(msg)
 
-    grid: dict = {}
-    edges = None
+    # the grid tree and the bin edges of each PDF
+    grids: dict = {}
+    edges: dict = {}
     for idx in itertools.product(*(range(len(v)) for v in values.values())):
-        h = pdf(
+        result = pdf(
             {name: float(values[name][i]) for name, i in zip(values, idx, strict=True)}
         )
-        if not isinstance(h, Histogram):
-            h = Histogram(h)
+        is_single = not isinstance(result, Mapping)
+        hists = {None: result} if is_single else result
 
-        point_edges = [ax.edges for ax in h.binning]
-        if edges is None:
-            edges = point_edges
-        elif len(point_edges) != len(edges) or not all(
-            np.array_equal(a, b) for a, b in zip(point_edges, edges, strict=False)
-        ):
-            msg = f"the histogram at grid point {idx} has a different binning"
+        if grids and set(hists) != set(grids):
+            msg = f"the PDFs at grid point {idx} differ from those at the first point"
             raise ValueError(msg)
 
-        node = grid
-        keys = [f"{name}_{i}" for name, i in zip(values, idx, strict=True)]
-        for key in keys[:-1]:
-            node = node.setdefault(key, {})
-        node[keys[-1]] = h
+        point = [f"{name}_{i}" for name, i in zip(values, idx, strict=True)]
+        for key, point_hist in hists.items():
+            h = (
+                point_hist
+                if isinstance(point_hist, Histogram)
+                else Histogram(point_hist)
+            )
+
+            point_edges = [ax.edges for ax in h.binning]
+            if key not in edges:
+                edges[key] = point_edges
+            elif len(point_edges) != len(edges[key]) or not all(
+                np.array_equal(a, b)
+                for a, b in zip(point_edges, edges[key], strict=False)
+            ):
+                msg = f"the histogram {key} at grid point {idx} has a different binning"
+                raise ValueError(msg)
+
+            node = grids.setdefault(key, {})
+            for level in point[:-1]:
+                node = node.setdefault(level, {})
+            node[point[-1]] = h
 
     def _to_struct(node: dict) -> Struct:
         return Struct(
             {k: _to_struct(v) if isinstance(v, dict) else v for k, v in node.items()}
         )
 
-    grid_info = Struct(
-        {
-            f"axis_{d}": Struct(
-                {
-                    "name": Scalar(name),
-                    "values": Struct(
-                        {
-                            k: Scalar(float(v))
-                            for k, v in zip(
-                                ("first", "last", "step"), axes[name], strict=True
-                            )
-                        }
-                    ),
-                }
-            )
-            for d, name in enumerate(values)
-        }
-    )
-    return Struct({"grid_info": grid_info, "grid": _to_struct(grid)})
+    def _grid_info() -> Struct:
+        return Struct(
+            {
+                f"axis_{d}": Struct(
+                    {
+                        "name": Scalar(name),
+                        "values": Struct(
+                            {
+                                k: Scalar(float(v))
+                                for k, v in zip(
+                                    ("first", "last", "step"), axes[name], strict=True
+                                )
+                            }
+                        ),
+                    }
+                )
+                for d, name in enumerate(values)
+            }
+        )
+
+    out = {
+        key: Struct({"grid_info": _grid_info(), "grid": _to_struct(tree)})
+        for key, tree in grids.items()
+    }
+    return out[None] if is_single else out

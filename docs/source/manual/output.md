@@ -482,18 +482,18 @@ are not known well enough to fix in the simulation. It returns the grid as an
 LGDO struct in the format of a generalised histogram read by
 [Refit.jl](https://github.com/legend-exp/Refit.jl), which interpolates the PDF
 between the grid points. The PDF is a function of the parameter values, given as
-a dictionary, that returns one histogram.
+a dictionary, that returns one histogram, or a dictionary of histograms to build
+several PDFs in one scan of the grid.
 
 With `store_surface_steps: true` in the {ref}`hit-tier-settings`, the energy of
 each HPGe hit can be recomputed for another full charge collection depth (FCCD)
 and dead layer fraction (DLF) from the `geds/surface` fields of the `cvt` tier
-(see {ref}`evt-tier`). The example below builds the multiplicity-1 spectrum on a
-grid of the FCCD, shifted by `fccd_sigma` times its uncertainty, and of the DLF.
-For brevity, it uses one FCCD for all detectors and no data-quality cuts:
+(see {ref}`evt-tier`). The example below builds the `hit` and multiplicity-1
+spectra on a grid of the FCCD, shifted by `fccd_sigma` times its uncertainty,
+and of the DLF. For brevity, it uses one FCCD for all detectors and no
+data-quality cuts:
 
 ```python
-import functools
-
 import awkward as ak
 import hist
 import lh5
@@ -517,23 +517,19 @@ def true_energy(fccd, dlf):
 smearing = geds.energy - true_energy(fccd, dlf_nominal)
 
 
-# computed once per grid point, also when several PDFs are built from it
-@functools.cache
-def energy(fccd_sigma, dlf):
-    return smearing + true_energy(fccd + fccd_sigma * fccd_unc, dlf)
-
-
-def pdf_mul1(pars):
-    e = energy(pars["fccd_sigma"], pars["dlf"])
+def pdfs(pars):
+    e = smearing + true_energy(fccd + pars["fccd_sigma"] * fccd_unc, pars["dlf"])
     above = e > 25  # keV, the evt tier threshold
     mul1 = ak.sum(above, axis=-1) == 1
-    h = hist.new.Reg(6000, 0, 6000).Double()
-    h.fill(ak.flatten(e[above][mul1]))
-    return h
+    out = {}
+    for path, energies in (("hit/all", e[above]), ("mul1/all", e[above][mul1])):
+        out[path] = hist.new.Reg(6000, 0, 6000).Double().fill(ak.flatten(energies))
+    return out
 
 
-grid = build_pdf_grid(pdf_mul1, {"fccd_sigma": (-5, 5, 1), "dlf": (0, 0.9, 0.3)})
-lh5.write(grid, "pdf_grid/mul1/all", "grid.lh5")
+grids = build_pdf_grid(pdfs, {"fccd_sigma": (-5, 5, 1), "dlf": (0, 0.9, 0.3)})
+for path, grid in grids.items():
+    lh5.write(grid, f"pdf_grid/{path}", "grid.lh5")
 lh5.write(
     lh5.read("number_of_simulated_events", "cvt.lh5"),
     "nr_sim_events",
