@@ -138,14 +138,15 @@ def get_lar_minishroud_confine_commands(
             raise ValueError(msg)
 
         r_max = outer_ms.pRMax
-        dz = outer_ms.pDz
+        # pDz is the full length of a pyg4ometry Tubs
+        length = outer_ms.pDz
 
         # type conversions from pyg4ometry types
         if not isinstance(r_max, float | int):
             r_max = r_max.eval()
 
-        if not isinstance(dz, float | int):
-            dz = dz.eval()
+        if not isinstance(length, float | int):
+            length = length.eval()
 
         command = "AddSolid" if inside else "AddExcludedSolid"
         lines.append(f"/RMG/Generator/Confinement/Geometrical/{command} Cylinder")
@@ -163,7 +164,7 @@ def get_lar_minishroud_confine_commands(
             f"/RMG/Generator/Confinement/Geometrical/Cylinder/OuterRadius {r_max} mm"
         )
         lines.append(
-            f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {2 * dz} mm"
+            f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {length} mm"
         )
 
     return lines

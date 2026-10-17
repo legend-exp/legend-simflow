@@ -12,6 +12,12 @@ def test_get_lar_minishroud_confine_commands(test_generate_gdml):
     assert isinstance(lines, list)
 
     assert "/RMG/Generator/Confinement/Geometrical/AddSolid Cylinder" in lines
+    # the cylinders are as long as the minishrouds
+    assert "/RMG/Generator/Confinement/Geometrical/Cylinder/Height 1000 mm" in lines
+    assert not any(
+        line.startswith("/RMG/Generator/Confinement/Geometrical/Cylinder/Height 2000")
+        for line in lines
+    )
 
     lines_outside = confine.get_lar_minishroud_confine_commands(
         test_generate_gdml, inside=False
