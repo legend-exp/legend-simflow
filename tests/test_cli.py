@@ -142,6 +142,29 @@ def test_nersc_cli_simlist_partitioned(tmp_path, monkeypatch, capsys):
     assert out.count("would spawn") == 2
 
 
+@pytest.mark.parametrize("simlist", ["all", "*"])
+def test_nersc_cli_simlist_all(tmp_path, monkeypatch, capsys, simlist):
+    _make_nersc_config(tmp_path, simlist=[])
+    cfg = yaml.safe_load((tmp_path / "simflow-config.yaml").read_text())
+    (tmp_path / "simflow-config.yaml").write_text(yaml.dump(cfg | {"simlist": simlist}))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys, "argv", ["snakemake-nersc", "-N", "2", "--no-submit", "--without-srun"]
+    )
+    with (
+        patch("legendsimflow.cli.metadata_class"),
+        patch(
+            "legendsimflow.cli.aggregate.gen_list_of_all_simids",
+            return_value=["s1", "s2", "s3"],
+        ),
+    ):
+        snakemake_nersc_cli()
+    out = capsys.readouterr().out
+    assert out.count("would spawn") == 2
+    for simid in ("s1", "s2", "s3"):
+        assert f"pdf.{simid}" in out
+
+
 def test_nersc_cli_skips_empty_chunks(tmp_path, monkeypatch, capsys):
     """No worker is spawned with an empty simlist when nodes exceed simlist items."""
     _make_nersc_config(tmp_path, simlist=["stp.s1", "stp.s2"])

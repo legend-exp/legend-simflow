@@ -98,7 +98,7 @@ def snakemake_nersc_cli():
 
     simlist = config.get("simlist", None)
     make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)
-    if simlist is None:
+    if simlist in (None, "all", "*"):
         # auto determine tier from config
         tiers = ("pdf", "cvt", "evt", "hit", "opt", "stp")
         tier = next(t for t in tiers if t in make_steps)
