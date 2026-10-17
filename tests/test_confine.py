@@ -95,3 +95,31 @@ def test_get_lar_minishroud_confine_commands(test_generate_gdml):
         confine.get_lar_minishroud_confine_commands(
             test_generate_gdml, inside=False, outer_height_in_mm=2000
         )
+
+
+def test_get_minishroud_outer_surface_confine_commands(test_generate_gdml):
+    lines = confine.get_minishroud_outer_surface_confine_commands(test_generate_gdml)
+
+    assert "/RMG/Generator/Confinement/SamplingMode SubtractGeometrical" in lines
+    assert "/RMG/Generator/Confinement/SampleOnSurface true" in lines
+    n_nms = sum("Physical/AddVolume minishroud_tube" in line for line in lines)
+    assert n_nms > 0
+    assert sum("AddExcludedSolid Cylinder" in line for line in lines) == n_nms
+
+    # the excluded cylinder cuts halfway through the 0.125 mm thick wall
+    radii = [line.split()[1] for line in lines if "Cylinder/OuterRadius" in line]
+    assert "50.9375" in radii
+
+    assert lines == commands.get_confinement_from_function(
+        "legendsimflow.confine.get_minishroud_outer_surface_confine_commands(<...>)",
+        test_generate_gdml,
+    )
+
+    with pytest.raises(ValueError):
+        confine.get_minishroud_outer_surface_confine_commands(
+            test_generate_gdml, pattern="non_existent_pattern*"
+        )
+    with pytest.raises(ValueError):
+        confine.get_minishroud_outer_surface_confine_commands(
+            test_generate_gdml, pattern="V**"
+        )

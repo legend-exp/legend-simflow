@@ -167,3 +167,91 @@ def get_lar_minishroud_confine_commands(
         )
 
     return lines
+
+
+def get_minishroud_outer_surface_confine_commands(
+    reg: pyg4ometry.geant4.Registry,
+    pattern: str | Sequence[str] = "minishroud_tube*",
+    surface_max_intersections: int = 10,
+) -> list[str]:
+    """Extract the commands to sample on the outer surface of the minishrouds (NMS).
+
+    Vertices are sampled on the full surface of the NMS volumes. The ones on the
+    inner side (facing the HPGe string) are rejected with one excluded cylinder
+    per NMS, whose radius and bottom face lie halfway through the NMS wall. The
+    result is the outer side wall and the outer bottom face of each NMS.
+
+    Parameters
+    ----------
+    reg
+        The registry describing the geometry.
+    pattern
+        The pattern used to search for physical volumes of minishrouds. Each
+        solid must be a vertical cylinder closed at the bottom: a ``Tubs``
+        minus a narrower ``Tubs`` shifted upwards.
+    surface_max_intersections
+        Maximum number of intersections of a line with the NMS surface.
+
+    Returns
+    -------
+    A list of confinement commands for remage.
+
+    """
+    string_list = _get_matching_volumes(list(reg.physicalVolumeDict.keys()), pattern)
+
+    if len(string_list) == 0:
+        msg = f"no physical volumes matching pattern {pattern} found in the GDML!"
+        raise ValueError(msg)
+
+    lines = [
+        "/RMG/Generator/Confine Volume",
+        "/RMG/Generator/Confinement/SamplingMode SubtractGeometrical",
+        "/RMG/Generator/Confinement/FirstSamplingVolume Physical",
+        "/RMG/Generator/Confinement/SampleOnSurface true",
+        f"/RMG/Generator/Confinement/SurfaceSampleMaxIntersections {surface_max_intersections}",
+    ]
+    lines += [f"/RMG/Generator/Confinement/Physical/AddVolume {s}" for s in string_list]
+
+    def _val(x):
+        return float(x.eval()) if hasattr(x, "eval") else float(x)
+
+    for s in string_list:
+        vol = reg.physicalVolumeDict[s]
+        solid = vol.logicalVolume.solid
+
+        if not (
+            isinstance(solid, pyg4ometry.geant4.solid.Subtraction)
+            and isinstance(solid.obj1, pyg4ometry.geant4.solid.Tubs)
+            and isinstance(solid.obj2, pyg4ometry.geant4.solid.Tubs)
+        ):
+            msg = f"solid of physical volume '{s}' is not a Tubs minus a Tubs"
+            raise ValueError(msg)
+
+        if any(_val(a) != 0 for a in [*vol.rotation.eval(), *solid.tra2[0].eval()]):
+            msg = f"physical volume '{s}' or its inner Tubs is rotated"
+            raise ValueError(msg)
+
+        center = [_val(c) for c in vol.position.eval()]
+        r_out = _val(solid.obj1.pRMax)
+        r_in = _val(solid.obj2.pRMax)
+        # pDz is the full length of a pyg4ometry Tubs
+        length = _val(solid.obj1.pDz)
+        dz_in = _val(solid.tra2[1].eval()[2])
+
+        # z of the outer and inner bottom faces, relative to the NMS center
+        z_bottom_out = -length / 2
+        z_bottom_in = dz_in - _val(solid.obj2.pDz) / 2
+        z_low = (z_bottom_out + z_bottom_in) / 2
+        # extend 1 mm above the NMS top
+        z_high = length / 2 + 1
+
+        lines += [
+            "/RMG/Generator/Confinement/Geometrical/AddExcludedSolid Cylinder",
+            f"/RMG/Generator/Confinement/Geometrical/CenterPositionX {center[0]} mm",
+            f"/RMG/Generator/Confinement/Geometrical/CenterPositionY {center[1]} mm",
+            f"/RMG/Generator/Confinement/Geometrical/CenterPositionZ {center[2] + (z_low + z_high) / 2} mm",
+            f"/RMG/Generator/Confinement/Geometrical/Cylinder/OuterRadius {(r_out + r_in) / 2} mm",
+            f"/RMG/Generator/Confinement/Geometrical/Cylinder/Height {z_high - z_low} mm",
+        ]
+
+    return lines
