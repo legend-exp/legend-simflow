@@ -50,6 +50,22 @@
 - For plotting code, always call `legendsimflow.plot.decorate(fig)` before any
   `savefig`/`pdf.savefig` call.
 
+## Configuration defaults
+
+- Defaults of optional fields of `simflow-config.yaml` and of the
+  `simprod/config` settings files live only in `legendsimflow/defaults.py`
+  (`CONFIG`, `TIER_SETTINGS`, `PAR_SETTINGS`). Never write them at the call site
+  (no `.get("key", default)`, no `DEFAULT_*` dicts in scripts or rules)
+- Read the configuration through `init_simflow_context` (fills `CONFIG`),
+  `get_tier_settings`/`get_par_settings` (fill the settings defaults), then
+  index directly: `get_tier_settings(config, "hit").simulate_psd`
+- New optional field: add it with its default to `defaults.py` and document it
+  in `docs/source/manual/` (`tests/test_defaults.py` checks this). A field with
+  no meaningful default is required: leave it out
+- Optional field whose absence has a meaning: default `None`
+- Not covered: `paths` (see `apply_path_defaults`), `simconfig` entries,
+  geometry configs, and default values of function arguments
+
 ## LEGEND-200 data production (`l200data`)
 
 - Read dataflow metadata (e.g. `dataprod/config`, DSP/hit configs) from

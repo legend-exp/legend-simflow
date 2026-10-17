@@ -23,10 +23,9 @@ import subprocess
 from pathlib import Path
 
 import yaml
-from dbetto import AttrsDict
 from legenddataflowscripts.workflow.utils import subst_vars
 
-from . import aggregate
+from . import aggregate, defaults
 from .metadata import expand_simlist
 from .utils import metadata_class
 
@@ -82,12 +81,12 @@ def snakemake_nersc_cli():
         use_env=True,
         ignore_missing=False,
     )
-    config = AttrsDict(config)
+    config = defaults.merge(config, defaults.CONFIG)
 
     # NOTE: this will attempt a clone of the metadata, if the directory does not exist
     metadata = metadata_class(config)(config.paths.metadata, lazy=True)
 
-    if "legend_metadata_version" in config:
+    if config.legend_metadata_version is not None:
         log.info(
             "checking out metadata version %s",
             config.legend_metadata_version,
@@ -96,12 +95,11 @@ def snakemake_nersc_cli():
 
     config["metadata"] = metadata
 
-    simlist = config.get("simlist", None)
-    make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)
-    if simlist in (None, "all", "*"):
+    simlist = config.simlist
+    if simlist in ("all", "*"):
         # auto determine tier from config
         tiers = ("pdf", "cvt", "evt", "hit", "opt", "stp")
-        tier = next(t for t in tiers if t in make_steps)
+        tier = next(t for t in tiers if t in config.make_steps)
 
         simlist = [
             f"{tier}.{simid}" for simid in aggregate.gen_list_of_all_simids(config)

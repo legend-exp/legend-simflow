@@ -28,22 +28,6 @@ from legendsimflow import metadata as mutils
 
 log = logging.getLogger(__name__)
 
-#: Default settings of the ``build_superpulses_from_data`` rule, updated with
-#: ``simprod/config/pars/{experiment}/geds/superpulses/settings``.
-DEFAULT_SETTINGS = {
-    "min_number_wfs": 10,
-    "target_wfs": 100,
-    "chi2_threshold": 3,
-    "max_files": None,
-    "tier_name": "auto",
-    "charge_output": "wf_pz_win",
-    "curr_output": "curr_av",
-    "energy_output": "cuspEmax",
-    "drift_time_slices": "1000:200:2000",
-    "t0_field": "spms/event_t0",
-    "end_time_field": "geds/psd/low_aoe/time",
-}
-
 
 @dataclass(frozen=True)
 class Slice:

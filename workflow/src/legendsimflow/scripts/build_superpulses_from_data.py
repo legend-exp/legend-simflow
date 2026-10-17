@@ -18,7 +18,6 @@
 import argparse
 from pathlib import Path
 
-import dbetto
 import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils  # ensures ldfs.utils is loaded
@@ -34,7 +33,6 @@ from legendsimflow.metadata import get_par_settings
 from legendsimflow.plot import decorate
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
-    DEFAULT_SETTINGS,
     Slice,
     Superpulse,
     compute_chi2,
@@ -130,8 +128,7 @@ def main() -> int:
     )
     log_script_invocation(log, "build-superpulses-from-data", parser, args)
 
-    settings = DEFAULT_SETTINGS | get_par_settings(simflow_config, "superpulses")
-    settings = dbetto.AttrsDict(settings)
+    settings = get_par_settings(simflow_config, "superpulses")
 
     meta = (
         Path(args.meta)

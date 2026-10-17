@@ -5,18 +5,14 @@ from legendsimflow.metadata import get_tier_settings
 # memory, pushing peak RSS above the usual 2 GB budget. left empty otherwise,
 # so default-resources applies
 _hit_resources = (
-    {"mem_mb": 2300}
-    if get_tier_settings(config, "hit").get("simulate_psd_with_psl", False)
-    else {}
+    {"mem_mb": 2300} if get_tier_settings(config, "hit").simulate_psd_with_psl else {}
 )
 
 # gates the whole pre-correction -> fit -> merge -> final-hit-input chain (see
 # smk_build_tier_hit_extra_input below). Off by default: the final hit is built
 # once, with per-detector corrections falling back to the aoemeanmod_default in
 # the hit tier settings.
-_two_pass_aoe_corr = get_tier_settings(config, "hit").get(
-    "two_pass_aoe_correction", False
-)
+_two_pass_aoe_corr = get_tier_settings(config, "hit").two_pass_aoe_correction
 
 
 def smk_hit_inputs(wc):
@@ -33,17 +29,17 @@ def smk_hit_inputs(wc):
             config, tier="stp", simid=wc.simid, jobid=wc.jobid
         ),
         "hpge_dtmaps": aggregate.gen_list_of_merged_dtmaps(
-            config, wc.simid, has_psd=hit_settings.get("simulate_psd", True)
+            config, wc.simid, has_psd=hit_settings.simulate_psd
         ),
         "hpge_currmods": aggregate.gen_list_of_merged_currmods(
-            config, wc.simid, has_psd=hit_settings.get("simulate_psd", True)
+            config, wc.simid, has_psd=hit_settings.simulate_psd
         ),
         "hpge_eresmods": aggregate.gen_list_of_eresmods(config, wc.simid),
         "hpge_aoeresmods": aggregate.gen_list_of_aoeresmods(config, wc.simid),
         "hpges_realistic_psls": aggregate.gen_list_of_merged_realistic_psls(
             config,
             wc.simid,
-            simulate_psd_with_psl=hit_settings.get("simulate_psd_with_psl", False),
+            simulate_psd_with_psl=hit_settings.simulate_psd_with_psl,
         ),
         "hpge_psdcuts": aggregate.gen_list_of_psdcuts(config, wc.simid),
         # NOTE: technically this rule only depends on one block in the
@@ -76,7 +72,7 @@ rule gen_all_tier_hit:
         # sidecars; gated by the same `simulate_psd` setting that builds them
         lambda wc: (
             [patterns.detinfo_filename(config, "hpge_ssd_modeling")]
-            if get_tier_settings(config, "hit").get("simulate_psd", True)
+            if get_tier_settings(config, "hit").simulate_psd
             else []
         ),
 

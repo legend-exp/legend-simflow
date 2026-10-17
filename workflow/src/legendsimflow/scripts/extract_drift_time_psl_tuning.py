@@ -140,7 +140,7 @@ def main() -> None:
         psl_file = nersc.dvs_ro(config, args.psl_file)
         elecmod_file = nersc.dvs_ro(config, args.elecmod)
         l200data = getattr(config.paths, "l200data", None)
-        mwa_settings = mutils.get_par_settings(config, "elecmod").get("curr_mwa")
+        mwa_settings = mutils.get_par_settings(config, "elecmod").curr_mwa
 
     else:
         dt_file = args.drift_time_file

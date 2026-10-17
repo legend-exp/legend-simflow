@@ -55,7 +55,7 @@ rule build_tier_pdf:
         cvt_file=patterns.output_tier_cvt_filename(config),
     params:
         # surfaced so Snakemake invalidates outputs when the regex map changes
-        detector_groups=_pdf_settings.get("detector_groups", None),
+        detector_groups=_pdf_settings.detector_groups,
     output:
         patterns.output_tier_pdf_filename(config),
     log:

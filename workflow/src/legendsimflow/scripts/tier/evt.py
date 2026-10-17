@@ -158,8 +158,8 @@ def main() -> None:
     lar_veto_multiplicity_thr = tier_evt_settings.lar_veto_multiplicity_thr
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
-    store_expected_pes = not args.skip_opt and get_tier_settings(config, "opt").get(
-        "store_expected_pes", False
+    store_expected_pes = (
+        not args.skip_opt and get_tier_settings(config, "opt").store_expected_pes
     )
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     add_random_coincidences = args.add_random_coincidences
@@ -169,11 +169,9 @@ def main() -> None:
 
     # get the psd settings
     tier_hit_settings = get_tier_settings(config, "hit")
-    simulate_psd = tier_hit_settings.get("simulate_psd", True)
-    simulate_psd_with_psl = tier_hit_settings.get("simulate_psd_with_psl", False)
-    store_surface_steps = not skip_hit and tier_hit_settings.get(
-        "store_surface_steps", False
-    )
+    simulate_psd = tier_hit_settings.simulate_psd
+    simulate_psd_with_psl = tier_hit_settings.simulate_psd_with_psl
+    store_surface_steps = not skip_hit and tier_hit_settings.store_surface_steps
 
     evt_file, move2cfs = nersc.make_on_scratch(config, evt_file)
 
@@ -270,8 +268,7 @@ def main() -> None:
 
     if (
         add_random_coincidences
-        and tier_evt_settings.get("random_coincidence_mode", "forced_trigger")
-        == "noise_trigger"
+        and tier_evt_settings.random_coincidence_mode == "noise_trigger"
         and args.simid is None
     ):
         msg = (
@@ -329,7 +326,7 @@ def main() -> None:
         if add_random_coincidences:
             with perf_block("lookup_l200data_evts_for_rc()"):
                 evt_tier_name = utils.get_evt_tier_name(l200data)
-                rc_runid = tier_evt_settings.get("random_coincidence_runid", None)
+                rc_runid = tier_evt_settings.random_coincidence_runid
                 if isinstance(rc_runid, Mapping):
                     if runid not in rc_runid:
                         msg = (
@@ -338,9 +335,7 @@ def main() -> None:
                         )
                         raise KeyError(msg)
                     rc_runid = rc_runid[runid]
-                rc_mode = tier_evt_settings.get(
-                    "random_coincidence_mode", "forced_trigger"
-                )
+                rc_mode = tier_evt_settings.random_coincidence_mode
                 msg = (
                     f"looking up {rc_mode} files for random coincidences "
                     f"from {rc_runid or runid}"

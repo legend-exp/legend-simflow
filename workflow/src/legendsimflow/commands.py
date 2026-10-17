@@ -136,12 +136,8 @@ def remage_run(
     # need some modifications if this is a benchmark run
     try:
         n_prim_pj = sim_cfg.primaries_per_job
-        is_benchmark = False
-
-        if "benchmark" in config:
-            is_benchmark = config.benchmark.get("enabled", False)
-            if is_benchmark:
-                n_prim_pj = config.benchmark.n_primaries[tier]
+        if config.benchmark.enabled:
+            n_prim_pj = config.benchmark.n_primaries[tier]
     except KeyError as e:
         msg = f"key {e} not found!"
         raise SimflowConfigError(msg, block) from e
@@ -155,18 +151,13 @@ def remage_run(
     # substitution rules
     cli_subs = {
         "N_EVENTS": int(n_prim_pj / int(procs)),
-        "SEED": utils.string_to_remage_seed(
-            str(output), seed=config.get("simflow_rng_seed", 0)
-        ),
+        "SEED": utils.string_to_remage_seed(str(output), seed=config.simflow_rng_seed),
     }
     if jobid is not None:
         cli_subs["JOBID"] = jobid
 
     # prepare command line
-    if "runcmd" in config and "remage" in config.runcmd:
-        remage_exe = shlex.split(config.runcmd.get("remage", "remage"))
-    else:
-        remage_exe = ["remage"]
+    remage_exe = shlex.split(config.runcmd.remage)
 
     output_final = copy(output)
     if nersc.is_scratch_enabled(config):

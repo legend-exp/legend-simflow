@@ -26,7 +26,7 @@ from legendmeta import MetadataRepository
 from legendmeta.police import validate_dict_schema
 from snakemake.iocontainers import Wildcards
 
-from . import SimflowConfig, utils
+from . import SimflowConfig, defaults, utils
 from .exceptions import SimflowConfigError
 
 _MISSING = object()
@@ -93,17 +93,24 @@ def get_simconfig(
 
 
 def get_tier_settings(config: SimflowConfig, tier: str) -> AttrsDict:
-    """Return the settings block for *tier* and the current experiment, empty if absent."""
+    """Return the settings block for *tier* and the current experiment.
+
+    Fields missing in the user settings (or the whole block, if absent) are
+    taken from :data:`.defaults.TIER_SETTINGS`.
+    """
     try:
-        return config.metadata.simprod.config.tier[tier][config.experiment].settings
+        user = config.metadata.simprod.config.tier[tier][config.experiment].settings
     except FileNotFoundError:
-        return AttrsDict({})
+        user = {}
+    return defaults.merge(user, defaults.TIER_SETTINGS.get(tier, {}))
 
 
 def simulates_hpge_psd(config: SimflowConfig) -> bool:
     """Whether HPGe pulse shapes are simulated: ``simulate_psd`` and no ``skip_hit``."""
-    skip_hit = get_tier_settings(config, "evt").get("skip_hit", False)
-    return not skip_hit and get_tier_settings(config, "hit").get("simulate_psd", True)
+    return (
+        not get_tier_settings(config, "evt").skip_hit
+        and get_tier_settings(config, "hit").simulate_psd
+    )
 
 
 def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:
@@ -111,12 +118,21 @@ def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callabl
     return lambda wildcards: get_tier_settings(config, tier)[key]  # noqa: ARG005
 
 
-def get_par_settings(config: SimflowConfig, par: str) -> AttrsDict:
-    """Return the settings block for *par* and the current experiment, empty if absent."""
+def get_par_settings(
+    config: SimflowConfig, par: str, default: Mapping | None = None
+) -> AttrsDict:
+    """Return the settings block for *par* and the current experiment.
+
+    Fields missing in the user settings (or the whole block, if absent) are
+    taken from `default`, or from :data:`.defaults.PAR_SETTINGS` if ``None``.
+    """
     try:
-        return config.metadata.simprod.config.pars[config.experiment].geds[par].settings
+        user = config.metadata.simprod.config.pars[config.experiment].geds[par].settings
     except FileNotFoundError:
-        return AttrsDict({})
+        user = {}
+    if default is None:
+        default = defaults.PAR_SETTINGS.get(par, {})
+    return defaults.merge(user, default)
 
 
 def smk_hash_simconfig(
@@ -557,7 +573,7 @@ def get_runlist(config: SimflowConfig, simid: str) -> list[str]:
     If not overridden in the hit-tier `simconfig`, returns the global runlist
     stored in ``config.runlist``.
     """
-    default = config.get("runlist", None)
+    default = config.runlist
     simcfg = get_simconfig(config, "hit")
 
     try:

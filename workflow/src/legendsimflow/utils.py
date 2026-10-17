@@ -41,38 +41,10 @@ from legendmeta import Legend1000Metadata, LegendMetadata, MetadataRepository
 from numpy.typing import ArrayLike
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
-from . import SimflowConfig, nersc, patterns
+from . import SimflowConfig, defaults, nersc, patterns
 from .exceptions import SimflowConfigError
 
 log = logging.getLogger(__name__)
-
-
-def _merge_defaults(user: dict, default: dict) -> dict:
-    """Recursively merge default values into user configuration.
-
-    Merges values from `default` into `user` without overwriting existing
-    user values. For nested dictionaries, performs recursive merge.
-
-    Parameters
-    ----------
-    user
-        User configuration dictionary.
-    default
-        Default configuration dictionary.
-
-    Returns
-    -------
-    dict
-        Merged configuration dictionary with user values taking precedence.
-
-    """
-    result = dict(default)
-    for k, v in user.items():
-        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-            result[k] = _merge_defaults(v, result[k])
-        else:
-            result[k] = v
-    return result
 
 
 def _make_path(d, block="paths"):
@@ -297,13 +269,7 @@ def init_simflow_context(
     ):
         config = raw_config
     else:
-        raw_config = _merge_defaults(
-            dict(raw_config),
-            {
-                "benchmark": {"enabled": False},
-                "nersc": {"dvs_ro": False, "scratch": False},
-            },
-        )
+        raw_config = defaults.merge(raw_config, defaults.CONFIG)
 
         if workflow is None:
             ldfs.subst_vars(
@@ -331,7 +297,7 @@ def init_simflow_context(
         # NOTE: this will attempt a clone of the metadata, if the directory does not exist
         metadata = metadata_cls(config.paths.metadata, lazy=True)
 
-        if "legend_metadata_version" in config:
+        if config.legend_metadata_version is not None:
             msg = f"checking out metadata version {config.legend_metadata_version}"
             log_.info(msg)
             try:
@@ -371,12 +337,9 @@ def init_simflow_context(
     os.environ["MPLCONFIGDIR"] = str(mpl_config_dir)
 
     if "_proctime" not in config:
-        benchmark_enabled = bool(
-            config.get("benchmark", AttrsDict({"enabled": False})).get("enabled", False)
-        )
         proctime = (
             "benchmark"
-            if benchmark_enabled
+            if config.benchmark.enabled
             else datetime.now().strftime("%Y%m%dT%H%M%SZ")
         )
         config["_proctime"] = proctime

@@ -141,10 +141,10 @@ def main() -> None:
     tier_hit_settings = get_tier_settings(config, "hit")
 
     dead_layer_fraction = tier_hit_settings.dead_layer_fraction
-    store_surface_steps = tier_hit_settings.get("store_surface_steps", False)
-    surface_depth = tier_hit_settings.get("surface_depth_in_mm", 3)
-    simulate_psd = tier_hit_settings.get("simulate_psd", True)
-    simulate_psd_with_psl = tier_hit_settings.get("simulate_psd_with_psl", False)
+    store_surface_steps = tier_hit_settings.store_surface_steps
+    surface_depth = tier_hit_settings.surface_depth_in_mm
+    simulate_psd = tier_hit_settings.simulate_psd
+    simulate_psd_with_psl = tier_hit_settings.simulate_psd_with_psl
 
     buffer_len = tier_hit_settings.buffer_len
     eresmod_default = hpge_pars.build_energy_res_func_from_entry(

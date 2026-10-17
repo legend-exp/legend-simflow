@@ -36,7 +36,7 @@ def smk_curr_mwa(wildcards):
     """Return the moving-window-average settings of the simulated current."""
     return utils.lookup_curr_mw_pars(
         config.paths.get("l200data", None),
-        settings=get_par_settings(config, "elecmod").get("curr_mwa"),
+        settings=get_par_settings(config, "elecmod").curr_mwa,
     )
 
 
@@ -452,19 +452,13 @@ rule merge_current_pulse_model_pars:
         dbetto.utils.write_dict(out_dict, output[0])
 
 
-# default set of simulation IDs to fit the A/E energy-dependence correction from
-_AOE_CORR_DEFAULT_SIMID_REGEX = "sis*_z*_slot*_Pb212_to_Pb208"
-
-
 def smk_extract_hpge_aoemean_energy_dependence_inputs(wildcards):
     """Inputs for the per-detector A/E energy-correction fit.
 
     ``simid_regex`` is resolved here (at DAG-build time) so the dependency edge
     to the pre-correction hit files actually exists in the graph.
     """
-    regex = get_par_settings(config, "aoemeanmod").get(
-        "simid_regex", _AOE_CORR_DEFAULT_SIMID_REGEX
-    )
+    regex = get_par_settings(config, "aoemeanmod").simid_regex
     return {
         "hit_files": aggregate.gen_list_of_precorr_hit_outputs_matching(config, regex)
     }
@@ -539,7 +533,7 @@ rule merge_hpge_aoemean_energy_dependence_pars:
 # whether superpulses are built one file per (run, detector) instead of a single
 # file per detector accumulating all runs; drives both the producer rule below
 # and the consumer `extract_electronics_model_pars`
-_build_per_runid = get_par_settings(config, "superpulses").get("build_per_runid", False)
+_build_per_runid = get_par_settings(config, "superpulses").build_per_runid
 if _build_per_runid and _tune_impurity:
     raise SimflowConfigError(
         "build_per_runid is not supported with tune_hpge_impurities_on_data",
@@ -749,10 +743,8 @@ rule extract_drift_time_scan:
     params:
         # track the current smoothing so the rule reruns when it changes
         _curr_mwa=smk_curr_mwa,
-        max_events=_impurity_settings.get("drift_time_scan", {}).get("max_events", None),
-        energy_cut=_impurity_settings.get("drift_time_scan", {}).get(
-            "min_energy_in_keV", 1500
-        ),
+        max_events=_impurity_settings.drift_time_scan.max_events,
+        energy_cut=_impurity_settings.drift_time_scan.min_energy_in_keV,
     output:
         patterns.output_drift_time_scan_filename(config),
     log:

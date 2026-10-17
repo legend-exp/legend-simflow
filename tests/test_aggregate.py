@@ -331,7 +331,8 @@ def test_par_plots_cache_is_built_once(fresh_config, monkeypatch):
     assert calls == []
 
     # nothing is built when no par plot is produced at all
-    get_tier_settings(config, "hit")["simulate_psd"] = False
+    hit_settings = config.metadata.simprod.config.tier.hit[config.experiment].settings
+    hit_settings["simulate_psd"] = False
     calls.clear()
     agg.gen_list_of_all_plots_outputs(config, "par")
     agg.process_simlist(
@@ -348,7 +349,8 @@ def test_par_plots_psd_gate(fresh_config):
     assert len(agg.gen_list_of_plots_outputs(config, "par", simid)) >= 1
 
     # disabling PSD in the hit tier drops them
-    get_tier_settings(config, "hit")["simulate_psd"] = False
+    hit_settings = config.metadata.simprod.config.tier.hit[config.experiment].settings
+    hit_settings["simulate_psd"] = False
     assert agg.gen_list_of_plots_outputs(config, "par", simid) == []
 
 

@@ -158,7 +158,7 @@ def main() -> None:
         else tier_opt_settings.max_pes_per_hit_combined
     )
     buffer_len = tier_opt_settings.buffer_len
-    store_expected_pes = tier_opt_settings.get("store_expected_pes", False)
+    store_expected_pes = tier_opt_settings.store_expected_pes
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)

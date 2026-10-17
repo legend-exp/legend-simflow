@@ -30,8 +30,7 @@ SIMFLOW_CONTEXT = utils.init_simflow_context(config, workflow, logger=logger)
 config = SIMFLOW_CONTEXT.config
 
 # sanitize the make_steps field
-make_steps = config.get("make_steps", aggregate.STEPS_ORDERED)
-make_steps = utils.sorted_by(make_steps, aggregate.STEPS_ORDERED, "make_steps")
+make_steps = utils.sorted_by(config.make_steps, aggregate.STEPS_ORDERED, "make_steps")
 config["make_steps"] = make_steps
 
 logger.info("Done! Handing it over to Snakemake")
@@ -74,7 +73,7 @@ for step in make_steps:
 # strategy: select the latest requested tier (in steps_ordered),
 # then make the build cumulative by including all tiers up to it.
 def gen_target_all():
-    if config.get("simlist", "*") not in ("all", "*"):
+    if config.simlist not in ("all", "*"):
         return aggregate.process_simlist(config, make_steps=make_steps)
 
     inputs = []

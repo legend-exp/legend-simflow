@@ -134,7 +134,7 @@ def main():
     mw_pars = utils.lookup_curr_mw_pars(
         getattr(config.paths, "l200data", None),
         dt=dt,
-        settings=mutils.get_par_settings(config, "elecmod").get("curr_mwa"),
+        settings=mutils.get_par_settings(config, "elecmod").curr_mwa,
     )
     log.info("... current moving-window-average settings: %s", mw_pars)
 

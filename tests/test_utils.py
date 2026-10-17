@@ -61,34 +61,6 @@ def test_check_nans_leq():
     utils.check_nans_leq([[1], [2, 3], np.nan], "boh", 0.1, min_entries=100)
 
 
-def test_merge_defaults():
-    """Test _merge_defaults function for recursive dictionary merging."""
-    # Test basic merge
-    user = {"a": 1, "b": 2}
-    default = {"b": 999, "c": 3}
-    result = utils._merge_defaults(user, default)
-    assert result == {"a": 1, "b": 2, "c": 3}
-
-    # Test nested merge
-    user = {"outer": {"inner": 1, "keep": "user"}}
-    default = {"outer": {"inner": 999, "default_key": "default"}, "top": "level"}
-    result = utils._merge_defaults(user, default)
-    assert result["outer"]["inner"] == 1
-    assert result["outer"]["keep"] == "user"
-    assert result["outer"]["default_key"] == "default"
-    assert result["top"] == "level"
-
-    # Test empty dictionaries
-    assert utils._merge_defaults({}, {"a": 1}) == {"a": 1}
-    assert utils._merge_defaults({"a": 1}, {}) == {"a": 1}
-
-    # Test overwriting non-dict with dict
-    user = {"key": {"nested": "value"}}
-    default = {"key": "simple"}
-    result = utils._merge_defaults(user, default)
-    assert result["key"] == {"nested": "value"}
-
-
 def test_apply_path_defaults():
     """Test apply_path_defaults fills in geom and dtmaps from pars when absent."""
     pars = Path("/prod/generated/pars")

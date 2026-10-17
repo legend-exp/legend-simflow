@@ -20,6 +20,7 @@ from pygeoml200 import core
 from reboost.hpge.psd import _current_pulse_model as currmod
 from scipy.stats import norm
 
+from legendsimflow import defaults
 from legendsimflow.utils import apply_path_defaults
 
 l200data = Path(__file__).parent / "l200data" / "v3.0.0"
@@ -109,6 +110,7 @@ def make_config():
 
     legenddataflowscripts.subst_vars(config, var_values={"_": dummyprod})
     assert config is not None
+    config = dict(defaults.merge(config, defaults.CONFIG))
 
     # convert all strings in the "paths" block to pathlib.Path
     def _make_path(d):

@@ -50,7 +50,7 @@ def get_simid_njobs(config: SimflowConfig, simid: str) -> int:
     configuration. If ``config.benchmark`` is true, this function always
     returns 1.
     """
-    if "benchmark" in config and config.benchmark.get("enabled", False):
+    if config.benchmark.enabled:
         return 1
 
     sconfig = get_simconfig(config, "stp", simid=simid)
@@ -112,7 +112,7 @@ def gen_list_of_plots_outputs(
             cache = build_hpge_modeling_cache(config)
         files = gen_list_of_dtmap_plots_outputs(config, simid, cache=cache)
         files.extend(gen_list_of_currmod_plots_outputs(config, simid, cache=cache))
-        if get_tier_settings(config, "hit").get("simulate_psd_with_psl", False):
+        if get_tier_settings(config, "hit").simulate_psd_with_psl:
             files.extend(
                 gen_list_of_superpulses_uniformity_plots_outputs(
                     config, simid, cache=cache
@@ -127,7 +127,7 @@ def gen_list_of_plots_outputs(
 
 def get_simlist_exclude(config: SimflowConfig) -> set[str]:
     r"""Get the `simid`\ s in ``config.simlist_exclude`` (list or comma-separated string)."""
-    exclude = config.get("simlist_exclude") or []
+    exclude = config.simlist_exclude or []
     if isinstance(exclude, str):
         exclude = exclude.split(",")
     return {s.strip() for s in exclude if s.strip()}
@@ -370,14 +370,14 @@ def gen_hpge_modeling_status(
 
     skip = simpars(metadata, "geds.skip", runid, config.experiment, default={})
 
-    tune_hpge_impurities_on_data = get_tier_settings(config, "hit").get(
-        "tune_hpge_impurities_on_data", False
-    )
+    tune_hpge_impurities_on_data = get_tier_settings(
+        config, "hit"
+    ).tune_hpge_impurities_on_data
     min_voltage_above_depletion = None
     if not tune_hpge_impurities_on_data:
-        min_voltage_above_depletion = get_par_settings(config, "modeling").get(
-            "min_voltage_above_depletion_in_V", 100
-        )
+        min_voltage_above_depletion = get_par_settings(
+            config, "modeling"
+        ).min_voltage_above_depletion_in_V
 
     opvs = metadata.hardware.configuration.opvs.on(timestamp)
 
@@ -545,7 +545,7 @@ def gen_list_of_all_usabilities(
         for simid in gen_list_of_all_simids(config):
             all_runids.update(get_runlist(config, simid))
 
-        rc_runid = get_tier_settings(config, "evt").get("random_coincidence_runid")
+        rc_runid = get_tier_settings(config, "evt").random_coincidence_runid
         if isinstance(rc_runid, Mapping):
             all_runids.update(rc_runid.values())
         elif rc_runid is not None:
@@ -895,7 +895,7 @@ def gen_list_of_tuning_simids(config: SimflowConfig) -> list[str]:
     ``~simlists:NAME``, see :func:`process_simlist`), or all the `simid`\ s of
     the Simflow when the simlist is ``all``.
     """
-    simlist = config.get("simlist", "all")
+    simlist = config.simlist
     if simlist in ("all", "*"):
         return list(gen_list_of_all_simids(config))
     simlist = expand_simlist(config, simlist)

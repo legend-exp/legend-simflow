@@ -17,7 +17,9 @@ a dedicated file and install the required software dependencies.
 
 The `simflow-config.yaml` file resides in the production directory (the root of
 the GitHub repository) and allows to customize the workflow in great detail.
-Here's a basic description of its fields:
+Here's a basic description of its fields. The defaults of the optional fields,
+and of the optional fields of the settings files in the Simflow metadata (see
+{doc}`meta`), are listed in {mod}`legendsimflow.defaults`.
 
 - `experiment`: labels the experiment to be simulated. The same name is used in
   the Simflow metadata to label the corresponding configuration files. See
@@ -40,8 +42,8 @@ Here's a basic description of its fields:
   (re)build. This is the primary mechanism for protecting existing production
   outputs from accidental re-execution and for speeding up DAG generation.
   Available steps (in canonical order): `vtx`, `stp`, `par`, `opt`, `hit`,
-  `evt`, `cvt`. If omitted, all steps are included. The order in the list does
-  not matter — steps are always sorted canonically. A few caveats apply:
+  `evt`, `cvt`, `pdf`. If omitted, all steps are included. The order in the list
+  does not matter — steps are always sorted canonically. A few caveats apply:
   - Steps `vtx` and `par` do not produce simid-scoped outputs and cannot appear
     as prefixes in `simlist` items.
   - The `par` step builds the parameters consumed by both `opt` and `hit` (HPGe
@@ -57,6 +59,10 @@ Here's a basic description of its fields:
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option. The revision
   must contain the HPGe operational voltages in `hardware/configuration/opvs/`.
+- `simflow_rng_seed` (default `0`): non-negative integer combined with the
+  output file name of each _remage_ job to compute its random number generator
+  seed. Jobs are therefore reproducible. Change it to simulate statistically
+  independent events with the same configuration.
 - `validate_l200data`: check the data production at `paths.l200data` (default
   `true`). The Simflow aborts if one of the following checks fails. If `false`,
   the checks are skipped and a warning says that the data production is not

@@ -225,7 +225,7 @@ def _skip(config: SimflowConfig) -> bool:
     """Whether ``paths.l200data`` is not set or ``validate_l200data`` is false."""
     if "l200data" not in config.paths:
         return True
-    if not config.get("validate_l200data", True):
+    if not config.validate_l200data:
         log.warning(
             "validate_l200data is false: the data production at %s is not validated",
             config.paths.l200data,
@@ -277,11 +277,11 @@ def _data_problems(
     checks: dict[tuple[str, str], set[str]] = {}
     specs = dict(LH5_SPECS)
 
-    tune_impurities = hit_settings.get("tune_hpge_impurities_on_data", False)
+    tune_impurities = hit_settings.tune_hpge_impurities_on_data
     currmod = simpars(meta, "geds.currmod", runids[0], config.experiment, default={})
     currmod_from_data = simulates_hpge_psd(config) and currmod.get("default") is None
     superpulses_from_data = tune_impurities or (
-        hit_settings.get("simulate_psd_with_psl", False)
+        hit_settings.simulate_psd_with_psl
         and patterns.compute_superpulses(config, runid=runids[0])
     )
     if currmod_from_data or superpulses_from_data:
@@ -293,10 +293,7 @@ def _data_problems(
         checks.setdefault(("raw", "hpge_raw"), set()).update(runs)
 
     if superpulses_from_data:
-        # heavy imports (lh5, matplotlib), needed only here
-        from .superpulses import DEFAULT_SETTINGS  # noqa: PLC0415
-
-        settings = DEFAULT_SETTINGS | get_par_settings(config, "superpulses")
+        settings = get_par_settings(config, "superpulses")
         tier = evt_tier if settings["tier_name"] == "auto" else settings["tier_name"]
         runs = {cal_runs[r] if r.endswith("-phy") else r for r in runids}
         if tier in ("evt", "pet"):
@@ -310,13 +307,13 @@ def _data_problems(
             checks.setdefault((tier, ""), set()).update(runs)
         checks.setdefault(("raw", "hpge_raw"), set()).update(runs)
 
-    if evt_settings.get("add_random_coincidences", False):
-        rc_runid = evt_settings.get("random_coincidence_runid")
+    if evt_settings.add_random_coincidences:
+        rc_runid = evt_settings.random_coincidence_runid
         if isinstance(rc_runid, Mapping):
             runs = set(rc_runid.values())
         else:
             runs = {rc_runid} if rc_runid is not None else set(runids)
-        mode = evt_settings.get("random_coincidence_mode", "forced_trigger")
+        mode = evt_settings.random_coincidence_mode
         checks.setdefault((evt_tier, f"evt_rc_{mode}"), set()).update(runs)
 
     if tune_impurities:

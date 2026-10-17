@@ -30,7 +30,7 @@ import reboost
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import SimflowConfig, nersc, utils
+from legendsimflow import SimflowConfig, defaults, nersc, utils
 from legendsimflow.drift_time import (
     get_data_drift_time_obs,
     get_data_drift_times,
@@ -162,21 +162,22 @@ def main() -> None:
     # make a profiler to track performance of the script
     perf_block, print_perf, _ = reboost.make_profiler()
 
-    settings = dbetto.AttrsDict(
-        dbetto.utils.load_dict(args.settings) if args.settings is not None else {}
-    ).get("impurity_fit", {})
-    energy_range = settings.get("energy_range_in_keV", [1500, 2500])
+    settings = defaults.merge(
+        dbetto.utils.load_dict(args.settings) if args.settings is not None else {},
+        defaults.PAR_SETTINGS["impurityscan"],
+    ).impurity_fit
+    energy_range = settings.energy_range_in_keV
 
     # scale for in cost functions
-    dt_uncertainty = settings.get("drift_time_uncertainty_in_ns", 50)
-    wf_scale = settings.get("waveform_uncertainty", 0.5)
+    dt_uncertainty = settings.drift_time_uncertainty_in_ns
+    wf_scale = settings.waveform_uncertainty
 
     # settings of the drift time observables, e.g. percentile, smoothing, peak threshold
-    obs_settings = settings.get("drift_time_observables", {})
+    obs_settings = settings.drift_time_observables
     dt_kwargs = {
-        "percentile": obs_settings.get("percentile", 90),
-        "smoothing": obs_settings.get("smoothing_in_ns", 50),
-        "peak_threshold": obs_settings.get("min_peak_fraction", 0.25),
+        "percentile": obs_settings.percentile,
+        "smoothing": obs_settings.smoothing_in_ns,
+        "peak_threshold": obs_settings.min_peak_fraction,
     }
     log_script_invocation(log, "extract-hpge-impurity-model", parser, args)
 

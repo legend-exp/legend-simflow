@@ -27,15 +27,13 @@ from legendsimflow.metadata import (
 # the HPGe modeling cache is only needed by the PSD-gated par outputs. aux.smk
 # is always included, so the flag is available to the other rule modules too
 _simulate_psd = simulates_hpge_psd(config)
-_tune_impurity = get_tier_settings(config, "hit").get(
-    "tune_hpge_impurities_on_data", False
-)
+_tune_impurity = get_tier_settings(config, "hit").tune_hpge_impurities_on_data
 _impurity_settings = get_par_settings(config, "impurityscan")
 # a fit window starting below the scan cut would compare data with an
 # incomplete simulated distribution
 if _tune_impurity and (
-    _impurity_settings.get("drift_time_scan", {}).get("min_energy_in_keV", 1500)
-    > _impurity_settings.get("impurity_fit", {}).get("energy_range_in_keV", [1500])[0]
+    _impurity_settings.drift_time_scan.min_energy_in_keV
+    > _impurity_settings.impurity_fit.energy_range_in_keV[0]
 ):
     raise SimflowConfigError(
         "drift_time_scan.min_energy_in_keV is above the lower edge of "
@@ -231,9 +229,9 @@ rule cache_detector_usabilities:
         "Caching detector usabilities"
     params:
         runlist=config.runlist,
-        random_coincidence_runid=get_tier_settings(config, "evt").get(
-            "random_coincidence_runid"
-        ),
+        random_coincidence_runid=get_tier_settings(
+            config, "evt"
+        ).random_coincidence_runid,
     output:
         usability=patterns.detinfo_filename(config, "usability"),
         rawid=patterns.detinfo_filename(config, "rawid"),

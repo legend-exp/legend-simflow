@@ -44,6 +44,8 @@ imported modules under `workflow/rules/`.
 - `workflow`: project source code
   - `src/legendsimflow`: Python package
     - `patterns.py`: filesystem paths used in Snakemake rules
+    - `defaults.py`: defaults of the optional fields of the Simflow
+      configuration file and of the settings files in the Simflow metadata
     - `aggregate.py`: functions to build list of files for the Simflow
     - `hpge_pars.py`/`spms_pars.py`: routines to compute the HPGe/SiPM
       parameters to be used in the `hit` and `opt` tiers, based on information

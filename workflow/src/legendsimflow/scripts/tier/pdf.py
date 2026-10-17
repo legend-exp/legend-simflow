@@ -84,7 +84,7 @@ def main() -> None:
     detector_uids = lh5.read("detector_uids", str(cvt_file))
     name_to_uid = {name: int(detector_uids[name].value) for name in detector_uids}
 
-    groups: dict[str, str] = dict(tier_pdf_settings.get("detector_groups", {}))
+    groups: dict[str, str] = dict(tier_pdf_settings.detector_groups or {})
     if groups.get("all", ".*") != ".*":
         log.warning(
             "detector_groups sets 'all' to %r; it will be overridden by the implicit all-detector group '.*'",

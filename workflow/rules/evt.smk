@@ -4,8 +4,8 @@ from legendsimflow import patterns, aggregate
 from legendsimflow.metadata import deferred_tier_setting, get_tier_settings
 
 _evt_settings = get_tier_settings(config, "evt")
-_skip_opt = _evt_settings.get("skip_opt", False)
-_skip_hit = _evt_settings.get("skip_hit", False)
+_skip_opt = _evt_settings.skip_opt
+_skip_hit = _evt_settings.skip_hit
 
 if _skip_opt and _skip_hit:
     raise WorkflowError("evt: skip_opt and skip_hit cannot both be True")
@@ -88,7 +88,7 @@ rule build_tier_evt:
         # spurious reruns)
         _l200data=(
             config.paths.get("l200data", None)
-            if _evt_settings.get("add_random_coincidences", False)
+            if _evt_settings.add_random_coincidences
             else None
         ),
     output:

@@ -50,24 +50,6 @@ from legendsimflow.superpulses import (
     read_superpulses,
 )
 
-DEFAULT_SETTINGS = {
-    "angle": "000",
-    "sigma_start": 10.0,
-    "tau_start": 50.0,
-    "sigma_limits": (1.0, 50.0),
-    "tau_limits": (1.0, 200.0),
-    "comparison_window": (-500.0, 500.0),
-    "plot_window": (-600.0, 600.0),
-    # data-amplitude weight exponent p for the fit cost (w = |data|**p): biases
-    # the fit toward the current peak and its flanks; 0.0 reproduces the plain
-    # equal-weight RMS
-    "weight_power": 2.0,
-    "max_calls": 1000,
-    "dt_range_tuning": (600.0, 3000.0),
-    "max_num_superpulses": 5,
-    "minimiser_mode": "simplex",
-}
-
 
 @snakemake_compatible(
     mapping={
@@ -156,9 +138,7 @@ def main() -> None:
     runid = args.runid
     hpge = args.hpge_detector
     pars_file = args.pars_file
-    settings = dbetto.AttrsDict(
-        DEFAULT_SETTINGS | mutils.get_par_settings(config, "elecmod")
-    )
+    settings = mutils.get_par_settings(config, "elecmod")
 
     # check for metadata-driven defaults first; if present, bypass the
     # superpulse fitting entirely (enables LEGEND-1000 simulations without
@@ -234,7 +214,7 @@ def main() -> None:
     mw_pars = utils.lookup_curr_mw_pars(
         getattr(config.paths, "l200data", None),
         dt=ideal_wfs["dt"],
-        settings=settings.get("curr_mwa"),
+        settings=settings.curr_mwa,
     )
     log.info("... current moving-window-average settings: %s", mw_pars)
 

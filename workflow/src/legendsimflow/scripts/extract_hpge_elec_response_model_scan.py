@@ -30,7 +30,7 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import nersc, utils
+from legendsimflow import defaults, nersc, utils
 from legendsimflow.hpge_electronics_tuning import (
     fit_electronics_parameters,
     get_ideal_wfs_all_slices,
@@ -43,20 +43,6 @@ from legendsimflow.scripts import log_script_invocation
 from legendsimflow.superpulses import (
     read_superpulses,
 )
-
-DEFAULT_SETTINGS = {
-    "angle": "000",
-    "sigma_start": 10.0,
-    "tau_start": 30.0,
-    "sigma_limits": (1.0, 50.0),
-    "tau_limits": (2.0, 100.0),
-    "comparison_window": (-500.0, 500.0),
-    "weight_power": 2.0,
-    "max_calls": 100,
-    "dt_range_tuning": (600.0, 3000.0),
-    "max_num_superpulses": 5,
-    "minimiser_mode": "simplex",
-}
 
 
 @snakemake_compatible(
@@ -184,12 +170,13 @@ def main() -> None:
     hpge = args.hpge_detector
     pars_file = args.pars_file
 
-    settings = DEFAULT_SETTINGS
+    settings = dbetto.AttrsDict(defaults.ELECMOD_SCAN_SETTINGS)
     l200data = None
     if args.simflow_config is not None:
-        settings = DEFAULT_SETTINGS | get_par_settings(config, "elecmod")
+        settings = get_par_settings(
+            config, "elecmod", default=defaults.ELECMOD_SCAN_SETTINGS
+        )
         l200data = getattr(config.paths, "l200data", None)
-    settings = dbetto.AttrsDict(settings)
 
     log.info(
         "extracting electronics model from superpulses %s in %s ...",
@@ -282,7 +269,7 @@ def main() -> None:
                         mw_pars=utils.lookup_curr_mw_pars(
                             l200data,
                             dt=ideal_wfs["dt"],
-                            settings=settings.get("curr_mwa"),
+                            settings=settings.curr_mwa,
                         ),
                     )
                     # seed

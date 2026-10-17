@@ -36,7 +36,9 @@ The workflow configuration metadata is stored in
 Documentation about which metadata is stored there (e.g. which LEGEND
 experimental configuration are supported) can be found in the `README.md`.
 
-In this section, the specification of the metadata format is documented.
+In this section, the specification of the metadata format is documented. The
+defaults of the optional fields of the settings files are listed in
+{mod}`legendsimflow.defaults`.
 
 ## `tier/` static tier configuration
 
@@ -1128,6 +1130,53 @@ min_voltage_above_depletion_in_V: 100
 | Key                                | Type | Default | Description                                                                                                                                                    |
 | ---------------------------------- | ---- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `min_voltage_above_depletion_in_V` | int  | `100`   | Minimum margin (in V) by which a detector's operational voltage must exceed its depletion voltage to be considered modelable. Detectors below it are excluded. |
+
+(impurityscan-settings-meta)=
+
+### HPGe impurity-tuning settings
+
+A single shared YAML file (applies to all detectors) that controls the fit of
+the HPGe impurity-curve parameters to LEGEND-200 data (`extract_drift_time_scan`
+and `extract_hpge_impurity_models`). It is only read when
+`tune_hpge_impurities_on_data` is `True` in {ref}`hit-tier-settings`, and the
+file must then exist. Missing keys keep the defaults shown below.
+
+```{code-block} yaml
+:caption: simprod/config/pars/{experiment}/geds/impurityscan/settings.yaml (values shown are the defaults)
+
+drift_time_scan:
+  min_energy_in_keV: 1500
+  max_events: null
+impurity_fit:
+  energy_range_in_keV: [1500, 2500]
+  drift_time_uncertainty_in_ns: 50
+  waveform_uncertainty: 0.5
+  drift_time_observables:
+    percentile: 90
+    smoothing_in_ns: 50
+    min_peak_fraction: 0.25
+```
+
+- `drift_time_scan.min_energy_in_keV` (float): only simulated events depositing
+  more than this energy in the HPGe active volume enter the drift-time scan. It
+  must not exceed the lower edge of `impurity_fit.energy_range_in_keV`.
+- `drift_time_scan.max_events` (int or `null`): maximum number of simulated
+  events used per detector and simulation ID; `null` uses all events.
+- `impurity_fit.energy_range_in_keV` (`[low, high]`): energy window of the
+  events whose drift times are compared between data and simulation.
+- `impurity_fit.drift_time_uncertainty_in_ns` (float): uncertainty on the
+  drift-time observables in the drift-time $\chi^2$.
+- `impurity_fit.waveform_uncertainty` (float): uncertainty on the RMS difference
+  between simulated and measured current superpulses (the RMS of
+  `extract_elecmod_scan`) in the waveform $\chi^2$.
+- `impurity_fit.drift_time_observables`: the two observables of the drift-time
+  distribution compared between data and simulation (see
+  {func}`legendsimflow.drift_time.drift_time_observables`):
+  - `percentile` (float): percentile of the distribution, in percent.
+  - `smoothing_in_ns` (float): standard deviation of the Gaussian smoothing
+    applied before the peak search.
+  - `min_peak_fraction` (float): the first peak is the lowest drift-time peak
+    higher than this fraction of the maximum of the smoothed distribution.
 
 (skip-metadata-dir)=
 
