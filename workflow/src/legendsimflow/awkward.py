@@ -51,3 +51,46 @@ def ak_isin(
         elements_layout,
         return_value="simplified",
     )
+
+
+def select_geds_hit(evt: ak.Array, rawid: int) -> ak.Array:
+    """Select the events with a hit in one HPGe detector and keep only that hit.
+
+    The per-hit fields of ``geds`` (for example ``energy`` and the steps in
+    ``surface``) lose the hit level: ``geds.energy`` gets one value per event,
+    ``geds.surface.edep`` one list of steps per event. The fields with one value
+    per event (for example ``geds.energy_sum``) and all the other fields of
+    `evt` are kept as they are, for the selected events.
+
+    Parameters
+    ----------
+    evt
+        events of the ``evt`` tier.
+    rawid
+        the detector, as in the ``geds.rawid`` field.
+
+    Examples
+    --------
+    >>> hit = select_geds_hit(evt, 1104000)
+    >>> hit.geds.energy  # one energy per event, in keV
+    >>> hit.geds.surface.distance_to_nplus  # one list of steps per event, in mm
+    >>> hit.coincident.spms  # one value per selected event
+    """
+    is_det = evt.geds.rawid == rawid
+    if ak.any(ak.sum(is_det, axis=-1) > 1):
+        msg = f"detector {rawid} has more than one hit in an event"
+        raise ValueError(msg)
+
+    in_det = ak.any(is_det, axis=-1)
+    evt = evt[in_det]
+    is_det = is_det[in_det]
+
+    def _select(field):
+        if field.fields:
+            return ak.zip({k: _select(field[k]) for k in field.fields}, depth_limit=1)
+        if field.ndim == 1:
+            return field
+        return ak.flatten(field[is_det], axis=1)
+
+    # packed: repeated computations on the steps (e.g. a PDF grid scan) run faster
+    return ak.with_field(evt, ak.to_packed(_select(evt.geds)), "geds")

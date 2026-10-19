@@ -298,6 +298,9 @@ Present only with `store_surface_steps: true`. The fields of the `surface`
 subtable of the [`hit` tier](hit-tier-output), for the same hits as
 `geds/energy`.
 
+To keep only the hit of one detector, with one list of steps per event, use
+{func}`legendsimflow.awkward.select_geds_hit`.
+
 | Field               | Type                               | Units | Description                                                                                |
 | ------------------- | ---------------------------------- | ----- | ------------------------------------------------------------------------------------------ |
 | `edep`              | `VectorOfVectors` (event/hit/step) | keV   | Energy of each step closer than `surface_depth_in_mm` to the n+ surface, one list per hit. |

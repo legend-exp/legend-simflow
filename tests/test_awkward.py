@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import awkward as ak
 import lh5
+import pytest
 
 from legendsimflow import awkward
 
@@ -48,3 +49,31 @@ def test_tcm(legend_testdata):
 
     assert tcm_new.table_key.tolist() == tcm_sort.table_key.tolist()
     assert tcm_new.row_in_table.tolist() == tcm_sort.row_in_table.tolist()
+
+
+def test_select_geds_hit():
+    evt = ak.Array(
+        {
+            "geds": {
+                "rawid": [[7], [3, 7], [3]],
+                "energy": [[100.0], [50.0, 200.0], [300.0]],
+                "energy_sum": [100.0, 250.0, 300.0],
+                "surface": {
+                    "edep": [[[]], [[1.0], [2.0, 3.0]], [[4.0]]],
+                    "distance_to_nplus": [[[]], [[0.1], [0.2, 0.3]], [[0.4]]],
+                },
+            },
+            "weight": [1.0, 2.0, 3.0],
+        }
+    )
+
+    hit = awkward.select_geds_hit(evt, 7)
+    assert hit.geds.energy.tolist() == [100.0, 200.0]
+    assert hit.geds.energy_sum.tolist() == [100.0, 250.0]
+    assert hit.geds.surface.edep.tolist() == [[], [2.0, 3.0]]
+    assert hit.geds.surface.distance_to_nplus.tolist() == [[], [0.2, 0.3]]
+    assert hit.weight.tolist() == [1.0, 2.0]
+
+    evt = ak.Array({"geds": {"rawid": [[7, 7]], "energy": [[1.0, 2.0]]}})
+    with pytest.raises(ValueError, match="more than one hit"):
+        awkward.select_geds_hit(evt, 7)
