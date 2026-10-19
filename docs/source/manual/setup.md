@@ -30,7 +30,9 @@ and of the optional fields of the settings files in the Simflow metadata (see
   `*` or `all`, will process all simulations defined in the metadata. Items can
   be `<tier>.<simid>`, a bare `<simid>` (the latest tier in `make_steps` is
   used) or `~simlists:NAME`, which expands to the predefined simlist `NAME` (see
-  {ref}`predefined-simlists`).
+  {ref}`predefined-simlists`). With `tune_hpge_impurities_on_data`, the items
+  only select the simulations to tune the HPGe impurity model on (their tier is
+  ignored) and the model file is the only default target.
 - `simlist_exclude`: optional list of simulations to remove from the ones to
   process, whether they come from `simlist` or from `all`. Same format as
   `simlist`. A `<tier>.<simid>` item removes that item only, while a bare

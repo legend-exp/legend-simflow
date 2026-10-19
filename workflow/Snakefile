@@ -74,6 +74,10 @@ for step in make_steps:
 # then make the build cumulative by including all tiers up to it.
 def gen_target_all():
     if config.simlist not in ("all", "*"):
+        # tuning-only production: the simlist selects the simulations the
+        # impurity model is fitted on, and the model file is the only target
+        if _tune_impurity:
+            return [patterns.output_impurity_model_filename(config)]
         return aggregate.process_simlist(config, make_steps=make_steps)
 
     inputs = []

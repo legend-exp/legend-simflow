@@ -321,6 +321,26 @@ def test_tune_hpge_impurities_builds_tuning_chain(tmp_path):
     assert {"build_superpulses_from_data", "build_tier_stp"} <= rules
 
 
+def test_tune_hpge_impurities_default_target(tmp_path):
+    """The default target of a tuning production is the impurity model only.
+
+    The simlist items name the tuning simids: their tier is not a request to
+    build that tier.
+    """
+    cfg = overrides(
+        tmp_path,
+        simlist="pdf.birds_nest_K40",
+        experiment="legend",
+        settings_by_tier={
+            "hit": {"simulate_psd": True, "tune_hpge_impurities_on_data": True}
+        },
+    )
+    cfg["paths"]["l200data"] = str(Path(__file__).parent / "l200data/v3.0.0")
+    rules = dag_rule_names(default_config, cfg)
+    assert "extract_hpge_impurity_models" in rules
+    assert TIER_BUILD_RULE["pdf"] not in rules
+
+
 def test_skip_opt_drops_opt_tier(tmp_path):
     """The evt-tier `skip_opt` setting drops the opt tier from the DAG.
 
