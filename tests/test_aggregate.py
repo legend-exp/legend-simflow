@@ -617,6 +617,60 @@ def test_simlist_exclude(fresh_config):
     assert agg.gen_list_of_tuning_simids(config) == []
 
 
+def test_simlist_exclude_prefixed_and_bare(fresh_config):
+    config = fresh_config
+    steps = ["stp", "opt", "hit"]
+    config["simlist"] = ["stp.birds_nest_K40", "hit.lar_inside"]
+    both = agg.process_simlist(config, make_steps=steps)
+
+    # a prefixed item removes only that item
+    config["simlist_exclude"] = ["hit.lar_inside"]
+    assert agg.process_simlist(config, make_steps=steps) == agg.process_simlist(
+        config, simlist=["stp.birds_nest_K40"], make_steps=steps
+    )
+    config["simlist_exclude"] = ["stp.lar_inside"]
+    assert agg.process_simlist(config, make_steps=steps) == both
+
+    # simlists are expanded
+    config["simlist_exclude"] = ["~simlists:test_list"]
+    assert agg.process_simlist(config, make_steps=steps) == []
+
+
+def test_simlist_bare_simid(fresh_config):
+    config = fresh_config
+    steps = ["stp", "opt", "hit"]
+    config["simlist"] = ["lar_inside"]
+    assert agg.process_simlist(config, make_steps=steps) == agg.process_simlist(
+        config, simlist=["hit.lar_inside"], make_steps=steps
+    )
+
+
+def test_simlist_prefixed_without_simid_steps(fresh_config):
+    config = fresh_config
+    config["simlist"] = ["~simlists:test_list"]
+    with pytest.raises(SimflowConfigError, match=r"missing from .make_steps."):
+        agg.process_simlist(config, make_steps=["vtx", "par"])
+    config["simlist"] = ["lar_inside"]
+    with pytest.raises(SimflowConfigError, match="cannot infer"):
+        agg.process_simlist(config, make_steps=["vtx", "par"])
+
+
+def test_simlist_string(fresh_config):
+    config = fresh_config
+    steps = ["stp", "opt", "hit"]
+    expected = agg.process_simlist(
+        config, simlist=["stp.birds_nest_K40", "hit.lar_inside"], make_steps=steps
+    )
+    for value in ("stp.birds_nest_K40,hit.lar_inside", "~simlists:test_list"):
+        config["simlist"] = value
+        assert agg.process_simlist(config, make_steps=steps) == expected
+
+    config["simlist"] = "stp.birds_nest_K40"
+    assert agg.process_simlist(config, make_steps=steps) == agg.process_simlist(
+        config, simlist=["stp.birds_nest_K40"], make_steps=steps
+    )
+
+
 def test_simlist_named(fresh_config):
     config = fresh_config
     config["simlist"] = ["~simlists:test_list", "stp.lar_inside"]

@@ -97,13 +97,7 @@ def snakemake_nersc_cli():
 
     simlist = config.simlist
     if simlist in ("all", "*"):
-        # auto determine tier from config
-        tiers = ("pdf", "cvt", "evt", "hit", "opt", "stp")
-        tier = next(t for t in tiers if t in config.make_steps)
-
-        simlist = [
-            f"{tier}.{simid}" for simid in aggregate.gen_list_of_all_simids(config)
-        ]
+        simlist = aggregate.gen_list_of_all_simids(config)
 
     # trick: there won't be anything to do for some simids (targets already
     # done), this could result in a very inefficient partitioning. as a
@@ -112,8 +106,10 @@ def snakemake_nersc_cli():
     # expanding also makes a copy, so the input simlist is not modified in place
     simlist = [
         s
-        for s in expand_simlist(config, simlist)
-        if s.split(".")[-1].strip() not in exclude
+        for s in aggregate.add_tier_prefix(
+            expand_simlist(config, simlist), config.make_steps
+        )
+        if not aggregate.is_excluded(exclude, *reversed(s.split(".")))
     ]
     random.shuffle(simlist)
 

@@ -126,11 +126,47 @@ def gen_list_of_plots_outputs(
 
 
 def get_simlist_exclude(config: SimflowConfig) -> set[str]:
-    r"""Get the `simid`\ s in ``config.simlist_exclude`` (list or comma-separated string)."""
-    exclude = config.simlist_exclude or []
-    if isinstance(exclude, str):
-        exclude = exclude.split(",")
-    return {s.strip() for s in exclude if s.strip()}
+    r"""Get the items in ``config.simlist_exclude``.
+
+    The option has the same format as ``simlist`` (see
+    :func:`~legendsimflow.metadata.expand_simlist`), so ``~simlists:NAME`` items
+    are expanded. Items are ``<tier>.<simid>`` or a bare ``<simid>``, which
+    excludes the `simid` in any tier.
+    """
+    return set(expand_simlist(config, config.simlist_exclude or []))
+
+
+def add_tier_prefix(simlist: Iterable[str], make_steps: Sequence[str]) -> list[str]:
+    r"""Turn bare `simid`\ s of an expanded simlist into ``<tier>.<simid>`` items.
+
+    The tier is the latest simid-scoped step in `make_steps`.
+    """
+    tier = next(
+        (
+            t
+            for t in reversed(STEPS_ORDERED)
+            if t in make_steps and t not in ("vtx", "par")
+        ),
+        None,
+    )
+    out = []
+    for item in simlist:
+        if "." not in item:
+            if tier is None:
+                msg = (
+                    "simflow-config.simlist",
+                    f"cannot infer the tier of '{item}', no simid-scoped step in make_steps",
+                )
+                raise SimflowConfigError(*msg)
+            out.append(f"{tier}.{item}")
+        else:
+            out.append(item)
+    return out
+
+
+def is_excluded(exclude: set[str], simid: str, tier: str | None = None) -> bool:
+    """Check if a `simid` (optionally in a `tier`) is in the set of excluded items."""
+    return simid in exclude or (tier is not None and f"{tier}.{simid}" in exclude)
 
 
 def gen_list_of_all_simids(config: SimflowConfig) -> list[str]:
@@ -891,7 +927,7 @@ def gen_list_of_elecmod_scans(config: SimflowConfig, cache: dict) -> list[Path]:
 def gen_list_of_tuning_simids(config: SimflowConfig) -> list[str]:
     r"""The `simid`\ s used to tune the HPGe impurities.
 
-    Those named in ``config.simlist`` (items are ``<tier>.<simid>`` or
+    Those named in ``config.simlist`` (items are ``<tier>.<simid>``, ``<simid>`` or
     ``~simlists:NAME``, see :func:`process_simlist`), or all the `simid`\ s of
     the Simflow when the simlist is ``all``.
     """
@@ -900,8 +936,12 @@ def gen_list_of_tuning_simids(config: SimflowConfig) -> list[str]:
         return list(gen_list_of_all_simids(config))
     simlist = expand_simlist(config, simlist)
     exclude = get_simlist_exclude(config)
-    simids = [item.split(".")[1].strip() for item in simlist]
-    return [s for s in simids if s not in exclude]
+    items = [item.rpartition(".") for item in simlist]
+    return [
+        simid.strip()
+        for tier, _, simid in items
+        if not is_excluded(exclude, simid.strip(), tier.strip() or None)
+    ]
 
 
 def gen_list_of_merged_drift_time_scans(config: SimflowConfig) -> list[Path]:
@@ -1024,7 +1064,8 @@ def process_simlist(
 ) -> list[Path]:
     """Produce a list of all output files that refer to a `simlist`.
 
-    Each simlist item is ``<tier>.<simid>`` or ``~simlists:NAME`` (see
+    Each simlist item is ``<tier>.<simid>``, a bare ``<simid>`` (the latest
+    tier in `make_steps` is used) or ``~simlists:NAME`` (see
     :func:`~legendsimflow.metadata.expand_simlist`). The tier is interpreted as the
     *latest* tier requested for that simid; outputs are produced cumulatively
     for all tiers up to (and including) that tier in `make_steps`.
@@ -1034,7 +1075,7 @@ def process_simlist(
     if make_steps is None:
         make_steps = STEPS_ORDERED
 
-    simlist = expand_simlist(config, simlist)
+    simlist = add_tier_prefix(expand_simlist(config, simlist), make_steps)
 
     exclude = get_simlist_exclude(config)
 
@@ -1044,14 +1085,14 @@ def process_simlist(
         if len(parts) != 2:
             msg = (
                 "simflow-config.simlist",
-                f"item '{line}' is not in the format <tier>.<simid>",
+                f"item '{line}' is not in the format <tier>.<simid> or <simid>",
             )
             raise SimflowConfigError(*msg)
 
         tier = parts[0].strip()
         simid = parts[1].strip()
 
-        if simid in exclude:
+        if is_excluded(exclude, simid, tier):
             continue
 
         if tier not in make_steps:

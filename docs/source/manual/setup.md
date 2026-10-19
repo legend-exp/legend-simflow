@@ -26,14 +26,15 @@ and of the optional fields of the settings files in the Simflow metadata (see
   [legend-simflow-config](https://github.com/legend-exp/legend-simflow-config/blob/main/README.md)
   for a list of currently supported experiment labels.
 - `simlist`: list of simulation identifiers to be processed by Snakemake. Can be
-  a list of strings or a path to a text file. If `*` or `all`, will process all
-  simulations defined in the metadata. Items can be `<tier>.<simid>` or
-  `~simlists:NAME`, which expands to the predefined simlist `NAME` (see
+  a list of strings or a single comma-separated string (e.g. `stp.a,hit.b`). If
+  `*` or `all`, will process all simulations defined in the metadata. Items can
+  be `<tier>.<simid>`, a bare `<simid>` (the latest tier in `make_steps` is
+  used) or `~simlists:NAME`, which expands to the predefined simlist `NAME` (see
   {ref}`predefined-simlists`).
-- `simlist_exclude`: optional list of simulation identifiers (`simid`s, without
-  the tier prefix) to remove from the simulations to process, whether they come
-  from `simlist` or from `all`. Can be a list of strings or a comma-separated
-  string.
+- `simlist_exclude`: optional list of simulations to remove from the ones to
+  process, whether they come from `simlist` or from `all`. Same format as
+  `simlist`. A `<tier>.<simid>` item removes that item only, while a bare
+  `<simid>` removes the simulation in any tier.
 - `runlist`: list of LEGEND data taking runs to build pdfs for, in the standard
   format `<experiment>-<period>-<run>-<type>` (e.g. `l200-p03-r000-phy`)
 - `make_steps`: list the workflow steps to include in the DAG. Only the
