@@ -1,0 +1,21 @@
+/RMG/Geometry/RegisterDetectorsFromGDML Germanium
+
+# name tables with ntuple
+/RMG/Output/NtupleUseVolumeName True
+
+/run/initialize
+
+# discard events without Germanium energy
+/RMG/Output/Germanium/EdepCutLow 0
+
+# mono-energetic electrons, one remage run per energy of the grid
+/RMG/Generator/Select GPS
+/gps/particle e-
+/gps/ang/type iso
+/gps/ene/type Mono
+/gps/ene/mono {ENERGY_KEV} keV
+
+# the germanium volumes of the geometry are listed by the Simflow
+$CONFINEMENT
+
+/run/beamOn {N_EVENTS}
