@@ -165,17 +165,21 @@ def on_scratch(
 
 
 def make_on_scratch(config: SimflowConfig, path: str | Path) -> tuple[Path, Callable]:
-    """Return tools to produce a file in the scratch folder and move it to the final destination.
+    """Return tools to produce a file in the scratch folder and copy it to the final destination.
 
-    Returns the temporary path in the scratch dir and a function that will move
-    it back to the original destination.
+    Returns the temporary path in the scratch dir and a function that copies it
+    to the original destination and deletes it from the scratch folder. It
+    copies rather than moves: the copy is a new file and takes the group of the
+    (setgid) destination folder, while a move keeps the group the file had on
+    scratch.
     """
     if not is_scratch_enabled(config):
         return path, lambda: None
 
     scratch_path = on_scratch(config, path)
 
-    def move(scratch_path=scratch_path, path=path):
-        shutil.move(scratch_path, path)
+    def copy(scratch_path=scratch_path, path=path):
+        shutil.copy(scratch_path, path)
+        Path(scratch_path).unlink()
 
-    return scratch_path, move
+    return scratch_path, copy
