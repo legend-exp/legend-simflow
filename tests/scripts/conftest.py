@@ -8,12 +8,18 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+import awkward as ak
 import dbetto
 import dbetto.utils
 import h5py
 import lh5
+import numpy as np
+import pyg4ometry
+import pygeomtools
 import pytest
+import reboost
 import yaml
+from lgdo import Array, Table, VectorOfVectors
 
 from legendsimflow import aggregate, utils
 from legendsimflow.scripts import extract_hpge_current_pulse_model
@@ -113,6 +119,46 @@ def legend_stp_path(tmp_path_factory, legend_gdml_path):
         ],
         check=True,
     )
+
+    return stp_file
+
+
+@pytest.fixture(scope="session")
+def legend_tracked_photons_stp_path(
+    tmp_path_factory, legend_stp_path, legend_gdml_path
+):
+    """Add tracked photons in SiPM S002 to a copy of the stp file.
+
+    One S002 row 100 ns after each liquid argon row, with 0 to 3 photons 1 us
+    apart, so that none are clustered. A last row, 1 ms after the last argon
+    row, has no argon row in its TCM row.
+    """
+    stp_file = tmp_path_factory.mktemp("legend_tracked_photons") / "stp.lh5"
+    shutil.copy(legend_stp_path, stp_file)
+
+    lar = lh5.read_as("stp/liquid_argon", stp_file, library="ak")
+    evtid = np.append(np.asarray(lar.evtid), lar.evtid[-1])
+    t0 = np.append(np.asarray(lar.t0) + 100, lar.t0[-1] + 1e6)
+    n_ph = np.append(np.arange(len(lar)) % 4, 2)
+    times = ak.Array([t + 1000 * np.arange(n) for t, n in zip(t0, n_ph, strict=True)])
+    sens_tables = pygeomtools.detectors.get_all_senstables(
+        pyg4ometry.gdml.Reader(str(legend_gdml_path)).getRegistry()
+    )
+    reboost.write_hit_table_chunk(
+        Table(
+            {
+                "evtid": Array(evtid),
+                "t0": Array(t0, attrs={"units": "ns"}),
+                "time": VectorOfVectors(times, attrs={"units": "ns"}),
+            }
+        ),
+        "stp/S002",
+        stp_file,
+        uid=sens_tables["S002"].uid,
+    )
+    with h5py.File(stp_file, "a") as f:
+        del f["tcm"]
+    reboost.build_remage_tcm(stp_file, stp_file, lh5_group="stp")
 
     return stp_file
 

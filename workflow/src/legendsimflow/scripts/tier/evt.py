@@ -160,9 +160,7 @@ def main() -> None:
     lar_veto_energy_sum_pe_thr = tier_evt_settings.lar_veto_energy_sum_pe_thr
     buffer_len = tier_evt_settings.buffer_len
     light_source = (
-        None
-        if args.skip_opt
-        else get_tier_settings(config, "opt").get("light_source", "optmap")
+        None if args.skip_opt else get_tier_settings(config, "opt").light_source
     )
     # with tracked photons there is no expectation at unit efficiency
     store_expected_pes = (
@@ -400,6 +398,8 @@ def main() -> None:
             buffer_len=buffer_len,
             h5py_open_mode="a",
         )
+        # rows of the evt TCM and of the stp TCM are the same events
+        stp_tcm_row = evt_start
         for chunk in it:
             unified_tcm = chunk.view_as("ak")
             out_table = Table(size=len(unified_tcm))
@@ -440,8 +440,28 @@ def main() -> None:
                 data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
                 out_table.add_field(f"trigger/{constant_field}", Array(data))
 
-            timestamp = _read_hits(tcm, trigger_source, "t0")
-            timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
+            timestamp = ak.firsts(_read_hits(tcm, trigger_source, "t0"), axis=-1)
+            if skip_hit and light_source == "tracked_photons":
+                # as with the optical map, the trigger is the first argon hit
+                tcm_stp = lh5.read_as(
+                    "tcm",
+                    stp_file,
+                    library="ak",
+                    start_row=stp_tcm_row,
+                    n_rows=len(unified_tcm),
+                )
+                lar_t0 = reboost.read_hit_field_by_tcm(
+                    tcm_stp[tcm_stp.table_key == scintillator_uid],
+                    stp_file,
+                    "t0",
+                    {scintillator_uid: scintillator_volume_name},
+                    lh5_group="stp",
+                    with_units=True,
+                )
+                lar_t0 = ak.firsts(lar_t0, axis=-1)
+                timestamp = ak.where(ak.is_none(lar_t0), timestamp, lar_t0)
+            stp_tcm_row += len(unified_tcm)
+            timestamp = ak.fill_none(timestamp, np.nan)
             out_table.add_field(
                 "trigger/timestamp",
                 # float64: time since the primary decay, can be hours

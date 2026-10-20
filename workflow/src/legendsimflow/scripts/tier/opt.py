@@ -159,7 +159,7 @@ def main() -> None:
     time_resolution_in_ns = tier_opt_settings.time_resolution_in_ns
     buffer_len = tier_opt_settings.buffer_len
     store_expected_pes = tier_opt_settings.store_expected_pes
-    light_source = tier_opt_settings.get("light_source", "optmap")
+    light_source = tier_opt_settings.light_source
     # tracked photons always give one table per SiPM
     max_pes_per_hit = (
         tier_opt_settings.max_pes_per_hit_per_sipm

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import shutil
 import sys
 from pathlib import Path
 
 import awkward as ak
-import h5py
 import lh5
 import numpy as np
 import pyg4ometry
@@ -14,7 +12,6 @@ import pytest
 import reboost
 import yaml
 from dbetto import AttrsDict
-from lgdo import Array, Table, VectorOfVectors
 
 from legendsimflow.scripts.tier import opt
 
@@ -172,40 +169,18 @@ def test_resolve_map_scaling_without_default_raises():
 def test_opt_script_tracked_photons(
     tmp_path,
     monkeypatch,
-    legend_stp_path,
+    legend_tracked_photons_stp_path,
     legend_gdml_path,
     legend_detector_usabilities_path,
 ):
-    stp_file = tmp_path / "stp.lh5"
-    shutil.copy(legend_stp_path, stp_file)
-
-    lar = lh5.read_as("stp/liquid_argon", stp_file, library="ak")
-    n_lar = len(lar)
-    assert n_lar > 0, "no liquid argon rows in the stp file"
-
-    # add photons in one SiPM: one row 100 ns after each argon row, with k
-    # photons 1 us apart, so that no two of them are clustered. a last row, 1 ms
-    # after the last argon row, has no argon row in its TCM row
+    stp_file = legend_tracked_photons_stp_path
+    photons = lh5.read_as(f"stp/{_SIPM_ON}", stp_file, library="ak")
+    evtid = ak.to_numpy(photons.evtid)
+    t0 = ak.to_numpy(photons.t0)
+    n_ph = ak.to_numpy(ak.num(photons.time))
     sens_tables = pygeomtools.detectors.get_all_senstables(
         pyg4ometry.gdml.Reader(str(legend_gdml_path)).getRegistry()
     )
-    evtid = np.append(np.asarray(lar.evtid), lar.evtid[-1])
-    t0 = np.append(np.asarray(lar.t0) + 100, lar.t0[-1] + 1e6)
-    n_ph = np.append(np.arange(n_lar) % 4, 2)
-    times = ak.Array([t + 1000 * np.arange(n) for t, n in zip(t0, n_ph, strict=True)])
-    sipm_table = Table(
-        {
-            "evtid": Array(evtid),
-            "t0": Array(t0, attrs={"units": "ns"}),
-            "time": VectorOfVectors(times, attrs={"units": "ns"}),
-        }
-    )
-    reboost.write_hit_table_chunk(
-        sipm_table, f"stp/{_SIPM_ON}", stp_file, uid=sens_tables[_SIPM_ON].uid
-    )
-    with h5py.File(stp_file, "a") as f:
-        del f["tcm"]
-    reboost.build_remage_tcm(stp_file, stp_file, lh5_group="stp")
 
     n_tcm = lh5.read_n_rows("tcm", stp_file)
     part_file = tmp_path / "partitions.yaml"

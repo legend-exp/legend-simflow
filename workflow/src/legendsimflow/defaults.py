@@ -49,6 +49,7 @@ CONFIG: dict = {
 #: tier name.
 TIER_SETTINGS: dict = {
     "opt": {
+        "light_source": "optmap",
         "store_expected_pes": False,
     },
     "hit": {

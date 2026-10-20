@@ -6,9 +6,10 @@ import awkward as ak
 import lh5
 import numpy as np
 import pytest
+import yaml
 
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.scripts.tier import evt
+from legendsimflow.scripts.tier import evt, opt
 
 
 @pytest.mark.needs_remage
@@ -352,6 +353,71 @@ def test_evt_script_cli_skip_hit(
     assert np.all(period_vals == 3), (
         f"expected period=3 (p03, from opt tier), got unique={np.unique(period_vals)}"
     )
+
+
+@pytest.mark.needs_remage
+def test_evt_script_cli_skip_hit_tracked_photons(
+    tmp_path,
+    l200_config_factory,
+    monkeypatch,
+    legend_tracked_photons_stp_path,
+    legend_gdml_path,
+    legend_detector_usabilities_path,
+):
+    stp_file = legend_tracked_photons_stp_path
+    config_path = l200_config_factory(
+        tmp_path, {"opt": {"light_source": "tracked_photons"}}
+    )
+    part_file = tmp_path / "partitions.yaml"
+    n_tcm = lh5.read_n_rows("tcm", stp_file)
+    part_file.write_text(
+        yaml.safe_dump({"job_0000": {"l200-p03-r000-phy": [0, n_tcm - 1]}})
+    )
+    common_args = [
+        "--stp-file", str(stp_file),
+        "--simstat-part-file", str(part_file),
+        "--usability-file", str(legend_detector_usabilities_path / "usability.yaml"),
+        "--jobid", "0000",
+        "--simflow-config", str(config_path),
+    ]  # fmt: skip
+
+    opt_file = tmp_path / "opt.lh5"
+    monkeypatch.setattr(sys, "argv", [
+        "opt",
+        *common_args,
+        "--geom-file", str(legend_gdml_path),
+        "--scintillator-volume-name", "liquid_argon",
+        "--opt-file", str(opt_file),
+    ])  # fmt: skip
+    opt.main()
+
+    evt_file = tmp_path / "evt.lh5"
+    monkeypatch.setattr(sys, "argv", [
+        "evt",
+        *common_args,
+        "--opt-file", str(opt_file),
+        "--rawid-file", str(legend_detector_usabilities_path / "rawid.yaml"),
+        "--evt-file", str(evt_file),
+        "--skip-hit",
+    ])  # fmt: skip
+    evt.main()
+
+    # the trigger is the first argon hit, 100 ns before the photons
+    timestamp = lh5.read_as("evt/trigger/timestamp", evt_file, library="np")
+    time = lh5.read_as("evt/spms/time", evt_file, library="ak")
+    first = ak.to_numpy(
+        ak.fill_none(ak.min(ak.flatten(time, axis=-1), axis=-1), np.nan)
+    )
+    seen = np.isfinite(first)
+    assert seen.sum() > 1
+
+    # the SiPM row without an argon hit is timed by its own first photon
+    photons = lh5.read_as("stp/S002", stp_file, library="ak")
+    last = np.isclose(timestamp, photons.t0[-1])
+    assert last.sum() == 1
+    assert np.all(first[seen & ~last] > 99.9)
+    assert np.any(np.isclose(first[seen & ~last], 100, atol=0.01))
+    assert np.all(first[last] < 1e-3)
 
 
 @pytest.mark.needs_remage

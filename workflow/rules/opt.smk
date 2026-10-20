@@ -30,7 +30,7 @@ def _optmap_lar(config, simid):
 
 def smk_optmap_lar(wildcards):
     """The LAr optical map, not needed when the light comes from tracked photons."""
-    light_source = get_tier_settings(config, "opt").get("light_source", "optmap")
+    light_source = get_tier_settings(config, "opt").light_source
     if light_source == "tracked_photons":
         return []
     return [_optmap_lar(config, wildcards.simid)]
