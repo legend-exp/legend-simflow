@@ -274,24 +274,24 @@ def test_remage_cli(fresh_config):
     assert "JOBID=0001" in cmdline
 
 
-def test_remage_cli_scratch_mv_is_quoted(fresh_config, tmp_path):
-    """The scratch-to-final move must survive paths with shell metacharacters."""
+def test_remage_cli_scratch_cp_is_quoted(fresh_config, tmp_path):
+    """The scratch-to-final copy must survive paths with shell metacharacters."""
     config = fresh_config
     scratch = tmp_path / "scratch dir"
     config.nersc.scratch = str(scratch)
 
     cmd = commands.remage_run(config, "birds_nest_K40", tier="stp")
 
-    remage_part, _, mv_part = cmd.partition(" && ")
-    assert mv_part.startswith("mv -v ")
+    remage_part, cp_part, rm_part = cmd.split(" && ")
+    assert cp_part.startswith("cp -v ")
 
     # the whole command must still tokenize, with the two paths intact
-    mv_tokens = shlex.split(mv_part)
-    assert mv_tokens[:2] == ["mv", "-v"]
-    assert len(mv_tokens) == 4
+    cp_tokens = shlex.split(cp_part)
+    assert cp_tokens[:2] == ["cp", "-v"]
+    assert len(cp_tokens) == 4
 
-    src, dest = Path(mv_tokens[2]), Path(mv_tokens[3])
+    src, dest = Path(cp_tokens[2]), Path(cp_tokens[3])
     assert src.is_relative_to(scratch)
     assert not dest.is_relative_to(scratch)
-    # the remage invocation writes to the scratch copy
+    assert shlex.split(rm_part) == ["rm", "-f", str(src)]
     assert str(src) in shlex.split(remage_part)

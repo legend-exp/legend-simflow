@@ -202,7 +202,10 @@ def remage_run(
     joined_cmd = shlex.join(cmd)
 
     if nersc.is_scratch_enabled(config):
-        joined_cmd += " && " + shlex.join(["mv", "-v", str(output), str(output_final)])
+        # copy instead of mv: the copy is a new file, so it takes the group of
+        # the (setgid) destination folder instead of keeping the scratch group
+        joined_cmd += " && " + shlex.join(["cp", "-v", str(output), str(output_final)])
+        joined_cmd += " && " + shlex.join(["rm", "-f", str(output)])
 
     return joined_cmd
 
