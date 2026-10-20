@@ -91,6 +91,10 @@ intersphinx_mapping = {
     "reboost": ("https://reboost.readthedocs.io/en/stable", None),
     "revertex": ("https://revertex.readthedocs.io/en/stable", None),
     "legend-pygeom-l200": ("https://legend-pygeom-l200.readthedocs.io/en/stable", None),
+    "legend-pygeom-hpges": (
+        "https://legend-pygeom-hpges.readthedocs.io/en/stable",
+        None,
+    ),
     # additional packages
     "iminuit": ("https://scikit-hep.org/iminuit/", None),
     "pygama": ("https://pygama.readthedocs.io/en/stable/", None),
