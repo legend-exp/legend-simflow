@@ -187,8 +187,9 @@ def main() -> None:
 
     log.info("merging hit and opt TCMs")
     with perf_block("merge_tcms()"):
-        if skip_opt:
-            # No SiPM data: stream STP TCM directly into evt file
+        if skip_opt or light_source == "tracked_photons":
+            # without SiPM data, or with tracked photons (the stp TCM already
+            # lists the SiPM rows), stream the stp TCM directly into the evt file
             wo = "write_safe"
             for chunk in lh5.LH5Iterator(str(stp_file), "tcm", buffer_len=buffer_len):
                 lh5.write(chunk, "tcm", str(evt_file), wo_mode=wo)
@@ -216,32 +217,13 @@ def main() -> None:
                     msg, f"simprod.config.tier.opt.{config.experiment}.settings"
                 )
 
-            if light_source == "tracked_photons":
-                # the stp TCM already lists the SiPM rows, which the opt tier
-                # keeps one by one. no tier holds the argon rows, so drop them
-                wo = "write_safe"
-                for chunk in lh5.LH5Iterator(
-                    str(stp_file), "tcm", buffer_len=buffer_len
-                ):
-                    tcm_stp = chunk.view_as("ak")
-                    keep = tcm_stp.table_key != scintillator_uid
-                    tcm_evt = ak.zip(
-                        {
-                            "table_key": tcm_stp.table_key[keep],
-                            "row_in_table": tcm_stp.row_in_table[keep],
-                        },
-                        depth_limit=1,
-                    )
-                    lh5.write(Table(tcm_evt), "tcm", str(evt_file), wo_mode=wo)
-                    wo = "append"
-            else:
-                merge_stp_n_opt_tcms_to_lh5(
-                    stp_file,
-                    hit_file["opt"],
-                    evt_file,
-                    scintillator_uid=scintillator_uid,
-                    buffer_len=buffer_len,
-                )
+            merge_stp_n_opt_tcms_to_lh5(
+                stp_file,
+                hit_file["opt"],
+                evt_file,
+                scintillator_uid=scintillator_uid,
+                buffer_len=buffer_len,
+            )
 
     # test that the evt tcm has the same amount of rows as the stp tcm
     if lh5.read_n_rows("tcm", stp_file) != lh5.read_n_rows("tcm", evt_file):
@@ -398,8 +380,6 @@ def main() -> None:
             buffer_len=buffer_len,
             h5py_open_mode="a",
         )
-        # rows of the evt TCM and of the stp TCM are the same events
-        stp_tcm_row = evt_start
         for chunk in it:
             unified_tcm = chunk.view_as("ak")
             out_table = Table(size=len(unified_tcm))
@@ -440,28 +420,8 @@ def main() -> None:
                 data = ak.fill_none(ak.firsts(data, axis=-1), np.nan)
                 out_table.add_field(f"trigger/{constant_field}", Array(data))
 
-            timestamp = ak.firsts(_read_hits(tcm, trigger_source, "t0"), axis=-1)
-            if skip_hit and light_source == "tracked_photons":
-                # as with the optical map, the trigger is the first argon hit
-                tcm_stp = lh5.read_as(
-                    "tcm",
-                    stp_file,
-                    library="ak",
-                    start_row=stp_tcm_row,
-                    n_rows=len(unified_tcm),
-                )
-                lar_t0 = reboost.read_hit_field_by_tcm(
-                    tcm_stp[tcm_stp.table_key == scintillator_uid],
-                    stp_file,
-                    "t0",
-                    {scintillator_uid: scintillator_volume_name},
-                    lh5_group="stp",
-                    with_units=True,
-                )
-                lar_t0 = ak.firsts(lar_t0, axis=-1)
-                timestamp = ak.where(ak.is_none(lar_t0), timestamp, lar_t0)
-            stp_tcm_row += len(unified_tcm)
-            timestamp = ak.fill_none(timestamp, np.nan)
+            timestamp = _read_hits(tcm, trigger_source, "t0")
+            timestamp = ak.fill_none(ak.firsts(timestamp, axis=-1), np.nan)
             out_table.add_field(
                 "trigger/timestamp",
                 # float64: time since the primary decay, can be hours

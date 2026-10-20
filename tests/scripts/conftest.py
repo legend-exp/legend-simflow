@@ -127,11 +127,11 @@ def legend_stp_path(tmp_path_factory, legend_gdml_path):
 def legend_tracked_photons_stp_path(
     tmp_path_factory, legend_stp_path, legend_gdml_path
 ):
-    """Add tracked photons in SiPM S002 to a copy of the stp file.
+    """Replace the liquid argon table by tracked photons in SiPM S002.
 
-    One S002 row 100 ns after each liquid argon row, with 0 to 3 photons 1 us
-    apart, so that none are clustered. A last row, 1 ms after the last argon
-    row, has no argon row in its TCM row.
+    One S002 row 100 ns after each removed liquid argon row, with 0 to 3
+    photons 1 us apart, so that none are clustered. A last row is 1 ms after
+    the last argon row.
     """
     stp_file = tmp_path_factory.mktemp("legend_tracked_photons") / "stp.lh5"
     shutil.copy(legend_stp_path, stp_file)
@@ -156,8 +156,14 @@ def legend_tracked_photons_stp_path(
         stp_file,
         uid=sens_tables["S002"].uid,
     )
+    # with tracked photons there is no liquid argon table
     with h5py.File(stp_file, "a") as f:
         del f["tcm"]
+        del f["stp/liquid_argon"]
+        by_uid = f["stp/__by_uid__"]
+        for key in list(by_uid):
+            if by_uid.get(key, getlink=True).path.endswith("/liquid_argon"):
+                del by_uid[key]
     reboost.build_remage_tcm(stp_file, stp_file, lh5_group="stp")
 
     return stp_file

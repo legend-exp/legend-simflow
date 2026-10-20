@@ -402,7 +402,8 @@ def test_evt_script_cli_skip_hit_tracked_photons(
     ])  # fmt: skip
     evt.main()
 
-    # the trigger is the first argon hit, 100 ns before the photons
+    # the trigger is the first SiPM hit, so the first photon is at 0 ns. a
+    # photon below the amplitude threshold leaves the next one, 1 us later
     timestamp = lh5.read_as("evt/trigger/timestamp", evt_file, library="np")
     time = lh5.read_as("evt/spms/time", evt_file, library="ak")
     first = ak.to_numpy(
@@ -410,14 +411,11 @@ def test_evt_script_cli_skip_hit_tracked_photons(
     )
     seen = np.isfinite(first)
     assert seen.sum() > 1
+    assert np.allclose(first[seen], np.round(first[seen] / 1000) * 1000, atol=1e-3)
+    assert np.mean(first[seen] < 1e-3) > 0.9
 
-    # the SiPM row without an argon hit is timed by its own first photon
     photons = lh5.read_as("stp/S002", stp_file, library="ak")
-    last = np.isclose(timestamp, photons.t0[-1])
-    assert last.sum() == 1
-    assert np.all(first[seen & ~last] > 99.9)
-    assert np.any(np.isclose(first[seen & ~last], 100, atol=0.01))
-    assert np.all(first[last] < 1e-3)
+    assert np.all(np.isin(timestamp[seen], ak.to_numpy(photons.t0)))
 
 
 @pytest.mark.needs_remage

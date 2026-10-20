@@ -28,8 +28,7 @@ rule build_tier_evt:
 
     - a unified TCM is built from the `opt` and `hit` data. It is different
       from the `stp` tier TCM since it includes also the SiPM channels. With
-      tracked photons, the `stp` TCM already lists them, and only the liquid
-      argon entries are removed;
+      tracked photons, the `stp` TCM already lists them and is used as is;
     - each chunk of the unified TCM is partitioned according to the livetime
       span of each run (see the `make_simstat_partition_file` rule);
     - fields from lower tiers are restructured into events;

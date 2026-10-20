@@ -431,7 +431,8 @@ buffer_len: "10*MB"
     `sipm_efficiencies` of legend-pygeom-l200, set in `geom_config_extra`.
     `optmap_scaling_factor` and `store_expected_pes` are ignored. The `stp` tier
     must be simulated with optical physics and SiPM detectors registered as
-    optical detectors.
+    optical detectors. No liquid argon (scintillator) table is needed in the
+    `stp` files, and none is read if present.
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
   channel using the per-SiPM optical map; when `false`, the combined map across
   all SiPMs is used.

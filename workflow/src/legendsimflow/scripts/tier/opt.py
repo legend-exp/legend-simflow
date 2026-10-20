@@ -194,8 +194,9 @@ def main() -> None:
     sipms = pygeomtools.detectors.get_all_senstables(geom, type_filter="optical")
 
     # fail early and loudly: without a matching volume the loop below would
-    # silently do nothing and the output file would never be created
-    if scintillator_volume_name not in scintillators:
+    # silently do nothing and the output file would never be created. tracked
+    # photons do not need the scintillator table
+    if light_source == "optmap" and scintillator_volume_name not in scintillators:
         msg = (
             f"scintillator volume {scintillator_volume_name} not found in "
             f"{gdml_file}. scintillator volumes in the geometry: "
