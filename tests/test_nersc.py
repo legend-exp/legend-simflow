@@ -62,3 +62,37 @@ def test_scratch(fresh_config):
 
     scr_path = nersc.on_scratch(c, "/some/test.ext", run_folder=False)
     assert scr_path == tmp / "some/test.ext"
+
+
+def test_make_on_scratch_copies(fresh_config, tmp_path):
+    # a move within one filesystem is a rename and keeps the inode, and with it
+    # the group the file had on scratch, defeating the setgid bit of the
+    # destination folder
+    c = fresh_config
+    c.nersc.scratch = str(tmp_path / "scratch")
+
+    final = tmp_path / "out/file.ext"
+    final.parent.mkdir(parents=True)
+
+    scratch_path, copy2final = nersc.make_on_scratch(c, final)
+    assert scratch_path != final
+    scratch_path.write_text("data")
+    scratch_inode = scratch_path.stat().st_ino
+
+    copy2final()
+    assert final.read_text() == "data"
+    assert final.stat().st_ino != scratch_inode
+    assert not scratch_path.exists()
+
+
+def test_make_on_scratch_without_scratch(fresh_config, tmp_path):
+    c = fresh_config
+    c.nersc.scratch = False
+
+    final = tmp_path / "file.ext"
+    scratch_path, copy2final = nersc.make_on_scratch(c, final)
+    assert scratch_path == final
+
+    final.write_text("data")
+    copy2final()
+    assert final.read_text() == "data"
