@@ -190,7 +190,8 @@ def test_lookup_wfs_indices(legend_testdata):
         assert len(fi.file_idx) == len(fi.hit_idx) == fi.n_sel
 
 
-def test_lookup_wfs_indices_per_hit_t0(legend_testdata):
+@pytest.mark.parametrize("t0_field", ["geds/t0", ["geds/t0"]])
+def test_lookup_wfs_indices_per_hit_t0(legend_testdata, t0_field):
     path = legend_testdata.get_path(
         "lh5/l200-p16-r008-ssc-20251006T205904Z-tier_evt.lh5"
     )
@@ -201,7 +202,7 @@ def test_lookup_wfs_indices_per_hit_t0(legend_testdata):
         files=[str(path)],
         n_target=10,
         rawid=1107201,  # V07302A
-        t0_field="geds/t0",
+        t0_field=t0_field,
         end_time_field="geds/psd/low_aoe/time",
     )
 

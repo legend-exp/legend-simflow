@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -234,7 +235,8 @@ def lookup_superpulse_inputs(
     max_files: int | None = None,
     *,
     tier_name: str = "auto",
-) -> tuple[list[Path], list[Path], Path, dict[str, int], str]:
+    t0_field: str | None = "auto",
+) -> tuple[list[Path], list[Path], Path, dict[str, int], str, str | None]:
     """Look up all inputs needed to build superpulses for one detector and run.
 
     Parameters
@@ -253,6 +255,11 @@ def lookup_superpulse_inputs(
         Name of the tier to select events from: "evt" or "pet" (event tiers),
         "hit" or "pht" (hit tiers). With "auto", use "pet" if the data
         production has it, otherwise "evt". Default: "auto".
+    t0_field
+        Field of the `tier_name` tier holding the start time of the drift time.
+        With "auto", use ``spms/event_t0`` if the files of this run have it,
+        otherwise ``geds/t0``. Only event tiers support "auto". Default:
+        "auto".
 
     Returns
     -------
@@ -266,6 +273,8 @@ def lookup_superpulse_inputs(
     data_runid
         Run whose data was looked up: the reference calibration run for a
         physics ``runid``, otherwise ``runid`` itself.
+    t0_field
+        The `t0_field` to use for this run, with "auto" resolved.
     """
     if isinstance(l200data, str):
         l200data = Path(l200data)
@@ -309,13 +318,21 @@ def lookup_superpulse_inputs(
         msg = f"no {tier_name} tier files found for {data_runid} in {tier_path}"
         raise FileNotFoundError(msg)
 
+    if t0_field == "auto":
+        if tier_name in ("hit", "pht"):
+            msg = f"t0_field 'auto' needs an event tier, not the {tier_name} tier"
+            raise ValueError(msg)
+        has_spms_t0 = lh5.ls(files[0], "evt/spms/event_t0")
+        t0_field = "spms/event_t0" if has_spms_t0 else "geds/t0"
+        log.debug("using %s as t0 field for %s", t0_field, data_runid)
+
     dsp_cfg_file = utils.lookup_dsp_config(l200data)
 
     tstamp = mutils.runinfo(metadata, data_runid).start_key
     chmap = metadata.channelmap(tstamp)
     tab_map = {hpge: chmap[hpge]["daq"]["rawid"]}
 
-    return raw_files, files, dsp_cfg_file, tab_map, data_runid
+    return raw_files, files, dsp_cfg_file, tab_map, data_runid, t0_field
 
 
 def _read_and_sel_data(
@@ -415,7 +432,7 @@ def lookup_wfs_indices(
     files: list[str],
     n_target: int,
     rawid: int,
-    t0_field: str | None = "spms/event_t0",
+    t0_field: str | Sequence[str | None] | None = "spms/event_t0",
     end_time_field: str = "geds/psd/low_aoe/time",
     tier_type: str = "evt",
 ) -> list[AttrsDict]:
@@ -436,7 +453,8 @@ def lookup_wfs_indices(
     rawid
         The detector id to use.
     t0_field
-        Field for the start time, if `None` will be set to 0.
+        Field for the start time, if `None` will be set to 0. A sequence gives
+        one field per file in `files`.
     end_time_field
         Field for the end-time of the drift time calculation.
     tier_type
@@ -454,6 +472,11 @@ def lookup_wfs_indices(
         and a list of all drift times (of considered files)
     """
     output = [AttrsDict({"file_idx": [], "hit_idx": [], "n_sel": 0}) for _ in slices]
+    t0_fields = (
+        [t0_field] * len(files)
+        if t0_field is None or isinstance(t0_field, str)
+        else t0_field
+    )
 
     all_drift_times = None
     for file_idx, file in enumerate(files):
@@ -467,9 +490,9 @@ def lookup_wfs_indices(
             log.info(msg)
 
         data = _read_and_sel_data(
-            file, rawid=rawid, t0_field=t0_field, tier_type=tier_type
+            file, rawid=rawid, t0_field=t0_fields[file_idx], tier_type=tier_type
         )
-        drift_time = get_drift_time(data, end_time_field, t0_field)
+        drift_time = get_drift_time(data, end_time_field, t0_fields[file_idx])
 
         all_drift_times = (
             np.concatenate((all_drift_times, ak.flatten(drift_time, axis=None)))

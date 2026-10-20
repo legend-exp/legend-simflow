@@ -156,6 +156,37 @@ def test_l200data_layout_lh5(fresh_config, l200data):
     assert f"l200-p02-r003-phy: no LH5 files in {tier / 'hit/phy/p02/r003'}" in msg
 
 
+def test_l200data_layout_superpulses_t0(fresh_config, l200data, monkeypatch):
+    config = fresh_config
+    config.paths["l200data"] = l200data
+    get_tier_settings = validate.get_tier_settings
+    monkeypatch.setattr(
+        validate,
+        "get_tier_settings",
+        lambda c, t: get_tier_settings(c, t)
+        | ({"simulate_psd_with_psl": True} if t == "hit" else {}),
+    )
+    monkeypatch.setattr(validate.patterns, "compute_superpulses", lambda *_, **__: True)
+    validate.l200data_layout(config)
+
+    meta = config.metadata
+    runs = {
+        reference_cal_run(meta, r) for r in aggregate.gen_list_of_all_runids(config)
+    }
+    _, period, run, datatype = parse_runid(max(runs))
+    folder = l200data / f"generated/tier/pet/{datatype}/p{period:02d}/r{run:03d}"
+    file = next(folder.glob("*.lh5"))
+    with h5py.File(file, "a") as f:
+        del f["evt/spms/event_t0"]
+
+    with pytest.raises(SimflowConfigError, match="no evt/spms/event_t0 or evt/geds/t0"):
+        validate.l200data_layout(config)
+
+    with h5py.File(file, "a") as f:
+        f.create_dataset("evt/geds/t0", data=[0])
+    validate.l200data_layout(config)
+
+
 def test_l200data_layout_not_a_folder(fresh_config, tmp_path):
     fresh_config.paths["l200data"] = tmp_path / "nope"
     with pytest.raises(SimflowConfigError, match="is not a folder"):

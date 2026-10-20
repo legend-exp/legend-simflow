@@ -157,12 +157,13 @@ def main() -> int:
     lmeta = LegendMetadata(str(meta))
     raw_files = []
     files = []
+    t0_fields = []
     dsp_config = None
     tab_map = {}
     seen_data_runids = set()
 
     for runid in runids:
-        raw_run_files, run_files, dsp_cfg_file, tab_map_run, data_runid = (
+        raw_run_files, run_files, dsp_cfg_file, tab_map_run, data_runid, t0_field = (
             lookup_superpulse_inputs(
                 l200data=l200data,
                 metadata=lmeta,
@@ -170,6 +171,7 @@ def main() -> int:
                 hpge=args.detector,
                 max_files=settings.max_files,
                 tier_name=settings.tier_name,
+                t0_field=settings.t0_field,
             )
         )
 
@@ -181,8 +183,10 @@ def main() -> int:
             continue
         seen_data_runids.add(data_runid)
 
+        log.info("using %s as t0 field for %s", t0_field, data_runid)
         raw_files.extend(raw_run_files)
         files.extend(run_files)
+        t0_fields.extend([t0_field] * len(run_files))
 
         if dsp_config is None:
             dsp_config = dsp_cfg_file
@@ -235,7 +239,7 @@ def main() -> int:
         rawid=rawid,
         files=file_info.data,
         n_target=settings.target_wfs,
-        t0_field=settings.t0_field,
+        t0_field=t0_fields,
         end_time_field=settings.end_time_field,
         tier_type="hit" if settings.tier_name in ("hit", "pht") else "evt",
     )

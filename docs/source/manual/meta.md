@@ -979,7 +979,7 @@ build_per_runid: false
 min_number_wfs: 10
 target_wfs: 100
 chi2_threshold: 3
-t0_field: spms/event_t0
+t0_field: auto
 end_time_field: geds/psd/low_aoe/time
 drift_time_slices: "1000:200:2000"
 tier_name: auto
@@ -989,23 +989,24 @@ curr_output: curr_av
 energy_output: cuspEmax
 ```
 
-| Key                 | Type        | Default                 | Description                                                                                                                                                                                  |
-| ------------------- | ----------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `build_per_runid`   | bool        | `false`                 | When `true`, produce one superpulse LH5 file per `(runid, detector)` instead of one file per detector accumulating all runs. See {ref}`hpge-superpulses-extraction`.                         |
-| `min_number_wfs`    | int         | `10`                    | Minimum waveforms required to form a superpulse for a slice; slices with fewer events are skipped.                                                                                           |
-| `target_wfs`        | int         | `100`                   | Target number of waveforms to collect per slice before stopping accumulation.                                                                                                                |
-| `chi2_threshold`    | float       | `3`                     | Reduced chi2 threshold for the self-similarity cut; waveforms above this value are rejected before computing the final superpulse.                                                           |
-| `t0_field`          | str         | `spms/event_t0`         | Event-level field used as the start time for drift-time calculation. Events where this field is NaN are discarded; for `spms/event_t0` this removes events without a coincident SiPM signal. |
-| `end_time_field`    | str         | `geds/psd/low_aoe/time` | Event-level field used as the end time for drift-time calculation.                                                                                                                           |
-| `drift_time_slices` | str         | `"1000:200:2000"`       | Drift-time bins as `start:step:stop` in ns; the default creates 200 ns-wide bins from 1000 to 2000 ns.                                                                                       |
-| `tier_name`         | str         | `auto`                  | Tier to select events from: `evt` or `pet` (event tiers), `hit` or `pht` (hit tiers). With `auto`, use `pet` if the data production has it, otherwise `evt`.                                 |
-| `max_files`         | int or null | `null`                  | If set, limits the number of raw and evt files processed per run (useful for testing).                                                                                                       |
-| `charge_output`     | str         | `wf_pz_win`             | DSP processing chain output name for the charge waveform.                                                                                                                                    |
-| `curr_output`       | str         | `curr_av`               | DSP processing chain output name for the current waveform.                                                                                                                                   |
-| `energy_output`     | str         | `cuspEmax`              | DSP processing chain output name for the energy estimator used in waveform normalisation.                                                                                                    |
+| Key                 | Type        | Default                 | Description                                                                                                                                                                                                                                                                                                                     |
+| ------------------- | ----------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build_per_runid`   | bool        | `false`                 | When `true`, produce one superpulse LH5 file per `(runid, detector)` instead of one file per detector accumulating all runs. See {ref}`hpge-superpulses-extraction`.                                                                                                                                                            |
+| `min_number_wfs`    | int         | `10`                    | Minimum waveforms required to form a superpulse for a slice; slices with fewer events are skipped.                                                                                                                                                                                                                              |
+| `target_wfs`        | int         | `100`                   | Target number of waveforms to collect per slice before stopping accumulation.                                                                                                                                                                                                                                                   |
+| `chi2_threshold`    | float       | `3`                     | Reduced chi2 threshold for the self-similarity cut; waveforms above this value are rejected before computing the final superpulse.                                                                                                                                                                                              |
+| `t0_field`          | str         | `auto`                  | Event-level field used as the start time for drift-time calculation. Events where this field is NaN are discarded; for `spms/event_t0` this removes events without a coincident SiPM signal. With `auto`, use `spms/event_t0` if the files of the run have it, otherwise `geds/t0`; the choice is made separately for each run. |
+| `end_time_field`    | str         | `geds/psd/low_aoe/time` | Event-level field used as the end time for drift-time calculation.                                                                                                                                                                                                                                                              |
+| `drift_time_slices` | str         | `"1000:200:2000"`       | Drift-time bins as `start:step:stop` in ns; the default creates 200 ns-wide bins from 1000 to 2000 ns.                                                                                                                                                                                                                          |
+| `tier_name`         | str         | `auto`                  | Tier to select events from: `evt` or `pet` (event tiers), `hit` or `pht` (hit tiers). With `auto`, use `pet` if the data production has it, otherwise `evt`.                                                                                                                                                                    |
+| `max_files`         | int or null | `null`                  | If set, limits the number of raw and evt files processed per run (useful for testing).                                                                                                                                                                                                                                          |
+| `charge_output`     | str         | `wf_pz_win`             | DSP processing chain output name for the charge waveform.                                                                                                                                                                                                                                                                       |
+| `curr_output`       | str         | `curr_av`               | DSP processing chain output name for the current waveform.                                                                                                                                                                                                                                                                      |
+| `energy_output`     | str         | `cuspEmax`              | DSP processing chain output name for the energy estimator used in waveform normalisation.                                                                                                                                                                                                                                       |
 
 `t0_field` and `end_time_field` name fields of the `tier_name` tier: change them
-from the defaults when selecting from a `hit` or `pht` tier.
+from the defaults when selecting from a `hit` or `pht` tier (`t0_field: auto`
+works only with event tiers).
 
 (elecmod-metadata-dir)=
 

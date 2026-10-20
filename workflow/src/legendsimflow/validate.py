@@ -284,6 +284,8 @@ def _data_problems(
         hit_settings.simulate_psd_with_psl
         and patterns.compute_superpulses(config, runid=runids[0])
     )
+    # runs whose superpulse t0 field is chosen run by run (t0_field "auto")
+    auto_t0_runs: dict[str, set[str]] = {}
     if currmod_from_data or superpulses_from_data:
         cal_runs = {r: reference_cal_run(meta, r) for r in runids}
 
@@ -300,8 +302,10 @@ def _data_problems(
             time_fields = [settings["t0_field"], settings["end_time_field"]]
             specs["evt_superpulses"] = {
                 "evt": LH5_SPECS["evt_superpulses"]["evt"]
-                | {f: {} for f in time_fields if f}
+                | {f: {} for f in time_fields if f and f != "auto"}
             }
+            if settings["t0_field"] == "auto":
+                auto_t0_runs[tier] = runs
             checks.setdefault((tier, "evt_superpulses"), set()).update(runs)
         else:
             checks.setdefault((tier, ""), set()).update(runs)
@@ -346,6 +350,7 @@ def _data_problems(
         ]
 
     first_files: dict[Path, Path | None] = {}
+    run_first_files: dict[tuple[str, str], Path | None] = {}
     for (tier, name), runs in checks.items():
         first = None
         for runid in sorted(runs):
@@ -360,6 +365,7 @@ def _data_problems(
                 first_files[folder] = next(folder.glob("*.lh5"), None)
                 if first_files[folder] is None:
                     problems.append(f"{runid}: no LH5 files in {folder}")
+            run_first_files[tier, runid] = first_files[folder]
             first = first or first_files[folder]
 
         if first is not None and name:
@@ -368,6 +374,18 @@ def _data_problems(
                     f,
                     {k.format(rawid=rawid): v for k, v in specs[name].items()},
                     str(first),
+                )
+
+    # same choice as superpulses.lookup_superpulse_inputs()
+    for tier, runs in auto_t0_runs.items():
+        for runid in sorted(runs):
+            file = run_first_files[tier, runid]
+            if file is not None and not any(
+                lh5.ls(file, f"evt/{f}") for f in ("spms/event_t0", "geds/t0")
+            ):
+                problems.append(
+                    f"{file}: no evt/spms/event_t0 or evt/geds/t0 "
+                    "(needed by superpulses t0_field 'auto')"
                 )
 
     return problems
