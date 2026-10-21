@@ -373,12 +373,41 @@ def _data_problems(
     return problems
 
 
+def _usability_problems(config: SimflowConfig, l200data: Path) -> list[str]:
+    """Compare the detector usabilities in the Simflow and data production metadata."""
+    data_config = AttrsDict(
+        {**config, "metadata": LegendMetadata(str(l200data / "inputs"), lazy=True)}
+    )
+    sim = aggregate.gen_list_of_all_usabilities(config)
+    # the data production metadata has no simprod config: query the same runs
+    data = aggregate.gen_list_of_all_usabilities(data_config, sim.keys())
+
+    problems = []
+    for runid in sorted(sim):
+        for det in sorted(set(sim[runid]) | set(data[runid])):
+            if det.startswith("PMT"):
+                continue
+            for flag in ("usability", "psd_usability"):
+                sim_val = sim[runid].get(det, {}).get(flag, "<missing>")
+                data_val = data[runid].get(det, {}).get(flag, "<missing>")
+                if sim_val != data_val:
+                    problems.append(
+                        f"{runid} {det}: {flag} is {sim_val!r} in the Simflow "
+                        f"metadata, {data_val!r} in the data production metadata"
+                    )
+    return problems
+
+
 def l200data_layout(config: SimflowConfig) -> None:
-    """Check that the data production at ``paths.l200data`` has the expected format.
+    """Check that the data production at ``paths.l200data`` is compatible with the Simflow.
 
     Checks:
 
     - :data:`L200DATA_SPEC`: the metadata in ``inputs/``;
+    - the HPGe and SiPM ``usability`` and the HPGe ``psd_usability`` (see
+      :func:`.aggregate.gen_list_of_all_usabilities`) are the same in the
+      Simflow metadata and in ``inputs/``, for all runs of the Simflow. PMTs
+      are not checked;
     - :data:`DATAFLOW_CONFIG_SPEC`: the dataflow configuration file and the
       tier and parameter folders it points to;
     - a hit-tier parameter file is valid at the start of each run of the
@@ -408,6 +437,10 @@ def l200data_layout(config: SimflowConfig) -> None:
 
     problems = check_spec(TextDB(l200data, lazy=True), L200DATA_SPEC, str(l200data))
 
+    # the statuses can be compared only if the metadata has the expected layout
+    if not problems:
+        problems += _usability_problems(config, l200data)
+
     try:
         df_cfg = utils.lookup_dataflow_config(l200data)
         df_problems = check_spec(df_cfg, DATAFLOW_CONFIG_SPEC, "dataflow config")
@@ -426,72 +459,8 @@ def l200data_layout(config: SimflowConfig) -> None:
 
     if problems:
         msg = (
-            f"the data production {l200data} does not have the expected format:\n"
+            f"the data production {l200data} is not compatible with the Simflow:\n"
             + "\n".join(f"  {p}" for p in problems)
-        )
-        raise SimflowConfigError(msg)
-
-
-def detinfo_against_l200data(
-    config: SimflowConfig,
-    detinfo: Mapping[str, Mapping[str, Mapping[str, object]]],
-) -> None:
-    """Check that the detector usabilities match the data production metadata.
-
-    PMTs (names starting with ``PMT``) are not checked. Does nothing if ``paths.l200data`` is not set, or if ``validate_l200data``
-    is false.
-
-    Parameters
-    ----------
-    config
-        Simflow configuration object.
-    detinfo
-        Detector info computed from the Simflow metadata, as returned by
-        :func:`.aggregate.pivot_detinfo`.
-    """
-    if _skip(config):
-        return
-
-    inputs = Path(config.paths.l200data) / "inputs"
-    data_config = dict(config)
-    data_config["metadata"] = LegendMetadata(str(inputs), lazy=True)
-    data_config = AttrsDict(data_config)
-
-    flags = ["usability", "psd_usability"]
-    # the data production metadata has no simprod config: query the same runs
-    runids = {runid for flag in flags for runid in detinfo.get(flag, {})}
-    data_detinfo = aggregate.pivot_detinfo(
-        aggregate.gen_list_of_all_usabilities(data_config, runids).to_dict()
-    )
-
-    for flag in flags:
-        sim = detinfo.get(flag, {})
-        data = data_detinfo.get(flag, {})
-        if sim == data:
-            continue
-
-        diffs = []
-        for runid in sorted(set(sim) | set(data)):
-            sim_run = sim.get(runid, {})
-            data_run = data.get(runid, {})
-            for det in sorted(set(sim_run) | set(data_run)):
-                if det.startswith("PMT"):
-                    continue
-                sim_val = sim_run.get(det, "<missing>")
-                data_val = data_run.get(det, "<missing>")
-                if sim_val != data_val:
-                    diffs.append(
-                        f"  {runid} {det}: Simflow metadata has {sim_val!r}, "
-                        f"data production has {data_val!r}"
-                    )
-
-        if not diffs:
-            continue
-
-        msg = (
-            f"'{flag}' differs between the Simflow metadata and the data "
-            f"production metadata in {inputs} for {len(diffs)} detector(s):\n"
-            + "\n".join(diffs)
         )
         raise SimflowConfigError(msg)
 

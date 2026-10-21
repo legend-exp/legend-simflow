@@ -7,7 +7,7 @@ from pathlib import Path
 import dbetto
 import h5py
 import pytest
-from dbetto import AttrsDict, TextDB
+from dbetto import TextDB
 
 from legendsimflow import aggregate, utils, validate
 from legendsimflow.exceptions import SimflowConfigError
@@ -25,16 +25,11 @@ def _spec_paths(spec, prefix=""):
 @pytest.fixture
 def l200data(tmp_path, test_l200data, fresh_config):
     prod = tmp_path / "prod"
-    for d in [
-        "inputs/datasets/statuses",
-        "inputs/hardware/configuration/channelmaps",
-        "inputs/hardware/detectors",
-        "inputs/dataprod/config/tier/dsp",
-        "generated/par/hit/cal",
-    ]:
+    for d in ["datasets", "hardware"]:
+        shutil.copytree(fresh_config.paths.metadata / d, prod / "inputs" / d)
+    for d in ["inputs/dataprod/config/tier/dsp", "generated/par/hit/cal"]:
         (prod / d).mkdir(parents=True)
 
-    dbetto.utils.write_dict({}, prod / "inputs/datasets/runinfo.yaml")
     dbetto.utils.write_dict(
         {
             "paths": {
@@ -167,50 +162,23 @@ def test_l200data_layout_skipped_without_l200data(fresh_config):
     validate.l200data_layout(fresh_config)
 
 
-def test_detinfo_against_l200data(fresh_config, monkeypatch, caplog):
+def test_l200data_layout_usabilities(fresh_config, l200data):
     config = fresh_config
-    sim = {
-        "usability": {
-            "l200-p02-r000-phy": {"V00048A": "on", "V00048B": "off", "PMT105": "off"}
-        }
-    }
-    data = {
-        "l200-p02-r000-phy": {
-            "V00048A": {"usability": "on"},
-            "V00048B": {"usability": "off"},
-            "PMT105": {"usability": "on"},
-        }
-    }
+    config.paths["l200data"] = l200data
+    statuses = l200data / "inputs/datasets/statuses/l200-p02-r006-T%-all-config.yaml"
+    status = dbetto.utils.load_dict(statuses)
+    status["V99000A"]["usability"] = "off"
+    status["V99000A"]["psd"]["status"]["low_aoe"] = "present"
+    dbetto.utils.write_dict(status, statuses)
 
-    monkeypatch.setattr(validate, "LegendMetadata", lambda *_, **__: None)
-    queried = []
-
-    def fake_usabilities(_, runids):
-        queried.append(set(runids))
-        return AttrsDict(data)
-
-    monkeypatch.setattr(aggregate, "gen_list_of_all_usabilities", fake_usabilities)
-
-    config.paths["l200data"] = Path("/does/not/matter")
-    validate.detinfo_against_l200data(config, sim)
-    assert queried == [{"l200-p02-r000-phy"}]
-
-    data["l200-p02-r000-phy"]["V00048B"]["usability"] = "on"
     with pytest.raises(SimflowConfigError) as err:
-        validate.detinfo_against_l200data(config, sim)
+        validate.l200data_layout(config)
+    msg = str(err.value)
     assert (
-        "l200-p02-r000-phy V00048B: Simflow metadata has 'off', "
-        "data production has 'on'"
-    ) in str(err.value)
-    assert "V00048A" not in str(err.value)
-    assert "PMT105" not in str(err.value)
-
-    config["validate_l200data"] = False
-    with caplog.at_level(logging.WARNING):
-        validate.detinfo_against_l200data(config, sim)
-    assert "is not validated" in caplog.text
-
-
-def test_detinfo_skipped_without_l200data(config):
-    config.paths.pop("l200data", None)
-    validate.detinfo_against_l200data(config, {})
+        "l200-p02-r001-phy V99000A: usability is 'on' in the Simflow metadata, "
+        "'off' in the data production metadata"
+    ) in msg
+    assert (
+        "l200-p02-r001-phy V99000A: psd_usability is 'valid' in the Simflow "
+        "metadata, 'present' in the data production metadata"
+    ) in msg

@@ -69,13 +69,13 @@ and of the optional fields of the settings files in the Simflow metadata (see
 - `validate_l200data`: check the data production at `paths.l200data` (default
   `true`). The Simflow aborts if one of the following checks fails. If `false`,
   the checks are skipped and a warning says that the data production is not
-  validated. The checks are also skipped if `paths.l200data` is not set.
-  - Before any job starts, and with `pixi run validate` or `pixi run dry`: the
-    data production has the files and folders the Simflow reads (see
-    {func}`legendsimflow.validate.l200data_layout`).
-  - When the detector usabilities are cached: the HPGe `usability` and
-    `psd_usability` flags in the Simflow metadata are the same as in the data
-    production metadata (`{paths.l200data}/inputs`).
+  validated. The checks are also skipped if `paths.l200data` is not set. The
+  checks run before any job starts, and with `pixi run validate` or
+  `pixi run dry` (see {func}`legendsimflow.validate.l200data_layout`):
+  - the data production has the files and folders the Simflow reads;
+  - the detector `usability` and HPGe `psd_usability` flags in the Simflow
+    metadata are the same as in the data production metadata
+    (`{paths.l200data}/inputs`).
 - `metadata_repo` (required): the metadata repository at `paths.metadata`,
   either `legend-metadata` or `legend1000-metadata`. It selects the
   {class}`~legendmeta.LegendMetadata` or {class}`~legendmeta.Legend1000Metadata`
