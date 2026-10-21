@@ -22,6 +22,7 @@ from pathlib import Path
 
 import lh5
 from dbetto import AttrsDict
+from dbetto.catalog import Catalog
 from legendmeta import MetadataRepository
 from legendmeta.police import validate_dict_schema
 from snakemake.iocontainers import Wildcards
@@ -267,25 +268,36 @@ def runinfo(metadata: MetadataRepository, runid: str) -> str:
 def reference_cal_run(metadata: MetadataRepository, runid: str) -> str:
     """The reference calibration run for `runid`.
 
-    Warning
-    -------
-    This function does not account for dataflow overrides (e.g. calibration
-    back-applying)!
-
+    If an entry of the ``datasets.run_override`` validity file is valid at the
+    start of `runid`, return the calibration run it lists (e.g.
+    ``l200-p16-r006-cal-20251001T130640Z``). Otherwise return the calibration
+    run of the same run or, if missing, of the closest previous run in the
+    same period. A calibration `runid` is its own reference.
     """
     exp, period, run, datatype = re.split(r"\W+", runid)
 
     msg = f"looking for reference calibration run for {runid}"
     log.debug(msg)
 
-    # TODO: this is a temporary workaround for the fact that p16-r007 and later runs should use p16-r006
-    if period == "p16" and (run > "r006"):
-        run = "r006"
-        runid = f"{exp}-{period}-{run}-{datatype}"
-        log.info("p16-r006 + so we set the cal run to r006")
-
     if datatype == "cal":
         return runid
+
+    try:
+        overrides = Catalog.build_catalog(metadata.datasets.run_override)
+    except FileNotFoundError:
+        overrides = None
+
+    if overrides is not None:
+        tstamp = runinfo(metadata, runid).start_key
+        cal_keys = overrides.valid_for(tstamp, allow_none=True) or []
+        if len(cal_keys) > 1:
+            msg = f"more than one calibration run override is valid for {runid}"
+            raise RuntimeError(msg)
+        if cal_keys:
+            cal_runid = cal_keys[0].rsplit("-", 1)[0]
+            msg = f"calibration run override found for {runid}: {cal_runid}"
+            log.debug(msg)
+            return cal_runid
 
     p_runinfo = metadata.datasets.runinfo[period]
 

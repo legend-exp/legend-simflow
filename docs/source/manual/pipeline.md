@@ -234,9 +234,12 @@ follows:
 
 - **Physics runs (`phy`)**: the reference calibration run is looked up and its
   `raw`, `evt` (or `pet`), and channel-map data are used in place of the
-  physics-run data. If several physics runs resolve to the same reference
-  calibration run, the input files are de-duplicated so that no event is counted
-  twice.
+  physics-run data. The reference calibration run is the one listed in
+  `datasets.run_override` (legend-datasets) for the start time of the physics
+  run, if any. Otherwise it is the calibration of the same run or, if missing,
+  of the closest previous run in the same period. If several physics runs
+  resolve to the same reference calibration run, the input files are
+  de-duplicated so that no event is counted twice.
 - **Non-physics runs** (calibration `cal`, SSC `ssc`, ...): the run's own `raw`
   and `evt` tier files are used directly.
 

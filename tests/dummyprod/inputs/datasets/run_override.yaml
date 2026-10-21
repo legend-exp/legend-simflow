@@ -1,0 +1,8 @@
+# p16-r007-cal is unusable for p16-ssc and p16-rdc data, use p16-r006-cal
+- valid_from: 20251005T220109Z
+  apply:
+    - l200-p16-r006-cal-20251001T130640Z
+
+- valid_from: 20251031T155300Z
+  mode: reset
+  apply: []

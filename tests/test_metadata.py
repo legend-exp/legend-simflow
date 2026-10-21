@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -145,6 +146,51 @@ def test_run_stuff(config):
         metadata.reference_cal_run(config.metadata, "l200-p16-r009-ssc")
         == "l200-p16-r006-cal"
     )
+
+
+def test_reference_cal_run_overrides(tmp_path):
+    datasets = tmp_path / "datasets"
+    shutil.copytree(Path(__file__).parent / "dummyprod/inputs/datasets", datasets)
+
+    # without overrides: same run or closest previous run with calibration data
+    (datasets / "run_override.yaml").unlink()
+    meta = AttrsDict({"datasets": TextDB(datasets)})
+    assert metadata.reference_cal_run(meta, "l200-p02-r003-phy") == "l200-p02-r003-cal"
+    assert metadata.reference_cal_run(meta, "l200-p16-r008-ssc") == "l200-p16-r007-cal"
+
+    # p02-r003: whole run (from the start of its calibration) uses p02-r004-cal
+    # p02-r005: only the physics run uses p02-r006-cal
+    (datasets / "run_override.yaml").write_text(
+        """
+- valid_from: 20220401T000000Z
+  apply:
+    - l200-p02-r004-cal-20220501T000000Z
+- valid_from: 20220501T000000Z
+  mode: reset
+  apply: []
+- valid_from: 20220602T000000Z
+  apply:
+    - l200-p02-r006-cal-20220701T000000Z
+- valid_from: 20220701T000000Z
+  mode: reset
+  apply: []
+"""
+    )
+    meta = AttrsDict({"datasets": TextDB(datasets)})
+
+    expected = {
+        "l200-p02-r002-phy": "l200-p02-r002-cal",
+        "l200-p02-r003-phy": "l200-p02-r004-cal",
+        "l200-p02-r003-cal": "l200-p02-r003-cal",
+        "l200-p02-r004-phy": "l200-p02-r004-cal",
+        "l200-p02-r005-phy": "l200-p02-r006-cal",
+        "l200-p02-r005-cal": "l200-p02-r005-cal",
+        "l200-p02-r006-phy": "l200-p02-r006-cal",
+        # before the first override entry
+        "l200-p02-r000-phy": "l200-p02-r000-cal",
+    }
+    for runid, cal_runid in expected.items():
+        assert metadata.reference_cal_run(meta, runid) == cal_runid
 
 
 def test_is_simid():
