@@ -31,8 +31,9 @@ export UV_PYTHON_INSTALL_DIR="$SWPREFIX/share/uv/python"
 export UV_TOOL_DIR="$SWPREFIX/share"
 export UV_PYTHON_BIN_DIR="$SWPREFIX/bin"
 
-# NOTE: pixi will still store cache in $XDG_CACHE_HOME
-export PIXI_HOME="$SCRATCH/software/pixi"
+# pixi
+export PIXI_HOME="$SWPREFIX/pixi"
+export PIXI_CACHE_DIR="$XDG_CACHE_HOME/pixi"
 
 # numba cache
 export NUMBA_CACHE_DIR="$XDG_CACHE_HOME/numba"
@@ -42,35 +43,37 @@ Then, you can use Conda/Mamba to install Pixi:
 
 ```console
 > module load python
-> mamba create -n my_env -- 'python<3.14' pixi
 > conda config --add channels conda-forge
 > conda config --set channel_priority strict
+> mamba create -n my_env -- 'python<3.14' pixi
 ```
 
 The last important step is to tell pixi to not store environments in the current
-directory (the simflow directory). At the time of writing, this is only possible
-by adding this to `.config/pixi/config.toml`:
-
-```toml
-detached-environments = "/pscratch/sd/l/.../software/pixi/envs"
-```
-
-:::{note}
-
-Environment variable expansion is not supported in the Pixi config at the time
-of writing these instructions, so you have to type in the value of `$SCRATCH` by
-hand.
-
-:::
-
-Now you can proceed with setting up and running the production workflow, with
-e.g. on a compute node:
+directory (the simflow directory):
 
 ```console
-> pixi run prod --profile nersc-compute
+> pixi config set --global detached-environments "$SWPREFIX/pixi/envs"
 ```
 
-Using the provided `nersc-*` profiles is recommended (have a look at them!).
+This writes the full path to `$PIXI_HOME/config.toml`. Pixi does not expand
+environment variables in its configuration file, so do not write `$SCRATCH`
+there by hand.
+
+Now you can proceed with setting up and running the production workflow. **On a
+compute node, always use the `nersc-compute` profile:**
+
+```console
+> pixi run prod nersc-compute
+```
+
+:::{important}
+
+The `nersc-compute` profile includes configuration that the Simflow needs to run
+efficiently on a NERSC compute node without crashes, such as the memory limits
+of each job and of the node. Have a look at it in
+`workflow/profiles/nersc-compute/profile.yaml`.
+
+:::
 
 (sites-nersc-io-optim)=
 
@@ -122,6 +125,8 @@ that some rules are unaffected by them.
 
 :::
 
+(sites-nersc-multinode)=
+
 ### Multi-node execution
 
 :::{warning}
@@ -150,6 +155,8 @@ prefix each rule command with a `srun` call, which would make it possible to
 parallelize the workflow over several nodes. In practice, NERSC discourages from
 starting many `srun` instances for performance reasons. As a result, the only
 reliable way to run Snakemake is with one instance on a single compute node.
+
+:::
 
 The `snakemake-nersc` executable, exposed by `legend-simflow` offers a way to
 parallelize the workflow in some situations over several nodes. The recommended
@@ -200,22 +207,26 @@ corrupted files.
 In practice this means that any shared steps (e.g. `par`, which produces
 drift-time maps and other parameters consumed by all `hit`/`opt` jobs) **must be
 completed before** launching the multi-node run. The safest approach is to first
-run `pixi run prod` with only the shared steps in `make_steps`, wait for it to
-finish, and only then launch the multi-node run with those steps excluded.
+run `pixi run prod nersc-compute` with only the shared steps in `make_steps`,
+wait for it to finish, and only then launch the multi-node run with those steps
+excluded.
 
 :::
 
 This approach makes it unfortunately harder to manually interrupt the Simflow,
 e.g. hitting `Ctrl+C` will just make Slurm print some jobset status information.
-You should instead send signals (`TERM` to stop scheduling more jobs and just
-wait for running jobs and `INT` to kill all running jobs) directly to the
-snakemake instance.
+Instead, send a signal to the Slurm job, from any node. `TERM` stops scheduling
+new jobs and waits for the running ones, `INT` kills all running jobs:
 
-:::{todo}
+```console
+> squeue --me # find JOBID
+> scancel --signal=TERM --full JOBID
+```
 
-Add commands to send signals.
-
-:::
+This works for interactive allocations and for batch jobs submitted with
+`prodsubmit`. `--full` also delivers the signal to the main step of the job,
+where `snakemake-nersc` (or the single Snakemake instance) runs. A job still
+waiting in the queue can simply be removed with `scancel JOBID`.
 
 :::{note}
 

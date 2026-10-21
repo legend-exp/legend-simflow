@@ -2,45 +2,62 @@
 
 # Production
 
-Run a production by using one of the provided site-specific profiles
-(recommended):
+The Simflow is run through [pixi](https://pixi.sh) tasks (`prod`, `dry`,
+`snakemake`, ...), defined in `pyproject.toml`. To list them run
+`pixi task list`
+
+Each task calls Snakemake with the right options and prepares the run first. For
+example, it fills the Numba cache before jobs start in parallel, or validates
+the LEGEND-200 data production. For instructions specific to a computing site
+(e.g. NERSC), see {doc}`sites`.
+
+:::{warning}
+
+Call `snakemake` directly only if you know what you are doing. A plain
+`snakemake` call skips the preparation steps, and the production can fail.
+
+:::
+
+## Run a production
+
+Run a production with a workflow profile (`default` if `PROFILE` is omitted):
 
 ```console
-> pixi run prod <profile-name>
+> pixi run prod [PROFILE]
 ```
 
-This is equivalent to calling Snakemake directly:
+Profiles set Snakemake options for a computing site or machine. Have a look at
+the available ones in `workflow/profiles/` and pick the one that fits.
 
-```console
-> snakemake --workflow-profile workflow/profiles/<profile-name>
-```
+Before Snakemake starts, `prod` runs the `warmup` task. It compiles the Numba
+functions used by the Simflow jobs and stores them in a cache on disk, so that
+parallel jobs do not write the cache at the same time and crash.
 
-If no system-specific profile is needed, omit `--profile` (defaults to
-`default`):
-
-```console
-> pixi run prod
-```
-
-To preview what Snakemake would do without executing anything, use `dry`. It
-first checks the data production at `paths.l200data`, as a real run does:
+To preview what Snakemake would do without executing anything, use `dry`:
 
 ```console
 > pixi run dry
 ```
 
-To mark all output files as up-to-date without rerunning jobs, use `touch`:
+Before the dry run, `dry` checks that the input paths in the configuration exist
+and validates the LEGEND-200 data production at `paths.l200data`. The data
+production check can be turned off in the configuration file (see {doc}`setup`).
+To run only these checks, use the `validate` task.
+
+To update the modification times of existing output files, so that Snakemake
+does not rebuild them, use `touch`:
 
 ```console
 > pixi run touch
 ```
 
-The `--config` command line option is very useful to override configuration
-values. It can be used, for example, to restrict the production to a subset of
-simulations (a "simlist"):
+Pass extra Snakemake options to `prod` after a `--` separator. The `--config`
+option is very useful to override values in the Simflow configuration file
+(`simflow-config.yaml`, see {doc}`setup`). It can be used, for example, to
+restrict the production to a subset of simulations (a "simlist"):
 
 ```console
-> snakemake --config simlist="mylist.txt" [...]
+> pixi run prod [PROFILE] -- --config simlist="mylist.txt"
 ```
 
 where `mylist.txt` is a text file in the format:
@@ -54,42 +71,44 @@ hit.hpge_bulk_2vbb
 One can even just directly pass a comma-separated list:
 
 ```console
-> snakemake --config simlist="stp.fibers_Ra224_to_Pb208,hit.hpge_bulk_2vbb"
+> pixi run prod [PROFILE] -- --config simlist="stp.fibers_Ra224_to_Pb208,hit.hpge_bulk_2vbb"
 ```
 
-Remember that Snakemake accepts individual output file paths as arguments. If
-supplied, Snakemake will only produce those.
+Snakemake also accepts individual output file paths as arguments. If supplied,
+Snakemake only produces those:
 
 ```console
-> snakemake /../generated/tier/stp/sis1_z8640_slot3_Pb214_to_Po214/l200p15-sis1_z8640_slot3_Pb214_to_Po214-job_0000-tier_stp.lh5
+> pixi run prod [PROFILE] -- /../generated/tier/stp/sis1_z8640_slot3_Pb214_to_Po214/l200p15-sis1_z8640_slot3_Pb214_to_Po214-job_0000-tier_stp.lh5
 ```
+
+Find some useful Snakemake command-line options in {doc}`tips`.
+
+## After the production
 
 Once the production is over, the `print_stats` rule can be used to display a
 table with runtime statistics:
 
 ```console
-> snakemake print_stats -q all
-                                                    wall time [s]         wall time [s]
-simid                                                (cumulative)   jobs      (per job)  primaries
------                                               -------------   ----  -------------  ---------
-hit.fibers_Ra224_to_Pb208                                83:20:00    100        0:50:00   1.00E+08
-stp.fibers_Ra224_to_Pb208                                58:20:35    100        0:35:00   1.00E+08
-stp.fibers_Rn222_to_Po214                                33:20:00    100        0:20:00   1.00E+08
-...                                                            ...    ...            ...        ...
+> pixi run snakemake print_stats -q all
+                           wall time [s]        wall time [s]
+simid                       (cumulative)  jobs      (per job)  primaries
+-----                      -------------  ----  -------------  ---------
+hit.fibers_Ra224_to_Pb208       83:20:00   100        0:50:00   1.00E+08
+stp.fibers_Ra224_to_Pb208       58:20:35   100        0:35:00   1.00E+08
+stp.fibers_Rn222_to_Po214       33:20:00   100        0:20:00   1.00E+08
+...                                   ...   ...            ...        ...
 ```
 
 To archive the validation plots produced during the run into a single tarball,
 run the `archive_plots` rule manually after the production is complete:
 
 ```console
-> snakemake archive_plots
+> pixi run snakemake archive_plots
 ```
 
 This collects all `plots/` subdirectories under `generated/` and packs them into
 `tarballs/<cycle>-plots.tar.xz`. The rule is not part of the default `all`
 target and must always be triggered explicitly.
-
-Find some useful Snakemake command-line options at the bottom of this page.
 
 ## Running tier scripts standalone
 
@@ -124,12 +143,14 @@ All scripts share the following conventions:
   matching the behavior of the Snakemake workflow.
 - `--log-file` is optional: if omitted, log output goes to the console.
 
+(make-steps)=
+
 ## Selective step execution with `make_steps`
 
 The `make_steps` configuration option controls which workflow steps are loaded
 into the Snakemake DAG. Only the rule files for the listed steps are included,
 so outputs of excluded steps are treated as pre-existing source files rather
-than targets — Snakemake will neither build nor invalidate them.
+than targets: Snakemake will neither build nor invalidate them.
 
 **Running a single step in isolation** is the most common use case. For example,
 to rebuild only the `hit` tier outputs while leaving `stp` files untouched:
@@ -142,7 +163,7 @@ make_steps:
 or equivalently at the command line:
 
 ```console
-> snakemake --config make_steps="[hit]"
+> pixi run prod [PROFILE] -- --config make_steps="[hit]"
 ```
 
 **Running contiguous steps** works the same way — just list all the steps you
@@ -169,12 +190,31 @@ previous run and have not changed.
 
 :::
 
+**Running a production in phases** is recommended for large productions:
+
+1. `vtx` and `stp`: the _remage_ simulations;
+2. `par`: all the parameters needed by the higher tiers;
+3. `opt`, `hit`, `evt`, `cvt` and `pdf`: the post-processing.
+
+```console
+> pixi run prod [PROFILE] -- --config make_steps="[vtx,stp]"
+> pixi run prod [PROFILE] -- --config make_steps="[par]"
+> pixi run prod [PROFILE] -- --config make_steps="[opt,hit,evt,cvt,pdf]"
+```
+
+On NERSC, the first and third phases can be run on several nodes (see
+{ref}`sites-nersc-multinode`). In this case, set `make_steps` in the
+configuration file: `snakemake-nersc` reads it from there to split the
+simulations over the nodes.
+
 :::{note}
 
 `vtx` and `par` cannot be used as step prefixes in `simlist` items (e.g.
 `par.myid` is invalid) because neither step produces simid-scoped output files.
 
 :::
+
+(benchmarking)=
 
 ## Benchmarking runs
 
@@ -209,7 +249,7 @@ value of 10 000 is a reasonable starting point.
 Run the production as usual. Snakemake will spawn exactly one job per `simid`:
 
 ```console
-> pixi run prod --profile <profile-name>
+> pixi run prod [PROFILE]
 ```
 
 ### Inspecting results
@@ -217,7 +257,7 @@ Run the production as usual. Snakemake will spawn exactly one job per `simid`:
 Once all benchmark jobs have completed, summarize the results:
 
 ```console
-> snakemake print_benchmark_stats -q all
+> pixi run snakemake print_benchmark_stats -q all
 simid                                               runtime [sec]  speed (hot loop) [ev/sec]  evts / 1h  ...rounded  jobs (1h) / 10^8 evts  ...rounded
 -----                                               -------------  -------------------------  ---------  ----------  ---------------------  ----------
 stp.sis1_z8430_slot2_Bi212_to_Pb208                        139.0                     717.70    2583720     2500000                     38          40
