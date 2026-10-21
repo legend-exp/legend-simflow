@@ -34,6 +34,7 @@ from lgdo import WaveformTable
 from matplotlib import pyplot as plt
 from numpy.typing import ArrayLike, NDArray
 from pygama.math.distributions import gaussian
+from pygama.pargen import AoE_cal, energy_cal
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 
 from . import metadata as mutils
@@ -1069,11 +1070,9 @@ def lookup_aoe_res_metadata(
 
 
 def build_energy_res_func(function: str) -> Callable:
-    """Energy resolution function builder."""
-    if function == "FWHMLinear":
-        return lambda energy, a, b: (a + b * energy) ** 0.5
-    if function == "FWHMQuadratic":
-        return lambda energy, a, b, c: (a + b * energy + c * energy * energy) ** 0.5
+    """Return the energy resolution model `function` from :mod:`pygama.pargen.energy_cal`."""
+    if function in ("FWHMLinear", "FWHMQuadratic"):
+        return getattr(energy_cal, function).func
 
     raise NotImplementedError
 
@@ -1100,9 +1099,9 @@ def build_energy_res_func_from_entry(meta: dict | AttrsDict) -> Callable:
 
 
 def build_aoe_res_func(function: str) -> Callable:
-    """A/E resolution function builder."""
+    """Return the A/E resolution model `function` from :mod:`pygama.pargen.AoE_cal`."""
     if function == "SigmaFit":
-        return lambda energy, a, b, c: (a + (b / (energy + 10**-99)) ** c) ** (0.5)
+        return AoE_cal.SigmaFit.func
 
     raise NotImplementedError
 

@@ -13,6 +13,7 @@ from dspeed.vis import WaveformBrowser
 from iminuit import Minuit
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from pygama.pargen import AoE_cal, energy_cal
 from reboost.hpge.psd import _current_pulse_model as current_pulse_model
 from scipy.stats import norm
 
@@ -499,8 +500,13 @@ def test_lookup_eres(config, test_l200data):
 
 
 def test_eres_func():
-    f = hpge_pars.build_energy_res_func("FWHMLinear")
-    assert isinstance(f, Callable)
+    assert hpge_pars.build_energy_res_func("FWHMLinear") is energy_cal.FWHMLinear.func
+    assert (
+        hpge_pars.build_energy_res_func("FWHMQuadratic")
+        is energy_cal.FWHMQuadratic.func
+    )
+    with pytest.raises(NotImplementedError):
+        hpge_pars.build_energy_res_func("FWHMCubic")
 
 
 def test_build_eres_funcs(config, test_l200data):
@@ -544,8 +550,9 @@ def test_lookup_aoeres(config, test_l200data):
 
 
 def test_aoeres_func():
-    f = hpge_pars.build_aoe_res_func("SigmaFit")
-    assert isinstance(f, Callable)
+    assert hpge_pars.build_aoe_res_func("SigmaFit") is AoE_cal.SigmaFit.func
+    with pytest.raises(NotImplementedError):
+        hpge_pars.build_aoe_res_func("SigmoidFit")
 
 
 def test_build_aoe_res_func_from_entry():
