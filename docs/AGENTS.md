@@ -27,6 +27,13 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
 - Colon fences (`:::`) for sphinx directives like admonitions. Always add an
   empty line after the open and before the close of a `:::` block, otherwise
   `prettier` will re-wrap and break rendering
+- Directive options (e.g. `:class:` of a custom-title `{admonition}`): put
+  `<!-- prettier-ignore -->` on the line before the `:::` opening, otherwise
+  `prettier` joins them to the title line
+- Definition lists: blank line between term and `: definition`, otherwise
+  `prettier` joins them. One paragraph per definition (`prettier` drops the
+  indentation of nested content); flatten nested fields as dotted terms (e.g.
+  `optical_maps.lar`)
 - Always enable code block highlighting. Use `console` for shell commands
   (prompt delimiter `>`)
 - Write LaTeX-formatted math when appropriate. MyST `dollarmath` is enabled so

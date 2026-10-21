@@ -103,14 +103,14 @@ data taking runs for which the user wants to build pdfs:
 ```{toctree}
 :maxdepth: 1
 
-Package API reference <api/modules>
-Snakemake rules <api/snakemake_rules>
+manual/index
 ```
 
 ```{toctree}
 :maxdepth: 1
 
-manual/index
+Package API reference <api/modules>
+Snakemake rules <api/snakemake_rules>
 ```
 
 ```{toctree}
