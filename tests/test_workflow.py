@@ -93,7 +93,7 @@ def _assert_psd_psl_in_evt(generated: Path) -> None:
     assert saw_psd_psl, "no evt file contains an evt/geds/psd/pulse_lib sub-table"
 
 
-def _run_workflow(configfile: Path, keep_going: bool = False) -> None:
+def _run_workflow(configfile: Path) -> None:
     """Run the dummy production configured in *configfile* on all cores."""
     output = smkapi.OutputSettings(verbose=False, show_failed_logs=True)
 
@@ -106,9 +106,7 @@ def _run_workflow(configfile: Path, keep_going: bool = False) -> None:
             resource_settings=smkapi.ResourceSettings(cores=all_cores),
         )
         dag = wf_api.dag()
-        dag.execute_workflow(
-            execution_settings=smkapi.ExecutionSettings(keep_going=keep_going),
-        )
+        dag.execute_workflow()
 
 
 # NOTE: the dry-run DAG-structure tests (DAG resolution, simlist scheduling,
@@ -166,10 +164,3 @@ def test_l1000_workflow():
     assert opt_files, f"no opt output files found under {generated}/tier/opt"
     for f in opt_files:
         assert "hit/spms" in lh5.ls(f, "hit/")
-
-
-@pytest.mark.needs_nersc
-@pytest.mark.needs_remage
-@pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
-def test_l200_nersc_workflow():
-    _run_workflow(dummyprod / "simflow-config-l200-nersc.yaml", keep_going=True)

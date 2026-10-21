@@ -70,9 +70,8 @@ tests that exercise the Snakemake workflow with a dummy production configured in
   exercises the vtx→par pipeline; runs in CI without requiring `l200data`.
   Currently uses l200-p03 runs because l1000 hardware metadata is not yet in
   `dummyprod`
-- `l200cfg01`: used by the `test_l200_workflow` integration test (`needs_nersc`
-  marker), which runs the full vtx→cvt pipeline and requires access to
-  `l200data`; run manually at NERSC
+- `l200cfg01`: used by the `test_l200_workflow` integration test, which
+  exercises the vtx→pdf pipeline on the mock LEGEND-200 metadata; runs in CI
 
 Test data for LEGEND-200 is stored in `tests/l200data/`.
 
@@ -81,12 +80,12 @@ Test data for LEGEND-200 is stored in `tests/l200data/`.
 Some integration tests require **remage**, which is only available inside the
 pixi `test` environment. The table below summarises what each test needs:
 
-| Test                  | Command                                | Needs pixi | Needs NERSC/l200data |
-| --------------------- | -------------------------------------- | ---------- | -------------------- |
-| DAG tests             | `pytest tests/test_dag.py`             | no         | no                   |
-| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow` | **yes**    | no                   |
-| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`  | **yes**    | **yes**              |
-| unit / script tests   | `pytest tests/`                        | no         | no                   |
+| Test                  | Command                                | Needs pixi |
+| --------------------- | -------------------------------------- | ---------- |
+| DAG tests             | `pytest tests/test_dag.py`             | no         |
+| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow` | **yes**    |
+| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`  | **yes**    |
+| unit / script tests   | `pytest tests/`                        | no         |
 
 **Always run `pixi run -e test test-l1000-workflow` before committing changes
 that touch the workflow, scripts, or metadata.** The dry-run DAG tests alone are

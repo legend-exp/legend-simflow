@@ -51,8 +51,7 @@ The dummy production uses three experiments:
   tests; its runlist contains real p02 run IDs but is not intended to run an
   actual production
 - `l200cfg01`: the LEGEND-200 experiment. `test_l200_workflow` runs it in CI on
-  the mock metadata; `test_l200_nersc_workflow` (`needs_nersc`) runs the same
-  experiment against `l200data` at NERSC
+  the mock metadata
 - `l1000dsg01`: the LEGEND-1000 experiment
   (`metadata_repo: legend1000-metadata`). `test_l1000_workflow` runs it in CI on
   the mock metadata
@@ -138,9 +137,6 @@ Current full-chain tests:
    the mock `legend-metadata`, experiment `l200cfg01`; runs in CI. **Requires
    pixi** (remage is only in the pixi environment):
    `pixi run -e test test-l200-workflow`.
-2. **`test_l200_nersc_workflow`** (`needs_nersc`, `needs_remage`) — full vtx→cvt
-   pipeline, same experiment, requires `l200data`, NERSC-only. Run with:
-   `pixi run -e test test-l200-nersc-workflow`
-3. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage on
+2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage on
    the mock `legend1000-metadata`, experiment `l1000dsg01`; runs in CI:
    `pixi run -e test test-l1000-workflow`.
