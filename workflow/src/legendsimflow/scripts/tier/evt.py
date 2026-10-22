@@ -221,7 +221,7 @@ def main() -> None:
                 stp_file,
                 hit_file["opt"],
                 evt_file,
-                scintillator_uid=scintillator_uid,
+                scintillator_uids=[scintillator_uid],
                 buffer_len=buffer_len,
             )
 
