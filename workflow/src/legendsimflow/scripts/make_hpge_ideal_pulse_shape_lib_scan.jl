@@ -16,14 +16,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# grid spacing in meters
-const DEFAULT_GRID_SIZE = 0.005
+# grid spacing in mm
+const DEFAULT_GRID_SIZE_IN_MM = 5.0
 # crystal axis angles in degrees (<001> and <110>)
 const CRYSTAL_AXIS_ANGLES = [0, 45]
 # SSD adaptive-mesh refinement thresholds as fractions of the crystal radius
 # matches current SSD behaviour
 const DEFAULT_REFINEMENT_LIMITS = [0.2, 0.1, 0.05, 0.02]
-# nr of pixels for padding around the map to avoid grid edge effects (default; can be overridden via metadata settings file)
+# nr of pixels for padding around the map to avoid grid edge effects
 const DEFAULT_PADDING = 3
 
 # scan grid, as ranges of depletion-voltage shift in V and of dimensionless
@@ -68,10 +68,10 @@ Command line arguments:
 - `--metadata`: path to legend-metadata, source of the detector and crystal
   parameters
 - `--opv`: operational voltage in V; read from the metadata when absent
-- `--ssd-settings`: YAML file with the SSD simulation settings
-  (`grid_size_in_mm`, `ssd_refinement_limits`, `padding`), see
-  [`setup_hpge_simulation`](@ref). Built-in defaults are used when the file is
-  absent
+- `--grid-size-in-mm`: spacing of the (r, z) grid, in mm (default 5)
+- `--refinement-limits`: SSD adaptive-mesh refinement thresholds, see
+  [`setup_hpge_simulation`](@ref) (default `0.2 0.1 0.05 0.02`)
+- `--padding`: number of pixel layers added around the (r, z) grid (default 3)
 - `--scan-settings`: YAML file with the scan grid, given as two Julia ranges
   written `"start:step:stop"`: `depv_shift`, the depletion voltage relative to
   the operational voltage in V, and `slope`, dimensionless. Built-in defaults
@@ -124,9 +124,23 @@ function main()
         help = "detector operational voltage in V (defaults to metadata value)"
     end
     @add_arg_table s begin
-        "--ssd-settings"
-        help = "Path to ssd settings YAML file (optional; built-in defaults used if absent or missing)"
-        default = nothing
+        "--grid-size-in-mm"
+        help = "Spacing of the (r, z) grid, in mm"
+        arg_type = Float64
+        default = DEFAULT_GRID_SIZE_IN_MM
+    end
+    @add_arg_table s begin
+        "--refinement-limits"
+        help = "SSD adaptive-mesh refinement thresholds, one per refinement pass"
+        arg_type = Float64
+        nargs = '+'
+        default = DEFAULT_REFINEMENT_LIMITS
+    end
+    @add_arg_table s begin
+        "--padding"
+        help = "Number of pixel layers added around the (r, z) grid"
+        arg_type = Int
+        default = DEFAULT_PADDING
     end
     @add_arg_table s begin
         "--scan-settings"
@@ -149,14 +163,9 @@ function main()
 
     meta, xtal, opv_val = load_detector_metadata(meta_path, det, opv_val)
 
-    # Load optional simulation settings, falling back to built-in defaults.
-    # The settings file path is passed via --ssd-settings and applies globally
-    # to all detectors and voltages.
-    ssd_settings = parsed_args["ssd-settings"]
-    sim_cfg = (!isnothing(ssd_settings) && isfile(ssd_settings)) ? readprops(ssd_settings) : PropDict()
-    grid_size = get(sim_cfg, :grid_size_in_mm, DEFAULT_GRID_SIZE * 1000) / 1000.0
-    ref_limits = get(sim_cfg, :ssd_refinement_limits, DEFAULT_REFINEMENT_LIMITS)
-    padding = get(sim_cfg, :padding, DEFAULT_PADDING)
+    grid_size = parsed_args["grid-size-in-mm"] / 1000.0
+    ref_limits = parsed_args["refinement-limits"]
+    padding = parsed_args["padding"]
 
     # extract the settings of the scan
     scan_settings = parsed_args["scan-settings"]

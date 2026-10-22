@@ -31,6 +31,17 @@ _is_l1000 = config.metadata_repo == "legend1000-metadata"
 _l1000_hpge_metadata = config.paths.generated / "compiled_metadata"
 _hpge_metadata = _l1000_hpge_metadata if _is_l1000 else config.paths.metadata
 
+# SolidStateDetectors.jl settings, passed to the Julia scripts as options. The
+# impurity scan can use its own grid size
+_ssd = get_par_settings(config, "ssd")
+_ssd_opts = (
+    f"--refinement-limits {' '.join(map(str, _ssd.ssd_refinement_limits))}"
+    f" --padding {_ssd.padding}"
+)
+_ssd_scan_grid_size = _impurity_settings.ssd.grid_size_in_mm
+if _ssd_scan_grid_size is None:
+    _ssd_scan_grid_size = _ssd.grid_size_in_mm
+
 
 def smk_curr_mwa(wildcards):
     """Return the moving-window-average settings of the simulated current."""
@@ -112,14 +123,10 @@ rule write_l1000_hpge_metadata:
 def smk_hpge_psd_simulation_inputs(wildcards):
     """Prepare inputs for the HPGe PSD simulation (SSD) rules."""
     _m = Path(config.paths.metadata)
-    ssd_settings = (
-        _m / f"simprod/config/pars/{config.experiment}/geds/ssd/settings.yaml"
-    )
 
     if _is_l1000:
         return {
             "hpge_metadata": rules.write_l1000_hpge_metadata.output,
-            "ssd_settings": ssd_settings,
             "_dummy": rules._init_julia_env.output,
         }
 
@@ -135,7 +142,6 @@ def smk_hpge_psd_simulation_inputs(wildcards):
     return {
         "detdb_file": diode,
         "crydb_file": crystal,
-        "ssd_settings": ssd_settings,
         "_dummy": rules._init_julia_env.output,
     }
 
@@ -172,6 +178,7 @@ rule build_hpge_drift_time_map:
         impurity=_impurity_model or [],
     params:
         metadata_path=_hpge_metadata,
+        ssd_opts=f"{_ssd_opts} --grid-size-in-mm {_ssd.grid_size_in_mm}",
     output:
         dtmap_file=patterns.output_dtmap_filename(config),
         info_file=patterns.output_dtmap_info_filename(config),
@@ -187,7 +194,7 @@ rule build_hpge_drift_time_map:
         "    --detector {wildcards.hpge_detector}"
         "    --compute-drift-time"
         "    --metadata {params.metadata_path}"
-        "    --ssd-settings {input.ssd_settings}"
+        "    {params.ssd_opts}"
         f"   {_impurity_opt}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output.dtmap_file}"
@@ -292,6 +299,7 @@ rule build_hpge_pulse_shape_library:
         impurity=_impurity_model or [],
     params:
         metadata_path=_hpge_metadata,
+        ssd_opts=f"{_ssd_opts} --grid-size-in-mm {_ssd.grid_size_in_mm}",
     output:
         patterns.output_ideal_psl_filename(config),
     log:
@@ -305,7 +313,7 @@ rule build_hpge_pulse_shape_library:
         "  workflow/src/legendsimflow/scripts/make_hpge_psd_maps.jl"
         "    --detector {wildcards.hpge_detector}"
         "    --metadata {params.metadata_path}"
-        "    --ssd-settings {input.ssd_settings}"
+        "    {params.ssd_opts}"
         f"   {_impurity_opt}"
         "    --opv {wildcards.hpge_voltage}"
         "    --output-file {output} &> {log}"
@@ -629,9 +637,11 @@ rule build_hpge_psl_scan:
     Run the same Julia simulation as `build_hpge_pulse_shape_library`, at the
     detector operational voltage, for every point of a grid in impurity-profile
     slope and depletion voltage. The grid is read from
-    `simprod/config/pars/{experiment}/geds/ssd/scan_settings.yaml`. The output
-    LH5 file holds, under the detector group, one ideal library per grid point
-    and the grid description, in the format checked by
+    `simprod/config/pars/{experiment}/geds/ssd/scan_settings.yaml`. The
+    spacing of the (r, z) waveform grid is `ssd.grid_size_in_mm` of the
+    impurity-tuning settings, if set, otherwise the one of the SSD settings.
+    The output LH5 file holds, under the detector group, one ideal library per
+    grid point and the grid description, in the format checked by
     {func}`legendsimflow.psl.validate_ssd_scan_grid`.
 
     Uses wildcard `hpge_detector`.
@@ -647,6 +657,7 @@ rule build_hpge_psl_scan:
     params:
         metadata_path=_hpge_metadata,
         opv=smk_hpge_single_voltage,
+        ssd_opts=f"{_ssd_opts} --grid-size-in-mm {_ssd_scan_grid_size}",
     output:
         patterns.output_psl_scan_filename(config),
     log:
@@ -661,7 +672,7 @@ rule build_hpge_psl_scan:
         "  workflow/src/legendsimflow/scripts/make_hpge_ideal_pulse_shape_lib_scan.jl"
         "    --detector {wildcards.hpge_detector}"
         "    --metadata {params.metadata_path}"
-        "    --ssd-settings {input.ssd_settings}"
+        "    {params.ssd_opts}"
         "    --scan-settings {input.scan_settings}"
         "    --opv {params.opv}"
         "    --output-file {output} &> {log}"

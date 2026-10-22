@@ -33,11 +33,12 @@ def test_make_hpge_drift_time_maps_l200(tmp_path, tuned):
             str(testprod / "legend-metadata"),
             "--opv",
             "3500",
-            "--ssd-settings",
-            str(
-                testprod
-                / "legend-metadata/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
-            ),
+            "--grid-size-in-mm",
+            "10",
+            "--refinement-limits",
+            *["0.2", "0.1", "0.05", "0.02", "0.01"],
+            "--padding",
+            "3",
             "--output-file",
             str(dtmap_file),
             "--info-file",

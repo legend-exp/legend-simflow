@@ -34,11 +34,12 @@ def test_make_hpge_pulse_shape_lib_l200(tmp_path):
             str(testprod / "legend-metadata"),
             "--opv",
             "3500",
-            "--ssd-settings",
-            str(
-                testprod
-                / "legend-metadata/simprod/config/pars/l200cfg01/geds/ssd/settings.yaml"
-            ),
+            "--grid-size-in-mm",
+            "10",
+            "--refinement-limits",
+            *["0.2", "0.1", "0.05", "0.02", "0.01"],
+            "--padding",
+            "3",
             "--impurity",
             str(testprod / "hpge-impurity.yaml"),
             "--output-file",
@@ -81,13 +82,14 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
             str(testprod / "inputs"),
             "--opv",
             "4200",
-            "--ssd-settings",
-            str(testprod / "inputs/simprod/config/pars/legend/geds/ssd/settings.yaml"),
+            # refinement limits and padding: script defaults
             "--scan-settings",
             str(
                 testprod
                 / "inputs/simprod/config/pars/legend/geds/ssd/scan_settings.yaml"
             ),
+            "--grid-size-in-mm",
+            "12",
             "--output-file",
             str(psl_file),
         ],
@@ -118,6 +120,13 @@ def test_make_hpge_pulse_shape_lib_scan(tmp_path):
         "waveform_045_deg",
         "impurity_scale",
     }
+
+    r = np.asarray(lh5.read("V05261B/psl_scan/slope_0/dep_0/r", psl_file))
+    # the step is rounded so that a whole number of steps fits the radius, so
+    # it is only close to 12 mm. Steps below 1 um are the points at the axis
+    # boundaries
+    steps = np.diff(r)
+    assert np.allclose(steps[steps > 1e-6], 0.012, rtol=0.1)
 
     def waveform(slope, dep):
         path = f"V05261B/psl_scan/slope_{slope}/dep_{dep}/waveform_000_deg"

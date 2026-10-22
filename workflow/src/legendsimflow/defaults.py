@@ -96,7 +96,14 @@ PAR_SETTINGS: dict = {
         # utils.lookup_curr_mw_pars
         "curr_mwa": None,
     },
+    "ssd": {
+        "grid_size_in_mm": 0.5,
+        "ssd_refinement_limits": [0.2, 0.1, 0.05, 0.02],
+        "padding": 3,
+    },
     "impurityscan": {
+        # None: use grid_size_in_mm of the ssd settings
+        "ssd": {"grid_size_in_mm": None},
         "drift_time_scan": {
             "min_energy_in_keV": 1500,
             "max_events": None,

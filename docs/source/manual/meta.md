@@ -710,26 +710,28 @@ metadata (see {func}`legendsimflow.aggregate.gen_hpge_modeling_status`).
 
 ### Pulse shape simulation settings
 
-A single shared YAML file (applies to all detectors and voltages) that overrides
+A single shared YAML file (applies to all detectors and voltages) that sets the
 [`SolidStateDetectors.jl`](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
 simulation control parameters for the
-[`build_hpge_drift_time_map`](../api/snakemake_rules.md) and
-[`build_hpge_pulse_shape_library`](../api/snakemake_rules.md) rules. When
-absent, the scripts use built-in production defaults.
+[`build_hpge_drift_time_map`](../api/snakemake_rules.md),
+[`build_hpge_pulse_shape_library`](../api/snakemake_rules.md) and
+[`build_hpge_psl_scan`](../api/snakemake_rules.md) rules. Missing keys, or a
+missing file, keep the defaults shown below. The pulse-shape library scan can
+use its own grid size, see {ref}`impurityscan-settings-meta`.
 
 ```{code-block} yaml
-:caption: simprod/config/pars/{experiment}/geds/ssd/settings.yaml
+:caption: simprod/config/pars/{experiment}/geds/ssd/settings.yaml (values shown are the defaults)
 
 grid_size_in_mm: 0.5
 ssd_refinement_limits: [0.2, 0.1, 0.05, 0.02]
 padding: 3
 ```
 
-| Key                     | Type          | Default                  | Description                                                                                                                                                                                                                                  |
-| ----------------------- | ------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `grid_size_in_mm`       | float         | `0.5`                    | Simulation grid spacing in mm. Execution time scales quadratically with `1/grid_size_in_mm`. The built-in default differs per rule (0.5 mm for the drift-time map, 5 mm for the pulse-shape library); an explicit value here overrides both. |
-| `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.**          |
-| `padding`               | int           | `3`                      | Number of pixel layers padded around the simulated map (drift-time map and pulse-shape library) boundary to avoid grid edge effects.                                                                                                         |
+| Key                     | Type          | Default                  | Description                                                                                                                                                                                                                         |
+| ----------------------- | ------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid_size_in_mm`       | float         | `0.5`                    | Simulation grid spacing in mm. Execution time scales quadratically with `1/grid_size_in_mm`.                                                                                                                                        |
+| `ssd_refinement_limits` | list of float | `[0.2, 0.1, 0.05, 0.02]` | SSD adaptive-mesh refinement thresholds. Each entry drives one refinement pass; smaller values give a more accurate electric field at higher cost. **Overly coarse values can prevent full detector depletion — change with care.** |
+| `padding`               | int           | `3`                      | Number of pixel layers padded around the simulated map (drift-time map and pulse-shape library) boundary to avoid grid edge effects.                                                                                                |
 
 :::{tip}
 
@@ -1168,6 +1170,8 @@ file must then exist. Missing keys keep the defaults shown below.
 ```{code-block} yaml
 :caption: simprod/config/pars/{experiment}/geds/impurityscan/settings.yaml (values shown are the defaults)
 
+ssd:
+  grid_size_in_mm: null
 drift_time_scan:
   min_energy_in_keV: 1500
   max_events: null
@@ -1181,6 +1185,11 @@ impurity_fit:
     min_peak_fraction: 0.25
 ```
 
+- `ssd.grid_size_in_mm` (float or `null`): spacing in mm of the (r, z) grid of
+  the pulse-shape library scan (`build_hpge_psl_scan`). It overrides
+  `grid_size_in_mm` of the {ref}`ssd-settings-meta` for this rule only; `null`
+  uses that value. The cost of the scan, and of the rules that read it, scales
+  quadratically with `1/grid_size_in_mm`.
 - `drift_time_scan.min_energy_in_keV` (float): only simulated events depositing
   more than this energy in the HPGe active volume enter the drift-time scan. It
   must not exceed the lower edge of `impurity_fit.energy_range_in_keV`.
