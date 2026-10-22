@@ -114,6 +114,64 @@ def simulates_hpge_psd(config: SimflowConfig) -> bool:
     )
 
 
+def get_opt_scintillators(config: SimflowConfig) -> AttrsDict:
+    """Return the light sources of the ``opt`` tier, ``<source name> -> settings``.
+
+    Each source is a scintillator whose light reaches the SiPMs. Its settings
+    are:
+
+    - ``table``: name of its table in the ``stp`` files, i.e. the name of the
+      registered scintillator volume, or the ntuple name shared by several
+      volumes (e.g. ``pen`` for all PEN plates);
+    - ``material``: scintillation model (yield and time profile), as known to
+      reboost, e.g. ``lar`` or ``pen``;
+    - ``optmap_scaling_factor``: taken from the top-level value of the ``opt``
+      tier settings, if not set for this source.
+
+    The optical map of source ``<name>`` is ``paths.optical_maps.<name>``.
+    Without a ``scintillators`` block in the ``opt`` tier settings, the only
+    source is ``lar``, with table ``scintillator_volume_name``.
+    """
+    settings = get_tier_settings(config, "opt")
+    block = f"simprod.config.tier.opt.{config.experiment}.settings"
+
+    sources = settings.scintillators
+    if sources is None:
+        if "scintillator_volume_name" not in settings:
+            msg = "either 'scintillators' or 'scintillator_volume_name' must be set"
+            raise SimflowConfigError(msg, block)
+        sources = {
+            "lar": {"table": settings.scintillator_volume_name, "material": "lar"}
+        }
+    elif not isinstance(sources, Mapping) or len(sources) == 0:
+        msg = "'scintillators' must be a non-empty mapping <source name> -> settings"
+        raise SimflowConfigError(msg, block)
+
+    if "lar_patch" in sources:
+        # paths.optical_maps.lar_patch is not the map of a light source
+        msg = "'lar_patch' is not allowed as a name in 'scintillators'"
+        raise SimflowConfigError(msg, block)
+
+    sources = {name: dict(source) for name, source in sources.items()}
+    tables = {}
+    for name, source in sources.items():
+        for key in ("table", "material"):
+            if key not in source:
+                msg = f"scintillators.{name} has no '{key}' field"
+                raise SimflowConfigError(msg, block)
+        if source["table"] in tables:
+            msg = (
+                f"scintillators.{name} and scintillators.{tables[source['table']]} "
+                f"have the same table {source['table']}"
+            )
+            raise SimflowConfigError(msg, block)
+        tables[source["table"]] = name
+        if "optmap_scaling_factor" in settings:
+            source.setdefault("optmap_scaling_factor", settings.optmap_scaling_factor)
+
+    return AttrsDict(sources)
+
+
 def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:
     """Make a Snakemake ``params:`` callable resolving a tier setting lazily."""
     return lambda wildcards: get_tier_settings(config, tier)[key]  # noqa: ARG005

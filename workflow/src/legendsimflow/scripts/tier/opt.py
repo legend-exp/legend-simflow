@@ -32,16 +32,18 @@ from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, optics, utils
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.metadata import get_tier_settings
+from legendsimflow.metadata import get_opt_scintillators, get_tier_settings
 from legendsimflow.scripts import log_script_invocation
 
 
 @snakemake_compatible(
     mapping={
         "stp_file": "input.stp_file",
-        "optmap_lar": lambda snakemake: (
-            snakemake.input.optmap_lar[0] if snakemake.input.optmap_lar else None
-        ),
+        "optmaps": lambda snakemake: [
+            f"{key.removeprefix('optmap_')}={path}"
+            for key, path in snakemake.input.items()
+            if key.startswith("optmap_")
+        ],
         "geom_file": "input.geom",
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
@@ -49,7 +51,6 @@ from legendsimflow.scripts import log_script_invocation
         "opt_file": "output[0]",
         "log_file": "log[0]",
         "optmap_per_sipm": "params.optmap_per_sipm",
-        "scintillator_volume_name": "params.scintillator_volume_name",
         "simflow_config": "config",
     }
 )
@@ -57,9 +58,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build the opt tier.")
     parser.add_argument("--stp-file", required=True, help="input stp tier file")
     parser.add_argument(
-        "--optmap-lar",
-        default=None,
-        help="LAr optical map file, needed with light_source: optmap",
+        "--optmap",
+        dest="optmaps",
+        action="append",
+        default=[],
+        metavar="SOURCE=FILE",
+        help="optical map of a light source, needed with light_source: optmap",
     )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
     parser.add_argument(
@@ -82,11 +86,6 @@ def main() -> None:
         help="sample photoelectrons per SiPM (default: all SiPMs together)",
     )
     parser.add_argument(
-        "--scintillator-volume-name",
-        required=True,
-        help="name of the scintillator sensitive volume in the geometry",
-    )
-    parser.add_argument(
         "--simflow-config",
         "--config",
         dest="simflow_config",
@@ -104,7 +103,6 @@ def main() -> None:
     log_file = args.log_file
     metadata = config.metadata
     optmap_per_sipm = args.optmap_per_sipm
-    scintillator_volume_name = args.scintillator_volume_name
     simstat_part_file = nersc.dvs_ro(config, args.simstat_part_file)
     usability_map = AttrsDict(load_dict(nersc.dvs_ro(config, args.usability_file)))
 
@@ -121,12 +119,17 @@ def main() -> None:
         )
         raise SimflowConfigError(msg, settings_block)
     if light_source == "optmap":
-        if args.optmap_lar is None:
-            msg = "--optmap-lar is required with light_source: optmap"
+        sources = get_opt_scintillators(config)
+        optmaps = {}
+        for item in args.optmaps:
+            name, _, path = item.partition("=")
+            optmaps[name] = nersc.dvs_ro(config, path)
+        if set(optmaps) != set(sources):
+            msg = (
+                f"one optical map per light source is needed: sources "
+                f"{sorted(sources)}, maps given for {sorted(optmaps)}"
+            )
             raise SimflowConfigError(msg, settings_block)
-        optmap_lar = nersc.dvs_ro(config, args.optmap_lar)
-    else:
-        optmap_lar = None
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -140,16 +143,39 @@ def main() -> None:
     )
     sipms = pygeomtools.detectors.get_all_senstables(geom, type_filter="optical")
 
-    # fail early and loudly: without a matching volume the loop below would
-    # silently do nothing and the output file would never be created. tracked
-    # photons do not need the scintillator table
-    if light_source == "optmap" and scintillator_volume_name not in scintillators:
-        msg = (
-            f"scintillator volume {scintillator_volume_name} not found in "
-            f"{gdml_file}. scintillator volumes in the geometry: "
-            f"{sorted(scintillators)}"
+    if light_source == "optmap":
+        # fail early and loudly: without a matching table the output file
+        # would never be created. tracked photons do not need these tables
+        for name, source in sources.items():
+            if source.table not in scintillators:
+                msg = (
+                    f"scintillator table {source.table} of light source {name} not "
+                    f"found in {gdml_file}. scintillator tables in the geometry: "
+                    f"{sorted(scintillators)}"
+                )
+                raise SimflowConfigError(msg, settings_block)
+        uid2source = {scintillators[s.table].uid: name for name, s in sources.items()}
+
+        stp_tables = lh5.ls(stp_file, "stp/*")
+        for name, source in sources.items():
+            if f"stp/{source.table}" not in stp_tables:
+                msg = (
+                    f"table {source.table} of light source {name} not found in "
+                    f"{stp_file}. possibly because it was not read-out or there "
+                    "were no hits recorded"
+                )
+                log.warning(msg)
+        # chunk size in rows, the smallest of the scintillator tables
+        rows_per_chunk = min(
+            (
+                LH5Iterator(
+                    stp_file, f"stp/{s.table}", buffer_len=buffer_len
+                ).buffer_len
+                for s in sources.values()
+                if f"stp/{s.table}" in stp_tables
+            ),
+            default=1,
         )
-        raise SimflowConfigError(msg, settings_block)
 
     partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
 
@@ -158,10 +184,12 @@ def main() -> None:
     log.debug(msg)
     tcm = lh5.read_as("tcm", stp_file, library="ak")
 
-    # in combined mode there is a single map, so pre-load it once for a little
-    # speed up. in per-SiPM mode the maps are loaded on demand, one at a time
+    # in combined mode there is a single map per source, so pre-load them once
+    # for a little speed up. in per-SiPM mode the maps are loaded on demand
     if light_source == "optmap" and not optmap_per_sipm:
-        optmap_lar = reboost.spms.load_optmap(optmap_lar, "all")
+        optmaps = {
+            name: reboost.spms.load_optmap(f, "all") for name, f in optmaps.items()
+        }
 
     # loop over the partitions for this file
     for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):
@@ -194,7 +222,7 @@ def main() -> None:
                     buffer_len=buffer_len,
                     field_mask=["evtid", "t0", "time"],
                 )
-                optics.write_sipm_photoelectrons(
+                optics.write_tracked_photoelectrons(
                     photons,
                     opt_file,
                     sipm,
@@ -207,29 +235,19 @@ def main() -> None:
                 print_perf_last()
             continue
 
-        # convolve the scintillator table with the optical maps
-        scint_uid = scintillators[scintillator_volume_name].uid
+        # each event window (TCM row) with a scintillator hit gives one output
+        # row, where the light of all its scintillator hits is pooled
+        first, last = evt_idx_range
+        windows, n_windows = optics.find_event_windows(
+            tcm[first : last + 1], uid2source
+        )
         msg = (
-            f"looking for data from sensitive volume {scintillator_volume_name} "
-            f"table (uid={scint_uid})..."
+            f"found {n_windows} event windows with scintillator hits, "
+            f"{ {n: len(w) for n, (_, w) in windows.items()} } hits per light source"
         )
-        log.debug(msg)
-
-        if f"stp/{scintillator_volume_name}" not in lh5.ls(stp_file, "stp/*"):
-            msg = (
-                f"detector {scintillator_volume_name} not found in {stp_file}. "
-                "possibly because it was not read-out or there were no hits recorded"
-            )
-            log.warning(msg)
+        log.info(msg)
+        if n_windows == 0:
             continue
-
-        log.info("processing the 'lar' scintillator table...")
-
-        msg = "looking for indices of hit table rows to read..."
-        log.debug(msg)
-        i_start, n_entries = reboost.get_rows_in_event_range(
-            tcm, scint_uid, *evt_idx_range
-        )
 
         # output table, its UID and the usability of the SiPM
         if optmap_per_sipm:
@@ -242,31 +260,33 @@ def main() -> None:
                 for sipm in sorted(sipms)
             ]
         else:
-            targets = [("all", scint_uid, "on")]
+            # the smallest UID of the light sources, independent of their
+            # order in the configuration
+            targets = [("all", min(uid2source), "on")]
 
         for sipm, uid, usability in targets:
-            msg = f"applying optical map for SiPM {sipm}"
+            msg = f"applying optical maps for SiPM {sipm}"
             log.debug(msg)
 
-            steps = LH5Iterator(
+            stats = optics.write_scintillation_photoelectrons(
                 stp_file,
-                f"stp/{scintillator_volume_name}",
-                i_start=i_start,
-                n_entries=n_entries,
-                buffer_len=buffer_len,
-            )
-            stats = optics.write_sipm_photoelectrons(
-                steps,
+                windows,
+                n_windows,
+                sources,
+                optmaps,
                 opt_file,
                 sipm,
                 uid,
                 runid,
                 usability,
                 settings=tier_opt_settings,
-                optmap=optmap_lar,
+                rows_per_chunk=rows_per_chunk,
                 perf_block=perf_block,
             )
-            optics.log_optmap_coverage(stats, sipm, scintillator_volume_name)
+            for name, source_stats in stats.items():
+                optics.log_optmap_coverage(
+                    source_stats, f"{name}/{sipm}", sources[name].table
+                )
             print_perf_last()
 
     # a SiPM without photons still gets a table: the evt tier takes the list of
@@ -276,7 +296,7 @@ def main() -> None:
         for sipm in sorted(sipms):
             if f"hit/{sipm}" in tables:
                 continue
-            optics.write_sipm_photoelectrons(
+            optics.write_tracked_photoelectrons(
                 [optics.empty_photon_table()],
                 opt_file,
                 sipm,

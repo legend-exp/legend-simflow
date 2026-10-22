@@ -15,11 +15,14 @@
 
 """Build the photoelectron tables of the opt tier.
 
-The opt tier holds, for each SiPM channel, the photoelectrons detected in each
-hit of the liquid argon. Photoelectrons come either from the convolution of the
-energy depositions with an optical map (``light_source: optmap``), or from the
-optical photons tracked by Geant4 up to the SiPMs (``light_source:
-tracked_photons``). Times are in nanoseconds, amplitudes in photoelectrons.
+The opt tier holds, for each SiPM channel, the detected photoelectrons.
+Photoelectrons come either from the convolution of the energy depositions in
+the scintillators (the light sources) with their optical maps (``light_source:
+optmap``), or from the optical photons tracked by Geant4 up to the SiPMs
+(``light_source: tracked_photons``). With optical maps, the light of all
+scintillator hits in the same event window (row of the stp TCM) is pooled and
+gives one output row. With tracked photons, each hit of a SiPM gives one output
+row. Times are in nanoseconds, amplitudes in photoelectrons.
 """
 
 from __future__ import annotations
@@ -30,11 +33,12 @@ from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 
 import awkward as ak
+import lh5
 import numpy as np
 import reboost
 import reboost.spms
 from lgdo import Array, Table, VectorOfVectors
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from reboost.optmap.convolve import NumdetStats, OptmapForConvolve
 
 from legendsimflow import metadata as mutils
@@ -129,27 +133,32 @@ def optmap_to_pes(
     optmap: OptmapForConvolve,
     sipm: str,
     *,
+    material: str,
     map_scaling: float,
     max_pes_per_hit: int,
     store_expected_pes: bool,
     perf_block: Callable[[str], AbstractContextManager] = nullcontext,
 ) -> tuple[ak.Array, NDArray[np.bool_], NDArray[np.floating] | None, NumdetStats]:
-    """Sample the photoelectrons of the energy depositions in the argon.
+    """Sample the photoelectrons of the energy depositions in a scintillator.
 
     The number of scintillation photons emitted by each step follows from its
-    energy deposition and particle type. The optical map gives the probability
-    that a photon emitted at the step position reaches `sipm`. The emission
-    times follow the argon scintillation time profile.
+    energy deposition, particle type and the light yield of `material`. The
+    optical map gives the probability that a photon emitted at the step
+    position reaches `sipm`. The emission times follow the scintillation time
+    profile of `material`.
 
     Parameters
     ----------
     chunk
-        Rows of the argon step table (fields ``edep``, ``particle``, ``xloc``,
-        ``yloc``, ``zloc`` and ``time``, one list per hit).
+        Rows of a scintillator step table (fields ``edep``, ``particle``,
+        ``xloc``, ``yloc``, ``zloc`` and ``time``, one list per hit).
     optmap
         The optical map, already loaded with :func:`reboost.spms.load_optmap`.
     sipm
         Name of the SiPM, or ``"all"`` for the combined map.
+    material
+        Scintillation material, as known to reboost: ``lar``, ``pen`` or
+        ``fiber``.
     map_scaling
         Factor applied to the detection probabilities of the map.
     max_pes_per_hit
@@ -175,7 +184,7 @@ def optmap_to_pes(
     """
     with perf_block("emitted_scintillation_photons()"):
         scint_ph = reboost.spms.emitted_scintillation_photons(
-            chunk.edep, chunk.particle, "lar"
+            chunk.edep, chunk.particle, material
         )
 
     with perf_block("number_of_detected_photoelectrons()"):
@@ -207,7 +216,7 @@ def optmap_to_pes(
 
     with perf_block("photoelectron_times()"):
         pe_times = reboost.spms.photoelectron_times(
-            nr_pe, chunk.particle, chunk.time, "lar"
+            nr_pe, chunk.particle, chunk.time, material
         )
         # the photoelectron_times() processor does not guarantee time ordering
         pe_times = ak.sort(pe_times, axis=-1)
@@ -255,14 +264,15 @@ def build_opt_table(
     runid: str,
     usability: str,
 ) -> Table:
-    """Assemble the opt tier table of one SiPM for a chunk of hits.
+    """Assemble the opt tier table of one SiPM for a chunk of output rows.
 
-    The table carries the event fields of `stp_chunk` (see
-    :func:`reboost.init_hit_table`) and, per hit: ``dt`` (photoelectron times
+    The table carries the event fields of `stp_chunk`, a step table or a table
+    of event windows with ``evtid`` and ``t0`` (see
+    :func:`reboost.init_hit_table`), and, per row: ``dt`` (photoelectron times
     relative to the hit time ``t0``, in nanoseconds), ``energy`` (the
     amplitudes, in photoelectrons), ``is_saturated``, ``expected_pes`` (only
     if given), and the ``period``, ``run`` and encoded ``usability`` of the
-    data run the hit belongs to.
+    data run the row belongs to.
     """
     out_table = reboost.init_hit_table(stp_chunk)
 
@@ -325,7 +335,182 @@ def empty_photon_table() -> Table:
     )
 
 
-def write_sipm_photoelectrons(
+def group_by_window(
+    values: ak.Array | ArrayLike, window_idx: ArrayLike, n_windows: int
+) -> ak.Array:
+    """Group rows of scintillator hits by the event window they belong to.
+
+    Parameters
+    ----------
+    values
+        One entry per scintillator hit, possibly from several tables.
+    window_idx
+        Index of the window of each hit, in ``[0, n_windows)``.
+    n_windows
+        Number of windows. Windows without hits get an empty list.
+
+    Returns
+    -------
+    ak.Array
+        One list per window, holding the entries of its hits in the order of
+        `values`. Lists of `values` gain one level of nesting.
+    """
+    window_idx = np.asarray(window_idx, dtype=np.int64)
+    order = np.argsort(window_idx, kind="stable")
+    counts = np.bincount(window_idx, minlength=n_windows)
+    return ak.unflatten(ak.Array(values)[order], counts)
+
+
+def find_event_windows(
+    tcm: ak.Array, uid2source: Mapping[int, str]
+) -> tuple[dict[str, tuple[int, NDArray[np.int64]]], int]:
+    """Find the event windows with light from the scintillators.
+
+    Each event window (TCM row) with at least one hit of a light source gives
+    one output row of the opt tier.
+
+    Parameters
+    ----------
+    tcm
+        The rows of the stp TCM to process (fields ``table_key`` and
+        ``row_in_table``).
+    uid2source
+        The light sources, by the UID of their table.
+
+    Returns
+    -------
+    windows
+        For each light source with hits, the first row of its table in `tcm`
+        and the output row (window) of each hit from there on.
+    n_windows
+        The number of event windows with scintillator hits.
+    """
+    keys = ak.to_numpy(ak.flatten(tcm.table_key))
+    rows = ak.to_numpy(ak.flatten(tcm.row_in_table))
+    in_window = np.repeat(np.arange(len(tcm)), ak.to_numpy(ak.num(tcm.table_key)))
+
+    is_scint = np.isin(keys, list(uid2source))
+    has_scint = np.zeros(len(tcm), dtype=np.bool_)
+    has_scint[in_window[is_scint]] = True
+    out_row = np.cumsum(has_scint) - 1
+
+    windows = {}
+    for uid, source in uid2source.items():
+        sel = keys == uid
+        if not np.any(sel):
+            continue
+        # the TCM orders the hits of a window by time: sort them by row, so
+        # that each chunk is read as one block of rows
+        order = np.argsort(rows[sel], kind="stable")
+        src_rows = rows[sel][order]
+        src_w = out_row[in_window[sel]][order]
+        if np.any(np.diff(src_rows) != 1) or np.any(np.diff(src_w) < 0):
+            msg = f"the rows of light source {source} are not one block in event order"
+            raise RuntimeError(msg)
+        windows[source] = (int(src_rows[0]), src_w)
+
+    return windows, int(has_scint.sum())
+
+
+def pool_photoelectrons(
+    pe_times: ak.Array,
+    expected_pes: NDArray[np.floating] | None,
+    t0: ArrayLike,
+    evtid: ArrayLike,
+    window_idx: ArrayLike,
+    n_windows: int,
+    max_pes_per_hit: int,
+) -> tuple[Table, ak.Array, NDArray[np.bool_], NDArray[np.floating] | None]:
+    """Pool the photoelectrons of the scintillator hits of each event window.
+
+    Parameters
+    ----------
+    pe_times
+        The photoelectron times of each hit, in nanoseconds.
+    expected_pes
+        The expected number of photoelectrons of each hit, or ``None``.
+    t0
+        The time of each hit, in nanoseconds.
+    evtid
+        The Geant4 event of each hit.
+    window_idx
+        Index of the window of each hit, in ``[0, n_windows)``. Every window
+        has at least one hit.
+    n_windows
+        Number of windows.
+    max_pes_per_hit
+        Keep at most this many photoelectrons per window, the earliest ones.
+        A window that reaches the cap is flagged as saturated. Zero or
+        negative keeps all photoelectrons.
+
+    Returns
+    -------
+    windows
+        The ``evtid`` and ``t0`` (the earliest hit) of each window.
+    pe_times
+        The photoelectron times of each window, in increasing order.
+    is_saturated
+        One flag per window.
+    expected_pes
+        The expected number of photoelectrons of each window, or ``None``.
+    """
+    pooled = ak.sort(
+        ak.flatten(group_by_window(pe_times, window_idx, n_windows), axis=2), axis=-1
+    )
+    if max_pes_per_hit > 0:
+        is_saturated = ak.to_numpy(ak.num(pooled) >= max_pes_per_hit)
+        pooled = pooled[:, :max_pes_per_hit]
+    else:
+        is_saturated = np.full(n_windows, fill_value=False, dtype=np.bool_)
+
+    if expected_pes is not None:
+        expected_pes = ak.to_numpy(
+            ak.sum(group_by_window(expected_pes, window_idx, n_windows), axis=1)
+        )
+
+    windows = Table(size=n_windows)
+    t0 = ak.min(group_by_window(t0, window_idx, n_windows), axis=1, mask_identity=False)
+    windows.add_field("t0", Array(ak.to_numpy(t0), attrs={"units": "ns"}))
+    evtid = group_by_window(evtid, window_idx, n_windows)[:, 0]
+    windows.add_field("evtid", Array(ak.to_numpy(evtid)))
+
+    return windows, pooled, is_saturated, expected_pes
+
+
+def _write_chunk(
+    stp_chunk: Table,
+    pe_times: ak.Array,
+    is_saturated: NDArray[np.bool_],
+    expected_pes: NDArray[np.floating] | None,
+    out_file: str | Path,
+    sipm: str,
+    sipm_uid: int,
+    runid: str,
+    usability: str,
+    settings: Mapping,
+    perf_block: Callable[[str], AbstractContextManager],
+) -> None:
+    """Apply the SiPM response to the photoelectrons and append them to `out_file`."""
+    pe_times, pe_amps = apply_photoelectron_resolution(
+        pe_times,
+        settings["photoelectron_resolution_sigma"],
+        settings["time_resolution_in_ns"],
+        perf_block=perf_block,
+    )
+
+    with perf_block("write_hit_table_chunk()"):
+        out_table = build_opt_table(
+            stp_chunk, pe_times, pe_amps, is_saturated, expected_pes, runid, usability
+        )
+        reboost.write_hit_table_chunk(
+            out_table,
+            "hit/" + ("spms" if sipm == "all" else sipm),
+            out_file,
+            uid=sipm_uid,
+        )
+
+
+def write_tracked_photoelectrons(
     chunks: Iterable[Table],
     out_file: str | Path,
     sipm: str,
@@ -334,18 +519,12 @@ def write_sipm_photoelectrons(
     usability: str,
     *,
     settings: Mapping,
-    optmap: str | Path | OptmapForConvolve | None = None,
     perf_block: Callable[[str], AbstractContextManager] = nullcontext,
-) -> NumdetStats | None:
-    """Write the photoelectrons of one SiPM to the opt tier file.
+) -> None:
+    """Write the photoelectrons of the photons tracked up to one SiPM.
 
-    Each row of `chunks` gives one row of the output table, appended to
-    ``hit/<sipm>`` in `out_file` (``hit/spms`` for the combined map). With
-    ``light_source: optmap``, `chunks` runs over the argon step table and
-    `optmap` is the map, or its file name, which is then loaded here and
-    released on return (the per-channel maps are too large to keep all of them
-    in memory). With ``light_source: tracked_photons``, `chunks` runs over the
-    step table of the SiPM.
+    Each row of `chunks`, the step table of the SiPM, gives one output row,
+    appended to ``hit/<sipm>`` in `out_file`.
 
     Parameters
     ----------
@@ -355,10 +534,9 @@ def write_sipm_photoelectrons(
     out_file
         The opt tier file.
     sipm
-        Name of the SiPM, or ``"all"`` for the combined map.
+        Name of the SiPM.
     sipm_uid
-        UID of the output table, the one of the SiPM or, for the combined map,
-        of the argon volume.
+        UID of the SiPM.
     runid
         The data run the rows belong to, as in the simulation statistics
         partition file.
@@ -366,84 +544,200 @@ def write_sipm_photoelectrons(
         Usability of the SiPM in `runid`.
     settings
         The ``opt`` tier settings (see :func:`.metadata.get_tier_settings`):
-        ``light_source``, ``optmap_scaling_factor``,
+        ``max_pes_per_hit_per_sipm``, ``photoelectron_resolution_sigma`` and
+        ``time_resolution_in_ns``.
+    perf_block
+        Context manager of a :func:`reboost.profile.make_profiler`, used to time the
+        reboost calls.
+    """
+    for stp_chunk in chunks:
+        pe_times, is_saturated = tracked_photons_to_pes(
+            stp_chunk.view_as("ak"), settings["max_pes_per_hit_per_sipm"]
+        )
+        _write_chunk(
+            stp_chunk,
+            pe_times,
+            is_saturated,
+            None,
+            out_file,
+            sipm,
+            sipm_uid,
+            runid,
+            usability,
+            settings,
+            perf_block,
+        )
+
+
+def write_scintillation_photoelectrons(
+    stp_file: str | Path,
+    windows: Mapping[str, tuple[int, NDArray[np.int64]]],
+    n_windows: int,
+    sources: Mapping[str, Mapping],
+    optmaps: Mapping[str, str | Path | OptmapForConvolve],
+    out_file: str | Path,
+    sipm: str,
+    sipm_uid: int,
+    runid: str,
+    usability: str,
+    *,
+    settings: Mapping,
+    rows_per_chunk: int,
+    perf_block: Callable[[str], AbstractContextManager] = nullcontext,
+) -> dict[str, NumdetStats]:
+    """Write the photoelectrons of the scintillation light seen by one SiPM.
+
+    The light of all scintillator hits in an event window is pooled before
+    the SiPM response is applied: the photoelectron cap, the amplitude
+    smearing and the time clustering act on the combined light. Each window
+    gives one output row, appended to ``hit/<sipm>`` in `out_file`
+    (``hit/spms`` for the combined map).
+
+    Parameters
+    ----------
+    stp_file
+        The stp tier file.
+    windows
+        For each light source with hits, the first row of its table and the
+        output row of each hit from there on, see :func:`find_event_windows`.
+    n_windows
+        Number of output rows.
+    sources
+        The light sources (``table``, ``material`` and
+        ``optmap_scaling_factor``), see
+        :func:`.metadata.get_opt_scintillators`.
+    optmaps
+        The optical map of each light source, or its file name. Maps given by
+        file name are loaded here and released on return (the per-channel
+        maps are too large to keep all of them in memory).
+    out_file
+        The opt tier file.
+    sipm
+        Name of the SiPM, or ``"all"`` for the combined map.
+    sipm_uid
+        UID of the output table, the one of the SiPM or, for the combined map,
+        of a light source.
+    runid
+        The data run the windows belong to, as in the simulation statistics
+        partition file.
+    usability
+        Usability of the SiPM in `runid`.
+    settings
+        The ``opt`` tier settings (see :func:`.metadata.get_tier_settings`):
         ``max_pes_per_hit_per_sipm`` (``max_pes_per_hit_combined`` for the
         combined map), ``store_expected_pes``,
         ``photoelectron_resolution_sigma`` and ``time_resolution_in_ns``.
-    optmap
-        Optical map or its file name. Required with ``light_source: optmap``.
+    rows_per_chunk
+        Number of scintillator hits to read at once. A window is never split
+        between chunks, so a chunk can hold more.
     perf_block
         Context manager of a :func:`reboost.profile.make_profiler`, used to time the
         reboost calls.
 
     Returns
     -------
-    NumdetStats or None
-        With an optical map, the energy depositions outside the map or in
-        bins without detection probability, summed over `chunks`. ``None``
-        with tracked photons.
+    dict[str, NumdetStats]
+        For each light source, the energy depositions outside its map or in
+        bins without detection probability.
     """
-    light_source = settings["light_source"]
     max_pes_per_hit = (
         settings["max_pes_per_hit_combined"]
         if sipm == "all"
         else settings["max_pes_per_hit_per_sipm"]
     )
+    store_expected_pes = settings["store_expected_pes"]
 
-    if light_source == "optmap":
-        with perf_block("load_optmap()"):
-            if not isinstance(optmap, OptmapForConvolve):
-                optmap = reboost.spms.load_optmap(optmap, sipm)
+    with perf_block("load_optmap()"):
+        optmaps = {
+            name: m
+            if isinstance(m, OptmapForConvolve)
+            else reboost.spms.load_optmap(m, sipm)
+            for name, m in optmaps.items()
+        }
 
-        # constant for this SiPM, so resolve it once instead of per chunk
-        map_scaling = resolve_map_scaling(settings["optmap_scaling_factor"], sipm)
-        msg = f"using optical map scaling factor {map_scaling} for {sipm}"
+    # constant for this SiPM, so resolve them once instead of per chunk
+    map_scaling = {}
+    for name, source in sources.items():
+        map_scaling[name] = resolve_map_scaling(source["optmap_scaling_factor"], sipm)
+        msg = f"using optical map scaling factor {map_scaling[name]} for {name}/{sipm}"
         log.debug(msg)
 
-        stats = NumdetStats()
-    else:
-        stats = None
+    stats = {name: NumdetStats() for name in sources}
 
-    for stp_chunk in chunks:
-        chunk = stp_chunk.view_as("ak")
+    # hits of all sources per window, as cumulative counts
+    cum_rows = np.cumsum(
+        np.bincount(
+            np.concatenate([w for _, w in windows.values()]), minlength=n_windows
+        )
+    )
 
-        if light_source == "tracked_photons":
-            pe_times, is_saturated = tracked_photons_to_pes(chunk, max_pes_per_hit)
-            expected_pes = None
-        else:
-            pe_times, is_saturated, expected_pes, chunk_stats = optmap_to_pes(
-                chunk,
-                optmap,
+    w_start = 0
+    while w_start < n_windows:
+        base = cum_rows[w_start - 1] if w_start > 0 else 0
+        w_end = max(
+            w_start + 1,
+            int(np.searchsorted(cum_rows, base + rows_per_chunk, side="right")),
+        )
+        w_end = min(w_end, n_windows)
+
+        pe_times, expected_pes, t0, evtid, window_idx = ([] for _ in range(5))
+        for name, (first_row, w) in windows.items():
+            i, j = np.searchsorted(w, [w_start, w_end])
+            if i == j:
+                continue
+
+            stp_chunk = lh5.read(
+                f"stp/{sources[name]['table']}",
+                stp_file,
+                start_row=first_row + i,
+                n_rows=j - i,
+            )
+            # a hit at the cap has max_pes_per_hit photoelectrons, so its
+            # window is flagged as saturated after pooling
+            times, _, expected, chunk_stats = optmap_to_pes(
+                stp_chunk.view_as("ak"),
+                optmaps[name],
                 sipm,
-                map_scaling=map_scaling,
+                material=sources[name]["material"],
+                map_scaling=map_scaling[name],
                 max_pes_per_hit=max_pes_per_hit,
-                store_expected_pes=settings["store_expected_pes"],
+                store_expected_pes=store_expected_pes,
                 perf_block=perf_block,
             )
-            stats += chunk_stats
+            stats[name] += chunk_stats
 
-        pe_times, pe_amps = apply_photoelectron_resolution(
-            pe_times,
-            settings["photoelectron_resolution_sigma"],
-            settings["time_resolution_in_ns"],
-            perf_block=perf_block,
+            pe_times.append(ak.without_parameters(times))
+            if expected is not None:
+                expected_pes.append(np.asarray(expected, dtype=np.float64))
+            hits = reboost.init_hit_table(stp_chunk)
+            t0.append(hits.t0.nda)
+            evtid.append(hits.evtid.nda)
+            window_idx.append(w[i:j] - w_start)
+
+        with perf_block("pool_photoelectrons()"):
+            window_table, pooled, is_saturated, expected = pool_photoelectrons(
+                ak.concatenate(pe_times),
+                np.concatenate(expected_pes) if store_expected_pes else None,
+                np.concatenate(t0),
+                np.concatenate(evtid),
+                np.concatenate(window_idx),
+                w_end - w_start,
+                max_pes_per_hit,
+            )
+
+        _write_chunk(
+            window_table,
+            pooled,
+            is_saturated,
+            expected,
+            out_file,
+            sipm,
+            sipm_uid,
+            runid,
+            usability,
+            settings,
+            perf_block,
         )
-
-        with perf_block("write_hit_table_chunk()"):
-            out_table = build_opt_table(
-                stp_chunk,
-                pe_times,
-                pe_amps,
-                is_saturated,
-                expected_pes,
-                runid,
-                usability,
-            )
-            reboost.write_hit_table_chunk(
-                out_table,
-                "hit/" + ("spms" if sipm == "all" else sipm),
-                out_file,
-                uid=sipm_uid,
-            )
+        w_start = w_end
 
     return stats

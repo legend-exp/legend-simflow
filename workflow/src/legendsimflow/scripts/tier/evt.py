@@ -38,6 +38,7 @@ from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
     encode_psd_usability,
     encode_usability,
+    get_opt_scintillators,
     get_simconfig,
     get_tier_settings,
     parse_runid,
@@ -195,23 +196,17 @@ def main() -> None:
                 lh5.write(chunk, "tcm", str(evt_file), wo_mode=wo)
                 wo = "append"
         else:
-            scintillator_volume_name = get_tier_settings(
-                config, "opt"
-            ).scintillator_volume_name
-
+            # the opt tier pools the light of all scintillator hits of a TCM row
             stp_uids = reboost.get_remage_detector_uids(stp_file)
-            scintillator_uid = next(
-                (
-                    uid
-                    for uid, name in stp_uids.items()
-                    if name == scintillator_volume_name
-                ),
-                None,
-            )
-            if scintillator_uid is None:
+            table2uid = {name: uid for uid, name in stp_uids.items()}
+            # a source without energy depositions in this job has no table, and
+            # so no UID in the TCM
+            tables = [s.table for s in get_opt_scintillators(config).values()]
+            scintillator_uids = [table2uid[t] for t in tables if t in table2uid]
+            if not scintillator_uids:
                 msg = (
-                    f"scintillator volume {scintillator_volume_name} not found in "
-                    f"{stp_file}. tables in the file: {sorted(stp_uids.values())}"
+                    f"none of the scintillator tables {tables} found in "
+                    f"{stp_file}. tables in the file: {sorted(table2uid)}"
                 )
                 raise SimflowConfigError(
                     msg, f"simprod.config.tier.opt.{config.experiment}.settings"
@@ -221,7 +216,7 @@ def main() -> None:
                 stp_file,
                 hit_file["opt"],
                 evt_file,
-                scintillator_uids=[scintillator_uid],
+                scintillator_uids=scintillator_uids,
                 buffer_len=buffer_len,
             )
 

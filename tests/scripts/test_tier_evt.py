@@ -386,7 +386,6 @@ def test_evt_script_cli_skip_hit_tracked_photons(
         "opt",
         *common_args,
         "--geom-file", str(legend_gdml_path),
-        "--scintillator-volume-name", "liquid_argon",
         "--opt-file", str(opt_file),
     ])  # fmt: skip
     opt.main()
@@ -419,7 +418,25 @@ def test_evt_script_cli_skip_hit_tracked_photons(
 
 
 @pytest.mark.needs_remage
-def test_evt_script_cli_unknown_scintillator_volume(
+@pytest.mark.parametrize(
+    ("opt_settings", "error"),
+    [
+        ({"scintillator_volume_name": "not_a_volume"}, "not_a_volume"),
+        # no energy is deposited in PEN, so the stp file has no pen table
+        (
+            {
+                "scintillators": {
+                    "lar": {"table": "liquid_argon", "material": "lar"},
+                    "pen": {"table": "pen", "material": "pen"},
+                }
+            },
+            None,
+        ),
+    ],
+)
+def test_evt_script_cli_scintillator_tables(
+    opt_settings,
+    error,
     tmp_path,
     l200_config_factory,
     monkeypatch,
@@ -429,10 +446,8 @@ def test_evt_script_cli_unknown_scintillator_volume(
     legend_simstat_part_path,
     legend_detector_usabilities_path,
 ):
-    """The scintillator volume comes from the opt-tier settings, not from a constant."""
-    config_path = l200_config_factory(
-        tmp_path, {"opt": {"scintillator_volume_name": "not_a_volume"}}
-    )
+    """The scintillator tables come from the opt-tier settings, not from a constant."""
+    config_path = l200_config_factory(tmp_path, {"opt": opt_settings})
 
     monkeypatch.setattr(
         sys,
@@ -459,8 +474,14 @@ def test_evt_script_cli_unknown_scintillator_volume(
             str(config_path),
         ],
     )
-    with pytest.raises(SimflowConfigError, match="not_a_volume"):
+    if error is None:
         evt.main()
+        assert lh5.read_n_rows("tcm", tmp_path / "evt.lh5") == lh5.read_n_rows(
+            "tcm", legend_stp_path
+        )
+    else:
+        with pytest.raises(SimflowConfigError, match=error):
+            evt.main()
 
 
 @pytest.mark.needs_remage

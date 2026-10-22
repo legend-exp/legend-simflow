@@ -7,9 +7,9 @@ from pathlib import Path
 import dbetto
 import h5py
 import pytest
-from dbetto import TextDB
+from dbetto import AttrsDict, TextDB
 
-from legendsimflow import aggregate, utils, validate
+from legendsimflow import aggregate, metadata, utils, validate
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import parse_runid, reference_cal_run, runinfo
 
@@ -244,6 +244,29 @@ def test_input_paths_optical_maps(fresh_config, tmp_path):
 
     (tmp_path / "lar.lh5").touch()
     (tmp_path / "patch.lh5").touch()
+    validate.input_paths(config)
+
+
+def test_input_paths_optical_map_per_light_source(fresh_config, tmp_path, monkeypatch):
+    config = fresh_config
+    config["make_steps"] = ["vtx", "stp", "opt"]
+    config.paths["optical_maps"] = {"pen": tmp_path / "pen.lh5"}
+
+    settings = metadata.get_tier_settings(config, "opt")
+    pen = {"pen": {"table": "pen", "material": "pen"}}
+    monkeypatch.setattr(
+        metadata,
+        "get_tier_settings",
+        lambda *_: AttrsDict(settings | {"scintillators": pen}),
+    )
+
+    # no lar map is needed without a lar source
+    with pytest.raises(SimflowConfigError) as e:
+        validate.input_paths(config)
+    assert "paths/optical_maps/pen" in str(e.value)
+    assert "optical_maps/lar" not in str(e.value)
+
+    (tmp_path / "pen.lh5").touch()
     validate.input_paths(config)
 
 

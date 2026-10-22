@@ -21,8 +21,6 @@ OPTMAP = "remage/l200cfg01-optmap-dummy.lh5"
 # the opt tier settings read by the optics functions
 SETTINGS = AttrsDict(
     {
-        "light_source": "tracked_photons",
-        "optmap_scaling_factor": 1.0,
         "max_pes_per_hit_per_sipm": 0,
         "max_pes_per_hit_combined": 0,
         "store_expected_pes": False,
@@ -213,7 +211,7 @@ def test_log_optmap_coverage(caplog):
     assert all("0.00%" in r.message for r in caplog.records)
 
 
-def test_write_sipm_photoelectrons_tracked_photons(tmp_path):
+def test_write_tracked_photoelectrons(tmp_path):
     out_file = tmp_path / "opt.lh5"
     chunks = [
         _sipm_table([[3.0, 1.0, 2.0], []], t0=1000.0),
@@ -221,10 +219,9 @@ def test_write_sipm_photoelectrons_tracked_photons(tmp_path):
     ]
     settings = AttrsDict(SETTINGS | {"max_pes_per_hit_per_sipm": 2})
 
-    stats = optics.write_sipm_photoelectrons(
+    optics.write_tracked_photoelectrons(
         chunks, out_file, "S002", 1002, RUNID, "ac", settings=settings
     )
-    assert stats is None
 
     out = lh5.read_as("hit/S002", out_file, library="ak")
     assert out.evtid.to_list() == [0, 1, 0]
@@ -237,7 +234,7 @@ def test_write_sipm_photoelectrons_tracked_photons(tmp_path):
     assert reboost.get_remage_detector_uids(out_file, lh5_table="hit") == {1002: "S002"}
 
     # a SiPM without photons gets an empty table with the same layout
-    optics.write_sipm_photoelectrons(
+    optics.write_tracked_photoelectrons(
         [optics.empty_photon_table()], out_file, "S003", 1003, RUNID, "on",
         settings=settings,
     )  # fmt: skip
@@ -254,7 +251,7 @@ def test_optmap_to_pes(legend_testdata):
     chunk = _argon_table(n_hits=50, n_steps=5).view_as("ak")
 
     pe_times, is_saturated, expected_pes, stats = optics.optmap_to_pes(
-        chunk, optmap, "all", map_scaling=1.0, max_pes_per_hit=0,
+        chunk, optmap, "all", material="lar", map_scaling=1.0, max_pes_per_hit=0,
         store_expected_pes=True,
     )  # fmt: skip
     assert len(pe_times) == 50
@@ -273,7 +270,7 @@ def test_optmap_to_pes(legend_testdata):
     # a smaller scaling factor gives fewer photoelectrons, in proportion. the
     # expectation is at unit efficiency, so it does not change
     pe_times_half, _, expected_half, _ = optics.optmap_to_pes(
-        chunk, optmap, "all", map_scaling=0.5, max_pes_per_hit=0,
+        chunk, optmap, "all", material="lar", map_scaling=0.5, max_pes_per_hit=0,
         store_expected_pes=True,
     )  # fmt: skip
     n_pes = ak.sum(ak.num(pe_times))
@@ -283,7 +280,7 @@ def test_optmap_to_pes(legend_testdata):
 
     # the cap flags saturated hits and nothing is returned for the expectation
     pe_times, is_saturated, expected_pes, _ = optics.optmap_to_pes(
-        chunk, optmap, "all", map_scaling=1.0, max_pes_per_hit=1,
+        chunk, optmap, "all", material="lar", map_scaling=1.0, max_pes_per_hit=1,
         store_expected_pes=False,
     )  # fmt: skip
     assert expected_pes is None
@@ -292,31 +289,115 @@ def test_optmap_to_pes(legend_testdata):
     assert np.any(is_saturated)
 
 
-def test_write_sipm_photoelectrons_optmap(legend_testdata, tmp_path):
+def test_group_by_window():
+    grouped = optics.group_by_window(
+        ak.Array([[1.0], [2.0, 3.0], [], [4.0]]), [2, 0, 2, 0], 4
+    )
+    assert grouped.to_list() == [[[2.0, 3.0], [4.0]], [], [[1.0], []], []]
+    assert optics.group_by_window(np.array([5, 6, 7]), [1, 1, 0], 2).to_list() == [
+        [7],
+        [5, 6],
+    ]
+
+
+def test_find_event_windows():
+    # UIDs 1 and 2 are light sources, 3 is a germanium detector. the hits of
+    # a window are ordered by time, not by table
+    tcm = ak.Array(
+        {
+            "table_key": [[2, 1], [3], [2], [1, 1], [3, 2]],
+            "row_in_table": [[5, 0], [0], [6], [2, 1], [1, 7]],
+        }
+    )
+    windows, n_windows = optics.find_event_windows(tcm, {1: "pen", 2: "lar"})
+    assert n_windows == 4
+    assert windows.keys() == {"lar", "pen"}
+    assert windows["lar"][0] == 5
+    assert windows["lar"][1].tolist() == [0, 1, 3]
+    assert windows["pen"][0] == 0
+    assert windows["pen"][1].tolist() == [0, 2, 2]
+
+    windows, n_windows = optics.find_event_windows(tcm[1:2], {1: "pen", 2: "lar"})
+    assert (windows, n_windows) == ({}, 0)
+
+    # a gap in the rows of a source
+    tcm = ak.Array({"table_key": [[1], [1]], "row_in_table": [[0], [2]]})
+    with pytest.raises(RuntimeError, match="pen are not one block"):
+        optics.find_event_windows(tcm, {1: "pen"})
+
+
+def test_pool_photoelectrons():
+    pe_times = ak.Array([[3.0, 1.0], [2.0], [7.0], [0.5]])
+    windows, pooled, is_saturated, expected = optics.pool_photoelectrons(
+        pe_times,
+        np.array([1.0, 2.0, 3.0, 4.0]),
+        t0=[10.0, 5.0, 7.0, 0.0],
+        evtid=[4, 4, 5, 6],
+        window_idx=[0, 0, 1, 2],
+        n_windows=3,
+        max_pes_per_hit=2,
+    )
+    assert pooled.to_list() == [[1.0, 2.0], [7.0], [0.5]]
+    assert is_saturated.tolist() == [True, False, False]
+    assert expected.tolist() == [3.0, 3.0, 4.0]
+    # the earliest hit of the window
+    assert windows.t0.nda.tolist() == [5.0, 7.0, 0.0]
+    assert windows.t0.attrs["units"] == "ns"
+    assert windows.evtid.nda.tolist() == [4, 5, 6]
+
+    _, pooled, is_saturated, expected = optics.pool_photoelectrons(
+        pe_times, None, [0.0] * 4, [0] * 4, [0, 0, 1, 2], 3, 0
+    )
+    assert pooled.to_list() == [[1.0, 2.0, 3.0], [7.0], [0.5]]
+    assert not np.any(is_saturated)
+    assert expected is None
+
+
+def _write_argon_file(path: Path, n_hits: int, seed: int = 42) -> Path:
+    reboost.write_hit_table_chunk(
+        _argon_table(n_hits, 5, seed=seed), "stp/liquid_argon", path, uid=1
+    )
+    return path
+
+
+def _one_source(scaling: float | dict = 1.0) -> dict:
+    return {
+        "lar": AttrsDict(
+            {
+                "table": "liquid_argon",
+                "material": "lar",
+                "optmap_scaling_factor": scaling,
+            }
+        )
+    }
+
+
+def test_write_scintillation_photoelectrons(legend_testdata, tmp_path):
+    stp_file = _write_argon_file(tmp_path / "stp.lh5", 30)
     out_file = tmp_path / "opt.lh5"
     optmap_file = legend_testdata[OPTMAP]
-    chunks = [_argon_table(20, 5, seed=1), _argon_table(10, 5, seed=2)]
+    sources = _one_source({"S002": 0.5, "default": 1.0})
     settings = AttrsDict(
         SETTINGS
         | {
-            "light_source": "optmap",
-            "optmap_scaling_factor": {"S002": 0.5, "default": 1.0},
             "max_pes_per_hit_combined": 1,
             "store_expected_pes": True,
             "time_resolution_in_ns": 10.0,
         }
     )
 
-    # combined map, pre-loaded: table hit/spms, cap of the combined map
+    # combined map, pre-loaded: table hit/spms, cap of the combined map. one
+    # hit per window, read in two chunks
     optmap = reboost.spms.load_optmap(optmap_file, "all")
-    stats = optics.write_sipm_photoelectrons(
-        chunks, out_file, "all", 1, RUNID, "on", settings=settings, optmap=optmap
-    )
-    assert isinstance(stats, NumdetStats)
-    assert stats.steps_looped == 150
+    stats = optics.write_scintillation_photoelectrons(
+        stp_file, {"lar": (0, np.arange(30))}, 30, sources, {"lar": optmap},
+        out_file, "all", 1, RUNID, "on", settings=settings, rows_per_chunk=20,
+    )  # fmt: skip
+    assert stats.keys() == {"lar"}
+    assert stats["lar"].steps_looped == 150
     out = lh5.read_as("hit/spms", out_file, library="ak")
     assert len(out) == 30
-    assert out.evtid.to_list() == [*range(20), *range(10)]
+    assert out.evtid.to_list() == list(range(30))
     assert ak.all(ak.num(out.dt) <= 1)
     assert ak.any(ak.num(out.dt) == 1)
     assert out.is_saturated.to_list() == (ak.num(out.dt) == 1).to_list()
@@ -325,11 +406,12 @@ def test_write_sipm_photoelectrons_optmap(legend_testdata, tmp_path):
     assert ak.all(out.energy == 1)
 
     # per-SiPM map loaded from file: table hit/<sipm>, cap of the single SiPM
-    stats = optics.write_sipm_photoelectrons(
-        [_argon_table(2000, 5, seed=1)], out_file, "S002", 1002, RUNID, "ac",
-        settings=settings, optmap=optmap_file,
+    stp_file = _write_argon_file(tmp_path / "stp-large.lh5", 2000, seed=1)
+    windows = {"lar": (0, np.arange(2000))}
+    optics.write_scintillation_photoelectrons(
+        stp_file, windows, 2000, sources, {"lar": optmap_file}, out_file, "S002",
+        1002, RUNID, "ac", settings=settings, rows_per_chunk=500,
     )  # fmt: skip
-    assert isinstance(stats, NumdetStats)
     out = lh5.read_as("hit/S002", out_file, library="ak")
     assert len(out) == 2000
     assert not ak.any(out.is_saturated)
@@ -342,25 +424,59 @@ def test_write_sipm_photoelectrons_optmap(legend_testdata, tmp_path):
     # the per-channel scaling factor halves the number of photoelectrons. with
     # no amplitude smearing the summed amplitude counts them, also after the
     # time clustering
-    settings.optmap_scaling_factor = 1.0
-    optics.write_sipm_photoelectrons(
-        [_argon_table(2000, 5, seed=1)], tmp_path / "ref.lh5", "S002", 1002, RUNID,
-        "ac", settings=settings, optmap=optmap_file,
+    optics.write_scintillation_photoelectrons(
+        stp_file, windows, 2000, _one_source(), {"lar": optmap_file},
+        tmp_path / "ref.lh5", "S002", 1002, RUNID, "ac", settings=settings,
+        rows_per_chunk=500,
     )  # fmt: skip
     ref = lh5.read_as("hit/S002", tmp_path / "ref.lh5", library="ak")
     assert ak.sum(ref.energy) > 10000
     assert ak.sum(out.energy) / ak.sum(ref.energy) == pytest.approx(0.5, rel=0.1)
 
 
-def test_write_sipm_photoelectrons_profiler(tmp_path):
+def test_write_scintillation_photoelectrons_pooled(legend_testdata, tmp_path):
+    stp_file = _write_argon_file(tmp_path / "stp.lh5", 6)
+    optmap = reboost.spms.load_optmap(legend_testdata[OPTMAP], "all")
+    settings = AttrsDict(SETTINGS | {"store_expected_pes": True})
+
+    def run(windows, n_windows, out_file):
+        optics.write_scintillation_photoelectrons(
+            stp_file, {"lar": (0, np.asarray(windows))}, n_windows, _one_source(),
+            {"lar": optmap}, out_file, "all", 1, RUNID, "on", settings=settings,
+            rows_per_chunk=1,
+        )  # fmt: skip
+        return lh5.read_as("hit/spms", out_file, library="ak")
+
+    single = run(range(6), 6, tmp_path / "single.lh5")
+    # pairs of hits in the same window: the windows are never split between
+    # chunks, and their light adds up
+    pooled = run([0, 0, 1, 1, 2, 2], 3, tmp_path / "pooled.lh5")
+    assert len(pooled) == 3
+    assert pooled.evtid.to_list() == [0, 2, 4]
+    assert pooled.t0.to_list() == single.t0[::2].to_list()
+    assert ak.all(pooled.dt[:, 1:] >= pooled.dt[:, :-1])
+    # the number of emitted photons is sampled, hence the tolerance
+    expected = ak.to_numpy(single.expected_pes)
+    assert ak.to_numpy(pooled.expected_pes) == pytest.approx(
+        expected[::2] + expected[1::2], rel=0.05
+    )
+
+
+def test_write_photoelectrons_profiler(legend_testdata, tmp_path):
     """The reboost profiler can time the blocks of the SiPM processing."""
     perf_block, print_perf, _ = reboost.make_profiler()
-    optics.write_sipm_photoelectrons(
+    optics.write_tracked_photoelectrons(
         [_sipm_table([[1.0]])], tmp_path / "opt.lh5", "S002", 1002, RUNID, "on",
         settings=SETTINGS, perf_block=perf_block,
     )  # fmt: skip
+    optics.write_scintillation_photoelectrons(
+        _write_argon_file(tmp_path / "stp.lh5", 3), {"lar": (0, np.arange(3))}, 3,
+        _one_source(), {"lar": legend_testdata[OPTMAP]}, tmp_path / "opt.lh5",
+        "all", 1, RUNID, "on", settings=SETTINGS, rows_per_chunk=2,
+        perf_block=perf_block,
+    )  # fmt: skip
     print_perf()
-    assert Path(tmp_path / "opt.lh5").exists()
+    assert {"hit/S002", "hit/spms"} <= set(lh5.ls(tmp_path / "opt.lh5", "hit/*"))
 
 
 def test_optmap_object_is_kept(legend_testdata, tmp_path, monkeypatch):
@@ -368,7 +484,8 @@ def test_optmap_object_is_kept(legend_testdata, tmp_path, monkeypatch):
     optmap = reboost.spms.load_optmap(legend_testdata[OPTMAP], "all")
     assert isinstance(optmap, OptmapForConvolve)
     monkeypatch.setattr(reboost.spms, "load_optmap", lambda *_: pytest.fail("reloaded"))
-    optics.write_sipm_photoelectrons(
-        [_argon_table(5, 3)], tmp_path / "opt.lh5", "all", 1, RUNID, "on",
-        settings=AttrsDict(SETTINGS | {"light_source": "optmap"}), optmap=optmap,
+    optics.write_scintillation_photoelectrons(
+        _write_argon_file(tmp_path / "stp.lh5", 5), {"lar": (0, np.arange(5))}, 5,
+        _one_source(), {"lar": optmap}, tmp_path / "opt.lh5", "all", 1, RUNID, "on",
+        settings=SETTINGS, rows_per_chunk=5,
     )  # fmt: skip

@@ -179,17 +179,18 @@ the scintillator output from the `stp` tier. When using per-SiPM optical maps, a
 separate table is written for each SiPM channel under `/hit/{sipm_name}/`; when
 using a single summed map (the default), all SiPM channels are aggregated into a
 single `/hit/spms/` table. Each row corresponds to an `stp`-tier hit entry
-(identified by `evtid`) — not to a single physics event: a liquid argon hit with
-the optical map, a hit of the SiPM itself with `light_source: tracked_photons`
-(see {ref}`opt-tier-settings`). In the latter case every SiPM of the geometry
-has a table, empty if no photon reached it.
+(identified by `evtid`) — not to a single physics event: with the optical map,
+an `stp` event window holding hits in one or more scintillator tables (liquid
+argon, PEN, ...), whose light is pooled; with `light_source: tracked_photons`, a
+hit of the SiPM itself (see {ref}`opt-tier-settings`). In the latter case every
+SiPM of the geometry has a table, empty if no photon reached it.
 
 ### Inherited fields
 
-| Field   | Type    | Units | Description                                                                                                                                        |
-| ------- | ------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `evtid` | `Array` | —     | Event identifier, shared across all detectors hit in the same event.                                                                               |
-| `t0`    | `Array` | ns    | Time of the first energy deposition in the LAr hit (first photon in the SiPM hit with tracked photons), relative to the start of the Geant4 event. |
+| Field   | Type    | Units | Description                                                                                                                                      |
+| ------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `evtid` | `Array` | —     | Event identifier, shared across all detectors hit in the same event.                                                                             |
+| `t0`    | `Array` | ns    | Time of the first scintillator hit in the window (first photon in the SiPM hit with tracked photons), relative to the start of the Geant4 event. |
 
 ### Added fields
 
@@ -233,12 +234,12 @@ single `number_of_simulated_events` scalar, which the `pdf` tier reads back as
 
 Constant fields identifying each event.
 
-| Field       | Type    | Units | Description                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `evtid`     | `Array` | —     | Event identifier.                                                                                                                                                                                                                                                                                                                                                                    |
-| `period`    | `Array` | —     | Data-taking period number.                                                                                                                                                                                                                                                                                                                                                           |
-| `run`       | `Array` | —     | Data-taking run number.                                                                                                                                                                                                                                                                                                                                                              |
-| `timestamp` | `Array` | ns    | `t0` of the first HPGe hit, relative to the start of the simulated Geant4 event. When the `hit` tier is skipped (`skip_hit: true`), `t0` of the first `opt`-tier hit: a liquid argon hit with the optical map, a SiPM hit with tracked photons. Used as the event's timestamp. Stored in double precision, because decays late in a chain happen hours after the start of the event. |
+| Field       | Type    | Units | Description                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evtid`     | `Array` | —     | Event identifier.                                                                                                                                                                                                                                                                                                                                                                           |
+| `period`    | `Array` | —     | Data-taking period number.                                                                                                                                                                                                                                                                                                                                                                  |
+| `run`       | `Array` | —     | Data-taking run number.                                                                                                                                                                                                                                                                                                                                                                     |
+| `timestamp` | `Array` | ns    | `t0` of the first HPGe hit, relative to the start of the simulated Geant4 event. When the `hit` tier is skipped (`skip_hit: true`), `t0` of the first `opt`-tier hit: a scintillator hit window with the optical map, a SiPM hit with tracked photons. Used as the event's timestamp. Stored in double precision, because decays late in a chain happen hours after the start of the event. |
 
 ### `geds/` — HPGe detector array
 

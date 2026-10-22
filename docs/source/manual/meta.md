@@ -417,12 +417,48 @@ buffer_len: "10*MB"
 
 - `scintillator_volume_name` (str) — name of the scintillator volume in the GDML
   geometry used to identify liquid argon energy depositions (e.g. `liquid_argon`
-  for LEGEND-200, `liquid_argon_underground` for LEGEND-1000).
+  for LEGEND-200, `liquid_argon_underground` for LEGEND-1000). Not needed if
+  `scintillators` is set.
+- `scintillators` (dict, optional, default `null`) — the light sources used with
+  `light_source: optmap`, `<source name> -> <settings>`. The light of all
+  sources reaches the same SiPMs. Each source has:
+  - `table` (str) — name of the source's table in the `stp` files. This is the
+    name of the scintillator volume registered in the GDML geometry, or the
+    ntuple name shared by several registered volumes: e.g. `pen` for all PEN
+    plates, which share one optical map. Each source has its own table.
+  - `material` (str) — scintillation model, i.e. light yield and time profile,
+    as known to reboost: `lar` (liquid argon) or `pen`.
+  - `optmap_scaling_factor` (float or dict, optional) — replaces the top-level
+    `optmap_scaling_factor` for this source.
+
+  The optical map of source `<name>` is read from `paths.optical_maps.<name>`.
+  Without this block, the only source is `lar`, with table
+  `scintillator_volume_name`:
+
+  ```{code-block} yaml
+  scintillators:
+    lar:
+      table: liquid_argon
+      material: lar
+    pen:
+      table: pen
+      material: pen
+      optmap_scaling_factor: 0.5
+  ```
+
+  The `opt` tier pools the photoelectrons of all sources that belong to the same
+  `stp` event window: hits of the same Geant4 event closer than 10 µs in time,
+  as grouped by the `stp` time-coincidence map (TCM). Saturation
+  (`max_pes_per_hit_*`), amplitude smearing and time clustering then act on the
+  pooled photoelectrons of each SiPM, so light from liquid argon and PEN that
+  arrives within `time_resolution_in_ns` forms one pulse. Each window gives one
+  output row per SiPM table.
+
 - `light_source` (str, optional, default `optmap`) — where the detected photons
   come from:
-  - `optmap`: photoelectrons are sampled from the liquid argon optical map
-    (`paths.optical_maps.lar`), given the energy depositions in the scintillator
-    volume.
+  - `optmap`: photoelectrons are sampled from the optical map of each light
+    source (`paths.optical_maps.<source>`, see `scintillators`), given the
+    energy depositions in its `stp` table.
   - `tracked_photons`: photons are tracked in the simulation, and the photons
     recorded in the `stp` SiPM tables are used. The optical map is not read.
     `max_pes_per_hit_per_sipm` caps the photoelectrons of each SiPM hit, keeping

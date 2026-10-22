@@ -817,3 +817,49 @@ def test_simpars_change_reruns_par_jobs(recorded_prod, par, rule):
     assert rule in ran
     assert "build_tier_hit" in ran
     assert run_prod(recorded_prod) == {}
+
+
+def test_opt_reads_the_map_of_each_light_source(tmp_path):
+    steps = ["vtx", "stp", "par", "opt"]
+    pen = {
+        "scintillators": {
+            "lar": {"table": "liquid_argon", "material": "lar"},
+            "pen": {"table": "pen", "material": "pen"},
+        }
+    }
+
+    cfg = overrides(
+        tmp_path / "pen",
+        make_steps=steps,
+        experiment="l200cfg01",
+        settings_by_tier={"opt": pen},
+    )
+    cfg["paths"]["optical_maps"]["pen"] = cfg["paths"]["optical_maps"]["lar"]
+    assert "build_tier_opt" in dag_rule_names(l200_config, cfg)
+
+    del cfg["paths"]["optical_maps"]["pen"]
+    with pytest.raises(Exception, match=r"paths\.optical_maps\.pen"):
+        dag_rule_names(l200_config, cfg)
+
+
+def test_opt_lar_patch_needs_lar_light_source(tmp_path):
+    def config(name, sources):
+        cfg = overrides(
+            tmp_path / name,
+            make_steps=["vtx", "stp", "par", "opt"],
+            experiment="l200cfg01",
+            settings_by_tier={"opt": {"scintillators": sources}},
+        )
+        dummy_map = cfg["paths"]["optical_maps"]["lar"]
+        cfg["paths"]["optical_maps"] |= dict.fromkeys(sources, dummy_map)
+        return cfg
+
+    pen = {"pen": {"table": "pen", "material": "pen"}}
+    assert "build_tier_opt" in dag_rule_names(l200_config, config("pen", pen))
+
+    # the patch would otherwise be ignored
+    argon = {"argon": {"table": "liquid_argon", "material": "lar"}}
+    cfg = config("argon", argon)
+    cfg["paths"]["optical_maps"]["lar_patch"] = cfg["paths"]["optical_maps"]["argon"]
+    with pytest.raises(Exception, match=r"lar_patch patches the map of the lar"):
+        dag_rule_names(l200_config, cfg)
