@@ -5,7 +5,12 @@ from dbetto.utils import load_dict
 
 from legendsimflow import patterns, aggregate
 from legendsimflow import metadata as mutils
-from legendsimflow.metadata import deferred_tier_setting, get_tier_settings
+from legendsimflow.exceptions import SimflowConfigError
+from legendsimflow.metadata import (
+    deferred_tier_setting,
+    get_opt_scintillators,
+    get_tier_settings,
+)
 
 _tier_setting = partial(deferred_tier_setting, config)
 
@@ -28,12 +33,32 @@ def _optmap_lar(config, simid):
     return on_scratch_smk(config.paths.optical_maps.lar)
 
 
-def smk_optmap_lar(wildcards):
-    """The LAr optical map, not needed when the light comes from tracked photons."""
-    light_source = get_tier_settings(config, "opt").light_source
-    if light_source == "tracked_photons":
-        return []
-    return [_optmap_lar(config, wildcards.simid)]
+def smk_optmaps(wildcards):
+    """The optical maps of the light sources, ``optmap_<source> -> file``.
+
+    Not needed when the light comes from tracked photons.
+    """
+    if get_tier_settings(config, "opt").light_source == "tracked_photons":
+        return {}
+
+    sources = get_opt_scintillators(config)
+    if "lar_patch" in config.paths.optical_maps and "lar" not in sources:
+        msg = (
+            "paths.optical_maps.lar_patch patches the map of the lar light source, "
+            f"but there is no such source: {sorted(sources)}"
+        )
+        raise SimflowConfigError(msg)
+
+    optmaps = {}
+    for name in sources:
+        if name not in config.paths.optical_maps:
+            msg = f"paths.optical_maps.{name} is needed by the {name} light source"
+            raise SimflowConfigError(msg)
+        if name == "lar":
+            optmaps["optmap_lar"] = _optmap_lar(config, wildcards.simid)
+        else:
+            optmaps[f"optmap_{name}"] = on_scratch_smk(config.paths.optical_maps[name])
+    return optmaps
 
 
 rule gen_all_tier_opt:
@@ -60,7 +85,8 @@ rule patch_optical_map:
     message:
         "Patching the LAr optical map for {wildcards.simid}"
     input:
-        base=on_scratch_smk(config.paths.optical_maps.lar),
+        # read only when the rule is used: there might be no lar map
+        base=lambda wc: on_scratch_smk(config.paths.optical_maps.lar),
         patch=lambda wc: on_scratch_smk(_optmap_patch(config, wc.simid)),
     output:
         temp(patterns.patched_optmap_filename(config)),
@@ -76,8 +102,9 @@ rule patch_optical_map:
 rule build_tier_opt:
     """Produce a `opt` tier file starting from a single `stp` tier file.
 
-    This rule implements the post-processing of the `stp` tier liquid argon
-    energy depositions in chunks, in the following steps:
+    This rule implements the post-processing of the `stp` tier energy
+    depositions in the scintillators (liquid argon, PEN, ...) in chunks, in the
+    following steps:
 
     - each chunk is partitioned according to the livetime span of each run
       (see the `make_simstat_partition_file` rule). For each partition:
@@ -85,7 +112,10 @@ rule build_tier_opt:
       the output;
     - with `light_source: optmap` (default), scintillation photons are generated
       corresponding to simulated energy depositions and detected
-      photoelectrons are sampled according to the input optical map;
+      photoelectrons are sampled according to the optical map of each light
+      source (see `scintillators` in the tier settings). The photoelectrons of
+      all sources in the same `stp` event window (TCM row) are pooled, and
+      each window gives one output row;
     - with `light_source: tracked_photons`, the photons recorded in the `stp`
       SiPM tables are used instead and the optical map is not an input. As in
       the `hit` tier, each SiPM row gives one output row, and every photon is
@@ -110,16 +140,16 @@ rule build_tier_opt:
     message:
         "Producing output file for job opt.{wildcards.simid}.{wildcards.jobid}"
     input:
+        unpack(smk_optmaps),
         geom=patterns.geom_gdml_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
-        optmap_lar=smk_optmap_lar,
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change
         simstat_part_file=patterns.simstat_part_filename(config),
         usability=rules.cache_detector_usabilities.output.usability,
     params:
         optmap_per_sipm=_tier_setting("opt", "optmap_per_sipm"),
-        scintillator_volume_name=_tier_setting("opt", "scintillator_volume_name"),
+        scintillators=lambda wc: get_opt_scintillators(config),
         optmap_scaling_factor=_tier_setting("opt", "optmap_scaling_factor"),
         photoelectron_resolution_sigma=_tier_setting(
             "opt", "photoelectron_resolution_sigma"

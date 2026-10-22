@@ -328,3 +328,39 @@ def test_get_par_settings(config):
     settings_empty = metadata.get_par_settings(config, "nonexistent_par")
     assert isinstance(settings_empty, AttrsDict)
     assert len(settings_empty) == 0
+
+
+def test_get_opt_scintillators(config, monkeypatch):
+    # the legend test settings have no scintillators block
+    sources = metadata.get_opt_scintillators(config)
+    assert sources == {
+        "lar": {"table": "liquid_argon", "material": "lar", "optmap_scaling_factor": 1}
+    }
+
+    settings = metadata.get_tier_settings(config, "opt")
+    block = {
+        "lar": {"table": "liquid_argon", "material": "lar"},
+        "pen": {"table": "pen", "material": "pen", "optmap_scaling_factor": 0.5},
+    }
+    monkeypatch.setattr(
+        metadata,
+        "get_tier_settings",
+        lambda *_: AttrsDict(settings | {"scintillators": block}),
+    )
+    sources = metadata.get_opt_scintillators(config)
+    assert list(sources) == ["lar", "pen"]
+    assert sources.lar.optmap_scaling_factor == 1
+    assert sources.pen.optmap_scaling_factor == 0.5
+
+    block["lar_patch"] = block.pop("pen")
+    with pytest.raises(SimflowConfigError, match="'lar_patch' is not allowed"):
+        metadata.get_opt_scintillators(config)
+    block["pen"] = block.pop("lar_patch")
+
+    block["pen"]["table"] = "liquid_argon"
+    with pytest.raises(SimflowConfigError, match="have the same table"):
+        metadata.get_opt_scintillators(config)
+
+    block["pen"].pop("material")
+    with pytest.raises(SimflowConfigError, match="has no 'material'"):
+        metadata.get_opt_scintillators(config)

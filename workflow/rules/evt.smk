@@ -1,7 +1,11 @@
 from functools import partial
 
 from legendsimflow import patterns, aggregate
-from legendsimflow.metadata import deferred_tier_setting, get_tier_settings
+from legendsimflow.metadata import (
+    deferred_tier_setting,
+    get_opt_scintillators,
+    get_tier_settings,
+)
 
 _evt_settings = get_tier_settings(config, "evt")
 _skip_opt = _evt_settings.skip_opt
@@ -78,9 +82,7 @@ rule build_tier_evt:
         spms_energy_thr_pe=_tier_setting("evt", "spms_energy_thr_pe"),
         lar_veto_multiplicity_thr=_tier_setting("evt", "lar_veto_multiplicity_thr"),
         lar_veto_energy_sum_pe_thr=_tier_setting("evt", "lar_veto_energy_sum_pe_thr"),
-        scintillator_volume_name=(
-            None if _skip_opt else _tier_setting("opt", "scintillator_volume_name")
-        ),
+        scintillators=(None if _skip_opt else lambda wc: get_opt_scintillators(config)),
         skip_opt=_skip_opt,
         skip_hit=_skip_hit,
         # with add_random_coincidences, this rule reads forced-trigger evt

@@ -51,6 +51,7 @@ TIER_SETTINGS: dict = {
     "opt": {
         "light_source": "optmap",
         "store_expected_pes": False,
+        "scintillators": None,
     },
     "hit": {
         "simulate_psd": True,
