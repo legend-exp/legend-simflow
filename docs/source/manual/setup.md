@@ -166,8 +166,8 @@ pixi tasks to run the workflow without entering a shell:
 - `pixi run prod [--profile <name>]` — run a full production (recommended)
 - `pixi run dry` — preview what Snakemake would do without executing, after
   running `validate`
-- `pixi run validate` — check the data production at `paths.l200data` (see
-  `validate_l200data` above)
+- `pixi run validate` — check the input paths and the data production at
+  `paths.l200data` (see `paths` and `validate_l200data` above)
 - `pixi run touch` — mark all outputs as up-to-date without re-running jobs
 - `pixi run snakemake [ARGS]` — pass arbitrary arguments directly to Snakemake
 

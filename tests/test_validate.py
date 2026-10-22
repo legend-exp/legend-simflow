@@ -213,3 +213,35 @@ def test_l200data_layout_usabilities(fresh_config, l200data):
         "l200-p02-r001-phy V99000A: psd_usability is 'valid' in the Simflow "
         "metadata, 'present' in the data production metadata"
     ) in msg
+
+
+def test_input_paths(fresh_config, tmp_path):
+    config = fresh_config
+    validate.input_paths(config)
+
+    config.paths["config"] = tmp_path / "nope"
+    config.paths["hpge_impurity_model"] = tmp_path / "impurity.yaml"
+    with pytest.raises(SimflowConfigError) as e:
+        validate.input_paths(config)
+    assert "paths/config" in str(e.value)
+    assert "paths/hpge_impurity_model" in str(e.value)
+
+
+def test_input_paths_optical_maps(fresh_config, tmp_path):
+    config = fresh_config
+    config.paths.optical_maps["lar"] = tmp_path / "lar.lh5"
+    config.paths.optical_maps["lar_patch"] = {"sim1": tmp_path / "patch.lh5"}
+
+    # the maps are not read if the opt tier is not built
+    config["make_steps"] = ["vtx", "stp"]
+    validate.input_paths(config)
+
+    config["make_steps"] = ["vtx", "stp", "opt"]
+    with pytest.raises(SimflowConfigError) as e:
+        validate.input_paths(config)
+    assert "paths/optical_maps/lar:" in str(e.value)
+    assert "paths/optical_maps/lar_patch/sim1" in str(e.value)
+
+    (tmp_path / "lar.lh5").touch()
+    (tmp_path / "patch.lh5").touch()
+    validate.input_paths(config)

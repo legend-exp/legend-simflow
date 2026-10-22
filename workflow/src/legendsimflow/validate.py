@@ -13,10 +13,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Checks of the Simflow configuration against the LEGEND-200 data production.
+"""Checks of the Simflow configuration before any job starts.
 
-The data production is found at ``paths.l200data`` in the Simflow
-configuration. Each check does nothing if this path is not set.
+:func:`input_paths` checks the input files and folders in ``paths``. The other
+checks compare the configuration with the LEGEND-200 data production at
+``paths.l200data``, and do nothing if this path is not set.
 """
 
 from __future__ import annotations
@@ -483,6 +484,47 @@ def l200data_layout(config: SimflowConfig) -> None:
         raise SimflowConfigError(msg)
 
 
+def input_paths(config: SimflowConfig) -> None:
+    """Check that the input files and folders in ``paths`` exist.
+
+    Checks ``paths.config``, ``paths.hpge_impurity_model`` (if set) and, if
+    the opt tier is built from an optical map, ``paths.optical_maps.lar`` and
+    ``paths.optical_maps.lar_patch`` (if set). ``paths.metadata`` is cloned by
+    :func:`.utils.init_simflow_context` if missing, and ``paths.l200data`` is
+    checked by :func:`l200data_layout`.
+
+    All problems are reported at once.
+
+    Parameters
+    ----------
+    config
+        Simflow configuration object.
+    """
+    spec = {"config": Path}
+    if "hpge_impurity_model" in config.paths:
+        spec["hpge_impurity_model"] = Path
+
+    if (
+        "opt" in config.make_steps
+        and get_tier_settings(config, "opt").light_source != "tracked_photons"
+    ):
+        spec["optical_maps"] = {"lar": Path}
+        patch = config.paths.optical_maps.get("lar_patch")
+        if isinstance(patch, Mapping):
+            spec["optical_maps"]["lar_patch"] = dict.fromkeys(patch, Path)
+        elif patch is not None:
+            spec["optical_maps"]["lar_patch"] = Path
+
+    problems = check_spec(config.paths, spec, "paths")
+    if problems:
+        msg = "input paths in the Simflow configuration are missing:\n" + "\n".join(
+            f"  {p}" for p in problems
+        )
+        raise SimflowConfigError(msg)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    l200data_layout(utils.init_simflow_context("simflow-config.yaml").config)
+    config = utils.init_simflow_context("simflow-config.yaml").config
+    input_paths(config)
+    l200data_layout(config)

@@ -48,6 +48,7 @@ wildcard_constraints:
 onstart:
     # Snakemake runs onstart also with --touch, which only updates timestamps
     if not workflow.touch:
+        validate.input_paths(config)
         validate.l200data_layout(config)
 
     utils.setup_logdir_link(config)
