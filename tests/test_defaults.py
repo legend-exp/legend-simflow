@@ -32,6 +32,30 @@ def test_merge():
     assert default == snapshot
 
 
+def test_merge_simflow_config_legacy_metadata_version(caplog):
+    config = defaults.merge_simflow_config({"legend_metadata_version": "v1.0.0"})
+
+    assert config.metadata_version == "v1.0.0"
+    assert "legend_metadata_version" not in config
+    assert "`metadata_version`" in caplog.text
+
+
+def test_merge_simflow_config_metadata_version(caplog):
+    config = defaults.merge_simflow_config({"metadata_version": "v1.0.0"})
+
+    assert config.metadata_version == "v1.0.0"
+    assert not caplog.text
+
+
+def test_merge_simflow_config_metadata_version_preferred(caplog):
+    config = defaults.merge_simflow_config(
+        {"legend_metadata_version": "old", "metadata_version": "new"}
+    )
+
+    assert config.metadata_version == "new"
+    assert "`metadata_version`" in caplog.text
+
+
 def test_make_steps_default():
     assert defaults.CONFIG["make_steps"] == aggregate.STEPS_ORDERED
 

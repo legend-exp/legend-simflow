@@ -28,7 +28,7 @@ make_steps:
   - cvt
   - pdf
 
-# legend_metadata_version: main
+# metadata_version: main
 
 # check the data production at paths.l200data before using it (format, HPGe
 # usabilities)

@@ -27,9 +27,12 @@ the user manual.
 from __future__ import annotations
 
 import copy
+import logging
 from collections.abc import Mapping
 
 from dbetto import AttrsDict
+
+log = logging.getLogger(__name__)
 
 #: Simflow configuration file (``simflow-config.yaml``).
 CONFIG: dict = {
@@ -37,7 +40,7 @@ CONFIG: dict = {
     "simlist_exclude": [],
     "runlist": None,
     "make_steps": ["vtx", "stp", "par", "opt", "hit", "evt", "cvt", "pdf"],
-    "legend_metadata_version": None,
+    "metadata_version": None,
     "validate_l200data": True,
     "simflow_rng_seed": 0,
     "benchmark": {"enabled": False},
@@ -161,3 +164,16 @@ def merge(user: Mapping | None, default: Mapping) -> AttrsDict:
         else:
             result[k] = v
     return AttrsDict(result)
+
+
+def merge_simflow_config(user: Mapping | None) -> AttrsDict:
+    """Merge a Simflow configuration with its defaults."""
+    user = dict(user or {})
+    if "legend_metadata_version" in user:
+        log.warning(
+            "`legend_metadata_version` is deprecated; use `metadata_version` instead"
+        )
+        user.setdefault("metadata_version", user["legend_metadata_version"])
+        del user["legend_metadata_version"]
+
+    return merge(user, CONFIG)

@@ -25,7 +25,7 @@ make_steps:
   - cvt
   - pdf
 
-legend_metadata_version: v1.6.0
+metadata_version: v1.6.0
 
 paths:
   generated: $_/generated
