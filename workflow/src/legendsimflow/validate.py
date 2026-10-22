@@ -333,22 +333,24 @@ def _data_problems(
         return problems
 
     # the data production formats all runs and detectors in the same way: check
-    # that each run has files, but the content of only one file and detector
-    chmap = meta.channelmap(runinfo(meta, runids[0]).start_key)
+    # that each run has files, but the content of only one file and detector.
+    # Without an HPGe detector on in any run, no HPGe data are read
     rawid = next(
         (
             ch.daq.rawid
-            for ch in chmap.values()
+            for runid in runids
+            for ch in meta.channelmap(runinfo(meta, runid).start_key).values()
             if ch.get("system") == "geds"
             and ch.get("analysis", {}).get("usability") == "on"
         ),
         None,
     )
     if rawid is None:
-        return [
-            *problems,
-            f"{runids[0]}: no HPGe detector is on in the Simflow metadata",
-        ]
+        checks = {
+            (tier, name): runs
+            for (tier, name), runs in checks.items()
+            if not any("{rawid}" in key for key in specs.get(name, {}))
+        }
 
     first_files: dict[Path, Path | None] = {}
     run_first_files: dict[tuple[str, str], Path | None] = {}
@@ -435,8 +437,9 @@ def l200data_layout(config: SimflowConfig) -> None:
       :func:`.utils.lookup_curr_mw_pars`);
     - the LH5 files required by the Simflow settings exist for each run, and
       their first file has the objects in :data:`LH5_SPECS`. Only one HPGe
-      detector is checked: the first one that is on in the first run of the
-      Simflow.
+      detector is checked: the first one that is on, in the first run of the
+      Simflow that has one. If no HPGe detector is on in any run, the HPGe
+      objects and their files are not checked.
 
     All problems are reported at once. Does nothing if ``paths.l200data`` is
     not set, or if ``validate_l200data`` is false.

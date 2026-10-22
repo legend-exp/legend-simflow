@@ -245,3 +245,23 @@ def test_input_paths_optical_maps(fresh_config, tmp_path):
     (tmp_path / "lar.lh5").touch()
     (tmp_path / "patch.lh5").touch()
     validate.input_paths(config)
+
+
+@pytest.mark.parametrize("system", ["geds", "spms"])
+def test_l200data_layout_no_detector_on(fresh_config, l200data, monkeypatch, system):
+    config = fresh_config
+    config.paths["l200data"] = l200data
+    monkeypatch.setattr(validate, "_usability_problems", lambda *_: [])
+    chmap = config.metadata.channelmap
+    monkeypatch.setattr(
+        config.metadata,
+        "channelmap",
+        lambda *a, **kw: {
+            k: v for k, v in chmap(*a, **kw).items() if v.get("system") != system
+        },
+    )
+    if system == "geds":
+        # the HPGe raw files would be read if an HPGe detector was on
+        for file in (l200data / "generated/tier/raw").rglob("*.lh5"):
+            file.unlink()
+    validate.l200data_layout(config)
