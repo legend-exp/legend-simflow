@@ -16,8 +16,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import functools
+import importlib
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 import awkward as ak
@@ -34,7 +36,8 @@ from dbetto.utils import load_dict
 from lgdo import Array, Table, VectorOfVectors
 from lh5 import LH5Iterator
 from numpy.typing import ArrayLike
-from reboost.optmap.convolve import NumdetStats
+from reboost.optmap.convolve import NumdetStats, OptmapForConvolve
+from reboost.units import units_conv_ak
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import metadata as mutils
@@ -78,6 +81,83 @@ def resolve_map_scaling(setting: float | Mapping[str, float], sipm: str) -> floa
         "opt tier settings"
     )
     raise KeyError(msg)
+
+
+def load_light_model(model: Mapping) -> Callable:
+    """Import the function of a light model and bind its keyword arguments.
+
+    `model` is the ``model`` block of a light source, see
+    :func:`legendsimflow.metadata.get_opt_scintillators`.
+    """
+    module, _, name = model["function"].rpartition(".")
+    return functools.partial(
+        getattr(importlib.import_module(module), name), **model["kwargs"]
+    )
+
+
+def model_photoelectrons(
+    model: Callable,
+    xloc: VectorOfVectors | ak.Array,
+    yloc: VectorOfVectors | ak.Array,
+    zloc: VectorOfVectors | ak.Array,
+    num_scint_ph: ak.Array,
+    sipm: str,
+    map_scaling: float = 1,
+    max_pes_per_hit: int = -1,
+) -> tuple[ak.Array, np.ndarray]:
+    """Sample the photoelectrons of each energy deposition from a light model.
+
+    The model replaces the optical map of a light source. It is called once
+    per chunk as ``model(xloc, yloc, zloc, sipm=sipm)``, with flat arrays of
+    the global coordinates (mm) of all steps, and `sipm` the name of the SiPM, or ``"all"`` for all SiPMs together. It
+    returns the probability that a scintillation photon emitted in each step
+    gives a photoelectron, at unit channel efficiency.
+
+    As with the optical map, the number of photoelectrons of each step is
+    drawn from a Poisson distribution of mean `num_scint_ph` times the
+    probability times `map_scaling`, and only the first `max_pes_per_hit`
+    photoelectrons of each hit are kept, in step order, if `max_pes_per_hit`
+    is positive.
+
+    Returns
+    -------
+    the number of photoelectrons of each step, with the shape of
+    `num_scint_ph`, and
+    the mean number of photoelectrons of each hit at unit channel efficiency.
+    """
+    steps = ak.to_numpy(ak.num(num_scint_ph))
+    prob = np.asarray(
+        model(
+            *(
+                ak.to_numpy(ak.flatten(units_conv_ak(a, "mm")))
+                for a in (xloc, yloc, zloc)
+            ),
+            sipm=sipm,
+        ),
+        dtype=np.float64,
+    )
+    if prob.shape != (ak.sum(steps),) or not np.all((prob >= 0) & (prob <= 1)):
+        msg = (
+            "the light model must return one detection probability in [0, 1] "
+            "per energy deposition"
+        )
+        raise ValueError(msg)
+    mean = ak.to_numpy(ak.flatten(num_scint_ph)) * prob
+
+    n_pes = np.random.default_rng().poisson(map_scaling * mean)
+    if max_pes_per_hit > 0:
+        cum = np.cumsum(n_pes)
+        # photoelectrons of the earlier steps of the same hit
+        before = (
+            cum
+            - n_pes
+            - np.repeat(np.concatenate([[0], cum])[np.cumsum(steps) - steps], steps)
+        )
+        n_pes = np.minimum(n_pes, np.maximum(max_pes_per_hit - before, 0))
+
+    return ak.unflatten(n_pes, steps), ak.to_numpy(
+        ak.sum(ak.unflatten(mean, steps), axis=1)
+    )
 
 
 def group_by_window(
@@ -133,8 +213,8 @@ def main() -> None:
         default=[],
         metavar="SOURCE=FILE",
         help=(
-            "optical map of a light source, needed with light_source: optmap. "
-            "Repeat for each source"
+            "optical map of a light source, needed with light_source: optmap "
+            "for each source without a light model"
         ),
     )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
@@ -218,12 +298,18 @@ def main() -> None:
         for item in args.optmaps:
             name, _, path = item.partition("=")
             optmap_files[name] = nersc.dvs_ro(config, path)
-        if set(optmap_files) != set(sources):
+        mapped = sorted(n for n, s in sources.items() if s.model is None)
+        if sorted(optmap_files) != mapped:
             msg = (
-                f"one optical map per light source is needed: sources "
-                f"{sorted(sources)}, maps given for {sorted(optmap_files)}"
+                f"one optical map per light source without a light model is "
+                f"needed: sources {mapped}, maps given for {sorted(optmap_files)}"
             )
             raise SimflowConfigError(msg, settings_block)
+        light_models = {
+            name: load_light_model(s.model)
+            for name, s in sources.items()
+            if s.model is not None
+        }
 
         # fail early and loudly: without a matching table the output file
         # would never be created. tracked photons do not need these tables
@@ -351,7 +437,7 @@ def main() -> None:
     def process_optmap(
         windows: Mapping[str, tuple[int, np.ndarray]],
         n_windows: int,
-        optmaps: Mapping,
+        models: Mapping[str, OptmapForConvolve | Callable],
         sipm: str,
         sipm_uid: int,
         runid: str,
@@ -362,7 +448,8 @@ def main() -> None:
         `windows` maps each light source to the first row of its table in
         this partition and the output row (window) of each following row. The
         light of all hits of a window is pooled before the SiPM response is
-        applied.
+        applied. `models` holds the optical map or the light model of each
+        source.
         """
         scalings = {}
         for name, source in sources.items():
@@ -371,7 +458,11 @@ def main() -> None:
             msg = f"using optical map scaling factor {scalings[name]} for {name} and {sipm}"
             log.debug(msg)
 
-        stats = {name: NumdetStats() for name in sources}
+        stats = {
+            name: NumdetStats()
+            for name, model in models.items()
+            if isinstance(model, OptmapForConvolve)
+        }
 
         # hits of all sources per window, as cumulative counts
         cum_rows = np.cumsum(
@@ -411,30 +502,48 @@ def main() -> None:
                         chunk.edep, chunk.particle, material
                     )
 
-                with perf_block("number_of_detected_photoelectrons()"):
-                    # return_stats=True also silences the per-chunk warnings of
-                    # reboost about steps outside the map
-                    *_output, _stats = reboost.spms.number_of_detected_photoelectrons(
-                        chunk.xloc,
-                        chunk.yloc,
-                        chunk.zloc,
-                        scint_ph,
-                        optmaps[source],
-                        sipm,
-                        map_scaling=scalings[source],
-                        max_pes_per_hit=max_pes_per_hit,
-                        return_pes_expectation_value=store_expected_pes,
-                        return_stats=True,
-                    )
-                stats[source] += _stats
+                if source in stats:
+                    with perf_block("number_of_detected_photoelectrons()"):
+                        # return_stats=True also silences the per-chunk warnings
+                        # of reboost about steps outside the map
+                        *_output, _stats = (
+                            reboost.spms.number_of_detected_photoelectrons(
+                                chunk.xloc,
+                                chunk.yloc,
+                                chunk.zloc,
+                                scint_ph,
+                                models[source],
+                                sipm,
+                                map_scaling=scalings[source],
+                                max_pes_per_hit=max_pes_per_hit,
+                                return_pes_expectation_value=store_expected_pes,
+                                return_stats=True,
+                            )
+                        )
+                    stats[source] += _stats
 
-                # reboost appends the expectation after the other outputs
-                if store_expected_pes:
-                    *_output, _expected = _output
-                    expected_pes.append(np.asarray(_expected, dtype=np.float64))
+                    # reboost appends the expectation after the other outputs
+                    if store_expected_pes:
+                        *_output, _expected = _output
+                        expected_pes.append(np.asarray(_expected, dtype=np.float64))
+                    nr_pe = _output[0]
+                else:
+                    with perf_block("model_photoelectrons()"):
+                        # the LGDO fields carry the units
+                        nr_pe, _expected = model_photoelectrons(
+                            models[source],
+                            lgdo_chunk.xloc,
+                            lgdo_chunk.yloc,
+                            lgdo_chunk.zloc,
+                            scint_ph,
+                            sipm,
+                            map_scaling=scalings[source],
+                            max_pes_per_hit=max_pes_per_hit,
+                        )
+                    if store_expected_pes:
+                        expected_pes.append(_expected)
                 # a saturated hit has exactly max_pes_per_hit photoelectrons, so
                 # its window is saturated by the check on the pooled light below
-                nr_pe = _output[0]
 
                 with perf_block("photoelectron_times()"):
                     pe_times.append(
@@ -543,7 +652,7 @@ def main() -> None:
     # in combined mode there is a single map per source, so pre-load them once
     # for a little speed up. in per-SiPM mode the maps are loaded on demand
     if light_source == "optmap" and not optmap_per_sipm:
-        optmaps_all = {
+        optmaps_all = light_models | {
             name: reboost.spms.load_optmap(f, "all") for name, f in optmap_files.items()
         }
 
@@ -635,7 +744,7 @@ def main() -> None:
                 with perf_block("load_optmap()"):
                     # the per-channel maps are too large to keep all of them
                     # resident for the whole job: load and release them here
-                    optmaps = {
+                    optmaps = light_models | {
                         name: reboost.spms.load_optmap(f, sipm)
                         for name, f in optmap_files.items()
                     }
@@ -652,7 +761,7 @@ def main() -> None:
                 del optmaps
                 print_perf_last()
         else:
-            log.debug("applying sum optical maps")
+            log.debug("applying sum optical maps and light models")
 
             process_optmap(
                 windows,

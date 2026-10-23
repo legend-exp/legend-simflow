@@ -457,3 +457,110 @@ def test_opt_script_two_light_sources_saturation(
     assert np.all(n_pes <= 40)
     assert out.is_saturated.to_list() == (n_pes == 40).tolist()
     assert 0 < np.sum(out.is_saturated) < len(out)
+
+
+def _uniform_light(xloc, yloc, zloc, *, sipm, prob):
+    assert sipm == "all"
+    # the steps of two_sources_stp are at (0.1, 0.1, 0.1) m
+    assert np.allclose(np.stack([xloc, yloc, zloc]), 100)
+    return np.full_like(xloc, prob)
+
+
+def test_load_light_model():
+    model = opt.load_light_model(
+        {"function": f"{__name__}._uniform_light", "kwargs": {"prob": 0.2}}
+    )
+    assert model(*[np.array([100.0])] * 3, sipm="all") == [0.2]
+
+
+def test_model_photoelectrons():
+    xyz = ak.Array([[0.0] * 3, [], [0.0]])
+    photons = ak.Array([[10_000] * 3, [], [1]])
+
+    n_pes, expected = opt.model_photoelectrons(
+        lambda x, *_, sipm: np.full_like(x, 0.1),  # noqa: ARG005
+        xyz,
+        xyz,
+        xyz,
+        photons,
+        "all",
+        max_pes_per_hit=1500,
+    )
+    assert ak.num(n_pes).to_list() == [3, 0, 1]
+    assert expected == pytest.approx([3000, 0, 0.1])
+    # about 1000 photoelectrons per step: the first two steps fill the hit up
+    # to the cap
+    assert ak.sum(n_pes[:1], axis=1).to_list() == [1500]
+    assert 0 < n_pes[0, 1] < 1500
+    assert n_pes[0, 2] == 0
+
+    n_pes, expected = opt.model_photoelectrons(
+        lambda x, *_, sipm: np.full_like(x, 0.1),  # noqa: ARG005
+        xyz,
+        xyz,
+        xyz,
+        photons,
+        "all",
+        map_scaling=0,
+    )
+    assert ak.sum(n_pes) == 0
+    assert expected == pytest.approx([3000, 0, 0.1])
+
+    for bad in (
+        lambda x, *_, sipm: x - 1,  # noqa: ARG005
+        lambda x, *_, sipm: x + 2,  # noqa: ARG005
+        lambda x, *_, sipm: np.full_like(x, np.nan),  # noqa: ARG005
+        lambda *_, sipm: np.ones(2),  # noqa: ARG005
+    ):
+        with pytest.raises(ValueError, match="detection probability"):
+            opt.model_photoelectrons(bad, xyz, xyz, xyz, photons, "all")
+
+
+def test_opt_script_light_model(
+    tmp_path, monkeypatch, legend_testdata, l200_config_factory, two_sources_stp
+):
+    optmap = legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5")
+    config_path = l200_config_factory(
+        tmp_path,
+        {
+            "opt": {
+                "store_expected_pes": True,
+                "max_pes_per_hit_combined": 10_000,
+                "scintillators": {
+                    "lar": {"table": "liquid_argon", "material": "lar"},
+                    "pen": {
+                        "table": "pen",
+                        "material": "pen",
+                        # does not change the expectation
+                        "optmap_scaling_factor": 0.5,
+                        "model": {
+                            "function": f"{__name__}._uniform_light",
+                            "kwargs": {"prob": 0.01},
+                        },
+                    },
+                },
+            }
+        },
+    )
+
+    # the PEN source needs no map
+    with pytest.raises(Exception, match="one optical map per light source"):
+        _run_opt(
+            monkeypatch,
+            config_path,
+            two_sources_stp,
+            {"lar": optmap, "pen": optmap},
+            tmp_path / "too_many_maps.lh5",
+        )
+
+    out = _run_opt(
+        monkeypatch, config_path, two_sources_stp, {"lar": optmap}, tmp_path / "opt.lh5"
+    )
+    assert out.evtid.to_list() == [0, 1, 2, 3, 3]
+    # PEN hits have three steps of 100 keV each, about 1600 photons, so 16
+    # photoelectrons. Event 2 has two PEN hits, the second window of event 3 one
+    expected = ak.to_numpy(out.expected_pes[[2, 4]])
+    assert np.all(expected > 0)
+    assert expected[0] / expected[1] == pytest.approx(2, rel=0.1)
+    assert ak.all(ak.sum(out.energy[[2, 4]], axis=-1) > 0)
+    assert ak.all(out.dt[:, 1:] >= out.dt[:, :-1])
