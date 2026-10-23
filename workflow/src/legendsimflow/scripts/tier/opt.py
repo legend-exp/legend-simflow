@@ -63,7 +63,10 @@ def main() -> None:
         action="append",
         default=[],
         metavar="SOURCE=FILE",
-        help="optical map of a light source, needed with light_source: optmap",
+        help=(
+            "optical map of a light source, needed with light_source: optmap "
+            "for each source without a light model"
+        ),
     )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
     parser.add_argument(
@@ -124,12 +127,19 @@ def main() -> None:
         for item in args.optmaps:
             name, _, path = item.partition("=")
             optmaps[name] = nersc.dvs_ro(config, path)
-        if set(optmaps) != set(sources):
+        mapped = sorted(n for n, s in sources.items() if s.model is None)
+        if sorted(optmaps) != mapped:
             msg = (
-                f"one optical map per light source is needed: sources "
-                f"{sorted(sources)}, maps given for {sorted(optmaps)}"
+                f"one optical map per light source without a light model is "
+                f"needed: sources {mapped}, maps given for {sorted(optmaps)}"
             )
             raise SimflowConfigError(msg, settings_block)
+        # a light model takes the place of the map of its source
+        optmaps |= {
+            name: optics.load_light_model(s.model)
+            for name, s in sources.items()
+            if s.model is not None
+        }
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
@@ -188,7 +198,10 @@ def main() -> None:
     # for a little speed up. in per-SiPM mode the maps are loaded on demand
     if light_source == "optmap" and not optmap_per_sipm:
         optmaps = {
-            name: reboost.spms.load_optmap(f, "all") for name, f in optmaps.items()
+            name: reboost.spms.load_optmap(m, "all")
+            if isinstance(m, (str, Path))
+            else m
+            for name, m in optmaps.items()
         }
 
     # loop over the partitions for this file
@@ -265,7 +278,7 @@ def main() -> None:
             targets = [("all", min(uid2source), "on")]
 
         for sipm, uid, usability in targets:
-            msg = f"applying optical maps for SiPM {sipm}"
+            msg = f"applying optical maps and light models for SiPM {sipm}"
             log.debug(msg)
 
             stats = optics.write_scintillation_photoelectrons(

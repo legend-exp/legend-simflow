@@ -17,8 +17,8 @@
 
 The opt tier holds, for each SiPM channel, the detected photoelectrons.
 Photoelectrons come either from the convolution of the energy depositions in
-the scintillators (the light sources) with their optical maps (``light_source:
-optmap``), or from the optical photons tracked by Geant4 up to the SiPMs
+the scintillators (the light sources) with their optical maps or light models
+(``light_source: optmap``), or from the optical photons tracked by Geant4 up to the SiPMs
 (``light_source: tracked_photons``). With optical maps, the light of all
 scintillator hits in the same event window (row of the stp TCM) is pooled and
 gives one output row. With tracked photons, each hit of a SiPM gives one output
@@ -27,6 +27,8 @@ row. Times are in nanoseconds, amplitudes in photoelectrons.
 
 from __future__ import annotations
 
+import functools
+import importlib
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager, nullcontext
@@ -40,6 +42,7 @@ import reboost.spms
 from lgdo import Array, Table, VectorOfVectors
 from numpy.typing import ArrayLike, NDArray
 from reboost.optmap.convolve import NumdetStats, OptmapForConvolve
+from reboost.units import units_conv_ak
 
 from legendsimflow import metadata as mutils
 
@@ -222,6 +225,134 @@ def optmap_to_pes(
         pe_times = ak.sort(pe_times, axis=-1)
 
     return pe_times, is_saturated, expected_pes, stats
+
+
+def load_light_model(model: Mapping) -> Callable:
+    """Import the function of a light model and bind its keyword arguments.
+
+    `model` is the ``model`` block of a light source, see
+    :func:`.metadata.get_opt_scintillators`.
+    """
+    module, _, name = model["function"].rpartition(".")
+    return functools.partial(
+        getattr(importlib.import_module(module), name), **model["kwargs"]
+    )
+
+
+def model_photoelectrons(
+    model: Callable,
+    xloc: VectorOfVectors | ak.Array,
+    yloc: VectorOfVectors | ak.Array,
+    zloc: VectorOfVectors | ak.Array,
+    num_scint_ph: ak.Array,
+    sipm: str,
+    map_scaling: float = 1,
+    max_pes_per_hit: int = -1,
+) -> tuple[ak.Array, NDArray[np.floating]]:
+    """Sample the photoelectrons of each energy deposition from a light model.
+
+    The model replaces the optical map of a light source. It is called once
+    per chunk as ``model(xloc, yloc, zloc, sipm=sipm)``, with flat arrays of
+    the global coordinates (mm) of all steps, and `sipm` the name of the SiPM,
+    or ``"all"`` for all SiPMs together. It returns the probability that a
+    scintillation photon emitted in each step gives a photoelectron, at unit
+    channel efficiency.
+
+    As with the optical map, the number of photoelectrons of each step is
+    drawn from a Poisson distribution of mean `num_scint_ph` times the
+    probability times `map_scaling`, and only the first `max_pes_per_hit`
+    photoelectrons of each hit are kept, in step order, if `max_pes_per_hit`
+    is positive.
+
+    Returns
+    -------
+    n_pes
+        The number of photoelectrons of each step, with the shape of
+        `num_scint_ph`.
+    expected_pes
+        The mean number of photoelectrons of each hit at unit channel
+        efficiency.
+    """
+    steps = ak.to_numpy(ak.num(num_scint_ph))
+    prob = np.asarray(
+        model(
+            *(
+                ak.to_numpy(ak.flatten(units_conv_ak(a, "mm")))
+                for a in (xloc, yloc, zloc)
+            ),
+            sipm=sipm,
+        ),
+        dtype=np.float64,
+    )
+    if prob.shape != (ak.sum(steps),) or not np.all((prob >= 0) & (prob <= 1)):
+        msg = (
+            "the light model must return one detection probability in [0, 1] "
+            "per energy deposition"
+        )
+        raise ValueError(msg)
+    mean = ak.to_numpy(ak.flatten(num_scint_ph)) * prob
+
+    n_pes = np.random.default_rng().poisson(map_scaling * mean)
+    if max_pes_per_hit > 0:
+        cum = np.cumsum(n_pes)
+        # photoelectrons of the earlier steps of the same hit
+        before = (
+            cum
+            - n_pes
+            - np.repeat(np.concatenate([[0], cum])[np.cumsum(steps) - steps], steps)
+        )
+        n_pes = np.minimum(n_pes, np.maximum(max_pes_per_hit - before, 0))
+
+    return ak.unflatten(n_pes, steps), ak.to_numpy(
+        ak.sum(ak.unflatten(mean, steps), axis=1)
+    )
+
+
+def light_model_to_pes(
+    stp_chunk: Table,
+    model: Callable,
+    sipm: str,
+    *,
+    material: str,
+    map_scaling: float,
+    max_pes_per_hit: int,
+    perf_block: Callable[[str], AbstractContextManager] = nullcontext,
+) -> tuple[ak.Array, NDArray[np.floating]]:
+    """Sample the photoelectrons of the energy depositions with a light model.
+
+    As :func:`optmap_to_pes`, with the detection probabilities given by
+    `model` (see :func:`model_photoelectrons`) instead of an optical map.
+    `stp_chunk` is a scintillator step table, whose position fields carry
+    their units.
+
+    Returns the photoelectron times of each hit, in increasing order, and the
+    expected number of photoelectrons of each hit.
+    """
+    chunk = stp_chunk.view_as("ak")
+    with perf_block("emitted_scintillation_photons()"):
+        scint_ph = reboost.spms.emitted_scintillation_photons(
+            chunk.edep, chunk.particle, material
+        )
+
+    with perf_block("model_photoelectrons()"):
+        nr_pe, expected_pes = model_photoelectrons(
+            model,
+            stp_chunk.xloc,
+            stp_chunk.yloc,
+            stp_chunk.zloc,
+            scint_ph,
+            sipm,
+            map_scaling=map_scaling,
+            max_pes_per_hit=max_pes_per_hit,
+        )
+
+    with perf_block("photoelectron_times()"):
+        pe_times = reboost.spms.photoelectron_times(
+            nr_pe, chunk.particle, chunk.time, material
+        )
+        pe_times = ak.sort(pe_times, axis=-1)
+
+    return pe_times, expected_pes
 
 
 def apply_photoelectron_resolution(
@@ -574,7 +705,7 @@ def write_scintillation_photoelectrons(
     windows: Mapping[str, tuple[int, NDArray[np.int64]]],
     n_windows: int,
     sources: Mapping[str, Mapping],
-    optmaps: Mapping[str, str | Path | OptmapForConvolve],
+    optmaps: Mapping[str, str | Path | OptmapForConvolve | Callable],
     out_file: str | Path,
     sipm: str,
     sipm_uid: int,
@@ -607,7 +738,8 @@ def write_scintillation_photoelectrons(
         ``optmap_scaling_factor``), see
         :func:`.metadata.get_opt_scintillators`.
     optmaps
-        The optical map of each light source, or its file name. Maps given by
+        The optical map of each light source, its file name, or the light
+        model that replaces it (see :func:`load_light_model`). Maps given by
         file name are loaded here and released on return (the per-channel
         maps are too large to keep all of them in memory).
     out_file
@@ -637,8 +769,8 @@ def write_scintillation_photoelectrons(
     Returns
     -------
     dict[str, NumdetStats]
-        For each light source, the energy depositions outside its map or in
-        bins without detection probability.
+        For each light source with an optical map, the energy depositions
+        outside the map or in bins without detection probability.
     """
     max_pes_per_hit = (
         settings["max_pes_per_hit_combined"]
@@ -649,9 +781,7 @@ def write_scintillation_photoelectrons(
 
     with perf_block("load_optmap()"):
         optmaps = {
-            name: m
-            if isinstance(m, OptmapForConvolve)
-            else reboost.spms.load_optmap(m, sipm)
+            name: reboost.spms.load_optmap(m, sipm) if isinstance(m, (str, Path)) else m
             for name, m in optmaps.items()
         }
 
@@ -662,7 +792,11 @@ def write_scintillation_photoelectrons(
         msg = f"using optical map scaling factor {map_scaling[name]} for {name}/{sipm}"
         log.debug(msg)
 
-    stats = {name: NumdetStats() for name in sources}
+    stats = {
+        name: NumdetStats()
+        for name, m in optmaps.items()
+        if isinstance(m, OptmapForConvolve)
+    }
 
     # hits of all sources per window, as cumulative counts
     cum_rows = np.cumsum(
@@ -694,20 +828,31 @@ def write_scintillation_photoelectrons(
             )
             # a hit at the cap has max_pes_per_hit photoelectrons, so its
             # window is flagged as saturated after pooling
-            times, _, expected, chunk_stats = optmap_to_pes(
-                stp_chunk.view_as("ak"),
-                optmaps[name],
-                sipm,
-                material=sources[name]["material"],
-                map_scaling=map_scaling[name],
-                max_pes_per_hit=max_pes_per_hit,
-                store_expected_pes=store_expected_pes,
-                perf_block=perf_block,
-            )
-            stats[name] += chunk_stats
+            if name in stats:
+                times, _, expected, chunk_stats = optmap_to_pes(
+                    stp_chunk.view_as("ak"),
+                    optmaps[name],
+                    sipm,
+                    material=sources[name]["material"],
+                    map_scaling=map_scaling[name],
+                    max_pes_per_hit=max_pes_per_hit,
+                    store_expected_pes=store_expected_pes,
+                    perf_block=perf_block,
+                )
+                stats[name] += chunk_stats
+            else:
+                times, expected = light_model_to_pes(
+                    stp_chunk,
+                    optmaps[name],
+                    sipm,
+                    material=sources[name]["material"],
+                    map_scaling=map_scaling[name],
+                    max_pes_per_hit=max_pes_per_hit,
+                    perf_block=perf_block,
+                )
 
             pe_times.append(ak.without_parameters(times))
-            if expected is not None:
+            if store_expected_pes:
                 expected_pes.append(np.asarray(expected, dtype=np.float64))
             hits = reboost.init_hit_table(stp_chunk)
             t0.append(hits.t0.nda)

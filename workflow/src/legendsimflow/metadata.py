@@ -124,9 +124,14 @@ def get_opt_scintillators(config: SimflowConfig) -> AttrsDict:
       registered scintillator volume, or the ntuple name shared by several
       volumes (e.g. ``pen`` for all PEN plates);
     - ``material``: scintillation model (yield and time profile), as known to
-      reboost, e.g. ``lar`` or ``pen``;
+      reboost: ``lar``, ``pen`` or ``fiber``;
     - ``optmap_scaling_factor``: taken from the top-level value of the ``opt``
-      tier settings, if not set for this source.
+      tier settings, if not set for this source;
+    - ``model``: ``None`` to use the optical map, else a mapping with the
+      import path of a function that replaces the map, giving the detection
+      probability of the photons emitted in each energy deposition
+      (``function``), and the keyword arguments passed to it (``kwargs``,
+      empty if not set).
 
     The optical map of source ``<name>`` is ``paths.optical_maps.<name>``.
     Without a ``scintillators`` block in the ``opt`` tier settings, the only
@@ -166,6 +171,21 @@ def get_opt_scintillators(config: SimflowConfig) -> AttrsDict:
             )
             raise SimflowConfigError(msg, block)
         tables[source["table"]] = name
+
+        model = source.setdefault("model", None)
+        if model is not None:
+            function = model.get("function") if isinstance(model, Mapping) else None
+            if not isinstance(function, str) or "." not in function:
+                msg = (
+                    f"scintillators.{name}.model must be a mapping with the import "
+                    "path of a function in 'function', e.g. 'mypackage.pen_light'"
+                )
+                raise SimflowConfigError(msg, block)
+            if not isinstance(model.get("kwargs", {}), Mapping):
+                msg = f"scintillators.{name}.model.kwargs must be a mapping"
+                raise SimflowConfigError(msg, block)
+            source["model"] = {"kwargs": {}} | dict(model)
+
         if "optmap_scaling_factor" in settings:
             source.setdefault("optmap_scaling_factor", settings.optmap_scaling_factor)
 

@@ -110,6 +110,60 @@ def test_tracked_photons_to_pes():
         assert is_saturated.tolist() == [False, False, False]
 
 
+def _constant_light(xloc, yloc, zloc, *, sipm, prob):  # noqa: ARG001
+    return np.full_like(xloc, prob)
+
+
+def test_load_light_model():
+    model = optics.load_light_model(
+        {"function": f"{__name__}._constant_light", "kwargs": {"prob": 0.2}}
+    )
+    assert model(*[np.array([100.0])] * 3, sipm="all") == [0.2]
+
+
+def test_model_photoelectrons():
+    xyz = ak.Array([[0.0] * 3, [], [0.0]])
+    photons = ak.Array([[10_000] * 3, [], [1]])
+
+    n_pes, expected = optics.model_photoelectrons(
+        lambda x, *_, sipm: np.full_like(x, 0.1),  # noqa: ARG005
+        xyz,
+        xyz,
+        xyz,
+        photons,
+        "all",
+        max_pes_per_hit=1500,
+    )
+    assert ak.num(n_pes).to_list() == [3, 0, 1]
+    assert expected == pytest.approx([3000, 0, 0.1])
+    # about 1000 photoelectrons per step: the first two steps fill the hit up
+    # to the cap
+    assert ak.sum(n_pes[:1], axis=1).to_list() == [1500]
+    assert 0 < n_pes[0, 1] < 1500
+    assert n_pes[0, 2] == 0
+
+    n_pes, expected = optics.model_photoelectrons(
+        lambda x, *_, sipm: np.full_like(x, 0.1),  # noqa: ARG005
+        xyz,
+        xyz,
+        xyz,
+        photons,
+        "all",
+        map_scaling=0,
+    )
+    assert ak.sum(n_pes) == 0
+    assert expected == pytest.approx([3000, 0, 0.1])
+
+    for bad in (
+        lambda x, *_, sipm: x - 1,  # noqa: ARG005
+        lambda x, *_, sipm: x + 2,  # noqa: ARG005
+        lambda x, *_, sipm: np.full_like(x, np.nan),  # noqa: ARG005
+        lambda *_, sipm: np.ones(2),  # noqa: ARG005
+    ):
+        with pytest.raises(ValueError, match="detection probability"):
+            optics.model_photoelectrons(bad, xyz, xyz, xyz, photons, "all")
+
+
 def test_apply_photoelectron_resolution():
     pe_times = ak.Array([[0.0, 0.6, 1.1, 1.4, 2.3], [], [7.0]])
 
@@ -460,6 +514,36 @@ def test_write_scintillation_photoelectrons_pooled(legend_testdata, tmp_path):
     assert ak.to_numpy(pooled.expected_pes) == pytest.approx(
         expected[::2] + expected[1::2], rel=0.05
     )
+
+
+def test_write_scintillation_photoelectrons_light_model(legend_testdata, tmp_path):
+    stp_file = _write_argon_file(tmp_path / "stp.lh5", 4)
+    reboost.write_hit_table_chunk(
+        _argon_table(4, 5, seed=1), "stp/pen", stp_file, uid=2
+    )
+    sources = _one_source() | {
+        "pen": AttrsDict(
+            {"table": "pen", "material": "pen", "optmap_scaling_factor": 1.0}
+        )
+    }
+    model = optics.load_light_model(
+        {"function": f"{__name__}._constant_light", "kwargs": {"prob": 0.01}}
+    )
+    settings = AttrsDict(SETTINGS | {"store_expected_pes": True})
+
+    # one argon and one PEN hit per window
+    windows = {"lar": (0, np.arange(4)), "pen": (0, np.arange(4))}
+    stats = optics.write_scintillation_photoelectrons(
+        stp_file, windows, 4, sources,
+        {"lar": legend_testdata[OPTMAP], "pen": model}, tmp_path / "opt.lh5",
+        "all", 1, RUNID, "on", settings=settings, rows_per_chunk=4,
+    )  # fmt: skip
+    # no coverage statistics for a light model
+    assert stats.keys() == {"lar"}
+    out = lh5.read_as("hit/spms", tmp_path / "opt.lh5", library="ak")
+    assert len(out) == 4
+    assert ak.all(out.expected_pes > 0)
+    assert ak.all(out.dt[:, 1:] >= out.dt[:, :-1])
 
 
 def test_write_photoelectrons_profiler(legend_testdata, tmp_path):
