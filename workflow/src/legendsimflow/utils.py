@@ -315,7 +315,16 @@ def init_simflow_context(
     ):
         config = raw_config
     else:
-        raw_config = defaults.merge_simflow_config(raw_config)
+        raw_config = dict(raw_config)
+        if "legend_metadata_version" in raw_config:
+            log_.warning(
+                "`legend_metadata_version` is deprecated; use `metadata_version` instead"
+            )
+            raw_config.setdefault(
+                "metadata_version", raw_config["legend_metadata_version"]
+            )
+            del raw_config["legend_metadata_version"]
+        raw_config = defaults.merge(raw_config, defaults.CONFIG)
 
         if workflow is None:
             ldfs.subst_vars(

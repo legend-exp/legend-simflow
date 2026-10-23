@@ -62,7 +62,6 @@ and of the optional fields of the settings files in the Simflow metadata (see
   `git checkout` accepts) for the _legend-metadata_ instance used by the
   simflow. If you are _developing_ metadata, comment this option. The revision
   must contain the HPGe operational voltages in `hardware/configuration/opvs/`.
-  The old name `legend_metadata_version` is still accepted with a warning.
 - `simflow_rng_seed` (default `0`): non-negative integer combined with the
   output file name of each _remage_ job to compute its random number generator
   seed. Jobs are therefore reproducible. Change it to simulate statistically

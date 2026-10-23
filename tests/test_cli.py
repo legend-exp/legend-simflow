@@ -83,6 +83,35 @@ def test_nersc_cli_raises_missing_config(tmp_path, monkeypatch):
         snakemake_nersc_cli()
 
 
+@pytest.mark.parametrize(
+    ("version_options", "expected_version", "warns"),
+    [
+        ({"legend_metadata_version": "old"}, "old", True),
+        (
+            {"legend_metadata_version": "old", "metadata_version": "new"},
+            "new",
+            True,
+        ),
+        ({"metadata_version": "new"}, "new", False),
+    ],
+)
+def test_nersc_cli_metadata_version(
+    tmp_path, monkeypatch, caplog, version_options, expected_version, warns
+):
+    """Legacy and current metadata version options select the expected revision."""
+    _make_nersc_config(tmp_path)
+    config = yaml.safe_load((tmp_path / "simflow-config.yaml").read_text())
+    (tmp_path / "simflow-config.yaml").write_text(yaml.dump(config | version_options))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["snakemake-nersc", "-N", "2", "--no-submit"])
+    with patch("legendsimflow.cli.metadata_class") as metadata_class:
+        snakemake_nersc_cli()
+    metadata_class.return_value.return_value.checkout.assert_called_once_with(
+        expected_version
+    )
+    assert ("`metadata_version`" in caplog.text) is warns
+
+
 def test_nersc_cli_no_submit(tmp_path, monkeypatch, capsys):
     """--no-submit prints the snakemake commands that would be spawned."""
     _make_nersc_config(tmp_path)
