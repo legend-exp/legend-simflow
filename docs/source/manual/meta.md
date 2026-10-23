@@ -427,9 +427,12 @@ buffer_len: "10*MB"
     ntuple name shared by several registered volumes: e.g. `pen` for all PEN
     plates, which share one optical map. Each source has its own table.
   - `material` (str) — scintillation model, i.e. light yield and time profile,
-    as known to reboost: `lar` (liquid argon) or `pen`.
+    as known to reboost: `lar` (liquid argon), `pen` or `fiber` (the core of the
+    scintillating fibers, with the time profile of their wavelength shifter).
   - `optmap_scaling_factor` (float or dict, optional) — replaces the top-level
     `optmap_scaling_factor` for this source.
+  - `model` (dict, optional) — a light model that replaces the optical map of
+    this source, see below. Without it, the source uses its optical map.
 
   The optical map of source `<name>` is read from `paths.optical_maps.<name>`.
   Without this block, the only source is `lar`, with table
@@ -446,6 +449,53 @@ buffer_len: "10*MB"
       optmap_scaling_factor: 0.5
   ```
 
+  A light model is a Python function that replaces the optical map of a source:
+  it gives the probability that a scintillation photon emitted in an energy
+  deposition (step) produces a photoelectron. The number of emitted photons
+  still comes from the light yield of `material`, as with the optical map. The
+  source needs no `paths.optical_maps.<name>`. `model` has two fields:
+  - `function` (str) — import path of the function, `<module>.<function>`. The
+    module must be importable in the Simflow environment.
+  - `kwargs` (dict, optional) — keyword arguments passed to the function, e.g.
+    the parameters of the model.
+
+  ```{code-block} yaml
+  scintillators:
+    lar:
+      table: liquid_argon
+      material: lar
+    pen:
+      table: pen
+      material: pen
+      model:
+        function: mypackage.light.pen_detection_probability
+        kwargs:
+          prob: 0.002
+  ```
+
+  The `opt` tier calls the function once per chunk of steps, as
+  `f(xloc, yloc, zloc, sipm=sipm, **kwargs)`. `xloc`, `yloc`, `zloc` hold the
+  position of each step in mm, in the global frame of the geometry, as
+  one-dimensional NumPy arrays: the function must act on whole arrays. `sipm` is
+  the name of the SiPM channel, or `all` with `optmap_per_sipm: false`. The
+  function returns an array with one probability per step, between 0 and 1, at
+  unit channel efficiency, like the values of an optical map. As with the map,
+  the `opt` tier draws the number of photoelectrons of each step from a Poisson
+  distribution, with mean the number of emitted photons times the probability
+  times `optmap_scaling_factor`. The photoelectron times follow the
+  scintillation time profile of `material`. For example:
+
+  ```{code-block} python
+  :caption: mypackage/light.py
+
+  import numpy as np
+
+
+  def pen_detection_probability(xloc, yloc, zloc, *, sipm, prob):
+      # same probability everywhere and for every SiPM channel
+      return np.full_like(xloc, prob)
+  ```
+
   The `opt` tier pools the photoelectrons of all sources that belong to the same
   `stp` event window: hits of the same Geant4 event closer than 10 µs in time,
   as grouped by the `stp` time-coincidence map (TCM). Saturation
@@ -457,8 +507,8 @@ buffer_len: "10*MB"
 - `light_source` (str, optional, default `optmap`) — where the detected photons
   come from:
   - `optmap`: photoelectrons are sampled from the optical map of each light
-    source (`paths.optical_maps.<source>`, see `scintillators`), given the
-    energy depositions in its `stp` table.
+    source (`paths.optical_maps.<source>`, see `scintillators`), or from its
+    light model, given the energy depositions in its `stp` table.
   - `tracked_photons`: photons are tracked in the simulation, and the photons
     recorded in the `stp` SiPM tables are used. The optical map is not read.
     `max_pes_per_hit_per_sipm` caps the photoelectrons of each SiPM hit, keeping
@@ -474,14 +524,14 @@ buffer_len: "10*MB"
     optical detectors. No liquid argon (scintillator) table is needed in the
     `stp` files, and none is read if present.
 - `optmap_per_sipm` (bool) — when `true`, photoelectrons are sampled per SiPM
-  channel using the per-SiPM optical map; when `false`, the combined map across
-  all SiPMs is used.
+  channel using the per-SiPM optical map (or light model); when `false`, the
+  combined map across all SiPMs is used.
 - `optmap_scaling_factor` (float or dict) — factor multiplied to every map
-  value, scaling the photoelectron detection probability. Maps produced with
-  SiPM PDE set to 1 should use a value equal to the true SiPM PDE. A scalar is
-  applied to every channel. A mapping `<sipm name> -> <factor>` applies a
-  per-channel efficiency instead, with a reserved `default` key used for
-  channels absent from it:
+  value, scaling the photoelectron detection probability. The probability given
+  by a light model is multiplied by it too. Maps produced with SiPM PDE set to 1
+  should use a value equal to the true SiPM PDE. A scalar is applied to every
+  channel. A mapping `<sipm name> -> <factor>` applies a per-channel efficiency
+  instead, with a reserved `default` key used for channels absent from it:
 
   ```{code-block} yaml
   optmap_scaling_factor:

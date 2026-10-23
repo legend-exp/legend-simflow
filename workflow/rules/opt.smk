@@ -36,16 +36,21 @@ def _optmap_lar(config, simid):
 def smk_optmaps(wildcards):
     """The optical maps of the light sources, ``optmap_<source> -> file``.
 
-    Not needed when the light comes from tracked photons.
+    Not needed when the light comes from tracked photons, nor for the sources
+    with a light model.
     """
     if get_tier_settings(config, "opt").light_source == "tracked_photons":
         return {}
 
-    sources = get_opt_scintillators(config)
+    sources = {
+        name: source
+        for name, source in get_opt_scintillators(config).items()
+        if source.model is None
+    }
     if "lar_patch" in config.paths.optical_maps and "lar" not in sources:
         msg = (
             "paths.optical_maps.lar_patch patches the map of the lar light source, "
-            f"but there is no such source: {sorted(sources)}"
+            f"but no light source with an optical map has this name: {sorted(sources)}"
         )
         raise SimflowConfigError(msg)
 
@@ -113,9 +118,11 @@ rule build_tier_opt:
     - with `light_source: optmap` (default), scintillation photons are generated
       corresponding to simulated energy depositions and detected
       photoelectrons are sampled according to the optical map of each light
-      source (see `scintillators` in the tier settings). The photoelectrons of
-      all sources in the same `stp` event window (TCM row) are pooled, and
-      each window gives one output row;
+      source (see `scintillators` in the tier settings). A light model (a
+      Python function giving the photon detection probability) can replace
+      the map of a light source, which then needs no map file. The
+      photoelectrons of all sources in the same `stp` event window (TCM row)
+      are pooled, and each window gives one output row;
     - with `light_source: tracked_photons`, the photons recorded in the `stp`
       SiPM tables are used instead and the optical map is not an input. As in
       the `hit` tier, each SiPM row gives one output row, and every photon is
