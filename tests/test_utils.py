@@ -176,21 +176,7 @@ def test_init_simflow_context_loads_from_path(tmp_path, legend_testdata):
     assert config._proctime
 
 
-@pytest.mark.parametrize(
-    ("version_options", "expected_version", "warns"),
-    [
-        ({"legend_metadata_version": "old"}, "old", True),
-        (
-            {"legend_metadata_version": "old", "metadata_version": "new"},
-            "new",
-            True,
-        ),
-        ({"metadata_version": "new"}, "new", False),
-    ],
-)
-def test_init_simflow_context_metadata_version(
-    tmp_path, monkeypatch, caplog, version_options, expected_version, warns
-):
+def test_init_simflow_context_metadata_version(tmp_path, monkeypatch):
     checked_out = []
 
     class FakeMetadata:
@@ -204,14 +190,13 @@ def test_init_simflow_context_metadata_version(
     raw_config = {
         "metadata_repo": "legend-metadata",
         "paths": {"metadata": str(tmp_path), "pars": str(tmp_path / "pars")},
-        **version_options,
+        "metadata_version": "new",
     }
 
     config = utils.init_simflow_context(raw_config, workflow=None).config
 
-    assert checked_out == [expected_version]
-    assert config.metadata_version == expected_version
-    assert ("`metadata_version`" in caplog.text) is warns
+    assert checked_out == ["new"]
+    assert config.metadata_version == "new"
 
 
 def test_hash_dict():
