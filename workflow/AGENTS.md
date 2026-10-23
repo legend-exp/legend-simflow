@@ -115,4 +115,10 @@ from Snakemake and directly from the command line. Follow the pattern in
 - Order rule fields as: `message`, `input`, `params`, `output`, `log`,
   `benchmark`, `script`/`run`/`shell`
 - Prefix functions exclusively used in Snakemake rules with `smk_`
+- Each step's `gen_all_tier_<step>` target lists every output of that step read
+  by later steps, gated by the same settings as the reading rule. A run with
+  only the earlier steps in `make_steps` must leave nothing for later steps to
+  rebuild. A `temp()` output is deleted once its consumers in the DAG are done,
+  so its consumers must also be in that target (e.g. per-detector `par` files
+  and their merged files in `gen_list_of_all_par_outputs`)
 - Use `logger.info()` from `snakemake.logging`; never use `print()`

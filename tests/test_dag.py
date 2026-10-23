@@ -268,6 +268,38 @@ def test_simulate_psd_with_psl_toggles_psl_rules(tmp_path, configfile, experimen
     assert on - off == PSL_PSD_RULES
 
 
+@pytest.mark.parametrize(
+    ("configfile", "experiment"),
+    [(l200_config, "l200cfg01"), (l1000_config, "l1000dsg01")],
+)
+def test_par_step_builds_all_hit_pars(tmp_path, configfile, experiment):
+    """Adding `hit` to a par-only `make_steps` adds only `hit` tier rules.
+
+    Otherwise a par-only production leaves `par` work for the `hit` step.
+    """
+    settings = {"hit": {"simulate_psd": True, "simulate_psd_with_psl": True}}
+    par = dag_rule_names(
+        configfile,
+        overrides(
+            tmp_path / "par",
+            make_steps=["vtx", "stp", "par"],
+            experiment=experiment,
+            settings_by_tier=settings,
+        ),
+    )
+    hit = dag_rule_names(
+        configfile,
+        overrides(
+            tmp_path / "hit",
+            make_steps=["vtx", "stp", "par", "hit"],
+            experiment=experiment,
+            settings_by_tier=settings,
+        ),
+    )
+    assert par >= PSL_PSD_RULES | STD_PSD_RULES
+    assert hit - par == {"build_tier_hit", "plot_tier_hit_observables"}
+
+
 def test_simulate_psd_toggles_dtmap_rules(tmp_path):
     """The hit-tier `simulate_psd` setting gates the drift-time map build chain."""
     on = dag_rule_names(

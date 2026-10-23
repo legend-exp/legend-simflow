@@ -97,6 +97,8 @@ real `generated*` dirs.
   the PSL / drift-time-map rules; guards the YAML-to-DAG wiring the dead
   `has_detailed_psd` key broke. The PSL switch is tested for both `l200cfg01`
   and `l1000dsg01`.
+- `test_par_step_builds_all_hit_pars`: with PSD and PSL on, adding `hit` to a
+  par-only `make_steps` adds only `hit` tier rules.
 - `test_l1000_dag`: the LEGEND-1000 DAG resolves on the mock
   `legend1000-metadata`, with the PSD chains of both modelled detectors on the
   germanium records written by `write_l1000_hpge_metadata`, and without the

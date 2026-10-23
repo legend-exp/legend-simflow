@@ -1018,7 +1018,16 @@ def gen_list_of_psdcuts(config: SimflowConfig, simid: str) -> list[Path]:
 
 
 def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
-    """Generate the list of all (non-plot) ``par`` step output files in the Simflow."""
+    """Generate the list of all (non-plot) ``par`` step output files in the Simflow.
+
+    Includes the merged HPGe files read by the ``hit`` tier, when the ``hit``
+    tier settings enable the pulse shape simulation they belong to.
+    """
+    has_psd = simulates_hpge_psd(config)
+    has_psl = (
+        not get_tier_settings(config, "evt").skip_hit
+        and get_tier_settings(config, "hit").simulate_psd_with_psl
+    )
     files: list[Path] = [
         patterns.detinfo_filename(config, flag)
         for flag in (
@@ -1030,8 +1039,17 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
             "operational_voltage_in_V",
         )
     ]
+    if has_psd:
+        files.append(patterns.detinfo_filename(config, "hpge_ssd_modeling"))
     for simid in gen_list_of_all_simids(config):
         files.append(patterns.simstat_part_filename(config, simid=simid))
+        files.extend(gen_list_of_merged_dtmaps(config, simid, has_psd=has_psd))
+        files.extend(gen_list_of_merged_currmods(config, simid, has_psd=has_psd))
+        files.extend(
+            gen_list_of_merged_realistic_psls(
+                config, simid, simulate_psd_with_psl=has_psl
+            )
+        )
         files.extend(gen_list_of_eresmods(config, simid))
         files.extend(gen_list_of_aoeresmods(config, simid))
         files.extend(gen_list_of_psdcuts(config, simid))
