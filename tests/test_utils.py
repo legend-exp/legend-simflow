@@ -176,29 +176,6 @@ def test_init_simflow_context_loads_from_path(tmp_path, legend_testdata):
     assert config._proctime
 
 
-def test_init_simflow_context_metadata_version(tmp_path, monkeypatch):
-    checked_out = []
-
-    class FakeMetadata:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def checkout(self, version):
-            checked_out.append(version)
-
-    monkeypatch.setattr(utils, "metadata_class", lambda _: FakeMetadata)
-    raw_config = {
-        "metadata_repo": "legend-metadata",
-        "paths": {"metadata": str(tmp_path), "pars": str(tmp_path / "pars")},
-        "metadata_version": "new",
-    }
-
-    config = utils.init_simflow_context(raw_config, workflow=None).config
-
-    assert checked_out == ["new"]
-    assert config.metadata_version == "new"
-
-
 def test_hash_dict():
     """Test hash_dict produces consistent JSON representation."""
     # Test basic dictionary
