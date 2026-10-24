@@ -124,6 +124,8 @@ All scripts share the following conventions:
   matching the behavior of the Snakemake workflow.
 - `--log-file` is optional: if omitted, log output goes to the console.
 
+(make-steps)=
+
 ## Selective step execution with `make_steps`
 
 The `make_steps` configuration option controls which workflow steps are loaded

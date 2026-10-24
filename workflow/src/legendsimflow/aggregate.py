@@ -588,7 +588,9 @@ def gen_list_of_all_usabilities(
             all_runids.add(rc_runid)
 
     out_dict = {}
-    for runid in all_runids:
+    # sorted, so that the cache files written from the result are the same bytes
+    # for the same metadata
+    for runid in sorted(all_runids):
         out_dict[runid] = {}
         rinfo = runinfo(config.metadata, runid)
         chmap = config.metadata.channelmap(rinfo.start_key)

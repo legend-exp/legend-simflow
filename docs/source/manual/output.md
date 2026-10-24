@@ -32,9 +32,25 @@ have per-detector `singles/` files that the merge step combines.
 
 Post-processing needs per-detector, per-run information queried from
 `legend-metadata` (channel-map status, diode and crystal records). Those lookups
-are slow, so the `par` tier caches the results once as a set of small YAML files
+are slow, so the `par` tier caches the results as a set of small YAML files
 under `{config.paths.pars}/detinfo/`, one file per _flag_, and the `opt`, `hit`,
 and modeling rules read them instead of re-querying the metadata.
+
+A cache is rebuilt when a metadata file it is built from changes, or when the
+runs or the modeling settings of the Simflow change. These metadata files are
+the run information, the channel maps and statuses, the germanium detector
+records and, for the modeling flags, the operational voltages and the
+`geds/skip` Simflow parameters. The jobs that read a cache rerun only if its
+content changes.
+
+:::{tip}
+
+After a metadata update, rebuild the caches in a separate Snakemake call, for
+example by running the `par` step alone (see {ref}`make-steps`). In a single
+call, Snakemake schedules the jobs that read the caches before it rebuilds them,
+and runs these jobs even if the cache content does not change.
+
+:::
 
 Every file is named `{flag}.yaml` and holds a two-level mapping
 `runid -> detector -> value`:
