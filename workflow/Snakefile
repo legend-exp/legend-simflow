@@ -79,7 +79,13 @@ def gen_target_all():
         # impurity model is fitted on, and the model file is the only target
         if _tune_impurity:
             return [patterns.output_impurity_model_filename(config)]
-        return aggregate.process_simlist(config, make_steps=make_steps)
+        # take the modelable HPGes from the checkpoint, like the per-detector
+        # rules: the metadata may have changed since the checkpoint ran
+        return lambda wc: aggregate.process_simlist(
+            config,
+            make_steps=make_steps,
+            cache=smk_load_hpge_cache() if "par" in make_steps and _simulate_psd else None,
+        )
 
     inputs = []
     for step in make_steps:
