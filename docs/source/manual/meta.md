@@ -1,5 +1,7 @@
 # Data names and paths
 
+(file-naming)=
+
 ## File naming conventions
 
 The file naming convention for simulation output files is:
@@ -306,6 +308,8 @@ either by passing this macro file with `--macro-substitutions` (`SEED` and
 `N_EVENTS`), or by inlining the commands directly when using
 [_remage_'s "inline" mode](https://remage.readthedocs.io/en/stable/manual/running.html#executing-commands-in-batch-mode).
 
+(run-partitioning)=
+
 ### Run partitioning
 
 An important post-processing step of the workflow is to fold detector models
@@ -557,7 +561,10 @@ aoemeanmod_default:
 - `tune_hpge_impurities_on_data` (bool, default `False`): select the HPGe
   modeling criteria based on the tuning of the crystal impurity curve to data.
   When `False`, detectors are selected by their operational voltage margin above
-  depletion instead. See {ref}`hpge-modeling-criteria`.
+  depletion instead. See {ref}`hpge-modeling-criteria`. When `True`, the
+  `simlist` items only select the simulations to tune the HPGe impurity model on
+  (see {ref}`impurityscan-settings-meta`), and the model file is the only
+  default target.
 - `psdcuts_default` — PSD cut values applied to detectors without a per-detector
   entry. See {ref}`build-tier-hit-hpge` for when this fallback is triggered.
 - `aoemeanmod_default` — A/E mean energy-dependence correction applied to

@@ -172,26 +172,27 @@ default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
 
 [tool.pixi.tasks]
-snakemake = { cmd = "snakemake", depends-on = ["warmup"] }
-snakemake-nersc = { cmd = "snakemake-nersc", depends-on = ["warmup"] }
-dry = { cmd = "snakemake --logger rich --dry-run", depends-on = ["validate"] }
-touch = { cmd = "snakemake --logger rich --touch" }
-validate = { cmd = "python -m legendsimflow.validate" }
+snakemake = { description = "Run Snakemake with arbitrary arguments, after the warmup", cmd = "snakemake", depends-on = ["warmup"] }
+snakemake-nersc = { description = "Run the Simflow on several NERSC nodes in parallel, after the warmup", cmd = "snakemake-nersc", depends-on = ["warmup"] }
+dry = { description = "Check the input paths and the LEGEND-200 data production, then do a Snakemake dry run", cmd = "snakemake --logger rich --dry-run", depends-on = ["validate"] }
+touch = { description = "Mark all Simflow outputs as up-to-date without running jobs", cmd = "snakemake --logger rich --touch" }
+validate = { description = "Check the input paths and the LEGEND-200 data production at paths.l200data", cmd = "python -m legendsimflow.validate" }
 
-tier-opt = { cmd = "python -m legendsimflow.scripts.tier.opt" }
-tier-hit = { cmd = "python -m legendsimflow.scripts.tier.hit" }
-tier-evt = { cmd = "python -m legendsimflow.scripts.tier.evt" }
-tier-cvt = { cmd = "python -m legendsimflow.scripts.tier.cvt" }
-tier-pdf = { cmd = "python -m legendsimflow.scripts.tier.pdf" }
+tier-opt = { description = "Run the opt tier script standalone", cmd = "python -m legendsimflow.scripts.tier.opt" }
+tier-hit = { description = "Run the hit tier script standalone", cmd = "python -m legendsimflow.scripts.tier.hit" }
+tier-evt = { description = "Run the evt tier script standalone", cmd = "python -m legendsimflow.scripts.tier.evt" }
+tier-cvt = { description = "Run the cvt tier script standalone", cmd = "python -m legendsimflow.scripts.tier.cvt" }
+tier-pdf = { description = "Run the pdf tier script standalone", cmd = "python -m legendsimflow.scripts.tier.pdf" }
 
-extract-hpge-obs-models = { cmd = "python -m legendsimflow.scripts.pars.extract_hpge_observables_models" }
-extract-hpge-currmod = { cmd = "python -m legendsimflow.scripts.extract_hpge_current_pulse_model" }
-extract-hpge-impurity-model = { cmd = "python -m legendsimflow.scripts.extract_hpge_impurity_model" }
+extract-hpge-obs-models = { description = "Extract HPGe observable models for a LEGEND run", cmd = "python -m legendsimflow.scripts.pars.extract_hpge_observables_models" }
+extract-hpge-currmod = { description = "Extract the HPGe current-pulse model for a LEGEND run", cmd = "python -m legendsimflow.scripts.extract_hpge_current_pulse_model" }
+extract-hpge-impurity-model = { description = "Fit the HPGe impurity model to data drift times", cmd = "python -m legendsimflow.scripts.extract_hpge_impurity_model" }
 
-extract-drift-time-psl-tuning = { cmd = "python -m legendsimflow.scripts.extract_drift_time_psl_tuning" }
-extract-hpge-electronics-model-scan = { cmd = "python -m legendsimflow.scripts.extract_hpge_elec_response_model_scan" }
+extract-drift-time-psl-tuning = { description = "Compute event drift times over a scan of pulse-shape libraries", cmd = "python -m legendsimflow.scripts.extract_drift_time_psl_tuning" }
+extract-hpge-electronics-model-scan = { description = "Extract the HPGe electronics model for a LEGEND run", cmd = "python -m legendsimflow.scripts.extract_hpge_elec_response_model_scan" }
 
 [tool.pixi.tasks.prod]
+description = "Run a production with a workflow profile, after the warmup"
 cmd = "snakemake --verbose --logger {{ logger }} --workflow-profile workflow/profiles/{{ profile }}"
 args = [
   {arg = "profile", default = "default"},
@@ -200,16 +201,19 @@ args = [
 depends-on = ["warmup"]
 
 [tool.pixi.tasks.prodnodes]
+description = "Run a production on several NERSC nodes, after the warmup"
 cmd = "snakemake-nersc --nodes {{ n_nodes }}"
 args = ["n_nodes"]
 depends-on = ["warmup"]
 
 [tool.pixi.tasks.prodsubmit]
+description = "Submit a production as a NERSC Slurm batch job"
 # NOTE: no need to depend on warmup since this command calls `pixi run
 # snakemake[-nersc]` internally
 cmd = "snakemake-nersc-batch"
 
 [tool.pixi.tasks.warmup]
+description = "Fill the Numba cache before parallel jobs start"
 # the config lets the warmup discover the DSP chain to warm in l200data (as the
 # workflow does); defaults to the prod-cycle config in the current directory
 cmd = "python -m legendsimflow.warmup {{ config }} && touch .pixi/warmup.stamp"
@@ -217,14 +221,14 @@ args = [{ arg = "config", default = "simflow-config.yaml" }]
 outputs = [".pixi/warmup.stamp"]
 
 [tool.pixi.feature.test.tasks]
-test-python = { cmd = "pytest -vvv" }
-init-julia-env = { cmd = "julia --project=workflow/src/LegendSimflow.jl workflow/src/legendsimflow/scripts/init-julia-env.jl && touch .pixi/julia-env.stamp", outputs = [".pixi/julia-env.stamp"] }
-test-julia = { cmd = "julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
-test-julia-ci = { cmd = "julia --code-coverage=user --project=. -e 'using Pkg; Pkg.test(coverage=true)'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
-test-python-pixi = { cmd = "pytest -vvv --ignore=tests/test_workflow.py --cov=legendsimflow --cov-report=xml", depends-on = ["warmup", "init-julia-env"] }
-test-l200-workflow = { cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l200_workflow", depends-on = ["warmup"] }
-test-l1000-workflow = { cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l1000_workflow", depends-on = ["warmup"] }
-test = { depends-on = ["test-python", "test-julia"] }
+test-python = { description = "Run the Python tests", cmd = "pytest -vvv" }
+init-julia-env = { description = "Set up the Julia environment of LegendSimflow.jl", cmd = "julia --project=workflow/src/LegendSimflow.jl workflow/src/legendsimflow/scripts/init-julia-env.jl && touch .pixi/julia-env.stamp", outputs = [".pixi/julia-env.stamp"] }
+test-julia = { description = "Run the Julia tests", cmd = "julia --project=. -e 'using Pkg; Pkg.test()'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
+test-julia-ci = { description = "Run the Julia tests with code coverage (for CI)", cmd = "julia --code-coverage=user --project=. -e 'using Pkg; Pkg.test(coverage=true)'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
+test-python-pixi = { description = "Run the Python tests with code coverage (for CI)", cmd = "pytest -vvv --ignore=tests/test_workflow.py --cov=legendsimflow --cov-report=xml", depends-on = ["warmup", "init-julia-env"] }
+test-l200-workflow = { description = "Run the full LEGEND-200 test workflow (needs remage)", cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l200_workflow", depends-on = ["warmup"] }
+test-l1000-workflow = { description = "Run the full LEGEND-1000 test workflow (needs remage)", cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l1000_workflow", depends-on = ["warmup"] }
+test = { description = "Run the Python and Julia tests", depends-on = ["test-python", "test-julia"] }
 
 [tool.uv.workspace]
 exclude = ["generated", "inputs", "software", "workflow"]
