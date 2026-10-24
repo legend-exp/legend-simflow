@@ -90,6 +90,8 @@ real `generated*` dirs.
 
 - `test_dag` / `test_dag_simlist`: full DAG resolves; a simlist target schedules
   the PSD-gated drift-time map plots.
+- `test_dag_simlist_reads_hpge_checkpoint`: a simlist target takes the modelable
+  HPGes from the on-disk checkpoint output, not from the metadata.
 - `test_make_steps_selects_tiers`: `make_steps` selects which tier rules enter
   the DAG (tiers are decoupled, e.g. hit without opt).
 - `test_simulate_psd[_with_psl]_toggles_*`: the hit-tier `simulate_psd_with_psl`

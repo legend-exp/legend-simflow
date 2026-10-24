@@ -23,10 +23,13 @@ import shutil
 from collections.abc import Mapping
 from pathlib import Path
 
+import dbetto
 import pytest
 import yaml
 from snakemake import api as smkapi
 from snakemake.exceptions import MissingInputException, WorkflowError
+
+from legendsimflow import aggregate as agg
 
 dummyprod = Path(__file__).parent / "dummyprod"
 default_config = dummyprod / "simflow-config.yaml"
@@ -200,6 +203,34 @@ def test_dag_simlist(tmp_path):
     )
     assert "build_tier_hit" in rules
     assert "plot_hpge_drift_time_maps" in rules
+
+
+def test_dag_simlist_reads_hpge_checkpoint(tmp_path, config):
+    """A simlist target takes the modelable HPGes from the checkpoint output.
+
+    The per-detector rules read the on-disk checkpoint output, which can differ
+    from the metadata (e.g. after a metadata update). Here it marks a detector
+    that the metadata calls modelable as not modelable.
+    """
+    detinfo = agg.pivot_detinfo(agg.gen_list_of_all_hpges_valid_for_modeling(config))
+    dets = next(iter(detinfo["is_modelable"].values()))
+    dets[next(d for d, flag in dets.items() if flag)] = False
+
+    detinfo_dir = tmp_path / "generated/pars/detinfo"
+    detinfo_dir.mkdir(parents=True)
+    for flag in ("is_modelable", "operational_voltage_in_V"):
+        dbetto.utils.write_dict(detinfo[flag], detinfo_dir / f"{flag}.yaml")
+
+    rules = dag_rule_names(
+        default_config,
+        overrides(
+            tmp_path,
+            simlist="hit.pen_plates_Ra224_to_Pb208",
+            experiment="legend",
+            settings_by_tier={"hit": {"simulate_psd_with_psl": True}},
+        ),
+    )
+    assert "build_tier_hit" in rules
 
 
 @pytest.mark.parametrize(
