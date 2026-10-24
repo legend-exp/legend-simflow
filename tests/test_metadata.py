@@ -328,3 +328,75 @@ def test_get_par_settings(config):
     settings_empty = metadata.get_par_settings(config, "nonexistent_par")
     assert isinstance(settings_empty, AttrsDict)
     assert len(settings_empty) == 0
+
+
+def test_get_opt_scintillators(config, monkeypatch):
+    # the legend test settings have no scintillators block
+    sources = metadata.get_opt_scintillators(config)
+    assert sources == {
+        "lar": {
+            "table": "liquid_argon",
+            "material": "lar",
+            "model": None,
+            "optmap_scaling_factor": 1,
+        }
+    }
+
+    settings = metadata.get_tier_settings(config, "opt")
+    block = {
+        "lar": {"table": "liquid_argon", "material": "lar"},
+        "pen": {"table": "pen", "material": "pen", "optmap_scaling_factor": 0.5},
+    }
+    monkeypatch.setattr(
+        metadata,
+        "get_tier_settings",
+        lambda *_: AttrsDict(settings | {"scintillators": block}),
+    )
+    sources = metadata.get_opt_scintillators(config)
+    assert list(sources) == ["lar", "pen"]
+    assert sources.lar.optmap_scaling_factor == 1
+    assert sources.pen.optmap_scaling_factor == 0.5
+
+    block["lar_patch"] = block.pop("pen")
+    with pytest.raises(SimflowConfigError, match="'lar_patch' is not allowed"):
+        metadata.get_opt_scintillators(config)
+    block["pen"] = block.pop("lar_patch")
+
+    block["pen"]["table"] = "liquid_argon"
+    with pytest.raises(SimflowConfigError, match="have the same table"):
+        metadata.get_opt_scintillators(config)
+
+    block["pen"].pop("material")
+    with pytest.raises(SimflowConfigError, match="has no 'material'"):
+        metadata.get_opt_scintillators(config)
+
+
+def test_get_opt_scintillators_light_model(config, monkeypatch):
+    assert metadata.get_opt_scintillators(config).lar.model is None
+
+    settings = metadata.get_tier_settings(config, "opt")
+    block = {"pen": {"table": "pen", "material": "pen"}}
+    monkeypatch.setattr(
+        metadata,
+        "get_tier_settings",
+        lambda *_: AttrsDict(settings | {"scintillators": block}),
+    )
+
+    block["pen"]["model"] = {"function": "mypackage.pen_light"}
+    assert metadata.get_opt_scintillators(config).pen.model == {
+        "function": "mypackage.pen_light",
+        "kwargs": {},
+    }
+
+    block["pen"]["model"]["kwargs"] = {"prob": 0.1}
+    model = metadata.get_opt_scintillators(config).pen.model
+    assert model.kwargs.prob == 0.1
+
+    for bad in ("mypackage.pen_light", {"function": "pen_light"}, {}):
+        block["pen"]["model"] = bad
+        with pytest.raises(SimflowConfigError, match="import path of a function"):
+            metadata.get_opt_scintillators(config)
+
+    block["pen"]["model"] = {"function": "mypackage.pen_light", "kwargs": [1]}
+    with pytest.raises(SimflowConfigError, match="kwargs must be a mapping"):
+        metadata.get_opt_scintillators(config)

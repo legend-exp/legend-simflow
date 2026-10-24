@@ -34,6 +34,7 @@ from legendmeta import LegendMetadata
 from . import SimflowConfig, aggregate, patterns, utils
 from .exceptions import SimflowConfigError
 from .metadata import (
+    get_opt_scintillators,
     get_par_settings,
     get_runlist,
     get_tier_settings,
@@ -491,7 +492,8 @@ def input_paths(config: SimflowConfig) -> None:
     """Check that the input files and folders in ``paths`` exist.
 
     Checks ``paths.config``, ``paths.hpge_impurity_model`` (if set) and, if
-    the opt tier is built from an optical map, ``paths.optical_maps.lar`` and
+    the opt tier is built from optical maps, ``paths.optical_maps.<source>``
+    for each light source of the ``opt`` tier and
     ``paths.optical_maps.lar_patch`` (if set). ``paths.metadata`` is cloned by
     :func:`.utils.init_simflow_context` if missing, and ``paths.l200data`` is
     checked by :func:`l200data_layout`.
@@ -511,7 +513,7 @@ def input_paths(config: SimflowConfig) -> None:
         "opt" in config.make_steps
         and get_tier_settings(config, "opt").light_source != "tracked_photons"
     ):
-        spec["optical_maps"] = {"lar": Path}
+        spec["optical_maps"] = dict.fromkeys(get_opt_scintillators(config), Path)
         patch = config.paths.optical_maps.get("lar_patch")
         if isinstance(patch, Mapping):
             spec["optical_maps"]["lar_patch"] = dict.fromkeys(patch, Path)

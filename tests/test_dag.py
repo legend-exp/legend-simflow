@@ -521,3 +521,85 @@ def test_optmap_patch_rule_gated_on_config(tmp_path):
 
     rules = dag_rule_names(default_config, cfg)
     assert {"build_tier_opt", "patch_optical_map"} <= rules
+
+
+def test_opt_reads_the_map_of_each_light_source(tmp_path):
+    steps = ["vtx", "stp", "par", "opt"]
+    pen = {
+        "scintillators": {
+            "lar": {"table": "liquid_argon", "material": "lar"},
+            "pen": {"table": "pen", "material": "pen"},
+        }
+    }
+
+    cfg = overrides(
+        tmp_path / "pen",
+        make_steps=steps,
+        experiment="l200cfg01",
+        settings_by_tier={"opt": pen},
+    )
+    cfg["paths"]["optical_maps"]["pen"] = cfg["paths"]["optical_maps"]["lar"]
+    assert "build_tier_opt" in dag_rule_names(l200_config, cfg)
+
+    del cfg["paths"]["optical_maps"]["pen"]
+    with pytest.raises(Exception, match=r"paths\.optical_maps\.pen"):
+        dag_rule_names(l200_config, cfg)
+
+
+def test_opt_lar_patch_needs_lar_light_source(tmp_path):
+    def config(name, sources):
+        cfg = overrides(
+            tmp_path / name,
+            make_steps=["vtx", "stp", "par", "opt"],
+            experiment="l200cfg01",
+            settings_by_tier={"opt": {"scintillators": sources}},
+        )
+        dummy_map = cfg["paths"]["optical_maps"]["lar"]
+        cfg["paths"]["optical_maps"] |= dict.fromkeys(sources, dummy_map)
+        return cfg
+
+    pen = {"pen": {"table": "pen", "material": "pen"}}
+    assert "build_tier_opt" in dag_rule_names(l200_config, config("pen", pen))
+
+    # the patch would otherwise be ignored
+    argon = {"argon": {"table": "liquid_argon", "material": "lar"}}
+    cfg = config("argon", argon)
+    cfg["paths"]["optical_maps"]["lar_patch"] = cfg["paths"]["optical_maps"]["argon"]
+    with pytest.raises(Exception, match=r"lar_patch patches the map of the lar"):
+        dag_rule_names(l200_config, cfg)
+
+
+def test_opt_needs_no_map_for_a_light_model(tmp_path):
+    model = {"function": "mypackage.pen_light"}
+    cfg = overrides(
+        tmp_path / "model",
+        make_steps=["vtx", "stp", "par", "opt"],
+        experiment="l200cfg01",
+        settings_by_tier={
+            "opt": {
+                "scintillators": {
+                    "lar": {"table": "liquid_argon", "material": "lar"},
+                    "pen": {"table": "pen", "material": "pen", "model": model},
+                }
+            }
+        },
+    )
+    assert "pen" not in cfg["paths"]["optical_maps"]
+    assert "build_tier_opt" in dag_rule_names(l200_config, cfg)
+
+    # the patch would otherwise be ignored
+    cfg = overrides(
+        tmp_path / "patch",
+        make_steps=["vtx", "stp", "par", "opt"],
+        experiment="l200cfg01",
+        settings_by_tier={
+            "opt": {
+                "scintillators": {
+                    "lar": {"table": "liquid_argon", "material": "lar", "model": model}
+                }
+            }
+        },
+    )
+    cfg["paths"]["optical_maps"]["lar_patch"] = cfg["paths"]["optical_maps"]["lar"]
+    with pytest.raises(Exception, match=r"lar_patch patches the map of the lar"):
+        dag_rule_names(l200_config, cfg)
