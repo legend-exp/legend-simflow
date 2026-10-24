@@ -177,7 +177,9 @@ where `--time` is the requested wall time (required) and `--nodes` defaults to
 The program determines the list of simulations (see the `simlist` in
 {ref}`production`) that the user wants to process, partitions it in
 `NUMBER_OF_NODES` chunks, and spawns a dedicated Snakemake instance for each,
-prefixed by the appropriate `srun` call. This is equivalent to something like:
+prefixed by the appropriate `srun` call. The chunks are balanced by number of
+jobs: each `simlist` item counts as many jobs as the `number_of_jobs` of its
+`simid` in the `stp` tier configuration. This is equivalent to something like:
 
 ```sh
 srun -N1 -n1 snakemake --workflow-profile workflow/profiles/nersc-compute --config simlist=LIST1 [SNAKEMAKE ARGS] &
@@ -218,7 +220,7 @@ Add commands to send signals.
 :::{note}
 
 Since the actual jobs that need to be run will not be known a priori, the
-_a-priori_ partitioning might be inefficient. To mitigate this, the `simlist` is
-randomly shuffled before partitioning.
+_a-priori_ partitioning might be inefficient. To mitigate this, `simlist` items
+with the same number of jobs are distributed over the nodes in random order.
 
 :::

@@ -31,33 +31,34 @@ from legendsimflow.cli import (
 # ---------------------------------------------------------------------------
 
 
-def test_partition_even():
-    result = _partition(list(range(6)), 3)
-    assert result == [[0, 1], [2, 3], [4, 5]]
+def test_partition_unit_weights():
+    result = _partition(list("abcdefg"), 3, [1] * 7)
+    assert sorted(len(c) for c in result) == [2, 2, 3]
+    assert sorted(x for chunk in result for x in chunk) == list("abcdefg")
 
 
-def test_partition_uneven():
-    result = _partition(list(range(7)), 3)
-    # 7 // 3 = 2 remainder 1 → first chunk gets 3 items
-    assert [len(c) for c in result] == [3, 2, 2]
-    assert sum(len(c) for c in result) == 7
-    # All original items present exactly once
-    assert sorted(x for chunk in result for x in chunk) == list(range(7))
+def test_partition_balances_weights():
+    result = _partition(["a", "b", "c", "d", "e"], 2, [10, 1, 4, 5, 2])
+    assert sorted(result) == [["a", "b"], ["d", "c", "e"]]
 
 
-def test_partition_single_chunk():
-    items = [1, 2, 3]
-    result = _partition(items, 1)
-    assert result == [items]
+def test_partition_more_chunks_than_items():
+    assert _partition(["a"], 3, [5]) == [["a"], [], []]
 
 
 def test_partition_empty():
-    assert _partition([], 3) == [[], [], []]
+    assert _partition([], 3, []) == [[], [], []]
 
 
 # ---------------------------------------------------------------------------
 # snakemake_nersc_cli
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def mock_njobs():
+    with patch("legendsimflow.cli.aggregate.get_simid_njobs", return_value=1) as m:
+        yield m
 
 
 def _make_nersc_config(tmp_path, simlist=("stp.simA", "stp.simB")):
@@ -140,6 +141,23 @@ def test_nersc_cli_simlist_partitioned(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     # Two "would spawn" lines - one per node
     assert out.count("would spawn") == 2
+
+
+def test_nersc_cli_simlist_balanced_by_njobs(tmp_path, monkeypatch, capsys, mock_njobs):
+    _make_nersc_config(tmp_path, simlist=["stp.s1", "stp.s2", "stp.s3", "stp.s4"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys, "argv", ["snakemake-nersc", "-N", "2", "--no-submit", "--without-srun"]
+    )
+    njobs = {"s1": 100, "s2": 10, "s3": 20, "s4": 30}
+    mock_njobs.side_effect = lambda _, simid: njobs[simid]
+    with patch("legendsimflow.cli.metadata_class"):
+        snakemake_nersc_cli()
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if "would spawn" in ln]
+    assert any(ln.startswith("INFO: would spawn (100 jobs)") for ln in lines)
+    assert any(ln.startswith("INFO: would spawn (60 jobs)") for ln in lines)
+    heavy = next(ln for ln in lines if "(100 jobs)" in ln)
+    assert heavy.endswith("simlist=stp.s1")
 
 
 @pytest.mark.parametrize("simlist", ["all", "*"])

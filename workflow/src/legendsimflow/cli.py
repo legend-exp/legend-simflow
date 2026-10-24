@@ -20,6 +20,7 @@ import random
 import shlex
 import signal
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -32,14 +33,16 @@ from .utils import metadata_class
 log = logging.getLogger(__name__)
 
 
-def _partition(xs, n):
-    k, r = divmod(len(xs), n)
-    out, i = [], 0
-    for j in range(n):
-        s = k + (j < r)
-        out.append(xs[i : i + s])
-        i += s
-    return out
+def _partition(xs: Sequence[str], n: int, weights: Sequence[int]) -> list[list[str]]:
+    """Split `xs` in `n` chunks of similar total weight, assigning the heaviest items first."""
+    chunks: list[list[str]] = [[] for _ in range(n)]
+    totals = [0] * n
+    # sorted() is stable: items of equal weight keep their input order
+    for i in sorted(range(len(xs)), key=lambda i: weights[i], reverse=True):
+        j = totals.index(min(totals))
+        chunks[j].append(xs[i])
+        totals[j] += weights[i]
+    return chunks
 
 
 def snakemake_nersc_cli():
@@ -105,9 +108,8 @@ def snakemake_nersc_cli():
     if simlist in ("all", "*"):
         simlist = aggregate.gen_list_of_all_simids(config)
 
-    # trick: there won't be anything to do for some simids (targets already
-    # done), this could result in a very inefficient partitioning. as a
-    # mitigation, we randomly shuffle the simlist first
+    # items are balanced by number of jobs, but some may have nothing left to
+    # do (targets already done). shuffling spreads these over the nodes
     exclude = aggregate.get_simlist_exclude(config)
     # expanding also makes a copy, so the input simlist is not modified in place
     simlist = [
@@ -119,7 +121,12 @@ def snakemake_nersc_cli():
     ]
     random.shuffle(simlist)
 
-    chunks = [chunk for chunk in _partition(simlist, args.nodes) if chunk]
+    njobs = {s: aggregate.get_simid_njobs(config, s.split(".")[1]) for s in simlist}
+    chunks = [
+        chunk
+        for chunk in _partition(simlist, args.nodes, [njobs[s] for s in simlist])
+        if chunk
+    ]
     if len(chunks) < args.nodes:
         log.warning(
             "only %d simlist item(s) to distribute over %d nodes, "
@@ -151,11 +158,12 @@ def snakemake_nersc_cli():
                 *smk_cmd,
             ]
 
+        chunk_njobs = sum(njobs[s] for s in simlist_chunk)
         if not args.no_submit:
-            print("INFO: spawning process:", shlex.join(smk_cmd))  # noqa: T201
+            print(f"INFO: spawning process ({chunk_njobs} jobs):", shlex.join(smk_cmd))  # noqa: T201
             procs.append(subprocess.Popen(smk_cmd))
         else:
-            print("INFO: would spawn:", " ".join(smk_cmd))  # noqa: T201
+            print(f"INFO: would spawn ({chunk_njobs} jobs):", " ".join(smk_cmd))  # noqa: T201
 
     # propagate signals to the snakemake instances.
     def new_signal_handler(sig: int, _):
