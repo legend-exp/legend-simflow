@@ -90,6 +90,8 @@ real `generated*` dirs.
 
 - `test_dag` / `test_dag_simlist`: full DAG resolves; a simlist target schedules
   the PSD-gated drift-time map plots.
+- `test_dag_simlist_reads_hpge_checkpoint`: a simlist target takes the modelable
+  HPGes from the on-disk checkpoint output, not from the metadata.
 - `test_make_steps_selects_tiers`: `make_steps` selects which tier rules enter
   the DAG (tiers are decoupled, e.g. hit without opt).
 - `test_simulate_psd[_with_psl]_toggles_*`: the hit-tier `simulate_psd_with_psl`
@@ -111,6 +113,28 @@ real `generated*` dirs.
   `skip_opt` / `skip_hit` switches drop the opt / hit jobs (negative case: the
   same `make_steps` is unsatisfiable without the switch); both-skip is rejected
   at build time.
+
+### Rerun tests (end of `test_dag.py`)
+
+Which jobs Snakemake reruns after a metadata change, for the detector-info
+caches (`pars/detinfo/`). `recorded_prod` runs the `legend` production (PSL on)
+for real with the local executor, in a throwaway working directory (own
+`.snakemake/` job records). `local.Executor.run_single_job` is patched: the two
+cache rules run for real, every other job only touches its outputs and
+benchmark. Each test edits the copied metadata and checks the jobs of the next
+run (`run_prod`); `caches_first=True` builds the caches in a separate call
+first.
+
+- `test_hpge_cache_loaded_once`: `smk_load_hpge_cache` reads the YAML files once
+  per call.
+- `test_usability_change_reruns_tiers`, `test_modelability_change_reruns_*`:
+  exactly the affected jobs rerun with `caches_first`; at least them in a single
+  call (Snakemake never drops jobs scheduled downstream of a cache).
+- `test_same_detector_info_reruns_nothing`, `test_same_metadata_reruns_nothing`:
+  an uncached status field or an identical rewrite reruns no tier job (input
+  checksums).
+- `test_runlist_change_reruns_caches`: a new run in a simconfig `runlist`
+  rebuilds the caches instead of failing with a `KeyError`.
 
 ## Full-chain tests (`test_workflow.py`)
 

@@ -20,13 +20,19 @@ import contextlib
 import io
 import os
 import shutil
-from collections.abc import Mapping
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Mapping
+from functools import partial
 from pathlib import Path
 
+import dbetto
 import pytest
 import yaml
 from snakemake import api as smkapi
 from snakemake.exceptions import MissingInputException, WorkflowError
+from snakemake.executors import local
+
+from legendsimflow import aggregate as agg
 
 dummyprod = Path(__file__).parent / "dummyprod"
 default_config = dummyprod / "simflow-config.yaml"
@@ -150,6 +156,40 @@ def overrides(
     return cfg
 
 
+def run_snakemake(
+    configfile: Path,
+    config_overrides: Mapping,
+    *,
+    workdir: Path = dummyprod,
+    executor: str = "touch",
+    targets: Iterable[str | Path] = (),
+    forceall: bool = False,
+):
+    """Run Snakemake with *executor* and return the resolved DAG."""
+    output = smkapi.OutputSettings(verbose=False)
+    with smkapi.SnakemakeApi(output) as api:
+        wf_api = api.workflow(
+            snakefile=dummyprod / "workflow/Snakefile",
+            workdir=workdir,
+            config_settings=smkapi.ConfigSettings(
+                configfiles=(configfile,), config=dict(config_overrides)
+            ),
+            storage_settings=smkapi.StorageSettings(),
+            resource_settings=smkapi.ResourceSettings(cores=all_cores),
+        )
+        dag = wf_api.dag(
+            dag_settings=smkapi.DAGSettings(
+                targets={str(t) for t in targets}, forceall=forceall
+            )
+        )
+        # the touch and dry-run executors dump the full job list to stdout
+        with contextlib.redirect_stdout(io.StringIO()):
+            dag.execute_workflow(executor=executor)
+        # the public API exposes no DAG accessor, so reach into the workflow
+        # object for the resolved graph
+        return wf_api._workflow.dag
+
+
 def dag_rule_names(
     configfile: Path, config_overrides: Mapping, targets: set[str] | None = None
 ) -> set[str]:
@@ -161,24 +201,8 @@ def dag_rule_names(
     default ``all`` rule. Raises if the DAG cannot be resolved (e.g. an input
     has no producing rule).
     """
-    output = smkapi.OutputSettings(verbose=False)
-    with smkapi.SnakemakeApi(output) as api:
-        wf_api = api.workflow(
-            snakefile=dummyprod / "workflow/Snakefile",
-            workdir=dummyprod,
-            config_settings=smkapi.ConfigSettings(
-                configfiles=(configfile,), config=dict(config_overrides)
-            ),
-            storage_settings=smkapi.StorageSettings(),
-            resource_settings=smkapi.ResourceSettings(cores=all_cores),
-        )
-        dag = wf_api.dag(dag_settings=smkapi.DAGSettings(targets=targets or set()))
-        # the touch executor dumps the full job list to stdout; swallow it
-        with contextlib.redirect_stdout(io.StringIO()):
-            dag.execute_workflow(executor="touch")
-        # the public API exposes no DAG accessor, so reach into the workflow
-        # object for the resolved graph
-        return {job.rule.name for job in wf_api._workflow.dag.jobs}
+    dag = run_snakemake(configfile, config_overrides, targets=targets or ())
+    return {job.rule.name for job in dag.jobs}
 
 
 def test_dag(tmp_path):
@@ -200,6 +224,34 @@ def test_dag_simlist(tmp_path):
     )
     assert "build_tier_hit" in rules
     assert "plot_hpge_drift_time_maps" in rules
+
+
+def test_dag_simlist_reads_hpge_checkpoint(tmp_path, config):
+    """A simlist target takes the modelable HPGes from the checkpoint output.
+
+    The per-detector rules read the on-disk checkpoint output, which can differ
+    from the metadata (e.g. after a metadata update). Here it marks a detector
+    that the metadata calls modelable as not modelable.
+    """
+    detinfo = agg.pivot_detinfo(agg.gen_list_of_all_hpges_valid_for_modeling(config))
+    dets = next(iter(detinfo["is_modelable"].values()))
+    dets[next(d for d, flag in dets.items() if flag)] = False
+
+    detinfo_dir = tmp_path / "generated/pars/detinfo"
+    detinfo_dir.mkdir(parents=True)
+    for flag in ("is_modelable", "operational_voltage_in_V"):
+        dbetto.utils.write_dict(detinfo[flag], detinfo_dir / f"{flag}.yaml")
+
+    rules = dag_rule_names(
+        default_config,
+        overrides(
+            tmp_path,
+            simlist="hit.pen_plates_Ra224_to_Pb208",
+            experiment="legend",
+            settings_by_tier={"hit": {"simulate_psd_with_psl": True}},
+        ),
+    )
+    assert "build_tier_hit" in rules
 
 
 @pytest.mark.parametrize(
@@ -521,3 +573,185 @@ def test_optmap_patch_rule_gated_on_config(tmp_path):
 
     rules = dag_rule_names(default_config, cfg)
     assert {"build_tier_opt", "patch_optical_map"} <= rules
+
+
+# Rerun tests: which jobs Snakemake runs after a change to the metadata. The
+# production is run for real, but every job other than the detector-info caches
+# only touches its outputs. The working directory is the throwaway one, so the
+# job records (in `.snakemake/`) start empty.
+
+PAR_PER_DETECTOR_RULES = {
+    "build_hpge_drift_time_map",
+    "build_hpge_pulse_shape_library",
+    "build_superpulses_from_data",
+    "extract_current_pulse_model",
+    "extract_electronics_model_pars",
+    "convolve_hpge_ideal_pulse_shape_lib",
+}
+MERGE_RULES = {
+    "merge_hpge_drift_time_maps",
+    "merge_current_pulse_model_pars",
+    "merge_electronics_model_pars",
+    "merge_hpge_realistic_psls",
+}
+CACHE_RULES = {"cache_modelable_hpges", "cache_detector_usabilities"}
+
+
+def run_prod(prod: Mapping, caches_first: bool = False) -> dict[str, list[dict]]:
+    """Run *prod* and return the wildcards of the jobs that ran, by rule.
+
+    With *caches_first*, a first Snakemake call builds the detector-info caches
+    alone.
+    """
+    prod["ran"].clear()
+    run = partial(
+        run_snakemake,
+        default_config,
+        prod["cfg"],
+        workdir=prod["base"],
+        executor="local",
+    )
+    if caches_first:
+        detinfo = Path(prod["cfg"]["paths"]["pars"]) / "detinfo"
+        run(targets=[detinfo / "is_modelable.yaml", detinfo / "usability.yaml"])
+    run()
+    return dict(prod["ran"])
+
+
+@pytest.fixture
+def recorded_prod(tmp_path, monkeypatch):
+    """A production in which every job has run."""
+    ran = defaultdict(list)
+    run_single_job = local.Executor.run_single_job
+
+    def touch_outputs(job):
+        for f in map(Path, [*job.output, *([job.benchmark] if job.benchmark else [])]):
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.touch()
+
+    def run_cache_rules_only(executor, job):
+        ran[job.rule.name].append(dict(job.wildcards))
+        if job.rule.name in CACHE_RULES:
+            return run_single_job(executor, job)
+        return executor.pool.submit(touch_outputs, job)
+
+    monkeypatch.setattr(local.Executor, "run_single_job", run_cache_rules_only)
+
+    (tmp_path / "workflow").symlink_to(dummyprod / "workflow")
+    cfg = overrides(
+        tmp_path,
+        experiment="legend",
+        settings_by_tier={"hit": {"simulate_psd_with_psl": True}},
+    )
+    prod = {
+        "base": tmp_path,
+        "cfg": cfg,
+        "metadata": Path(cfg["paths"]["metadata"]),
+        "ran": ran,
+    }
+    jobs = run_prod(prod)
+    assert {"build_superpulses_from_data", "build_tier_evt"} <= jobs.keys()
+    assert run_prod(prod) == {}
+    return prod
+
+
+def edit_status(prod: Mapping, hpge: str, **fields) -> None:
+    """Edit the status of *hpge* in the p02 physics runs."""
+    status = prod["metadata"] / "datasets/statuses/l200-p02-r006-T%-all-config.yaml"
+    data = yaml.safe_load(status.read_text())
+    data[hpge] |= fields
+    status.write_text(yaml.safe_dump(data))
+
+
+def test_hpge_cache_loaded_once(recorded_prod, monkeypatch):
+    loads = Counter()
+    load_dict = dbetto.utils.load_dict
+
+    def counting_load_dict(path, *args, **kwargs):
+        loads[Path(path).name] += 1
+        return load_dict(path, *args, **kwargs)
+
+    monkeypatch.setattr(dbetto.utils, "load_dict", counting_load_dict)
+    run_prod(recorded_prod)
+    assert loads["is_modelable.yaml"] == 1
+    assert loads["operational_voltage_in_V.yaml"] == 1
+
+
+def test_usability_change_reruns_tiers(recorded_prod):
+    """B99000A is not modelable, before and after."""
+    edit_status(recorded_prod, "B99000A", usability="ac")
+    ran = run_prod(recorded_prod, caches_first=True)
+    assert ran.keys() >= CACHE_RULES | {"build_tier_opt", "build_tier_hit"}
+    assert "build_tier_evt" in ran
+    assert ran.keys().isdisjoint(PAR_PER_DETECTOR_RULES | MERGE_RULES)
+
+
+def test_same_detector_info_reruns_nothing(recorded_prod):
+    """A status field that is not cached changes."""
+    edit_status(recorded_prod, "V99000A", processable=False)
+    assert run_prod(recorded_prod, caches_first=True).keys() == CACHE_RULES
+
+
+def test_same_metadata_reruns_nothing(recorded_prod):
+    """A metadata file is rewritten with the same content, as by a git checkout."""
+    status = (
+        recorded_prod["metadata"] / "datasets/statuses/l200-p02-r006-T%-all-config.yaml"
+    )
+    status.write_text(status.read_text())
+    assert run_prod(recorded_prod) == {}
+
+
+@pytest.mark.parametrize("caches_first", [True, False])
+def test_modelability_change_reruns_affected_jobs(recorded_prod, config, caches_first):
+    """V99000A is skipped in r001 only.
+
+    In a single Snakemake call, the jobs downstream of the caches are scheduled
+    before the caches are rebuilt and run even if their input does not change.
+    """
+    skip = recorded_prod["metadata"] / "simprod/config/pars/legend/geds/skip"
+    (skip / "l200-p02-r001-T%-all-skip.yaml").write_text("V99000A: test\n")
+    validity = yaml.safe_load((skip / "validity.yaml").read_text())
+    validity[1:1] = [
+        {"valid_from": "20220202T000000Z", "apply": ["l200-p02-r001-T%-all-skip.yaml"]},
+        {
+            "valid_from": "20220302T000000Z",
+            "mode": "reset",
+            "apply": ["l200-p02-r000-T%-all-skip.yaml"],
+        },
+    ]
+    (skip / "validity.yaml").write_text(yaml.safe_dump(validity))
+
+    ran = run_prod(recorded_prod, caches_first=caches_first)
+    assert ran["cache_modelable_hpges"] == [{}]
+    assert ran["merge_hpge_drift_time_maps"] == [{"runid": "l200-p02-r001-phy"}]
+    for rule in MERGE_RULES & ran.keys():
+        assert ran[rule] == [{"runid": "l200-p02-r001-phy"}]
+    assert "aggregate_hpge_ssd_modeling_info" in ran
+    assert ran.keys().isdisjoint(
+        PAR_PER_DETECTOR_RULES | {"cache_detector_usabilities", "build_tier_opt"}
+    )
+
+    affected = {
+        simid
+        for simid in agg.gen_list_of_all_simids(config)
+        if "l200-p02-r001-phy" in agg.get_runlist(config, simid)
+    }
+    hit_simids = {wc["simid"] for wc in ran["build_tier_hit"]}
+    if caches_first:
+        assert hit_simids == affected
+    else:
+        assert hit_simids >= affected
+
+
+def test_runlist_change_reruns_caches(recorded_prod):
+    """A simulation gets a run that is not in the caches yet."""
+    simconfig = (
+        recorded_prod["metadata"] / "simprod/config/tier/hit/legend/simconfig.yaml"
+    )
+    data = yaml.safe_load(simconfig.read_text())
+    data["phbr_surface_Ra228_to_Ac228"]["runlist"].append("l200-p03-r000-phy")
+    simconfig.write_text(yaml.safe_dump(data))
+
+    ran = run_prod(recorded_prod)
+    assert ran.keys() >= CACHE_RULES
+    assert {"runid": "l200-p03-r000-phy"} in ran["merge_hpge_drift_time_maps"]
