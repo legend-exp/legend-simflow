@@ -122,3 +122,16 @@ from Snakemake and directly from the command line. Follow the pattern in
   so its consumers must also be in that target (e.g. per-detector `par` files
   and their merged files in `gen_list_of_all_par_outputs`)
 - Use `logger.info()` from `snakemake.logging`; never use `print()`
+
+## Detector-info caches (`pars/detinfo/`)
+
+- Modelable HPGes at DAG time: only via `smk_load_hpge_cache()`, never from
+  metadata; pass `cache=` to `aggregate` functions
+- `params` reading the cache: input `smk_wait_for_hpge_cache`, not the cache
+  file (would rerun on any detector change)
+- Output depending on cache content beyond its inputs: cache content in `params`
+- Metadata not tracked: after updates,
+  `--forcerun cache_modelable_hpges cache_detector_usabilities` in a separate,
+  earlier call
+- Write cache files deterministically (sorted, no `set` order): reruns are
+  skipped only on unchanged checksums

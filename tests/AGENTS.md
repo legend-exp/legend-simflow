@@ -111,6 +111,9 @@ real `generated*` dirs.
   `skip_opt` / `skip_hit` switches drop the opt / hit jobs (negative case: the
   same `make_steps` is unsatisfiable without the switch); both-skip is rejected
   at build time.
+- Rerun tests (`recorded_prod`): real local run in a throwaway workdir; patched
+  `local.Executor.run_single_job` runs only the cache rules, other jobs touch
+  outputs. Assert which jobs rerun after metadata edits + forced cache rebuild
 
 ## Full-chain tests (`test_workflow.py`)
 
