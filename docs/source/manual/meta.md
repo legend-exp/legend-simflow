@@ -499,6 +499,9 @@ buffer_len: "10*MB"
       return np.full_like(xloc, prob)
   ```
 
+  {mod}`legendsimflow.opt_models` provides light models of the LEGEND-1000
+  scintillators, e.g. `legendsimflow.opt_models.pen_plates` for the PEN plates.
+
   The `opt` tier pools the photoelectrons of all sources that belong to the same
   `stp` event window: hits of the same Geant4 event closer than 10 µs in time,
   as grouped by the `stp` time-coincidence map (TCM). Saturation
