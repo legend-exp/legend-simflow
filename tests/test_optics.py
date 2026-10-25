@@ -121,6 +121,24 @@ def test_load_light_model():
     assert model(*[np.array([100.0])] * 3, sipm="all") == [0.2]
 
 
+def _layout_light(xloc, yloc, zloc, *, sipm, geom_config):  # noqa: ARG001
+    return np.full_like(xloc, 0.1 if geom_config == "geom.yaml" else 0.0)
+
+
+def test_load_light_model_geom_config():
+    spec = {"function": f"{__name__}._layout_light", "kwargs": {}}
+    model = optics.load_light_model(spec, "geom.yaml")
+    assert model(*[np.array([1.0])] * 3, sipm="all") == [0.1]
+
+    with pytest.raises(ValueError, match="needs the geometry configuration"):
+        optics.load_light_model(spec)
+
+    # models without the argument do not get it
+    spec = {"function": f"{__name__}._constant_light", "kwargs": {"prob": 0.2}}
+    model = optics.load_light_model(spec, "geom.yaml")
+    assert "geom_config" not in model.keywords
+
+
 def test_model_photoelectrons():
     xyz = ak.Array([[0.0] * 3, [], [0.0]])
     photons = ak.Array([[10_000] * 3, [], [1]])

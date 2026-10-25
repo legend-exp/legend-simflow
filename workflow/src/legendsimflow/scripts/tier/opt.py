@@ -45,6 +45,7 @@ from legendsimflow.scripts import log_script_invocation
             if key.startswith("optmap_")
         ],
         "geom_file": "input.geom",
+        "geom_config_file": "input.geom_config",
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
         "jobid": "wildcards.jobid",
@@ -69,6 +70,14 @@ def main() -> None:
         ),
     )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
+    parser.add_argument(
+        "--geom-config-file",
+        default=None,
+        help=(
+            "geometry configuration the GDML file was built from, needed by "
+            "light models with a geom_config argument"
+        ),
+    )
     parser.add_argument(
         "--simstat-part-file",
         required=True,
@@ -103,6 +112,9 @@ def main() -> None:
     jobid = args.jobid
     opt_file = args.opt_file
     gdml_file = nersc.dvs_ro(config, args.geom_file)
+    geom_config_file = (
+        nersc.dvs_ro(config, args.geom_config_file) if args.geom_config_file else None
+    )
     log_file = args.log_file
     metadata = config.metadata
     optmap_per_sipm = args.optmap_per_sipm
@@ -136,7 +148,7 @@ def main() -> None:
             raise SimflowConfigError(msg, settings_block)
         # a light model takes the place of the map of its source
         optmaps |= {
-            name: optics.load_light_model(s.model)
+            name: optics.load_light_model(s.model, geom_config_file)
             for name, s in sources.items()
             if s.model is not None
         }

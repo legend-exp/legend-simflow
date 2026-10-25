@@ -149,6 +149,8 @@ rule build_tier_opt:
     input:
         unpack(smk_optmaps),
         geom=patterns.geom_gdml_filename(config, tier="stp"),
+        # read by the light models that depend on the geometry layout
+        geom_config=patterns.geom_config_filename(config, tier="stp"),
         stp_file=patterns.output_simjob_filename(config, tier="stp"),
         # NOTE: technically this rule only depends on one block in the
         # partitioning file, but in practice the full file will always change

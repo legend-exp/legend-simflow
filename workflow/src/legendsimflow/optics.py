@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import functools
 import importlib
+import inspect
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager, nullcontext
@@ -227,16 +228,27 @@ def optmap_to_pes(
     return pe_times, is_saturated, expected_pes, stats
 
 
-def load_light_model(model: Mapping) -> Callable:
+def load_light_model(
+    model: Mapping, geom_config_file: str | Path | None = None
+) -> Callable:
     """Import the function of a light model and bind its keyword arguments.
 
     `model` is the ``model`` block of a light source, see
-    :func:`.metadata.get_opt_scintillators`.
+    :func:`.metadata.get_opt_scintillators`. A function with a
+    ``geom_config`` keyword argument also gets `geom_config_file`, the
+    geometry configuration the simulated geometry was built from.
     """
     module, _, name = model["function"].rpartition(".")
-    return functools.partial(
-        getattr(importlib.import_module(module), name), **model["kwargs"]
-    )
+    func = getattr(importlib.import_module(module), name)
+    kwargs = dict(model["kwargs"])
+    if "geom_config" in inspect.signature(func).parameters:
+        if geom_config_file is None:
+            msg = (
+                f"the light model {model['function']} needs the geometry configuration"
+            )
+            raise ValueError(msg)
+        kwargs["geom_config"] = geom_config_file
+    return functools.partial(func, **kwargs)
 
 
 def model_photoelectrons(

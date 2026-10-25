@@ -477,12 +477,15 @@ buffer_len: "10*MB"
   `f(xloc, yloc, zloc, sipm=sipm, **kwargs)`. `xloc`, `yloc`, `zloc` hold the
   position of each step in mm, in the global frame of the geometry, as
   one-dimensional NumPy arrays: the function must act on whole arrays. `sipm` is
-  the name of the SiPM channel, or `all` with `optmap_per_sipm: false`. The
-  function returns an array with one probability per step, between 0 and 1, at
-  unit channel efficiency, like the values of an optical map. As with the map,
-  the `opt` tier draws the number of photoelectrons of each step from a Poisson
-  distribution, with mean the number of emitted photons times the probability
-  times `optmap_scaling_factor`. The photoelectron times follow the
+  the name of the SiPM channel, or `all` with `optmap_per_sipm: false`. A
+  function that has a `geom_config` keyword argument also gets the path of the
+  geometry configuration file the simulated geometry was built from: the
+  template of the experiment, with the `geom_config_extra` of the simid applied.
+  The function returns an array with one probability per step, between 0 and 1,
+  at unit channel efficiency, like the values of an optical map. As with the
+  map, the `opt` tier draws the number of photoelectrons of each step from a
+  Poisson distribution, with mean the number of emitted photons times the
+  probability times `optmap_scaling_factor`. The photoelectron times follow the
   scintillation time profile of `material`. For example:
 
   ```{code-block} python
