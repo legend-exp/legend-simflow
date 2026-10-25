@@ -129,9 +129,7 @@ rule _init_julia_env:
         "> {log} 2>&1 && touch {output}"
 
 
-# Memoize the on-demand fallback result to avoid re-running the expensive
-# gen_list_of_all_hpges_valid_for_modeling() more than once per Snakemake
-# invocation (touch executor / no YAML on disk).
+# loaded once per Snakemake invocation, see smk_load_hpge_cache()
 HPGE_MODELING_CACHE: dict | None = None
 
 
@@ -142,7 +140,8 @@ def smk_load_hpge_cache() -> dict:
     lambda. Calling ``checkpoints.cache_modelable_hpges.get()`` triggers DAG
     re-evaluation: if the checkpoint has not run yet (or its output is stale),
     Snakemake will schedule it first and re-evaluate the calling rule's inputs
-    once it completes.
+    once it completes. Once ``get()`` returns, the checkpoint output does not
+    change for the rest of the Snakemake invocation, so it is loaded only once.
 
     The on-disk cache lists every deployed HPGe with an ``is_modelable`` flag;
     this function returns only the modelable detectors (still keyed by name, per
@@ -155,6 +154,9 @@ def smk_load_hpge_cache() -> dict:
     global HPGE_MODELING_CACHE
 
     outputs = checkpoints.cache_modelable_hpges.get().output
+    if HPGE_MODELING_CACHE is not None:
+        return HPGE_MODELING_CACHE
+
     is_modelable_path = Path(outputs.is_modelable)
     opv_path = Path(outputs.operational_voltage_in_V)
     if is_modelable_path.exists() and opv_path.exists():
@@ -162,14 +164,13 @@ def smk_load_hpge_cache() -> dict:
         opv = dbetto.utils.load_dict(opv_path)
     else:
         # touch executor marks the checkpoint complete without running it
-        if HPGE_MODELING_CACHE is None:
-            HPGE_MODELING_CACHE = aggregate.pivot_detinfo(
-                aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
-            )
-        is_modelable = HPGE_MODELING_CACHE["is_modelable"]
-        opv = HPGE_MODELING_CACHE["operational_voltage_in_V"]
+        detinfo = aggregate.pivot_detinfo(
+            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+        )
+        is_modelable = detinfo["is_modelable"]
+        opv = detinfo["operational_voltage_in_V"]
 
-    return {
+    HPGE_MODELING_CACHE = {
         runid: {
             hpge: {"operational_voltage_in_V": opv[runid][hpge]}
             for hpge, flag in dets.items()
@@ -177,6 +178,18 @@ def smk_load_hpge_cache() -> dict:
         }
         for runid, dets in is_modelable.items()
     }
+    return HPGE_MODELING_CACHE
+
+
+def smk_wait_for_hpge_cache(wildcards) -> list:
+    """Make a job wait for the `cache_modelable_hpges` checkpoint.
+
+    For rules whose ``params`` read the cache. Snakemake requires the job input
+    to depend on the checkpoint, and the cache files themselves as input would
+    rerun the job whenever any detector changes.
+    """
+    smk_load_hpge_cache()
+    return []
 
 
 checkpoint cache_modelable_hpges:
@@ -192,13 +205,23 @@ checkpoint cache_modelable_hpges:
     on this checkpoint so that the DAG can be re-evaluated after the cache is
     built.
 
+    The cache is rebuilt when the runs or the modeling settings of the Simflow
+    change, but not when the metadata changes: the metadata files are not
+    inputs, since a change in any of them, even for other detectors or runs,
+    would rebuild the cache. After a metadata update, force the rebuild with
+    ``--forcerun cache_modelable_hpges``.
+
     No wildcards are used.
     """
     localrule: True
     message:
         "Caching modelable HPGe detectors"
     params:
-        runlist=config.runlist,
+        runids=lambda wc: sorted(aggregate.gen_list_of_all_runids(config)),
+        tune_hpge_impurities_on_data=_tune_impurity,
+        min_voltage_above_depletion_in_V=get_par_settings(
+            config, "modeling"
+        ).min_voltage_above_depletion_in_V,
     output:
         is_modelable=patterns.detinfo_filename(config, "is_modelable"),
         operational_voltage_in_V=patterns.detinfo_filename(
@@ -223,12 +246,16 @@ rule cache_detector_usabilities:
     ``rawid.yaml``, ``psd_usability.yaml``,
     ``crystal_metadata_usability.yaml``), each a mapping
     ``runid -> detector -> value``.
+
+    The cache is rebuilt when the runs of the Simflow change, but not when the
+    metadata changes (see `cache_modelable_hpges`). After a metadata update,
+    force the rebuild with ``--forcerun cache_detector_usabilities``.
     """
     localrule: True
     message:
         "Caching detector usabilities"
     params:
-        runlist=config.runlist,
+        runids=lambda wc: sorted(aggregate.gen_list_of_all_runids(config)),
         random_coincidence_runid=get_tier_settings(
             config, "evt"
         ).random_coincidence_runid,
