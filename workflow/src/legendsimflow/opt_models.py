@@ -113,3 +113,58 @@ def pen_plates(
     string, _, _ = _parse_sipm(sipm)
     ids, centres, _ = _l1000_strings(geom_config)
     return np.where(ids[_nearest_string(xloc, yloc, centres)] == string, prob, 0.0)
+
+
+def fibers(
+    xloc: ArrayLike,
+    yloc: ArrayLike,
+    zloc: ArrayLike,
+    *,
+    sipm: str,
+    amplitudes: ArrayLike,
+    absorption_lengths_in_m: ArrayLike,
+    fiber_length_in_m: float,
+    geom_config: str,
+) -> NDArray:
+    r"""Detection probability of the light of the fiber cores.
+
+    The light of a fiber reaches only the SiPM channels at the two ends of
+    its module. The probability to be detected at one end decreases with the
+    distance :math:`d` along the fiber to that end, as a sum of exponentials:
+
+    .. math::
+
+        p(d) = \sum_i a_i \, e^{-d / \lambda_i}
+
+    with :math:`a_i` the `amplitudes` and :math:`\lambda_i` the
+    `absorption_lengths_in_m`. The straight fibers run from the upper SiPM
+    holding structure of legend-pygeom-l1000 down, over `fiber_length_in_m`
+    (1.349 m in legend-pygeom-l1000). The fiber of a step is in the string
+    whose axis is closest to it, and in the module whose azimuthal sector
+    around that axis holds it. With `sipm` ``all``, the probability is the sum
+    over the two ends.
+    """
+    from pygeoml1000 import hpge_strings  # noqa: PLC0415
+
+    z_top = hpge_strings.z_pos_dict["sipm_upper_holding_structure_upper_end"]
+    z_bottom = z_top - 1000 * fiber_length_in_m
+
+    def end_prob(dist_in_mm: NDArray) -> NDArray:
+        return sum(
+            a * np.exp(-dist_in_mm / (1000 * length))
+            for a, length in zip(amplitudes, absorption_lengths_in_m, strict=True)
+        )
+
+    if sipm == "all":
+        return end_prob(z_top - zloc) + end_prob(zloc - z_bottom)
+
+    string, module, end = _parse_sipm(sipm)
+    ids, centres, rots = _l1000_strings(geom_config)
+    nearest = _nearest_string(xloc, yloc, centres)
+    # module m covers the azimuth range [6 deg, 114 deg] + 120 deg * (m - 1)
+    # from the string rotation, the rest is holding structure
+    phi = np.arctan2(yloc - centres[nearest, 1], xloc - centres[nearest, 0])
+    in_module = np.floor(np.mod(phi - rots[nearest], 2 * np.pi) / (2 * np.pi / 3)) + 1
+
+    prob = end_prob(z_top - zloc) if end == "T" else end_prob(zloc - z_bottom)
+    return np.where((ids[nearest] == string) & (in_module == module), prob, 0.0)

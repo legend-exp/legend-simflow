@@ -70,3 +70,42 @@ def test_pen_plates(full_array):
     assert pen("all") == pytest.approx([0.12] * 3)
     # with a single string, all plates belong to it
     assert pen("S0101T", ONE_STRING) == [0.02] * 3
+
+
+def test_fibers(full_array):
+    # fibers of modules 1, 2 and 3 of string 1, in the middle and at the top
+    # end of 1 m long fibers. Modules 2 and 3 from the geometry, module 1 at
+    # 240 deg
+    x = np.array([213.5 - 52.75 / 2, 251.05, 226.81, 251.05])
+    y = np.array([-52.75 * np.sqrt(3) / 2, -37.05, 51.04, -37.05])
+    z_top = 349.092
+    z = np.array([z_top - 500] * 3 + [z_top])
+    pars = {"amplitudes": [0.2, 0.3, 0.5], "absorption_lengths_in_m": [0.05, 0.2, 4]}
+
+    def end_prob(dist_in_mm):
+        return sum(
+            a * np.exp(-dist_in_mm / (1000 * length))
+            for a, length in zip(*pars.values(), strict=True)
+        )
+
+    mid, near, far = end_prob(500), end_prob(0), end_prob(1000)
+    assert near == pytest.approx(1, rel=1e-3)
+
+    for sipm, expected in [
+        ("S0101T", [mid, 0, 0, 0]),
+        ("S0101B", [mid, 0, 0, 0]),
+        ("S0102T", [0, mid, 0, near]),
+        ("S0102B", [0, mid, 0, far]),
+        ("S0103B", [0, 0, mid, 0]),
+        ("S0201T", [0, 0, 0, 0]),
+        ("all", [2 * mid] * 3 + [near + far]),
+    ]:
+        prob = opt_models.fibers(
+            x, y, z, sipm=sipm, **pars, fiber_length_in_m=1, geom_config=full_array
+        )
+        assert prob == pytest.approx(expected)
+        # the strings around string 1 do not change the module of a step
+        prob = opt_models.fibers(
+            x, y, z, sipm=sipm, **pars, fiber_length_in_m=1, geom_config=ONE_STRING
+        )
+        assert prob == pytest.approx(expected)

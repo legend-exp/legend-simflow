@@ -500,7 +500,8 @@ buffer_len: "10*MB"
   ```
 
   {mod}`legendsimflow.opt_models` provides light models of the LEGEND-1000
-  scintillators, e.g. `legendsimflow.opt_models.pen_plates` for the PEN plates.
+  scintillators: `legendsimflow.opt_models.pen_plates` for the PEN plates and
+  `legendsimflow.opt_models.fibers` for the fibers.
 
   The `opt` tier pools the photoelectrons of all sources that belong to the same
   `stp` event window: hits of the same Geant4 event closer than 10 µs in time,
