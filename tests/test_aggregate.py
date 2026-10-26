@@ -189,6 +189,39 @@ def test_hpge_modeling_voltage_threshold_configurable(fresh_config, monkeypatch)
     assert not agg.gen_hpge_modeling_status(config, runid)["V99000A"]["is_modelable"]
 
 
+def test_hpge_modeling_with_impurity_model(fresh_config, monkeypatch, tmp_path):
+    config = fresh_config
+    runid = "l200-p02-r000-phy"
+    monkeypatch.setattr(
+        agg,
+        "get_tier_settings",
+        lambda _cfg, tier: AttrsDict(
+            {"tune_hpge_impurities_on_data": False} if tier == "hit" else {}
+        ),
+    )
+    # V99000A has only 200 V headroom above depletion, the impurity model
+    # replaces the voltage check
+    monkeypatch.setattr(
+        agg,
+        "get_par_settings",
+        lambda _cfg, par: AttrsDict(
+            {"min_voltage_above_depletion_in_V": 300} if par == "modeling" else {}
+        ),
+    )
+    impurity_file = tmp_path / "impurity.yaml"
+    config.paths.hpge_impurity_model = str(impurity_file)
+
+    dbetto.utils.write_dict(
+        {"V99000A": {"slope": 0.1, "depletion_voltage": 3000}}, impurity_file
+    )
+    assert agg.gen_hpge_modeling_status(config, runid)["V99000A"]["is_modelable"]
+
+    dbetto.utils.write_dict(
+        {"V99000B": {"slope": 0.1, "depletion_voltage": 3000}}, impurity_file
+    )
+    assert not agg.gen_hpge_modeling_status(config, runid)["V99000A"]["is_modelable"]
+
+
 def test_hpge_is_modelable_with_impurity_tuning(config):
     kwargs = {
         "usability": "on",

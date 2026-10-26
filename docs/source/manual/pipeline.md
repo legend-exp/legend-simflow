@@ -107,11 +107,14 @@ remaining criteria depend on the `tune_hpge_impurities_on_data` setting in
 - `True`: the detector PSD status (`analysis.psd.status.low_aoe` in the channel
   map, taken as `valid` when absent) is `valid`. The depletion voltage is not
   required.
-- `False` (default): the detector is operated at least
-  `min_voltage_above_depletion_in_V` (default 100 V, configurable per experiment
-  via the {ref}`modeling settings <modeling-settings-meta>`) above its depletion
-  voltage (`characterization.l200_site.depletion_voltage_in_V` in the diode
-  metadata).
+- `False` (default), with a tuned impurity model (`paths.hpge_impurity_model` in
+  the Simflow configuration file): the detector has an entry in the impurity
+  model file. The depletion voltage is taken from that file.
+- `False` (default), without a tuned impurity model: the detector is operated at
+  least `min_voltage_above_depletion_in_V` (default 100 V, configurable per
+  experiment via the {ref}`modeling settings <modeling-settings-meta>`) above
+  its depletion voltage (`characterization.l200_site.depletion_voltage_in_V` in
+  the diode metadata).
 
 The eligibility is assessed by
 {func}`~legendsimflow.aggregate.gen_list_of_hpges_valid_for_modeling`.

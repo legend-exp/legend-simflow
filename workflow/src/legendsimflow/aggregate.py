@@ -303,6 +303,7 @@ def _hpge_is_modelable(
     tune_hpge_impurities_on_data: bool,
     psd_usability: str,
     min_voltage_above_depletion: int | None,
+    tuned_hpges: Iterable[str] | None = None,
 ) -> bool:
     """Whether the HPGe `name` is valid for drift-time-map modeling.
 
@@ -329,6 +330,10 @@ def _hpge_is_modelable(
     if tune_hpge_impurities_on_data:
         # the impurity tuning needs valid PSD data, not the depletion voltage
         if psd_usability != "valid":
+            return False
+    elif tuned_hpges is not None:
+        # the tuned impurity model provides the depletion voltage
+        if name not in tuned_hpges:
             return False
     else:
         # detectors without a depletion voltage in the metadata are not modeled
@@ -386,9 +391,11 @@ def gen_hpge_modeling_status(
 
     - ``True``: the PSD status (``analysis.psd.status.low_aoe`` in the channel
       map, ``valid`` if absent) is ``valid``.
-    - ``False``: the detector is operated at least
-      ``min_voltage_above_depletion_in_V`` (default 100 V, configurable via the
-      ``modeling`` par settings) above its depletion voltage
+    - ``False``, with a tuned impurity model (``paths.hpge_impurity_model``):
+      the detector has an entry in the impurity model file.
+    - ``False``, without a tuned impurity model: the detector is operated at
+      least ``min_voltage_above_depletion_in_V`` (default 100 V, configurable
+      via the ``modeling`` par settings) above its depletion voltage
       (``characterization.l200_site.depletion_voltage_in_V`` in the diode
       metadata).
 
@@ -410,10 +417,14 @@ def gen_hpge_modeling_status(
         config, "hit"
     ).tune_hpge_impurities_on_data
     min_voltage_above_depletion = None
+    tuned_hpges = None
     if not tune_hpge_impurities_on_data:
-        min_voltage_above_depletion = get_par_settings(
-            config, "modeling"
-        ).min_voltage_above_depletion_in_V
+        if "hpge_impurity_model" in config.paths:
+            tuned_hpges = set(dbetto.utils.load_dict(config.paths.hpge_impurity_model))
+        else:
+            min_voltage_above_depletion = get_par_settings(
+                config, "modeling"
+            ).min_voltage_above_depletion_in_V
 
     opvs = metadata.hardware.configuration.opvs.on(timestamp)
 
@@ -443,6 +454,7 @@ def gen_hpge_modeling_status(
                 tune_hpge_impurities_on_data,
                 psd_usability,
                 min_voltage_above_depletion,
+                tuned_hpges,
             ),
             "operational_voltage_in_V": operational_voltage,
         }

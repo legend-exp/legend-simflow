@@ -119,7 +119,9 @@ function main()
     vdep = nothing
     impurity_file = parsed_args["impurity"]
     if !isnothing(impurity_file)
-        impurity = readprops(impurity_file)[Symbol(det)]
+        impurities = readprops(impurity_file)
+        haskey(impurities, Symbol(det)) || error("Detector $det not found in impurity model $impurity_file")
+        impurity = impurities[Symbol(det)]
         vdep = impurity.depletion_voltage
         @info "Adjusting impurity profile parameters with slope = $(impurity.slope)"
         xtal.impurity_curve.parameters = adjust_impurity_pars(xtal.impurity_curve.parameters, impurity.slope)

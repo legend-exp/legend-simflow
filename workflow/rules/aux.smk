@@ -205,8 +205,9 @@ checkpoint cache_modelable_hpges:
     on this checkpoint so that the DAG can be re-evaluated after the cache is
     built.
 
-    The cache is rebuilt when the runs or the modeling settings of the Simflow
-    change, but not when the metadata changes: the metadata files are not
+    The cache is rebuilt when the runs, the modeling settings or the tuned HPGe
+    impurity model (``paths.hpge_impurity_model``) of the Simflow change, but
+    not when the metadata changes: the metadata files are not
     inputs, since a change in any of them, even for other detectors or runs,
     would rebuild the cache. After a metadata update, force the rebuild with
     ``--forcerun cache_modelable_hpges``.
@@ -216,6 +217,8 @@ checkpoint cache_modelable_hpges:
     localrule: True
     message:
         "Caching modelable HPGe detectors"
+    input:
+        impurity=config.paths.get("hpge_impurity_model", []),
     params:
         runids=lambda wc: sorted(aggregate.gen_list_of_all_runids(config)),
         tune_hpge_impurities_on_data=_tune_impurity,
