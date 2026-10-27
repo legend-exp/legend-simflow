@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import reboost
 import yaml
 from dbetto import AttrsDict
 
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.scripts.tier import opt
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
@@ -150,6 +152,8 @@ def test_opt_script_tracked_photons(
     legend_detector_usabilities_path,
 ):
     stp_file = legend_tracked_photons_stp_path
+    # the argon table is only needed with an optical map
+    assert "stp/liquid_argon" not in lh5.ls(stp_file, "stp/")
     photons = lh5.read_as(f"stp/{_SIPM_ON}", stp_file, library="ak")
     evtid = ak.to_numpy(photons.evtid)
     t0 = ak.to_numpy(photons.t0)
@@ -214,4 +218,113 @@ def test_opt_script_tracked_photons(
     assert lh5.read_n_rows(f"hit/{_SIPM_AC}", opt_file) == 0
     assert sens_tables[_SIPM_AC].uid in reboost.get_remage_detector_uids(
         opt_file, lh5_table="hit"
+    )
+
+
+def _write_config(tmp_path: Path) -> Path:
+    raw = yaml.safe_load((dummyprod / "simflow-config-l200.yaml").read_text())
+    raw["paths"]["metadata"] = str(dummyprod / "inputs")
+    config_path = tmp_path / "simflow-config-l200.yaml"
+    config_path.write_text(yaml.safe_dump(raw))
+    return config_path
+
+
+def _override_settings(monkeypatch, **overrides) -> None:
+    settings = opt.get_tier_settings
+    monkeypatch.setattr(
+        opt,
+        "get_tier_settings",
+        lambda config, tier: AttrsDict(settings(config, tier) | overrides),
+    )
+
+
+def _argv(tmp_path: Path, usability_dir: Path, **paths: str) -> list[str]:
+    """Arguments of the opt script; `paths` overrides the input files."""
+    files = {
+        "stp-file": "stp.lh5",
+        "optmap-lar": "optmap.lh5",
+        "geom-file": "geom.gdml",
+        "simstat-part-file": "partitions.yaml",
+    } | {k.replace("_", "-"): v for k, v in paths.items()}
+    return [
+        "opt",
+        *[a for k, v in files.items() for a in (f"--{k}", str(v))],
+        "--usability-file", str(usability_dir / "usability.yaml"),
+        "--jobid", "0000",
+        "--scintillator-volume-name", "liquid_argon",
+        "--opt-file", str(tmp_path / "opt.lh5"),
+        "--simflow-config", str(_write_config(tmp_path)),
+    ]  # fmt: skip
+
+
+def test_opt_script_invalid_light_source(
+    tmp_path, monkeypatch, legend_detector_usabilities_path
+):
+    monkeypatch.setattr(sys, "argv", _argv(tmp_path, legend_detector_usabilities_path))
+    _override_settings(monkeypatch, light_source="candles")
+    with pytest.raises(SimflowConfigError, match="light_source must be"):
+        opt.main()
+
+
+def test_opt_script_optmap_requires_map_file(
+    tmp_path, monkeypatch, legend_detector_usabilities_path
+):
+    argv = _argv(tmp_path, legend_detector_usabilities_path)
+    i = argv.index("--optmap-lar")
+    del argv[i : i + 2]
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SimflowConfigError, match="--optmap-lar is required"):
+        opt.main()
+
+
+@pytest.mark.needs_remage
+def test_opt_script_unknown_scintillator_volume(
+    tmp_path, monkeypatch, legend_gdml_path, legend_detector_usabilities_path
+):
+    argv = _argv(
+        tmp_path, legend_detector_usabilities_path, geom_file=str(legend_gdml_path)
+    )
+    argv[argv.index("--scintillator-volume-name") + 1] = "not_a_volume"
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SimflowConfigError, match=r"not_a_volume.*liquid_argon"):
+        opt.main()
+
+
+@pytest.mark.needs_remage
+def test_opt_script_missing_scintillator_table(
+    tmp_path,
+    monkeypatch,
+    caplog,
+    legend_testdata,
+    legend_tracked_photons_stp_path,
+    legend_gdml_path,
+    legend_detector_usabilities_path,
+):
+    """With an optical map, no argon table gives a warning and no opt file.
+
+    Tracked photons do not need the table, see
+    :func:`test_opt_script_tracked_photons`.
+    """
+    stp_file = legend_tracked_photons_stp_path
+    assert "stp/liquid_argon" not in lh5.ls(stp_file, "stp/")
+    n_tcm = lh5.read_n_rows("tcm", stp_file)
+    part_file = tmp_path / "partitions.yaml"
+    part_file.write_text(
+        yaml.safe_dump({"job_0000": {"l200-p03-r000-phy": [0, n_tcm - 1]}})
+    )
+    monkeypatch.setattr(sys, "argv", _argv(
+        tmp_path, legend_detector_usabilities_path,
+        stp_file=str(stp_file),
+        optmap_lar=legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5"),
+        geom_file=str(legend_gdml_path),
+        simstat_part_file=str(part_file),
+    ))  # fmt: skip
+
+    # nothing is written, so the TCM cannot be built at the end
+    with caplog.at_level(logging.WARNING), pytest.raises(FileNotFoundError):
+        opt.main()
+    assert not (tmp_path / "opt.lh5").exists()
+    assert any(
+        "liquid_argon not found" in r.message and r.levelno == logging.WARNING
+        for r in caplog.records
     )
