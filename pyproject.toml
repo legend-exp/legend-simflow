@@ -227,6 +227,7 @@ test-julia = { description = "Run the Julia tests", cmd = "julia --project=. -e 
 test-julia-ci = { description = "Run the Julia tests with code coverage (for CI)", cmd = "julia --code-coverage=user --project=. -e 'using Pkg; Pkg.test(coverage=true)'", cwd = "workflow/src/LegendSimflow.jl", depends-on = ["init-julia-env"] }
 test-python-pixi = { description = "Run the Python tests with code coverage (for CI)", cmd = "pytest -vvv --ignore=tests/test_workflow.py --cov=legendsimflow --cov-report=xml", depends-on = ["warmup", "init-julia-env"] }
 test-l200-workflow = { description = "Run the full LEGEND-200 test workflow (needs remage)", cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l200_workflow", depends-on = ["warmup"] }
+test-l200-lar-workflow = { description = "Run the full LEGEND-200 test workflow without HPGe detectors (needs remage)", cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l200_lar_workflow", depends-on = ["warmup"] }
 test-l1000-workflow = { description = "Run the full LEGEND-1000 test workflow (needs remage)", cmd = "pytest -s -m needs_remage tests/test_workflow.py::test_l1000_workflow", depends-on = ["warmup"] }
 test = { description = "Run the Python and Julia tests", depends-on = ["test-python", "test-julia"] }
 

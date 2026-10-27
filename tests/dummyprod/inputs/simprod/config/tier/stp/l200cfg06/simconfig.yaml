@@ -1,0 +1,6 @@
+liquid_argon_Ar39:
+  template: $_/lar-instr-only.mac
+  generator: ~defines:Ar39
+  confinement: ~volumes.bulk:liquid_argon
+  primaries_per_job: 1000
+  number_of_jobs: 1

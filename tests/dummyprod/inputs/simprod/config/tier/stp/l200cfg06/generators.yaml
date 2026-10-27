@@ -1,0 +1,5 @@
+Ar39:
+  - /RMG/Generator/Select GPS
+  - /gps/particle ion
+  - /gps/energy 0 eV
+  - /gps/ion 18 39

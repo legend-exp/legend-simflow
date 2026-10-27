@@ -31,6 +31,14 @@
   apply:
     - l200-p03-r%-T%-all-config.yaml
 
+- valid_from: 20241201T000000Z
+  mode: reset
+  category:
+    - all
+    - cal
+  apply:
+    - l200-p13-r%-T%-all-config.yaml
+
 - valid_from: 20250701T000000Z
   mode: reset
   category: all

@@ -66,7 +66,9 @@ data-quality flags for **all** deployed detectors:
 | `crystal_metadata_usability.yaml` | geds        | `valid`, …, `null`   | Usability of the crystal metadata required for modeling (the crystal-slice `status`). `null` when the information is unavailable in the metadata.                       |
 
 The [`cache_modelable_hpges`](../api/snakemake_rules.md) checkpoint writes the
-modeling flags for **every deployed germanium** detector:
+modeling flags for **every deployed germanium** detector. Every run of the
+Simflow is listed, with no detector if no HPGe is deployed in it. The checkpoint
+is not run when the `evt` tier skips the `hit` tier (`skip_hit`):
 
 | File                            | Value            | Description                                                                                                                                     |
 | ------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -1,0 +1,25 @@
+# only the LAr instrumentation is installed, no HPGe detectors
+
+/RMG/Manager/Randomization/Seed {SEED}
+
+/RMG/Geometry/RegisterDetectorsFromGDML Scintillator
+/RMG/Geometry/GDMLDisableOverlapCheck
+
+/RMG/Output/NtupleUseVolumeName true
+
+/RMG/Processes/EnableGammaAngularCorrelation true
+
+/run/initialize
+
+/RMG/Output/Scintillator/StoreSinglePrecisionPosition
+/RMG/Output/Scintillator/StoreSinglePrecisionEnergy
+/RMG/Output/Vertex/StoreSinglePrecisionPosition
+
+/RMG/Output/Scintillator/StoreTrackID true
+
+$GENERATOR
+
+$CONFINEMENT
+/RMG/Generator/Confinement/MaxSamplingTrials 1000000
+
+/run/beamOn {N_EVENTS}

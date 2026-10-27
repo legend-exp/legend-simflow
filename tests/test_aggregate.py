@@ -634,6 +634,33 @@ def test_pivot_detinfo_keeps_flags_carried_by_some_detectors():
     assert out["psd_usability"]["l200-p03-r000-phy"] == {"V02160A": "valid"}
 
 
+def test_pivot_detinfo_flags_list_every_run():
+    nested = {
+        "l200-p03-r000-phy": {"V02160A": {"is_modelable": True}},
+        "l200-p13-r003-aph": {},
+    }
+
+    out = agg.pivot_detinfo(nested, flags=("is_modelable", "operational_voltage_in_V"))
+
+    assert out["is_modelable"] == {
+        "l200-p03-r000-phy": {"V02160A": True},
+        "l200-p13-r003-aph": {},
+    }
+    assert out["operational_voltage_in_V"] == {
+        "l200-p03-r000-phy": {},
+        "l200-p13-r003-aph": {},
+    }
+
+
+def test_hpge_modeling_status_without_hpges(config):
+    # the p13 channel map holds only SiPMs
+    assert agg.gen_hpge_modeling_status(config, "l200-p13-r003-aph") == {}
+    usability = agg.gen_list_of_all_usabilities(config, runids=["l200-p13-r003-aph"])
+    dets = usability["l200-p13-r003-aph"]
+    assert dets
+    assert all(det.startswith("S") for det in dets)
+
+
 def test_simlist_exclude(fresh_config):
     config = fresh_config
     assert "birds_nest_K40" in agg.gen_list_of_all_simids(config)

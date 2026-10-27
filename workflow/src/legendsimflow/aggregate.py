@@ -278,15 +278,20 @@ def start_key(config: SimflowConfig, runid: str) -> str:
 
 def pivot_detinfo(
     nested: Mapping[str, Mapping[str, Mapping[str, object]]],
+    flags: Iterable[str] = (),
 ) -> dict[str, dict[str, dict[str, object]]]:
     """Pivot ``{runid: {det: {flag: value}}}`` into ``{flag: {runid: {det: value}}}``.
 
     Used to lay out the per-detector information as one ``detinfo`` file per
     flag (see :func:`legendsimflow.patterns.detinfo_filename`). Flags absent
     from an entry (e.g. non-geds detectors carry only ``usability``) simply do
-    not contribute to the corresponding flag mapping.
+    not contribute to the corresponding flag mapping. Each flag in `flags`
+    instead maps every run in `nested`, also runs where no detector carries it
+    (e.g. runs without HPGe detectors).
     """
-    out: dict[str, dict[str, dict[str, object]]] = {}
+    out: dict[str, dict[str, dict[str, object]]] = {
+        flag: {runid: {} for runid in nested} for flag in flags
+    }
     for runid, dets in nested.items():
         for det, entry in dets.items():
             for flag, value in entry.items():
@@ -429,7 +434,7 @@ def gen_hpge_modeling_status(
     opvs = metadata.hardware.configuration.opvs.on(timestamp)
 
     status = {}
-    for _, hpge in chmap.group("system").geds.items():
+    for _, hpge in chmap.group("system").get("geds", {}).items():
         name = hpge.name
 
         # off detectors (and others without a bias) have no operational voltage
@@ -1034,25 +1039,19 @@ def gen_list_of_psdcuts(config: SimflowConfig, simid: str) -> list[Path]:
 def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
     """Generate the list of all (non-plot) ``par`` step output files in the Simflow.
 
-    Includes the merged HPGe files read by the ``hit`` tier, when the ``hit``
-    tier settings enable the pulse shape simulation they belong to.
+    The HPGe files (the modelable-HPGe cache and the observables models) are
+    read only by the ``hit`` tier and its pulse shape simulation, so they are
+    included only if the ``evt`` tier does not skip the ``hit`` tier
+    (``skip_hit``). The merged pulse shape simulation files are also gated by
+    the ``hit`` tier settings that enable it.
     """
+    has_hit = not get_tier_settings(config, "evt").skip_hit
     has_psd = simulates_hpge_psd(config)
-    has_psl = (
-        not get_tier_settings(config, "evt").skip_hit
-        and get_tier_settings(config, "hit").simulate_psd_with_psl
-    )
-    files: list[Path] = [
-        patterns.detinfo_filename(config, flag)
-        for flag in (
-            "usability",
-            "rawid",
-            "psd_usability",
-            "crystal_metadata_usability",
-            "is_modelable",
-            "operational_voltage_in_V",
-        )
-    ]
+    has_psl = has_hit and get_tier_settings(config, "hit").simulate_psd_with_psl
+    flags = ["usability", "rawid", "psd_usability", "crystal_metadata_usability"]
+    if has_hit:
+        flags += ["is_modelable", "operational_voltage_in_V"]
+    files: list[Path] = [patterns.detinfo_filename(config, flag) for flag in flags]
     if has_psd:
         files.append(patterns.detinfo_filename(config, "hpge_ssd_modeling"))
     for simid in gen_list_of_all_simids(config):
@@ -1064,9 +1063,10 @@ def gen_list_of_all_par_outputs(config: SimflowConfig) -> list[Path]:
                 config, simid, simulate_psd_with_psl=has_psl
             )
         )
-        files.extend(gen_list_of_eresmods(config, simid))
-        files.extend(gen_list_of_aoeresmods(config, simid))
-        files.extend(gen_list_of_psdcuts(config, simid))
+        if has_hit:
+            files.extend(gen_list_of_eresmods(config, simid))
+            files.extend(gen_list_of_aoeresmods(config, simid))
+            files.extend(gen_list_of_psdcuts(config, simid))
     return files
 
 

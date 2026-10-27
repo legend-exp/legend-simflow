@@ -1,0 +1,8 @@
+optmap_per_sipm: true
+scintillator_volume_name: liquid_argon
+optmap_scaling_factor: 1
+photoelectron_resolution_sigma: 0.3
+time_resolution_in_ns: 16
+max_pes_per_hit_per_sipm: 5
+max_pes_per_hit_combined: 100
+buffer_len: 10*MB

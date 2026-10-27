@@ -136,6 +136,30 @@ def test_l200_workflow():
 
 @pytest.mark.needs_remage
 @pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
+def test_l200_lar_workflow():
+    _run_workflow(dummyprod / "simflow-config-l200-lar.yaml")
+
+    # the p13 r003 channel map of the mock metadata holds only SiPMs, and the
+    # evt tier skips the hit tier, so no HPGe parameter is built
+    generated = dummyprod / "generated-l200-lar"
+    assert not (generated / "pars/hpge").exists()
+    assert not (generated / "pars/detinfo/is_modelable.yaml").exists()
+
+    usability = dbetto.utils.load_dict(generated / "pars/detinfo/usability.yaml")
+    assert set(usability) == {"l200-p13-r003-aph"}
+    assert all(det.startswith("S") for det in usability["l200-p13-r003-aph"])
+
+    for tier, group in (("opt", "hit/"), ("evt", "evt/"), ("cvt", "evt/")):
+        files = sorted((generated / "tier" / tier).rglob("*.lh5"))
+        assert files, f"no {tier} output files found under {generated}/tier/{tier}"
+        for f in files:
+            tables = lh5.ls(f, group)
+            assert any(t.startswith(f"{group}S") or t == f"{group}spms" for t in tables)
+            assert f"{group}geds" not in tables
+
+
+@pytest.mark.needs_remage
+@pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
 def test_l1000_workflow():
     _run_workflow(dummyprod / "simflow-config-l1000.yaml")
 

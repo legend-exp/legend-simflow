@@ -165,7 +165,8 @@ def smk_load_hpge_cache() -> dict:
     else:
         # touch executor marks the checkpoint complete without running it
         detinfo = aggregate.pivot_detinfo(
-            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+            aggregate.gen_list_of_all_hpges_valid_for_modeling(config),
+            flags=("is_modelable", "operational_voltage_in_V"),
         )
         is_modelable = detinfo["is_modelable"]
         opv = detinfo["operational_voltage_in_V"]
@@ -232,7 +233,8 @@ checkpoint cache_modelable_hpges:
         ),
     run:
         detinfo = aggregate.pivot_detinfo(
-            aggregate.gen_list_of_all_hpges_valid_for_modeling(config)
+            aggregate.gen_list_of_all_hpges_valid_for_modeling(config),
+            flags=("is_modelable", "operational_voltage_in_V"),
         )
         dbetto.utils.write_dict(detinfo["is_modelable"], output.is_modelable)
         dbetto.utils.write_dict(

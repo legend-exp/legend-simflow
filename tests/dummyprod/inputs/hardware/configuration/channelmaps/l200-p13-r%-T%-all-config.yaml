@@ -1,0 +1,522 @@
+S060:
+  name: S060
+  system: spms
+  daq:
+    rawid: 1052802
+  location:
+    barrel: IB
+    fiber: IB015016
+    position: top
+S061:
+  name: S061
+  system: spms
+  daq:
+    rawid: 1052803
+  location:
+    barrel: IB
+    fiber: IB015016
+    position: bottom
+S055:
+  name: S055
+  system: spms
+  daq:
+    rawid: 1052804
+  location:
+    barrel: OB
+    fiber: OB005006
+    position: top
+S054:
+  name: S054
+  system: spms
+  daq:
+    rawid: 1052805
+  location:
+    barrel: OB
+    fiber: OB005006
+    position: bottom
+S013:
+  name: S013
+  system: spms
+  daq:
+    rawid: 1054400
+  location:
+    barrel: OB
+    fiber: OB007008
+    position: top
+S017:
+  name: S017
+  system: spms
+  daq:
+    rawid: 1054401
+  location:
+    barrel: OB
+    fiber: OB007008
+    position: bottom
+S074:
+  name: S074
+  system: spms
+  daq:
+    rawid: 1054402
+  location:
+    barrel: IB
+    fiber: IB017018
+    position: top
+S073:
+  name: S073
+  system: spms
+  daq:
+    rawid: 1054403
+  location:
+    barrel: IB
+    fiber: IB017018
+    position: bottom
+S071:
+  name: S071
+  system: spms
+  daq:
+    rawid: 1054404
+  location:
+    barrel: IB
+    fiber: IB001002
+    position: top
+S070:
+  name: S070
+  system: spms
+  daq:
+    rawid: 1054405
+  location:
+    barrel: IB
+    fiber: IB001002
+    position: bottom
+S067:
+  name: S067
+  system: spms
+  daq:
+    rawid: 1056000
+  location:
+    barrel: OB
+    fiber: OB021022
+    position: top
+S068:
+  name: S068
+  system: spms
+  daq:
+    rawid: 1056001
+  location:
+    barrel: OB
+    fiber: OB021022
+    position: bottom
+S056:
+  name: S056
+  system: spms
+  daq:
+    rawid: 1056002
+  location:
+    barrel: IB
+    fiber: IB003004
+    position: top
+S029:
+  name: S029
+  system: spms
+  daq:
+    rawid: 1056003
+  location:
+    barrel: IB
+    fiber: IB003004
+    position: bottom
+S042:
+  name: S042
+  system: spms
+  daq:
+    rawid: 1056004
+  location:
+    barrel: OB
+    fiber: OB023024
+    position: top
+S041:
+  name: S041
+  system: spms
+  daq:
+    rawid: 1056005
+  location:
+    barrel: OB
+    fiber: OB023024
+    position: bottom
+S024:
+  name: S024
+  system: spms
+  daq:
+    rawid: 1057600
+  location:
+    barrel: IB
+    fiber: IB005006
+    position: top
+S023:
+  name: S023
+  system: spms
+  daq:
+    rawid: 1057601
+  location:
+    barrel: IB
+    fiber: IB005006
+    position: bottom
+S030:
+  name: S030
+  system: spms
+  daq:
+    rawid: 1057602
+  location:
+    barrel: OB
+    fiber: OB009010
+    position: top
+S031:
+  name: S031
+  system: spms
+  daq:
+    rawid: 1057603
+  location:
+    barrel: OB
+    fiber: OB009010
+    position: bottom
+S002:
+  name: S002
+  system: spms
+  daq:
+    rawid: 1057604
+  location:
+    barrel: IB
+    fiber: IB007008
+    position: top
+S003:
+  name: S003
+  system: spms
+  daq:
+    rawid: 1057605
+  location:
+    barrel: IB
+    fiber: IB007008
+    position: bottom
+S032:
+  name: S032
+  system: spms
+  daq:
+    rawid: 1059200
+  location:
+    barrel: IB
+    fiber: IB009010
+    position: top
+S036:
+  name: S036
+  system: spms
+  daq:
+    rawid: 1059201
+  location:
+    barrel: IB
+    fiber: IB009010
+    position: bottom
+S028:
+  name: S028
+  system: spms
+  daq:
+    rawid: 1059202
+  location:
+    barrel: OB
+    fiber: OB011012
+    position: top
+S027:
+  name: S027
+  system: spms
+  daq:
+    rawid: 1059203
+  location:
+    barrel: OB
+    fiber: OB011012
+    position: bottom
+S010:
+  name: S010
+  system: spms
+  daq:
+    rawid: 1059204
+  location:
+    barrel: OB
+    fiber: OB019020
+    position: top
+S008:
+  name: S008
+  system: spms
+  daq:
+    rawid: 1059205
+  location:
+    barrel: OB
+    fiber: OB019020
+    position: bottom
+S058:
+  name: S058
+  system: spms
+  daq:
+    rawid: 1060800
+  location:
+    barrel: IB
+    fiber: IB011012
+    position: top
+S057:
+  name: S057
+  system: spms
+  daq:
+    rawid: 1060801
+  location:
+    barrel: IB
+    fiber: IB011012
+    position: bottom
+S022:
+  name: S022
+  system: spms
+  daq:
+    rawid: 1060802
+  location:
+    barrel: IB
+    fiber: IB013014
+    position: top
+S021:
+  name: S021
+  system: spms
+  daq:
+    rawid: 1060803
+  location:
+    barrel: IB
+    fiber: IB013014
+    position: bottom
+S064:
+  name: S064
+  system: spms
+  daq:
+    rawid: 1060804
+  location:
+    barrel: OB
+    fiber: OB025026
+    position: top
+S065:
+  name: S065
+  system: spms
+  daq:
+    rawid: 1060805
+  location:
+    barrel: OB
+    fiber: OB025026
+    position: bottom
+S009:
+  name: S009
+  system: spms
+  daq:
+    rawid: 1062400
+  location:
+    barrel: OB
+    fiber: OB027028
+    position: top
+S007:
+  name: S007
+  system: spms
+  daq:
+    rawid: 1062401
+  location:
+    barrel: OB
+    fiber: OB027028
+    position: bottom
+S046:
+  name: S046
+  system: spms
+  daq:
+    rawid: 1062402
+  location:
+    barrel: OB
+    fiber: OB017018
+    position: top
+S047:
+  name: S047
+  system: spms
+  daq:
+    rawid: 1062403
+  location:
+    barrel: OB
+    fiber: OB017018
+    position: bottom
+S011:
+  name: S011
+  system: spms
+  daq:
+    rawid: 1062404
+  location:
+    barrel: OB
+    fiber: OB015016
+    position: top
+S012:
+  name: S012
+  system: spms
+  daq:
+    rawid: 1062405
+  location:
+    barrel: OB
+    fiber: OB015016
+    position: bottom
+S020:
+  name: S020
+  system: spms
+  daq:
+    rawid: 1064000
+  location:
+    barrel: OB
+    fiber: OB029030
+    position: top
+S019:
+  name: S019
+  system: spms
+  daq:
+    rawid: 1064001
+  location:
+    barrel: OB
+    fiber: OB029030
+    position: bottom
+S026:
+  name: S026
+  system: spms
+  daq:
+    rawid: 1064002
+  location:
+    barrel: OB
+    fiber: OB031032
+    position: top
+S025:
+  name: S025
+  system: spms
+  daq:
+    rawid: 1064003
+  location:
+    barrel: OB
+    fiber: OB031032
+    position: bottom
+S015:
+  name: S015
+  system: spms
+  daq:
+    rawid: 1064004
+  location:
+    barrel: OB
+    fiber: OB033034
+    position: top
+S033:
+  name: S033
+  system: spms
+  daq:
+    rawid: 1064005
+  location:
+    barrel: OB
+    fiber: OB033034
+    position: bottom
+S043:
+  name: S043
+  system: spms
+  daq:
+    rawid: 1065600
+  location:
+    barrel: OB
+    fiber: OB013014
+    position: top
+S040:
+  name: S040
+  system: spms
+  daq:
+    rawid: 1065601
+  location:
+    barrel: OB
+    fiber: OB013014
+    position: bottom
+S048:
+  name: S048
+  system: spms
+  daq:
+    rawid: 1065602
+  location:
+    barrel: OB
+    fiber: OB035036
+    position: top
+S049:
+  name: S049
+  system: spms
+  daq:
+    rawid: 1065603
+  location:
+    barrel: OB
+    fiber: OB035036
+    position: bottom
+S053:
+  name: S053
+  system: spms
+  daq:
+    rawid: 1065604
+  location:
+    barrel: OB
+    fiber: OB037038
+    position: top
+S052:
+  name: S052
+  system: spms
+  daq:
+    rawid: 1065605
+  location:
+    barrel: OB
+    fiber: OB037038
+    position: bottom
+S050:
+  name: S050
+  system: spms
+  daq:
+    rawid: 1067200
+  location:
+    barrel: OB
+    fiber: OB039040
+    position: top
+S051:
+  name: S051
+  system: spms
+  daq:
+    rawid: 1067201
+  location:
+    barrel: OB
+    fiber: OB039040
+    position: bottom
+S045:
+  name: S045
+  system: spms
+  daq:
+    rawid: 1067202
+  location:
+    barrel: OB
+    fiber: OB001002
+    position: top
+S044:
+  name: S044
+  system: spms
+  daq:
+    rawid: 1067203
+  location:
+    barrel: OB
+    fiber: OB001002
+    position: bottom
+S037:
+  name: S037
+  system: spms
+  daq:
+    rawid: 1067204
+  location:
+    barrel: OB
+    fiber: OB003004
+    position: top
+S035:
+  name: S035
+  system: spms
+  daq:
+    rawid: 1067205
+  location:
+    barrel: OB
+    fiber: OB003004
+    position: bottom

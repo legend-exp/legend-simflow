@@ -37,6 +37,7 @@ from legendsimflow import aggregate as agg
 dummyprod = Path(__file__).parent / "dummyprod"
 default_config = dummyprod / "simflow-config.yaml"
 l200_config = dummyprod / "simflow-config-l200.yaml"
+l200_lar_config = dummyprod / "simflow-config-l200-lar.yaml"
 l1000_config = dummyprod / "simflow-config-l1000.yaml"
 all_cores = os.cpu_count() or 1
 
@@ -87,6 +88,7 @@ IMPURITY_TUNING_RULES = {
 # metadata folder (under dummyprod) of the experiments of the full-chain tests
 FULL_CHAIN_METADATA = {
     "l200cfg01": "legend-metadata",
+    "l200cfg06": "legend-metadata",
     "l1000dsg01": "legend1000-metadata",
 }
 
@@ -511,6 +513,10 @@ def test_skip_hit_needs_no_hit_settings(tmp_path):
     rules = dag_rule_names(l200_config, cfg)
     assert {"build_tier_evt", "build_tier_opt"} <= rules
     assert (STD_PSD_RULES | PSL_PSD_RULES).isdisjoint(rules)
+    # the HPGe parameters are read only by the hit tier
+    assert {"cache_modelable_hpges", "extract_hpge_observables_models"}.isdisjoint(
+        rules
+    )
 
 
 def test_skip_opt_and_hit_are_mutually_exclusive(tmp_path):
@@ -550,6 +556,34 @@ def test_l1000_dag(tmp_path):
     assert "write_l1000_hpge_metadata" in rules
     assert "plot_geom_rendering" in rules
     assert "plot_geom_hpge_mass" not in rules
+
+
+def test_l200_lar_dag(tmp_path):
+    rules = dag_rule_names(l200_lar_config, overrides(tmp_path))
+    assert {
+        "build_tier_stp",
+        "build_tier_opt",
+        "build_tier_evt",
+        "build_tier_cvt",
+    } <= rules
+    assert "build_tier_hit" not in rules
+    assert {"cache_modelable_hpges", "extract_hpge_observables_models"}.isdisjoint(
+        rules
+    )
+    assert (STD_PSD_RULES | PSL_PSD_RULES).isdisjoint(rules)
+
+
+def test_dag_with_run_without_hpges(tmp_path):
+    """A run without HPGe detectors next to one with them keeps the HPGe chain.
+
+    The p13 channel map of the unit-test metadata holds only SiPMs: the
+    modelable-HPGe cache must still list the run, with no detectors, for the
+    per-run lookups of the par tier.
+    """
+    cfg = overrides(tmp_path)
+    cfg["runlist"] = ["l200-p02-r000-phy", "l200-p13-r003-aph"]
+    rules = dag_rule_names(default_config, cfg)
+    assert {"build_tier_hit", "build_hpge_drift_time_map"} <= rules
 
 
 def test_optmap_patch_rule_gated_on_config(tmp_path):

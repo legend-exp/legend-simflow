@@ -61,7 +61,7 @@ To run a specific Python test or test function:
 
 The Python test suite includes both unit tests (in `tests/`) and integration
 tests that exercise the Snakemake workflow with a dummy production configured in
-`tests/dummyprod`. The dummy production defines three experiments:
+`tests/dummyprod`. The dummy production defines four experiments:
 
 - `legend`: a generic experiment used for unit tests and DAG-building tests; its
   runlist contains real p02 run IDs but is not intended to run an actual
@@ -72,6 +72,10 @@ tests that exercise the Snakemake workflow with a dummy production configured in
   `dummyprod`
 - `l200cfg01`: used by the `test_l200_workflow` integration test, which
   exercises the vtx→pdf pipeline on the mock LEGEND-200 metadata; runs in CI
+- `l200cfg06`: used by the `test_l200_lar_workflow` integration test, which
+  exercises the vtx→cvt pipeline on a run of the mock LEGEND-200 metadata with
+  the LAr instrumentation alone (no HPGe detectors, `skip_hit: true`); runs in
+  CI
 
 Test data for LEGEND-200 is stored in `tests/l200data/`.
 
@@ -80,12 +84,13 @@ Test data for LEGEND-200 is stored in `tests/l200data/`.
 Some integration tests require **remage**, which is only available inside the
 pixi `test` environment. The table below summarises what each test needs:
 
-| Test                  | Command                                | Needs pixi |
-| --------------------- | -------------------------------------- | ---------- |
-| DAG tests             | `pytest tests/test_dag.py`             | no         |
-| `test_l1000_workflow` | `pixi run -e test test-l1000-workflow` | **yes**    |
-| `test_l200_workflow`  | `pixi run -e test test-l200-workflow`  | **yes**    |
-| unit / script tests   | `pytest tests/`                        | no         |
+| Test                     | Command                                   | Needs pixi |
+| ------------------------ | ----------------------------------------- | ---------- |
+| DAG tests                | `pytest tests/test_dag.py`                | no         |
+| `test_l1000_workflow`    | `pixi run -e test test-l1000-workflow`    | **yes**    |
+| `test_l200_workflow`     | `pixi run -e test test-l200-workflow`     | **yes**    |
+| `test_l200_lar_workflow` | `pixi run -e test test-l200-lar-workflow` | **yes**    |
+| unit / script tests      | `pytest tests/`                           | no         |
 
 **Always run `pixi run -e test test-l1000-workflow` before committing changes
 that touch the workflow, scripts, or metadata.** The dry-run DAG tests alone are

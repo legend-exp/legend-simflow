@@ -27,11 +27,13 @@ The metadata comes from two places:
 The `dummyprod_testdata` fixture assembles what these tests read, in
 `tests/dummyprod/legend-metadata` and `tests/dummyprod/legend1000-metadata`: the
 hardware and datasets above, next to the `simprod` configuration committed here,
-which changes far more often. `legend-pygeom-l200` builds the geometry from it,
-always the same one: two strings of four germanium channels, every one of them
-the test ICPC `V99999Z`, surrounded by the fiber shroud and its 58 SiPM
-channels. Only `V00001A` and `V00001B` are `on`, so only those two are modelled.
-The test simulates both the pulse shape discrimination and the optics.
+which changes far more often. `legend-pygeom-l200` builds the geometry from it:
+in `p03`, two strings of four germanium channels, every one of them the test
+ICPC `V99999Z`, surrounded by the fiber shroud and its 58 SiPM channels. Only
+`V00001A` and `V00001B` are `on`, so only those two are modelled. The test
+simulates both the pulse shape discrimination and the optics. The `p13` run
+`r003` (data type `aph`) holds the 58 SiPM channels alone, no germanium
+detectors.
 
 `legend-pygeom-l1000` builds the LEGEND-1000 array from the `raw_config` in
 `geom/l1000dsg01-geom-config.yaml`: one string with two germanium channels,
@@ -45,13 +47,16 @@ records for the pulse-shape simulation. Both germanium detectors are copies of
 but the default detail level does not build the PMTs. The optics use the
 combined map (`optmap_per_sipm: false`) of the LEGEND-200 dummy optical map.
 
-The dummy production uses three experiments:
+The dummy production uses four experiments:
 
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist contains real p02 run IDs but is not intended to run an
   actual production
 - `l200cfg01`: the LEGEND-200 experiment. `test_l200_workflow` runs it in CI on
   the mock metadata
+- `l200cfg06`: the LEGEND-200 experiment with the LAr instrumentation alone, on
+  `l200-p13-r003-aph` with `skip_hit: true`. `test_l200_lar_workflow` runs it in
+  CI on the mock metadata
 - `l1000dsg01`: the LEGEND-1000 experiment
   (`metadata_repo: legend1000-metadata`). `test_l1000_workflow` runs it in CI on
   the mock metadata
@@ -110,7 +115,12 @@ real `generated*` dirs.
 - `test_skip_{opt,hit}_drops_*` / `..._mutually_exclusive`: the evt-tier
   `skip_opt` / `skip_hit` switches drop the opt / hit jobs (negative case: the
   same `make_steps` is unsatisfiable without the switch); both-skip is rejected
-  at build time.
+  at build time. `test_skip_hit_needs_no_hit_settings`: `skip_hit` also drops
+  the HPGe `par` rules.
+- `test_l200_lar_dag`: the `l200cfg06` DAG resolves without hit and HPGe rules.
+- `test_dag_with_run_without_hpges`: the SiPM-only `p13` channel map of the
+  unit-test metadata next to a `p02` run; the modelable-HPGe cache lists the run
+  with no detectors.
 - Rerun tests (`recorded_prod`): real local run in a throwaway workdir; patched
   `local.Executor.run_single_job` runs only the cache rules, other jobs touch
   outputs. Assert which jobs rerun after metadata edits + forced cache rebuild
@@ -145,3 +155,7 @@ Current full-chain tests:
 2. **`test_l1000_workflow`** (`needs_remage`) — runs vtx→pdf with real remage on
    the mock `legend1000-metadata`, experiment `l1000dsg01`; runs in CI:
    `pixi run -e test test-l1000-workflow`.
+3. **`test_l200_lar_workflow`** (`needs_remage`) — runs vtx→cvt with real remage
+   on `l200-p13-r003-aph` of the mock `legend-metadata` (no HPGe detectors),
+   experiment `l200cfg06`; runs in CI:
+   `pixi run -e test test-l200-lar-workflow`.

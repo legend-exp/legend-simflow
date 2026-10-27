@@ -1,0 +1,40 @@
+experiment: l200cfg06
+metadata_repo: legend-metadata
+
+# the LAr instrumentation alone, no HPGe detectors
+runlist:
+  - l200-p13-r003-aph
+
+make_steps:
+  - vtx
+  - stp
+  - par
+  - opt
+  - evt
+  - cvt
+
+paths:
+  generated: $_/generated-l200-lar
+  benchmarks: $_/generated-l200-lar/benchmarks
+  log: $_/generated-l200-lar/log
+
+  metadata: $_/legend-metadata
+  config: $_/legend-metadata/simprod/config
+  optical_maps:
+    lar: $_/testdata/remage/l200cfg01-optmap-dummy.lh5
+
+  pars: $_/generated-l200-lar/pars
+  macros: $_/generated-l200-lar/macros
+  tier:
+    vtx: $_/generated-l200-lar/tier/vtx
+    stp: $_/generated-l200-lar/tier/stp
+    opt: $_/generated-l200-lar/tier/opt
+    hit: $_/generated-l200-lar/tier/hit
+    evt: $_/generated-l200-lar/tier/evt
+    cvt: $_/generated-l200-lar/tier/cvt
+    pdf: $_/generated-l200-lar/tier/pdf
+  pdf_releases: $_/generated-l200-lar/releases
+
+nersc:
+  dvs_ro: false
+  scratch: false

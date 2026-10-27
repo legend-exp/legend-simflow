@@ -1,0 +1,6 @@
+# $_ is this directory, i.e. <legend-metadata>/simprod/config/geom
+executable: legend-pygeom-l200
+# start of p13 r003 in the mock metadata: the LAr instrumentation alone, no
+# HPGe detectors
+metadata_timestamp: 20241217T095149Z
+special_metadata: $_/l200cfg01-special-geom-metadata.yaml
