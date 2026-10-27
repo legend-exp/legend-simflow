@@ -513,6 +513,20 @@ def test_write_scintillation_photoelectrons(legend_testdata, tmp_path):
     assert stats == {}
     assert not (tmp_path / "none.lh5").exists()
 
+    # a light source without hits: its map file is not read, here it does not
+    # even exist
+    pen = {
+        "pen": AttrsDict(
+            {"table": "pen", "material": "pen", "optmap_scaling_factor": 1.0}
+        )
+    }
+    stats = optics.write_scintillation_photoelectrons(
+        stp_file, windows, 2000, sources | pen,
+        {"lar": optmap_file, "pen": tmp_path / "missing.lh5"}, tmp_path / "pen.lh5",
+        "S002", 1002, RUNID, "ac", settings=settings, rows_per_chunk=500,
+    )  # fmt: skip
+    assert stats.keys() == {"lar"}
+
 
 def test_write_scintillation_photoelectrons_pooled(legend_testdata, tmp_path):
     stp_file = _write_argon_file(tmp_path / "stp.lh5", 6)

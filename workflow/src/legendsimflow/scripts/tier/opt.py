@@ -207,11 +207,12 @@ def main() -> None:
     tcm = lh5.read_as("tcm", stp_file, library="ak")
 
     # in combined mode there is a single map per source, so pre-load them once
-    # for a little speed up. in per-SiPM mode the maps are loaded on demand
+    # for a little speed up. in per-SiPM mode the maps are loaded on demand.
+    # a source without a table in the stp file has no hits, and needs no map
     if light_source == "optmap" and not optmap_per_sipm:
         optmaps = {
             name: reboost.spms.load_optmap(m, "all")
-            if isinstance(m, (str, Path))
+            if isinstance(m, (str, Path)) and f"stp/{sources[name].table}" in stp_tables
             else m
             for name, m in optmaps.items()
         }

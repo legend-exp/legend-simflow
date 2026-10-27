@@ -752,8 +752,9 @@ def write_scintillation_photoelectrons(
     optmaps
         The optical map of each light source, its file name, or the light
         model that replaces it (see :func:`load_light_model`). Maps given by
-        file name are loaded here and released on return (the per-channel
-        maps are too large to keep all of them in memory).
+        file name are loaded here, only for the sources with hits in
+        `windows`, and released on return (the per-channel maps are too large
+        to keep all of them in memory).
     out_file
         The opt tier file.
     sipm
@@ -781,9 +782,9 @@ def write_scintillation_photoelectrons(
     Returns
     -------
     dict[str, NumdetStats]
-        For each light source with an optical map, the energy depositions
-        outside the map or in bins without detection probability. Empty, with
-        nothing written, if `n_windows` is zero.
+        For each light source with an optical map and hits in `windows`, the
+        energy depositions outside the map or in bins without detection
+        probability. Empty, with nothing written, if `n_windows` is zero.
     """
     if n_windows == 0:
         return {}
@@ -799,6 +800,7 @@ def write_scintillation_photoelectrons(
         optmaps = {
             name: reboost.spms.load_optmap(m, sipm) if isinstance(m, (str, Path)) else m
             for name, m in optmaps.items()
+            if name in windows
         }
 
     # constant for this SiPM, so resolve them once instead of per chunk
