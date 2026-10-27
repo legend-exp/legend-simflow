@@ -842,6 +842,28 @@ def test_opt_reads_the_map_of_each_light_source(tmp_path):
         dag_rule_names(l200_config, cfg)
 
 
+def test_opt_needs_no_top_level_scaling_factor(tmp_path):
+    sources = {
+        "lar": {
+            "table": "liquid_argon",
+            "material": "lar",
+            "optmap_scaling_factor": 0.3,
+        }
+    }
+    cfg = overrides(
+        tmp_path,
+        make_steps=["vtx", "stp", "par", "opt"],
+        experiment="l200cfg01",
+        settings_by_tier={"opt": {"scintillators": sources}},
+    )
+    settings_file = Path(cfg["paths"]["config"]) / "tier/opt/l200cfg01/settings.yaml"
+    settings = yaml.safe_load(settings_file.read_text())
+    del settings["optmap_scaling_factor"]
+    settings_file.write_text(yaml.safe_dump(settings))
+
+    assert "build_tier_opt" in dag_rule_names(l200_config, cfg)
+
+
 def test_opt_lar_patch_needs_lar_light_source(tmp_path):
     def config(name, sources):
         cfg = overrides(

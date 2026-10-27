@@ -400,3 +400,36 @@ def test_get_opt_scintillators_light_model(config, monkeypatch):
     block["pen"]["model"] = {"function": "mypackage.pen_light", "kwargs": [1]}
     with pytest.raises(SimflowConfigError, match="kwargs must be a mapping"):
         metadata.get_opt_scintillators(config)
+
+
+def test_get_opt_scintillators_scaling_factor(config, monkeypatch):
+    settings = dict(metadata.get_tier_settings(config, "opt"))
+    del settings["optmap_scaling_factor"]
+    block = {
+        "lar": {
+            "table": "liquid_argon",
+            "material": "lar",
+            "optmap_scaling_factor": 0.3,
+        },
+        "pen": {"table": "pen", "material": "pen", "optmap_scaling_factor": 0.5},
+    }
+    monkeypatch.setattr(
+        metadata,
+        "get_tier_settings",
+        lambda *_: AttrsDict(settings | {"scintillators": block}),
+    )
+
+    # no top-level factor is needed if every source sets its own
+    sources = metadata.get_opt_scintillators(config)
+    assert sources.lar.optmap_scaling_factor == 0.3
+    assert sources.pen.optmap_scaling_factor == 0.5
+
+    del block["pen"]["optmap_scaling_factor"]
+    with pytest.raises(
+        SimflowConfigError, match="optmap_scaling_factor for light source pen"
+    ):
+        metadata.get_opt_scintillators(config)
+
+    # tracked photons do not use the factor
+    settings["light_source"] = "tracked_photons"
+    assert "optmap_scaling_factor" not in metadata.get_opt_scintillators(config).pen

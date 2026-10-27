@@ -158,8 +158,8 @@ rule build_tier_opt:
         usability=rules.cache_detector_usabilities.output.usability,
     params:
         optmap_per_sipm=_tier_setting("opt", "optmap_per_sipm"),
+        # holds the optmap_scaling_factor of each light source
         scintillators=lambda wc: get_opt_scintillators(config),
-        optmap_scaling_factor=_tier_setting("opt", "optmap_scaling_factor"),
         photoelectron_resolution_sigma=_tier_setting(
             "opt", "photoelectron_resolution_sigma"
         ),

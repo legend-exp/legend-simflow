@@ -126,7 +126,8 @@ def get_opt_scintillators(config: SimflowConfig) -> AttrsDict:
     - ``material``: scintillation model (yield and time profile), as known to
       reboost: ``lar``, ``pen`` or ``fiber``;
     - ``optmap_scaling_factor``: taken from the top-level value of the ``opt``
-      tier settings, if not set for this source;
+      tier settings, if not set for this source. One of the two is required
+      with ``light_source: optmap``;
     - ``model``: ``None`` to use the optical map, else a mapping with the
       import path of a function that replaces the map, giving the detection
       probability of the photons emitted in each energy deposition
@@ -188,6 +189,14 @@ def get_opt_scintillators(config: SimflowConfig) -> AttrsDict:
 
         if "optmap_scaling_factor" in settings:
             source.setdefault("optmap_scaling_factor", settings.optmap_scaling_factor)
+        elif (
+            "optmap_scaling_factor" not in source and settings.light_source == "optmap"
+        ):
+            msg = (
+                f"no optmap_scaling_factor for light source {name}: set it at the "
+                f"top level or in scintillators.{name}"
+            )
+            raise SimflowConfigError(msg, block)
 
     return AttrsDict(sources)
 
