@@ -493,7 +493,7 @@ def input_paths(config: SimflowConfig) -> None:
 
     Checks ``paths.config``, ``paths.hpge_impurity_model`` (if set) and, if
     the opt tier is built from optical maps, ``paths.optical_maps.<source>``
-    for each light source of the ``opt`` tier and
+    for each light source of the ``opt`` tier without a light model and
     ``paths.optical_maps.lar_patch`` (if set). ``paths.metadata`` is cloned by
     :func:`.utils.init_simflow_context` if missing, and ``paths.l200data`` is
     checked by :func:`l200data_layout`.
@@ -513,7 +513,11 @@ def input_paths(config: SimflowConfig) -> None:
         "opt" in config.make_steps
         and get_tier_settings(config, "opt").light_source != "tracked_photons"
     ):
-        spec["optical_maps"] = dict.fromkeys(get_opt_scintillators(config), Path)
+        spec["optical_maps"] = {
+            name: Path
+            for name, source in get_opt_scintillators(config).items()
+            if source.model is None
+        }
         patch = config.paths.optical_maps.get("lar_patch")
         if isinstance(patch, Mapping):
             spec["optical_maps"]["lar_patch"] = dict.fromkeys(patch, Path)

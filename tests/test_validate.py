@@ -269,6 +269,14 @@ def test_input_paths_optical_map_per_light_source(fresh_config, tmp_path, monkey
     (tmp_path / "pen.lh5").touch()
     validate.input_paths(config)
 
+    # a light source with a light model needs no map
+    pen["lar"] = {
+        "table": "liquid_argon",
+        "material": "lar",
+        "model": {"function": "mypackage.lar_light"},
+    }
+    validate.input_paths(config)
+
 
 @pytest.mark.parametrize("system", ["geds", "spms"])
 def test_l200data_layout_no_detector_on(fresh_config, l200data, monkeypatch, system):
