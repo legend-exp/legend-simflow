@@ -270,6 +270,11 @@ def model_photoelectrons(
     scintillation photon emitted in each step gives a photoelectron, at unit
     channel efficiency.
 
+    `xloc`, `yloc` and `zloc` are converted to mm from the units in their
+    attributes (LGDO) or parameters (awkward array). Positions without units
+    are taken in mm: pass the step table columns, not their default awkward
+    view, which drops the units (metres in remage).
+
     As with the optical map, the number of photoelectrons of each step is
     drawn from a Poisson distribution of mean `num_scint_ph` times the
     probability times `map_scaling`, and only the first `max_pes_per_hit`
