@@ -141,30 +141,6 @@ def test_opt_script_cli(
     )
 
 
-def test_resolve_map_scaling_scalar():
-    """A scalar setting applies to every channel, as before."""
-    assert opt.resolve_map_scaling(0.3, _SIPM_ON) == pytest.approx(0.3)
-    assert opt.resolve_map_scaling(0.3, "all") == pytest.approx(0.3)
-    assert opt.resolve_map_scaling(1, _SIPM_ON) == pytest.approx(1.0)
-
-
-def test_resolve_map_scaling_per_channel():
-    """A mapping applies each channel's value, falling back to ``default``.
-
-    Uses AttrsDict, which is what settings read from YAML actually are.
-    """
-    setting = AttrsDict({"default": 0.3, _SIPM_ON: 0.42})
-
-    assert opt.resolve_map_scaling(setting, _SIPM_ON) == pytest.approx(0.42)
-    assert opt.resolve_map_scaling(setting, _SIPM_OFF) == pytest.approx(0.3)
-
-
-def test_resolve_map_scaling_without_default_raises():
-    """A missing channel is an error rather than a silent guess."""
-    with pytest.raises(KeyError, match="no optmap_scaling_factor entry"):
-        opt.resolve_map_scaling({_SIPM_ON: 0.42}, _SIPM_OFF)
-
-
 @pytest.mark.needs_remage
 def test_opt_script_tracked_photons(
     tmp_path,

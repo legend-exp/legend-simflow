@@ -50,6 +50,8 @@ imported modules under `workflow/rules/`.
     - `hpge_pars.py`/`spms_pars.py`: routines to compute the HPGe/SiPM
       parameters to be used in the `hit` and `opt` tiers, based on information
       from the LEGEND-200 data
+    - `optics.py`: routines to build the SiPM photoelectron tables of the `opt`
+      tier from an optical map or from tracked photons
     - `validate.py`: checks of the Simflow configuration against the LEGEND-200
       data production at `paths.l200data`
     - `scripts`: scripts directly used in Snakemake rules
