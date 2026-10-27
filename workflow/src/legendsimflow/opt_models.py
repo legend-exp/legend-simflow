@@ -161,8 +161,9 @@ def fibers(
     string, module, end = _parse_sipm(sipm)
     ids, centres, rots = _l1000_strings(geom_config)
     nearest = _nearest_string(xloc, yloc, centres)
-    # module m covers the azimuth range [6 deg, 114 deg] + 120 deg * (m - 1)
-    # from the string rotation, the rest is holding structure
+    # the fibers of module m span the azimuth range [6 deg, 114 deg] + 120 deg
+    # * (m - 1) from the string rotation, with holding structure in between.
+    # fiber steps are never in the gaps, so 120 deg sectors find the module
     phi = np.arctan2(yloc - centres[nearest, 1], xloc - centres[nearest, 0])
     in_module = np.floor(np.mod(phi - rots[nearest], 2 * np.pi) / (2 * np.pi / 3)) + 1
 
