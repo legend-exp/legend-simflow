@@ -288,7 +288,9 @@ def test_opt_script_unknown_scintillator_volume(
     monkeypatch.setattr(
         opt,
         "get_opt_scintillators",
-        lambda _: AttrsDict({"lar": {"table": "not_a_volume", "material": "lar"}}),
+        lambda _: AttrsDict(
+            {"lar": {"table": "not_a_volume", "material": "lar", "model": None}}
+        ),
     )
     with pytest.raises(SimflowConfigError, match=r"not_a_volume.*liquid_argon"):
         opt.main()
