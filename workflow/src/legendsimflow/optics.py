@@ -782,8 +782,12 @@ def write_scintillation_photoelectrons(
     -------
     dict[str, NumdetStats]
         For each light source with an optical map, the energy depositions
-        outside the map or in bins without detection probability.
+        outside the map or in bins without detection probability. Empty, with
+        nothing written, if `n_windows` is zero.
     """
+    if n_windows == 0:
+        return {}
+
     max_pes_per_hit = (
         settings["max_pes_per_hit_combined"]
         if sipm == "all"

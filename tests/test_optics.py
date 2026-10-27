@@ -505,6 +505,14 @@ def test_write_scintillation_photoelectrons(legend_testdata, tmp_path):
     assert ak.sum(ref.energy) > 10000
     assert ak.sum(out.energy) / ak.sum(ref.energy) == pytest.approx(0.5, rel=0.1)
 
+    # no window with scintillator hits: nothing to write
+    stats = optics.write_scintillation_photoelectrons(
+        stp_file, {}, 0, sources, {"lar": optmap_file}, tmp_path / "none.lh5",
+        "S002", 1002, RUNID, "ac", settings=settings, rows_per_chunk=500,
+    )  # fmt: skip
+    assert stats == {}
+    assert not (tmp_path / "none.lh5").exists()
+
 
 def test_write_scintillation_photoelectrons_pooled(legend_testdata, tmp_path):
     stp_file = _write_argon_file(tmp_path / "stp.lh5", 6)
