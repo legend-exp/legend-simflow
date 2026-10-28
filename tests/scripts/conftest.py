@@ -197,9 +197,10 @@ def _l200_config(tmp_dir: Path, settings_by_tier: Mapping | None = None) -> Path
     ``settings_by_tier`` maps a tier name to the settings keys to overwrite. When
     it is given, the metadata is copied to `<tmp_dir>/legend-metadata` first, so
     the committed tree stays untouched. That copy is where `$_` already points,
-    so no path entry needs an override.
+    so only the paths to files outside the metadata need an override.
     """
     raw = yaml.safe_load((testprod / "simflow-config-l200.yaml").read_text())
+    raw["paths"]["hpge_impurity_model"] = str(testprod / "hpge-impurity.yaml")
 
     if settings_by_tier:
         shutil.copytree(
@@ -452,6 +453,7 @@ def legend_hit_path(
         pass
 
     raw = yaml.safe_load((testprod / "simflow-config-l200.yaml").read_text())
+    raw["paths"]["hpge_impurity_model"] = str(testprod / "hpge-impurity.yaml")
     raw["paths"]["metadata"] = str(testprod / "legend-metadata")
     raw["paths"]["config"] = str(testprod / "legend-metadata/simprod/config")
     raw["paths"]["pars"] = str(pars_dir)
