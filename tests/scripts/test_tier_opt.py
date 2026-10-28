@@ -285,13 +285,11 @@ def test_opt_script_unknown_scintillator_volume(
         tmp_path, legend_detector_usabilities_path, geom_file=str(legend_gdml_path)
     )
     monkeypatch.setattr(sys, "argv", argv)
-    monkeypatch.setattr(
-        opt,
-        "get_opt_scintillators",
-        lambda _: AttrsDict(
-            {"lar": {"table": "not_a_volume", "material": "lar", "model": None}}
-        ),
+    sources = AttrsDict(
+        {"lar": {"table": "not_a_volume", "material": "lar", "model": None}}
     )
+    monkeypatch.setattr(opt, "get_opt_scintillators", lambda _: sources)
+    monkeypatch.setattr(opt, "get_opt_light_sources", lambda *_: sources)
     with pytest.raises(SimflowConfigError, match=r"not_a_volume.*liquid_argon"):
         opt.main()
 

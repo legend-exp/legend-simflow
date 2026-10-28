@@ -34,7 +34,7 @@ from legendmeta import LegendMetadata
 from . import SimflowConfig, aggregate, patterns, utils
 from .exceptions import SimflowConfigError
 from .metadata import (
-    get_opt_scintillators,
+    get_opt_optmap_sources,
     get_par_settings,
     get_runlist,
     get_tier_settings,
@@ -513,11 +513,7 @@ def input_paths(config: SimflowConfig) -> None:
         "opt" in config.make_steps
         and get_tier_settings(config, "opt").light_source != "tracked_photons"
     ):
-        spec["optical_maps"] = {
-            name: Path
-            for name, source in get_opt_scintillators(config).items()
-            if source.model is None
-        }
+        spec["optical_maps"] = dict.fromkeys(get_opt_optmap_sources(config), Path)
         patch = config.paths.optical_maps.get("lar_patch")
         if isinstance(patch, Mapping):
             spec["optical_maps"]["lar_patch"] = dict.fromkeys(patch, Path)

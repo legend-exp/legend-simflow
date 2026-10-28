@@ -433,3 +433,24 @@ def test_get_opt_scintillators_scaling_factor(config, monkeypatch):
     # tracked photons do not use the factor
     settings["light_source"] = "tracked_photons"
     assert "optmap_scaling_factor" not in metadata.get_opt_scintillators(config).pen
+
+
+def test_get_opt_light_sources_per_sipm(config, monkeypatch):
+    settings = metadata.get_tier_settings(config, "opt")
+    block = {
+        "lar": {"table": "liquid_argon", "material": "lar"},
+        "pen": {
+            "table": "pen",
+            "material": "pen",
+            "model": {"function": "mypackage.pen_light"},
+        },
+    }
+
+    monkeypatch.setattr(
+        metadata,
+        "get_tier_settings",
+        lambda *_: AttrsDict(settings | {"scintillators": block}),
+    )
+
+    assert set(metadata.get_opt_light_sources(config, False)) == {"lar", "pen"}
+    assert set(metadata.get_opt_light_sources(config, True)) == {"lar"}

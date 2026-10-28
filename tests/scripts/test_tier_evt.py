@@ -432,6 +432,22 @@ def test_evt_script_cli_skip_hit_tracked_photons(
             },
             None,
         ),
+        # with optmap_per_sipm the source with a light model is not simulated
+        # by the opt tier, so its table must not be merged in the TCM
+        (
+            {
+                "optmap_per_sipm": True,
+                "scintillators": {
+                    "lar": {
+                        "table": "liquid_argon",
+                        "material": "lar",
+                        "model": {"function": "legendsimflow.opt_models.uniform"},
+                    },
+                    "pen": {"table": "pen", "material": "pen"},
+                },
+            },
+            "none of the scintillator tables",
+        ),
     ],
 )
 def test_evt_script_cli_scintillator_tables(

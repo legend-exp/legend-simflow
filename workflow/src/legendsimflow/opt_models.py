@@ -57,20 +57,14 @@ def _l1000_fiber_length(geometry: Registry) -> float:
         if det.ntuple_name != "fiber":
             continue
         solid = geometry.physicalVolumeDict[name].logicalVolume.solid
-        if solid.type not in ("Tubs", "Box"):
+        length_param = {"Tubs": "pDz", "Box": "pZ"}.get(solid.type)
+        if length_param is None:
             msg = (
                 f"fiber core {name} is a {solid.type}, not a straight fiber "
                 "(Tubs or Box) of legend-pygeom-l1000"
             )
             raise ValueError(msg)
-        lengths.add(
-            round(
-                solid.evaluateParameterWithUnits(
-                    "pDz" if solid.type == "Tubs" else "pZ"
-                ),
-                6,
-            )
-        )
+        lengths.add(round(solid.evaluateParameterWithUnits(length_param), 6))
     if len(lengths) != 1:
         msg = f"expected fiber cores of a single length, found lengths {sorted(lengths)} mm"
         raise ValueError(msg)

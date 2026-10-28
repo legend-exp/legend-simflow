@@ -201,6 +201,29 @@ def get_opt_scintillators(config: SimflowConfig) -> AttrsDict:
     return AttrsDict(sources)
 
 
+def get_opt_optmap_sources(config: SimflowConfig) -> AttrsDict:
+    """Return the light sources of the ``opt`` tier that use an optical map (no light model)."""
+    return AttrsDict(
+        {
+            name: source
+            for name, source in get_opt_scintillators(config).items()
+            if source.model is None
+        }
+    )
+
+
+def get_opt_light_sources(config: SimflowConfig, optmap_per_sipm: bool) -> AttrsDict:
+    """Return the light sources whose light the ``opt`` tier simulates.
+
+    All sources of :func:`get_opt_scintillators`, except with `optmap_per_sipm`
+    where the sources with a light model are skipped (a light model gives the
+    light of all SiPMs together only).
+    """
+    if optmap_per_sipm:
+        return get_opt_optmap_sources(config)
+    return get_opt_scintillators(config)
+
+
 def deferred_tier_setting(config: SimflowConfig, tier: str, key: str) -> Callable:
     """Make a Snakemake ``params:`` callable resolving a tier setting lazily."""
     return lambda wildcards: get_tier_settings(config, tier)[key]  # noqa: ARG005

@@ -80,7 +80,7 @@ def merge_stp_n_opt_tcms_chunk(tcm_stp, tcm_opt, *, scintillator_uids):
     stp_k = tcm_stp.table_key
     stp_r = tcm_stp.row_in_table
 
-    is_ph = _is_scintillator(stp_k, np.fromiter(scintillator_uids, dtype=np.int64))
+    is_ph = _is_scintillator(stp_k, scintillator_uids)
     has_ph = ak.any(is_ph, axis=1)
 
     # index of the first placeholder in each row; None if absent

@@ -32,7 +32,11 @@ from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, optics, utils
 from legendsimflow.exceptions import SimflowConfigError
-from legendsimflow.metadata import get_opt_scintillators, get_tier_settings
+from legendsimflow.metadata import (
+    get_opt_light_sources,
+    get_opt_scintillators,
+    get_tier_settings,
+)
 from legendsimflow.scripts import log_script_invocation
 
 
@@ -122,17 +126,14 @@ def main() -> None:
         )
         raise SimflowConfigError(msg, settings_block)
     if light_source == "optmap":
-        sources = get_opt_scintillators(config)
-        # light models give the light of all SiPMs together only
-        modelled = sorted(n for n, s in sources.items() if s.model is not None)
-        if optmap_per_sipm:
-            sources = {n: s for n, s in sources.items() if s.model is None}
-            if not sources:
-                msg = (
-                    f"all light sources {modelled} have a light model, which "
-                    "cannot be used with optmap_per_sipm"
-                )
-                raise SimflowConfigError(msg, settings_block)
+        sources = get_opt_light_sources(config, optmap_per_sipm)
+        modelled = sorted(get_opt_scintillators(config).keys() - sources.keys())
+        if optmap_per_sipm and not sources:
+            msg = (
+                f"all light sources {modelled} have a light model, which "
+                "cannot be used with optmap_per_sipm"
+            )
+            raise SimflowConfigError(msg, settings_block)
         optmaps = {}
         for item in args.optmaps:
             name, _, path = item.partition("=")

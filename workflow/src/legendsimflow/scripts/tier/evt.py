@@ -38,7 +38,7 @@ from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
     encode_psd_usability,
     encode_usability,
-    get_opt_scintillators,
+    get_opt_light_sources,
     get_simconfig,
     get_tier_settings,
     parse_runid,
@@ -201,7 +201,12 @@ def main() -> None:
             table2uid = {name: uid for uid, name in stp_uids.items()}
             # a source without energy depositions in this job has no table, and
             # so no UID in the TCM
-            tables = [s.table for s in get_opt_scintillators(config).values()]
+            tables = [
+                s.table
+                for s in get_opt_light_sources(
+                    config, get_tier_settings(config, "opt").optmap_per_sipm
+                ).values()
+            ]
             scintillator_uids = [table2uid[t] for t in tables if t in table2uid]
             if not scintillator_uids:
                 msg = (

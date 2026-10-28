@@ -8,6 +8,7 @@ from legendsimflow import metadata as mutils
 from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import (
     deferred_tier_setting,
+    get_opt_optmap_sources,
     get_opt_scintillators,
     get_tier_settings,
 )
@@ -42,11 +43,7 @@ def smk_optmaps(wildcards):
     if get_tier_settings(config, "opt").light_source == "tracked_photons":
         return {}
 
-    sources = {
-        name: source
-        for name, source in get_opt_scintillators(config).items()
-        if source.model is None
-    }
+    sources = get_opt_optmap_sources(config)
     if "lar_patch" in config.paths.optical_maps and "lar" not in sources:
         msg = (
             "paths.optical_maps.lar_patch patches the map of the lar light source, "
