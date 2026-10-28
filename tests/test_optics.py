@@ -110,7 +110,7 @@ def test_tracked_photons_to_pes():
         assert is_saturated.tolist() == [False, False, False]
 
 
-def _constant_light(xloc, yloc, zloc, *, sipm, prob):  # noqa: ARG001
+def _constant_light(xloc, yloc, zloc, *, prob):  # noqa: ARG001
     return np.full_like(xloc, prob)
 
 
@@ -118,25 +118,21 @@ def test_load_light_model():
     model = optics.load_light_model(
         {"function": f"{__name__}._constant_light", "kwargs": {"prob": 0.2}}
     )
-    assert model(*[np.array([100.0])] * 3, sipm="all") == [0.2]
+    assert model(*[np.array([100.0])] * 3) == [0.2]
 
 
-def _layout_light(xloc, yloc, zloc, *, sipm, geom_config):  # noqa: ARG001
-    return np.full_like(xloc, 0.1 if geom_config == "geom.yaml" else 0.0)
+def _geometry_light(xloc, yloc, zloc, *, geometry):  # noqa: ARG001
+    return np.full_like(xloc, geometry)
 
 
-def test_load_light_model_geom_config():
-    spec = {"function": f"{__name__}._layout_light", "kwargs": {}}
-    model = optics.load_light_model(spec, "geom.yaml")
-    assert model(*[np.array([1.0])] * 3, sipm="all") == [0.1]
-
-    with pytest.raises(ValueError, match="needs the geometry configuration"):
+def test_load_light_model_geometry():
+    spec = {"function": f"{__name__}._geometry_light", "kwargs": {}}
+    assert optics.load_light_model(spec, 0.1)(*[np.array([1.0])] * 3) == [0.1]
+    with pytest.raises(ValueError, match="needs the GDML geometry"):
         optics.load_light_model(spec)
-
     # models without the argument do not get it
     spec = {"function": f"{__name__}._constant_light", "kwargs": {"prob": 0.2}}
-    model = optics.load_light_model(spec, "geom.yaml")
-    assert "geom_config" not in model.keywords
+    assert "geometry" not in optics.load_light_model(spec, 0.1).keywords
 
 
 def test_model_photoelectrons():
@@ -144,12 +140,11 @@ def test_model_photoelectrons():
     photons = ak.Array([[10_000] * 3, [], [1]])
 
     n_pes, expected = optics.model_photoelectrons(
-        lambda x, *_, sipm: np.full_like(x, 0.1),  # noqa: ARG005
+        lambda x, *_: np.full_like(x, 0.1),
         xyz,
         xyz,
         xyz,
         photons,
-        "all",
         max_pes_per_hit=1500,
     )
     assert ak.num(n_pes).to_list() == [3, 0, 1]
@@ -161,25 +156,24 @@ def test_model_photoelectrons():
     assert n_pes[0, 2] == 0
 
     n_pes, expected = optics.model_photoelectrons(
-        lambda x, *_, sipm: np.full_like(x, 0.1),  # noqa: ARG005
+        lambda x, *_: np.full_like(x, 0.1),
         xyz,
         xyz,
         xyz,
         photons,
-        "all",
         map_scaling=0,
     )
     assert ak.sum(n_pes) == 0
     assert expected == pytest.approx([3000, 0, 0.1])
 
     for bad in (
-        lambda x, *_, sipm: x - 1,  # noqa: ARG005
-        lambda x, *_, sipm: x + 2,  # noqa: ARG005
-        lambda x, *_, sipm: np.full_like(x, np.nan),  # noqa: ARG005
-        lambda *_, sipm: np.ones(2),  # noqa: ARG005
+        lambda x, *_: x - 1,
+        lambda x, *_: x + 2,
+        lambda x, *_: np.full_like(x, np.nan),
+        lambda *_: np.ones(2),
     ):
         with pytest.raises(ValueError, match="detection probability"):
-            optics.model_photoelectrons(bad, xyz, xyz, xyz, photons, "all")
+            optics.model_photoelectrons(bad, xyz, xyz, xyz, photons)
 
 
 def test_apply_photoelectron_resolution():

@@ -45,7 +45,6 @@ from legendsimflow.scripts import log_script_invocation
             if key.startswith("optmap_")
         ],
         "geom_file": "input.geom",
-        "geom_config_file": "input.geom_config",
         "simstat_part_file": "input.simstat_part_file",
         "usability_file": "input.usability",
         "jobid": "wildcards.jobid",
@@ -70,14 +69,6 @@ def main() -> None:
         ),
     )
     parser.add_argument("--geom-file", required=True, help="GDML geometry file")
-    parser.add_argument(
-        "--geom-config-file",
-        default=None,
-        help=(
-            "geometry configuration the GDML file was built from, needed by "
-            "light models with a geom_config argument"
-        ),
-    )
     parser.add_argument(
         "--simstat-part-file",
         required=True,
@@ -112,9 +103,6 @@ def main() -> None:
     jobid = args.jobid
     opt_file = args.opt_file
     gdml_file = nersc.dvs_ro(config, args.geom_file)
-    geom_config_file = (
-        nersc.dvs_ro(config, args.geom_config_file) if args.geom_config_file else None
-    )
     log_file = args.log_file
     metadata = config.metadata
     optmap_per_sipm = args.optmap_per_sipm
@@ -135,6 +123,16 @@ def main() -> None:
         raise SimflowConfigError(msg, settings_block)
     if light_source == "optmap":
         sources = get_opt_scintillators(config)
+        # light models give the light of all SiPMs together only
+        modelled = sorted(n for n, s in sources.items() if s.model is not None)
+        if optmap_per_sipm:
+            sources = {n: s for n, s in sources.items() if s.model is None}
+            if not sources:
+                msg = (
+                    f"all light sources {modelled} have a light model, which "
+                    "cannot be used with optmap_per_sipm"
+                )
+                raise SimflowConfigError(msg, settings_block)
         optmaps = {}
         for item in args.optmaps:
             name, _, path = item.partition("=")
@@ -146,17 +144,19 @@ def main() -> None:
                 f"needed: sources {mapped}, maps given for {sorted(optmaps)}"
             )
             raise SimflowConfigError(msg, settings_block)
-        # a light model takes the place of the map of its source
-        optmaps |= {
-            name: optics.load_light_model(s.model, geom_config_file)
-            for name, s in sources.items()
-            if s.model is not None
-        }
 
     # setup logging
     log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
     log_script_invocation(log, "tier-opt", parser, args)
     perf_block, print_perf, print_perf_last = reboost.make_profiler()
+
+    if light_source == "optmap" and optmap_per_sipm and modelled:
+        msg = (
+            f"the light sources {modelled} have a light model, which gives the "
+            "light of all SiPMs together only: with optmap_per_sipm their "
+            "scintillation light is not simulated"
+        )
+        log.warning(msg)
 
     # load the geometry and retrieve registered sensitive volume tables
     geom = pyg4ometry.gdml.Reader(gdml_file).getRegistry()
@@ -177,6 +177,13 @@ def main() -> None:
                 )
                 raise SimflowConfigError(msg, settings_block)
         uid2source = {scintillators[s.table].uid: name for name, s in sources.items()}
+
+        # a light model takes the place of the map of its source
+        optmaps |= {
+            name: optics.load_light_model(s.model, geom)
+            for name, s in sources.items()
+            if s.model is not None
+        }
 
         stp_tables = lh5.ls(stp_file, "stp/*")
         for name, source in sources.items():

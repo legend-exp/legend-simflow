@@ -1,85 +1,56 @@
 from __future__ import annotations
 
-from pathlib import Path
+import warnings
 
 import numpy as np
+import pyg4ometry
+import pygeomtools
 import pytest
+from pyg4ometry.geant4 import LogicalVolume, PhysicalVolume, Registry, solid
 
 from legendsimflow import opt_models
 
-# one string of the default array, at (213.5, 0) mm
-ONE_STRING = str(
-    Path(__file__).parent
-    / "dummyprod/inputs/simprod/config/geom/l1000dsg01-geom-config.yaml"
-)
 
-
-@pytest.fixture(scope="module")
-def full_array(tmp_path_factory):
-    path = tmp_path_factory.mktemp("geom") / "geom-config.yaml"
-    path.write_text("executable: legend-pygeom-l1000\n")
-    return str(path)
-
-
-def test_l1000_strings(full_array):
-    ids, centres, rots = opt_models._l1000_strings(full_array)
-    assert len(ids) == 42
-    assert ids[0] == 1
-    assert centres[0] == pytest.approx([213.5, 0])
-    assert rots[0] == pytest.approx(-np.pi)
-
-    ids, centres, rots = opt_models._l1000_strings(ONE_STRING)
-    assert ids.tolist() == [1]
-    assert centres[0] == pytest.approx([213.5, 0])
-    assert rots[0] == pytest.approx(-np.pi)
-
-
-def test_nearest_string(full_array):
-    _, centres, _ = opt_models._l1000_strings(full_array)
-    x = np.array([centres[0, 0] + 30, centres[7, 0]])
-    y = np.array([centres[0, 1], centres[7, 1] - 10])
-    assert opt_models._nearest_string(x, y, centres).tolist() == [0, 7]
-
-
-def test_parse_sipm():
-    assert opt_models._parse_sipm("S0103B") == (1, 3, "B")
-    with pytest.raises(ValueError, match="not a LEGEND-1000 SiPM"):
-        opt_models._parse_sipm("S002")
-
-
-def test_pen_plates(full_array):
-    # the plates of string 1, of string 8 and a step between strings 1 and 2
-    # but closer to 1
-    _, centres, _ = opt_models._l1000_strings(full_array)
-    x = np.array(
-        [centres[0, 0], centres[7, 0], 0.6 * centres[0, 0] + 0.4 * centres[1, 0]]
+def _fiber_geometry(tmp_path, solids):
+    reg = Registry()
+    world = LogicalVolume(
+        solid.Box("world", 10, 10, 10, reg, lunit="m"), "G4_Galactic", "world", reg
     )
-    y = np.array(
-        [centres[0, 1], centres[7, 1], 0.6 * centres[0, 1] + 0.4 * centres[1, 1]]
-    )
-    z = np.zeros(3)
+    reg.setWorld(world)
+    for i, make_solid in enumerate(solids):
+        name = f"fiber_core_{i}"
+        lv = LogicalVolume(make_solid(name, reg), "G4_POLYSTYRENE", name, reg)
+        pv = PhysicalVolume([0, 0, 0], [i, 0, 0, "m"], lv, name, world, reg)
+        pv.set_pygeom_active_detector(
+            pygeomtools.RemageDetectorInfo(
+                "scintillator", 1, allow_uid_reuse=True, ntuple_name="fiber"
+            )
+        )
+    gdml_file = tmp_path / "geom.gdml"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pygeomtools.write_pygeom(reg, gdml_file)
+    return pyg4ometry.gdml.Reader(gdml_file).getRegistry()
 
-    def pen(sipm, geom_config=full_array):
-        return opt_models.pen_plates(
-            x, y, z, sipm=sipm, prob=0.02, geom_config=geom_config
-        ).tolist()
 
-    assert pen("S0101T") == [0.02, 0, 0.02]
-    assert pen("S0103B") == [0.02, 0, 0.02]
-    assert pen("S0802T") == [0, 0.02, 0]
-    assert pen("all") == pytest.approx([0.12] * 3)
-    # with a single string, all plates belong to it
-    assert pen("S0101T", ONE_STRING) == [0.02] * 3
+def _tubs(length):
+    return lambda name, reg: solid.Tubs(name, 100, 101, length, 0, 1, reg, "mm")
 
 
-def test_fibers(full_array):
-    # fibers of modules 1, 2 and 3 of string 1, in the middle and at the top
-    # end of 1 m long fibers. Modules 2 and 3 from the geometry, module 1 at
-    # 240 deg
-    x = np.array([213.5 - 52.75 / 2, 251.05, 226.81, 251.05])
-    y = np.array([-52.75 * np.sqrt(3) / 2, -37.05, 51.04, -37.05])
+def _box(length):
+    return lambda name, reg: solid.Box(name, 1, 1, length, reg, "mm")
+
+
+def test_uniform():
+    x = np.zeros(3)
+    assert opt_models.uniform(x, x, x, prob=0.02).tolist() == [0.02] * 3
+
+
+def test_l1000_fibers(tmp_path):
+    geometry = _fiber_geometry(tmp_path, [_tubs(1000), _box(1000)])
+    # in the middle and at the top end of 1 m long fibers
     z_top = 349.092
-    z = np.array([z_top - 500] * 3 + [z_top])
+    z = np.array([z_top - 500, z_top])
     pars = {"amplitudes": [0.2, 0.3, 0.5], "absorption_lengths_in_m": [0.05, 0.2, 4]}
 
     def end_prob(dist_in_mm):
@@ -88,24 +59,22 @@ def test_fibers(full_array):
             for a, length in zip(*pars.values(), strict=True)
         )
 
-    mid, near, far = end_prob(500), end_prob(0), end_prob(1000)
-    assert near == pytest.approx(1, rel=1e-3)
+    assert end_prob(0) == pytest.approx(1, rel=1e-3)
+    prob = opt_models.l1000_fibers(z, z, z, **pars, geometry=geometry)
+    assert prob == pytest.approx([2 * end_prob(500), end_prob(0) + end_prob(1000)])
 
-    for sipm, expected in [
-        ("S0101T", [mid, 0, 0, 0]),
-        ("S0101B", [mid, 0, 0, 0]),
-        ("S0102T", [0, mid, 0, near]),
-        ("S0102B", [0, mid, 0, far]),
-        ("S0103B", [0, 0, mid, 0]),
-        ("S0201T", [0, 0, 0, 0]),
-        ("all", [2 * mid] * 3 + [near + far]),
-    ]:
-        prob = opt_models.fibers(
-            x, y, z, sipm=sipm, **pars, fiber_length_in_m=1, geom_config=full_array
-        )
-        assert prob == pytest.approx(expected)
-        # the strings around string 1 do not change the module of a step
-        prob = opt_models.fibers(
-            x, y, z, sipm=sipm, **pars, fiber_length_in_m=1, geom_config=ONE_STRING
-        )
-        assert prob == pytest.approx(expected)
+
+@pytest.mark.parametrize(
+    ("solids", "match"),
+    [
+        ([_tubs(1000), _box(900)], "single length"),
+        (
+            [_tubs(1000), lambda name, reg: solid.Orb(name, 1, reg, "mm")],
+            "not a straight",
+        ),
+        ([], "single length"),
+    ],
+)
+def test_l1000_fiber_length_errors(tmp_path, solids, match):
+    with pytest.raises(ValueError, match=match):
+        opt_models._l1000_fiber_length(_fiber_geometry(tmp_path, solids))

@@ -474,19 +474,19 @@ buffer_len: "10*MB"
   ```
 
   The `opt` tier calls the function once per chunk of steps, as
-  `f(xloc, yloc, zloc, sipm=sipm, **kwargs)`. `xloc`, `yloc`, `zloc` hold the
-  position of each step in mm, in the global frame of the geometry, as
-  one-dimensional NumPy arrays: the function must act on whole arrays. `sipm` is
-  the name of the SiPM channel, or `all` with `optmap_per_sipm: false`. A
-  function that has a `geom_config` keyword argument also gets the path of the
-  geometry configuration file the simulated geometry was built from: the
-  template of the experiment, with the `geom_config_extra` of the simid applied.
-  The function returns an array with one probability per step, between 0 and 1,
-  at unit channel efficiency, like the values of an optical map. As with the
-  map, the `opt` tier draws the number of photoelectrons of each step from a
-  Poisson distribution, with mean the number of emitted photons times the
-  probability times `optmap_scaling_factor`. The photoelectron times follow the
-  scintillation time profile of `material`. For example:
+  `f(xloc, yloc, zloc, **kwargs)`. `xloc`, `yloc`, `zloc` hold the position of
+  each step in mm, in the global frame of the geometry, as one-dimensional NumPy
+  arrays: the function must act on whole arrays. A function with a `geometry`
+  keyword argument also gets the simulated GDML geometry, as a
+  `pyg4ometry.geant4.Registry`. The function returns an array with one
+  probability per step, between 0 and 1, at unit channel efficiency: the
+  probability of a photoelectron in any SiPM, like the values of the optical map
+  of all SiPMs together. As with the map, the `opt` tier draws the number of
+  photoelectrons of each step from a Poisson distribution, with mean the number
+  of emitted photons times the probability times `optmap_scaling_factor`. The
+  photoelectron times follow the scintillation time profile of `material`. A
+  light model gives no light per SiPM channel: with `optmap_per_sipm: true`, the
+  `opt` tier leaves out the sources with a model, with a warning. For example:
 
   ```{code-block} python
   :caption: mypackage/light.py
@@ -494,14 +494,14 @@ buffer_len: "10*MB"
   import numpy as np
 
 
-  def pen_detection_probability(xloc, yloc, zloc, *, sipm, prob):
-      # same probability everywhere and for every SiPM channel
+  def pen_detection_probability(xloc, yloc, zloc, *, prob):
+      # same probability everywhere
       return np.full_like(xloc, prob)
   ```
 
-  {mod}`legendsimflow.opt_models` provides light models of the LEGEND-1000
-  scintillators: `legendsimflow.opt_models.pen_plates` for the PEN plates and
-  `legendsimflow.opt_models.fibers` for the fibers.
+  {mod}`legendsimflow.opt_models` provides light models: e.g.
+  `legendsimflow.opt_models.uniform` (same probability everywhere) for the PEN
+  plates and `legendsimflow.opt_models.l1000_fibers` for the LEGEND-1000 fibers.
 
   The `opt` tier pools the photoelectrons of all sources that belong to the same
   `stp` event window: hits of the same Geant4 event closer than 10 µs in time,

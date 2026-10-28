@@ -34,6 +34,7 @@ import logging
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import awkward as ak
 import lh5
@@ -46,6 +47,9 @@ from reboost.optmap.convolve import NumdetStats, OptmapForConvolve
 from reboost.units import units_conv_ak
 
 from legendsimflow import metadata as mutils
+
+if TYPE_CHECKING:
+    from pyg4ometry.geant4 import Registry
 
 log = logging.getLogger(__name__)
 
@@ -228,26 +232,21 @@ def optmap_to_pes(
     return pe_times, is_saturated, expected_pes, stats
 
 
-def load_light_model(
-    model: Mapping, geom_config_file: str | Path | None = None
-) -> Callable:
+def load_light_model(model: Mapping, geometry: Registry | None = None) -> Callable:
     """Import the function of a light model and bind its keyword arguments.
 
     `model` is the ``model`` block of a light source, see
-    :func:`.metadata.get_opt_scintillators`. A function with a
-    ``geom_config`` keyword argument also gets `geom_config_file`, the
-    geometry configuration the simulated geometry was built from.
+    :func:`.metadata.get_opt_scintillators`. A function with a ``geometry``
+    keyword argument also gets `geometry`, the simulated GDML geometry.
     """
     module, _, name = model["function"].rpartition(".")
     func = getattr(importlib.import_module(module), name)
     kwargs = dict(model["kwargs"])
-    if "geom_config" in inspect.signature(func).parameters:
-        if geom_config_file is None:
-            msg = (
-                f"the light model {model['function']} needs the geometry configuration"
-            )
+    if "geometry" in inspect.signature(func).parameters:
+        if geometry is None:
+            msg = f"the light model {model['function']} needs the GDML geometry"
             raise ValueError(msg)
-        kwargs["geom_config"] = geom_config_file
+        kwargs["geometry"] = geometry
     return functools.partial(func, **kwargs)
 
 
@@ -257,18 +256,16 @@ def model_photoelectrons(
     yloc: VectorOfVectors | ak.Array,
     zloc: VectorOfVectors | ak.Array,
     num_scint_ph: ak.Array,
-    sipm: str,
     map_scaling: float = 1,
     max_pes_per_hit: int = -1,
 ) -> tuple[ak.Array, NDArray[np.floating]]:
     """Sample the photoelectrons of each energy deposition from a light model.
 
     The model replaces the optical map of a light source. It is called once
-    per chunk as ``model(xloc, yloc, zloc, sipm=sipm)``, with flat arrays of
-    the global coordinates (mm) of all steps, and `sipm` the name of the SiPM,
-    or ``"all"`` for all SiPMs together. It returns the probability that a
-    scintillation photon emitted in each step gives a photoelectron, at unit
-    channel efficiency.
+    per chunk as ``model(xloc, yloc, zloc)``, with flat arrays of the global
+    coordinates (mm) of all steps. It returns the probability that a
+    scintillation photon emitted in each step gives a photoelectron in any
+    SiPM, at unit channel efficiency.
 
     `xloc`, `yloc` and `zloc` are converted to mm from the units in their
     attributes (LGDO) or parameters (awkward array). Positions without units
@@ -297,7 +294,6 @@ def model_photoelectrons(
                 ak.to_numpy(ak.flatten(units_conv_ak(a, "mm")))
                 for a in (xloc, yloc, zloc)
             ),
-            sipm=sipm,
         ),
         dtype=np.float64,
     )
@@ -328,7 +324,6 @@ def model_photoelectrons(
 def light_model_to_pes(
     stp_chunk: Table,
     model: Callable,
-    sipm: str,
     *,
     material: str,
     map_scaling: float,
@@ -358,7 +353,6 @@ def light_model_to_pes(
             stp_chunk.yloc,
             stp_chunk.zloc,
             scint_ph,
-            sipm,
             map_scaling=map_scaling,
             max_pes_per_hit=max_pes_per_hit,
         )
@@ -867,7 +861,6 @@ def write_scintillation_photoelectrons(
                 times, expected = light_model_to_pes(
                     stp_chunk,
                     optmaps[name],
-                    sipm,
                     material=sources[name]["material"],
                     map_scaling=map_scaling[name],
                     max_pes_per_hit=max_pes_per_hit,

@@ -426,7 +426,7 @@ def two_sources_stp(tmp_path):
     return stp_file, gdml_file, part_file, usability_file
 
 
-def _run_opt(monkeypatch, config_path, stp, optmaps, opt_file):
+def _run_opt(monkeypatch, config_path, stp, optmaps, opt_file, per_sipm=False):
     stp_file, gdml_file, part_file, usability_file = stp
     monkeypatch.setattr(sys, "argv", [
         "opt",
@@ -438,9 +438,11 @@ def _run_opt(monkeypatch, config_path, stp, optmaps, opt_file):
         "--jobid", "0000",
         "--opt-file", str(opt_file),
         "--simflow-config", str(config_path),
+        *(["--optmap-per-sipm"] if per_sipm else []),
     ])  # fmt: skip
     opt.main()
-    return lh5.read_as("hit/spms", opt_file, library="ak")
+    table = _SIPM_ON if per_sipm else "spms"
+    return lh5.read_as(f"hit/{table}", opt_file, library="ak")
 
 
 def test_opt_script_two_light_sources(
@@ -543,8 +545,7 @@ def test_opt_script_two_light_sources_saturation(
     assert 0 < np.sum(out.is_saturated) < len(out)
 
 
-def _uniform_light(xloc, yloc, zloc, *, sipm, prob):
-    assert sipm == "all"
+def _uniform_light(xloc, yloc, zloc, *, prob):
     # the steps of two_sources_stp are at (0.1, 0.1, 0.1) m
     assert np.allclose(np.stack([xloc, yloc, zloc]), 100)
     return np.full_like(xloc, prob)
@@ -598,3 +599,55 @@ def test_opt_script_light_model(
     assert expected[0] / expected[1] == pytest.approx(2, rel=0.1)
     assert ak.all(ak.sum(out.energy[[2, 4]], axis=-1) > 0)
     assert ak.all(out.dt[:, 1:] >= out.dt[:, :-1])
+
+
+def test_opt_script_light_model_per_sipm(
+    tmp_path,
+    monkeypatch,
+    caplog,
+    legend_testdata,
+    l200_config_factory,
+    two_sources_stp,
+):
+    optmap = legend_testdata.get_path("remage/l200cfg01-optmap-dummy.lh5")
+    pen = {
+        "table": "pen",
+        "material": "pen",
+        "model": {"function": f"{__name__}._uniform_light", "kwargs": {"prob": 0.01}},
+    }
+    config_path = l200_config_factory(
+        tmp_path / "both",
+        {
+            "opt": {
+                "scintillators": {
+                    "lar": {"table": "liquid_argon", "material": "lar"},
+                    "pen": pen,
+                }
+            }
+        },
+    )
+    with caplog.at_level(logging.WARNING):
+        out = _run_opt(
+            monkeypatch,
+            config_path,
+            two_sources_stp,
+            {"lar": optmap},
+            tmp_path / "opt.lh5",
+            per_sipm=True,
+        )
+    assert "['pen'] have a light model" in caplog.text
+    # the windows with argon hits only
+    assert out.evtid.to_list() == [0, 1, 3]
+
+    config_path = l200_config_factory(
+        tmp_path / "pen", {"opt": {"scintillators": {"pen": pen}}}
+    )
+    with pytest.raises(SimflowConfigError, match="all light sources"):
+        _run_opt(
+            monkeypatch,
+            config_path,
+            two_sources_stp,
+            {},
+            tmp_path / "pen.lh5",
+            per_sipm=True,
+        )
