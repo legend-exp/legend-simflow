@@ -134,15 +134,15 @@ def main() -> None:
                 "cannot be used with optmap_per_sipm"
             )
             raise SimflowConfigError(msg, settings_block)
-        optmaps = {}
+        optmap_files = {}
         for item in args.optmaps:
             name, _, path = item.partition("=")
-            optmaps[name] = nersc.dvs_ro(config, path)
+            optmap_files[name] = nersc.dvs_ro(config, path)
         mapped = sorted(n for n, s in sources.items() if s.model is None)
-        if sorted(optmaps) != mapped:
+        if sorted(optmap_files) != mapped:
             msg = (
                 f"one optical map per light source without a light model is "
-                f"needed: sources {mapped}, maps given for {sorted(optmaps)}"
+                f"needed: sources {mapped}, maps given for {sorted(optmap_files)}"
             )
             raise SimflowConfigError(msg, settings_block)
 
@@ -179,32 +179,16 @@ def main() -> None:
                 raise SimflowConfigError(msg, settings_block)
         uid2source = {scintillators[s.table].uid: name for name, s in sources.items()}
 
-        # a light model takes the place of the map of its source
-        optmaps |= {
-            name: optics.load_light_model(s.model, geom)
-            for name, s in sources.items()
-            if s.model is not None
-        }
-
-        stp_tables = lh5.ls(stp_file, "stp/*")
-        for name, source in sources.items():
-            if f"stp/{source.table}" not in stp_tables:
-                msg = (
-                    f"table {source.table} of light source {name} not found in "
-                    f"{stp_file}. possibly because it was not read-out or there "
-                    "were no hits recorded"
-                )
-                log.warning(msg)
-        # chunk size in rows, the smallest of the scintillator tables
-        rows_per_chunk = min(
-            (
-                LH5Iterator(
-                    stp_file, f"stp/{s.table}", buffer_len=buffer_len
-                ).buffer_len
-                for s in sources.values()
-                if f"stp/{s.table}" in stp_tables
-            ),
-            default=1,
+        # in combined mode there is a single map per source, so pre-load them
+        # once for a little speed up. in per-SiPM mode the maps are loaded on
+        # demand
+        optmaps, rows_per_chunk = optics.load_light_sources(
+            stp_file,
+            sources,
+            optmap_files,
+            geom,
+            buffer_len=buffer_len,
+            preload_combined=not optmap_per_sipm,
         )
 
     partitions = load_dict(simstat_part_file)[f"job_{jobid}"]
@@ -213,17 +197,6 @@ def main() -> None:
     msg = "loading TCM"
     log.debug(msg)
     tcm = lh5.read_as("tcm", stp_file, library="ak")
-
-    # in combined mode there is a single map per source, so pre-load them once
-    # for a little speed up. in per-SiPM mode the maps are loaded on demand.
-    # a source without a table in the stp file has no hits, and needs no map
-    if light_source == "optmap" and not optmap_per_sipm:
-        optmaps = {
-            name: reboost.spms.load_optmap(m, "all")
-            if isinstance(m, (str, Path)) and f"stp/{sources[name].table}" in stp_tables
-            else m
-            for name, m in optmaps.items()
-        }
 
     # loop over the partitions for this file
     for runid_idx, (runid, evt_idx_range) in enumerate(partitions.items()):

@@ -580,6 +580,39 @@ def test_write_scintillation_photoelectrons_light_model(legend_testdata, tmp_pat
     assert ak.all(out.dt[:, 1:] >= out.dt[:, :-1])
 
 
+def test_load_light_sources(legend_testdata, tmp_path, caplog):
+    stp_file = _write_argon_file(tmp_path / "stp.lh5", 10)
+    sources = {
+        "lar": AttrsDict(_one_source()["lar"] | {"model": None}),
+        "pen": AttrsDict(
+            {
+                "table": "pen",
+                "material": "pen",
+                "model": {
+                    "function": f"{__name__}._constant_light",
+                    "kwargs": {"prob": 0.2},
+                },
+            }
+        ),
+    }
+    optmap_files = {"lar": legend_testdata[OPTMAP]}
+
+    with caplog.at_level(logging.WARNING):
+        optmaps, rows_per_chunk = optics.load_light_sources(
+            stp_file, sources, optmap_files, None, buffer_len=4, preload_combined=True
+        )
+    # the PEN table has no hits
+    assert "table pen of light source pen not found" in caplog.text
+    assert isinstance(optmaps["lar"], OptmapForConvolve)
+    assert optmaps["pen"](*[np.array([1.0])] * 3) == [0.2]
+    assert rows_per_chunk == 4
+
+    optmaps, _ = optics.load_light_sources(
+        stp_file, sources, optmap_files, None, buffer_len=4, preload_combined=False
+    )
+    assert optmaps["lar"] == legend_testdata[OPTMAP]
+
+
 def test_write_photoelectrons_profiler(legend_testdata, tmp_path):
     """The reboost profiler can time the blocks of the SiPM processing."""
     perf_block, print_perf, _ = reboost.make_profiler()

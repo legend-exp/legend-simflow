@@ -250,6 +250,80 @@ def load_light_model(model: Mapping, geometry: Registry | None = None) -> Callab
     return functools.partial(func, **kwargs)
 
 
+def load_light_sources(
+    stp_file: str | Path,
+    sources: Mapping[str, Mapping],
+    optmap_files: Mapping[str, str | Path],
+    geometry: Registry,
+    *,
+    buffer_len: str | int,
+    preload_combined: bool,
+) -> tuple[dict[str, str | Path | OptmapForConvolve | Callable], int]:
+    """Prepare the optical maps and light models of the light sources.
+
+    A source without a table in `stp_file` has no hits: it gets a warning, and
+    its map is not loaded.
+
+    Parameters
+    ----------
+    stp_file
+        The stp tier file.
+    sources
+        The light sources, see :func:`.metadata.get_opt_scintillators`.
+    optmap_files
+        The optical map file of each source without a light model.
+    geometry
+        The simulated GDML geometry, for the light models that need it.
+    buffer_len
+        The LH5 read chunk size of the ``opt`` tier settings, e.g.
+        ``"500*MB"``.
+    preload_combined
+        Load the map of all SiPMs together (``all``) of each source with hits
+        here. Otherwise the maps are loaded by
+        :func:`write_scintillation_photoelectrons`, one SiPM at a time.
+
+    Returns
+    -------
+    optmaps
+        For each source, its optical map or map file, or its light model.
+    rows_per_chunk
+        Number of scintillator hits to read at once: the smallest that
+        `buffer_len` gives for the tables of the sources with hits.
+    """
+    stp_tables = lh5.ls(stp_file, "stp/*")
+    with_hits = []
+    for name, source in sources.items():
+        if f"stp/{source['table']}" in stp_tables:
+            with_hits.append(name)
+        else:
+            msg = (
+                f"table {source['table']} of light source {name} not found in "
+                f"{stp_file}. possibly because it was not read-out or there "
+                "were no hits recorded"
+            )
+            log.warning(msg)
+
+    optmaps = {}
+    for name, source in sources.items():
+        if source["model"] is not None:
+            optmaps[name] = load_light_model(source["model"], geometry)
+        elif preload_combined and name in with_hits:
+            optmaps[name] = reboost.spms.load_optmap(optmap_files[name], "all")
+        else:
+            optmaps[name] = optmap_files[name]
+
+    rows_per_chunk = min(
+        (
+            lh5.LH5Iterator(
+                str(stp_file), f"stp/{sources[name]['table']}", buffer_len=buffer_len
+            ).buffer_len
+            for name in with_hits
+        ),
+        default=1,
+    )
+    return optmaps, rows_per_chunk
+
+
 def model_photoelectrons(
     model: Callable,
     xloc: VectorOfVectors | ak.Array,
