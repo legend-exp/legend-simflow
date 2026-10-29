@@ -227,7 +227,7 @@ def main() -> None:
             },
         )
         output.add_field(
-            "mul2",
+            "mul2/all",
             Histogram(
                 mul2_hist,
                 attrs={

@@ -212,7 +212,9 @@ def test_read_pdf(tmp_path):
             histograms[path][g].fill([n])
         descriptions[path] = path
     struct = format_pdf_struct(histograms, descriptions)
-    struct.add_field("mul2", Histogram(hist.new.Reg(10, 0, 10).Reg(10, 0, 10).Double()))
+    struct.add_field(
+        "mul2/all", Histogram(hist.new.Reg(10, 0, 10).Reg(10, 0, 10).Double())
+    )
     pdf_file = tmp_path / "pdf.lh5"
     lh5.write(struct, "pdf", pdf_file)
 

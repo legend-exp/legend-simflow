@@ -182,7 +182,7 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert not _exists(pdf_file, "pdf/hit")
 
     # 1 m2 event
-    assert _sum(pdf_file, "pdf/mul2") == 1
+    assert _sum(pdf_file, "pdf/mul2/all") == 1
 
 
 def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
@@ -309,7 +309,7 @@ def test_pdf_energy_threshold(tmp_path, monkeypatch):
     assert mul1[10j] == 0
     assert mul1[800j] == 1
 
-    mul2 = _hist("pdf/mul2")
+    mul2 = _hist("pdf/mul2/all")
     assert mul2.sum() == 1
     assert mul2[300j, 400j] == 1
 
@@ -360,7 +360,7 @@ def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
     # the LAr level is omitted
     for aoe in ("is_ss_aoe", "is_low_aoe", "is_invalid_aoe"):
         assert _exists(pdf_file, f"pdf/mul1/{aoe}/all"), aoe
-    assert _exists(pdf_file, "pdf/mul2")
+    assert _exists(pdf_file, "pdf/mul2/all")
     for name in ("pdf/mul1/is_spms_coincident", "pdf/mul1/not_spms_coincident"):
         assert not _exists(pdf_file, name), name
 
@@ -410,7 +410,7 @@ def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
     for name in (
         "pdf/mul1/is_spms_coincident/is_ss_aoe/all",
         "pdf/mul1/not_spms_coincident/is_ss_aoe/all",
-        "pdf/mul2",
+        "pdf/mul2/all",
     ):
         assert _exists(pdf_file, name), name
 
@@ -439,7 +439,9 @@ def test_pdf_detector_groups_schema(tmp_path, monkeypatch):
     assert "nr_sim_events" in root_keys
     assert "mul2" not in root_keys  # mul2 is under pdf/, not root
 
-    assert _exists(pdf_file, "pdf/mul2")  # global, not split by group
+    # not split by group
+    assert _exists(pdf_file, "pdf/mul2/all")
+    assert not _exists(pdf_file, "pdf/mul2/icpc")
 
     for path in _ALL_CATEGORIES:
         for group in ("icpc", "bege", "all"):
@@ -456,7 +458,7 @@ def test_pdf_no_detector_groups_schema(tmp_path, monkeypatch):
     pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
     assert pdf_file.exists()
 
-    assert _exists(pdf_file, "pdf/mul2")
+    assert _exists(pdf_file, "pdf/mul2/all")
 
     for path in _ALL_CATEGORIES:
         assert _exists(pdf_file, f"pdf/{path}/all"), f"pdf/{path}/all"

@@ -399,7 +399,7 @@ Example with the pulse-shape library and the `all` group only:
 
 ```text
 pdf/
-├── mul2
+├── mul2/all
 └── mul1/
     ├── is_spms_coincident/
     │   ├── is_high_aoe/all
@@ -472,11 +472,11 @@ read_pdf("mul1/not_spms_coincident/is_ss_aoe", "pdf.lh5", group="icpc")
 
 #### 2D histograms
 
-| Key    | Description                                                                                                                                                                   |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mul2` | Multiplicity-2 events with exactly two ON detectors fired. A 2D histogram with axes (E_low, E_high), where E_low ≤ E_high are the two hit energies sorted in ascending order. |
+| Key        | Description                                                                                                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mul2/all` | Multiplicity-2 events with exactly two ON detectors fired. A 2D histogram with axes (E_low, E_high), where E_low ≤ E_high are the two hit energies sorted in ascending order. |
 
-`mul2` is a single global histogram and is **not** split by detector group.
+`mul2` is **not** split by detector group: only the `all` group is present.
 Per-channel or per-pair 2-D PDFs are out of scope for the current
 implementation.
 
