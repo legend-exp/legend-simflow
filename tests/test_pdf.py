@@ -8,14 +8,18 @@ import lh5
 import numpy as np
 import pytest
 from lgdo import Histogram
+from reboost.math.functions import piecewise_linear_activeness as reference
 
 from legendsimflow.pdf import (
     aoe_categories,
     build_pdf_grid,
+    collected_energy,
     fccd_by_uid,
     fccd_categories,
+    flatten_surface_steps,
     format_pdf_struct,
     lar_categories,
+    piecewise_linear_activeness,
     read_pdf,
     validate_grid,
 )
@@ -102,39 +106,28 @@ def test_lar_categories():
     assert categories["not_spms_coincident"].tolist() == [False, True, True]
 
 
-def _psd_events():
-    # one hit per event; the second hit of event 0 is not selected
-    # - event 0: single-site
-    # - event 1: multi-site
-    # - event 2: above the high-side cut
-    # - event 3: no simulated A/E
-    # - event 4: no valid PSD in data
-    def per_hit(values):
-        return [[values[0], False], *([v] for v in values[1:])]
-
+def _psd_hits():
+    # - hit 0: single-site
+    # - hit 1: multi-site
+    # - hit 2: above the high-side cut
+    # - hit 3: no simulated A/E
+    # - hit 4: no valid PSD in data
     model = {
-        "has_aoe": per_hit([True, True, True, False, True]),
-        "is_single_site": per_hit([True, False, True, False, True]),
-        "is_high_aoe": per_hit([False, False, True, False, False]),
+        "has_aoe": [True, True, True, False, True],
+        "is_single_site": [True, False, True, False, True],
+        "is_high_aoe": [False, False, True, False, False],
     }
-    evt = ak.Array(
+    return ak.Array(
         {
-            "geds": {
-                "psd": {
-                    "is_good": per_hit([True, True, True, True, False]),
-                    "pulse_lib": model,
-                    "single_temp": model,
-                }
-            }
+            "is_good": [True, True, True, True, False],
+            "pulse_lib": model,
+            "single_temp": model,
         }
     )
-    is_hit = ak.Array([[True, False], [True], [True], [True], [True]])
-    return evt, is_hit
 
 
 def test_aoe_categories_pulse_lib():
-    evt, is_hit = _psd_events()
-    categories = aoe_categories(evt, is_hit, "pulse_lib")
+    categories = aoe_categories(_psd_hits(), "pulse_lib")
 
     assert categories["is_ss_aoe"].tolist() == [True, False, False, False, False]
     assert categories["is_low_aoe"].tolist() == [False, True, False, False, False]
@@ -144,8 +137,7 @@ def test_aoe_categories_pulse_lib():
 
 
 def test_aoe_categories_single_temp():
-    evt, is_hit = _psd_events()
-    categories = aoe_categories(evt, is_hit, "single_temp")
+    categories = aoe_categories(_psd_hits(), "single_temp")
 
     # no high-side cut: event 2 is single-site
     assert "is_high_aoe" not in categories
@@ -153,24 +145,36 @@ def test_aoe_categories_single_temp():
     _assert_partition(categories)
 
 
-def test_fccd_categories():
-    # FCCD 1 mm; the energy in the FCCD layer is 5, 15 and 0 keV
-    evt = ak.Array(
+def _geds_surface():
+    # the second hit of event 1 (UID 2) has no depositions near the surface
+    return ak.Array(
         {
-            "geds": {
-                "surface": {
-                    "edep": [[[5.0, 20.0]], [[10.0, 5.0]], [[50.0]]],
-                    "distance_to_nplus": [[[0.5, 2.0]], [[0.1, 0.9]], [[1.5]]],
-                }
-            }
+            "energy": [[1000.0], [800.0, 300.0]],
+            "rawid": [[1], [1, 2]],
+            "surface": {
+                "edep": [[[10.0, 20.0]], [[5.0], []]],
+                "distance_to_nplus": [[[0.5, 2.0]], [[0.1], []]],
+                "energy_bulk": [[970.0], [795.0, 300.0]],
+            },
         }
     )
-    is_hit = ak.Array([[True], [True], [True]])
-    categories = fccd_categories(
-        evt, is_hit, np.array([1.0, 1.0, 1.0]), energy_thr_kev=10
-    )
 
-    assert categories["is_fccd_tagged"].tolist() == [False, True, False]
+
+def test_flatten_surface_steps():
+    steps = flatten_surface_steps(_geds_surface(), np.array([1, 2]))
+
+    assert steps["energy_bulk"].tolist() == [970.0, 795.0, 300.0]
+    assert steps["hit"].tolist() == [0, 0, 1]
+    assert steps["det"].tolist() == [0, 0, 0]
+    assert steps["edep"].tolist() == [10.0, 20.0, 5.0]
+
+
+def test_fccd_categories():
+    # FCCD 1 mm; the energy in the FCCD layer is 10, 5 and 0 keV
+    steps = flatten_surface_steps(_geds_surface(), np.array([1, 2]))
+    categories = fccd_categories(steps, np.array([1.0, 1.0]), energy_thr_kev=6)
+
+    assert categories["is_fccd_tagged"].tolist() == [True, False, False]
     _assert_partition(categories)
 
 
@@ -186,6 +190,29 @@ def test_fccd_by_uid(config, caplog):
         _, fccd_mm = fccd_by_uid(config.metadata, {"V99000A": 5}, surface_depth=0.5)
     assert fccd_mm.tolist() == [0.5]
     assert "exceeds surface_depth_in_mm" in caplog.text
+
+
+@pytest.mark.parametrize("dlf", [0, 0.5, 1])
+def test_piecewise_linear_activeness(dlf):
+    distance = np.array([0, 0.2, 0.5, 0.9, 1.0, 1.5])
+    assert piecewise_linear_activeness(distance, 1.0, dlf) == pytest.approx(
+        reference(ak.Array(distance), 1.0, dlf).to_numpy()
+    )
+
+
+def test_collected_energy():
+    steps = flatten_surface_steps(_geds_surface(), np.array([1, 2]))
+
+    # activeness at 0.5 mm and 0.1 mm, FCCD 1 mm: 0 and 0 with DLF 0.5, 0.5 and
+    # 0.1 with DLF 0
+    collected = collected_energy(steps, np.array([1.0, 1.0]), 0.5)
+    assert collected.tolist() == pytest.approx([990.0, 795.0, 300.0])
+    collected = collected_energy(steps, np.array([1.0, 1.0]), 0)
+    assert collected.tolist() == pytest.approx([995.0, 795.5, 300.0])
+
+    # FCCD 0.4 mm: the deposition at 0.5 mm is fully collected
+    collected = collected_energy(steps, np.array([0.4, 1.0]), 0.5)
+    assert collected.tolist() == pytest.approx([1000.0, 795.0, 300.0])
 
 
 def test_format_pdf_struct():

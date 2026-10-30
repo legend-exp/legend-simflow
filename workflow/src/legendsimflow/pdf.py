@@ -14,10 +14,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Probability density functions (PDFs) of the pdf tier.
 
-- event categories: LAr veto, A/E and energy in the FCCD layer. The functions
-  take events of the `evt` (or `cvt`) tier as :class:`awkward.Array` and
-  return one event mask per category. Each event is in exactly one category
-  of each level.
+- event categories: LAr veto, A/E and energy in the FCCD layer. The
+  functions return one mask per category, of the events (LAr veto) or of the
+  HPGe hits (A/E, FCCD). Each event or hit is in exactly one category of each
+  level.
+- the energy of the HPGe hits for other dead-layer models.
 - the output struct of the pdf tier, and reading the sum of its categories.
 - spectra on a grid of parameters, in the layout Refit.jl reads as a
   generalised histogram.
@@ -84,7 +85,7 @@ def build_pdf_grid(
     grid_info = Struct()
     values = {}
     for d, (name, (first, last, step)) in enumerate(axes.items()):
-        values[name] = first + step * np.arange(round((last - first) / step) + 1)
+        values[name] = grid_axis_values(first, last, step)
         grid_info.add_field(f"axis_{d}/name", Scalar(name))
         for key, value in (("first", first), ("last", last), ("step", step)):
             grid_info.add_field(f"axis_{d}/values/{key}", Scalar(float(value)))
@@ -110,6 +111,11 @@ def build_pdf_grid(
 
     # one grid if pdf returns one histogram
     return grids.get(None, grids)
+
+
+def grid_axis_values(first: float, last: float, step: float) -> np.ndarray:
+    """Return the values of a grid axis of :func:`build_pdf_grid`."""
+    return first + step * np.arange(round((last - first) / step) + 1)
 
 
 def validate_grid(grid: Struct) -> None:
@@ -153,17 +159,12 @@ def validate_grid(grid: Struct) -> None:
             raise ValueError(msg)
 
 
-def _one_hit(field: ak.Array, is_hit: ak.Array) -> ak.Array:
-    """Return the field of the one selected hit of each event."""
-    return field[is_hit][:, 0]
-
-
 def category_levels(
     has_spms_coinc: bool, aoe_model: str | None, fccd_thr: float | None
 ) -> list[dict[str, str]]:
     """Return the event categories (name -> description), one dict per level.
 
-    The names are the keys of the event masks of :func:`lar_categories`,
+    The names are the keys of the masks of :func:`lar_categories`,
     :func:`aoe_categories` and :func:`fccd_categories`. A level is left out when
     its data is missing.
 
@@ -221,10 +222,8 @@ def lar_categories(evt: ak.Array) -> dict[str, np.ndarray]:
     return {"is_spms_coincident": spms, "not_spms_coincident": ~spms}
 
 
-def aoe_categories(
-    evt: ak.Array, is_hit: ak.Array, aoe_model: str
-) -> dict[str, np.ndarray]:
-    """Return the event masks of the A/E categories, from the A/E of one hit.
+def aoe_categories(psd: ak.Array, aoe_model: str) -> dict[str, np.ndarray]:
+    """Return the hit masks of the A/E categories.
 
     The flags come from ``geds.psd`` and its ``<aoe_model>`` subtable. The A/E
     classifier is the corrected A/E in units of its resolution, compared in
@@ -240,27 +239,29 @@ def aoe_categories(
       (``is_single_site``);
     - ``is_low_aoe``: multi-site, classifier below the low-side cut.
 
-    Each event is in exactly one category.
+    Each hit is in exactly one category.
 
     Parameters
     ----------
-    evt
-        events of the `evt` tier, with one hit selected by `is_hit` in each.
-    is_hit
-        selection of the hit of each event.
+    psd
+        ``geds.psd`` of the `evt` tier. The masks have one entry per hit, in
+        the order of ``ak.flatten(geds.energy)``.
     aoe_model
         ``pulse_lib`` (pulse-shape library) or ``single_temp`` (single
         template).
     """
-    psd = evt.geds.psd
+
+    def per_hit(field):
+        return ak.to_numpy(ak.flatten(field, axis=None))
+
     aoe = psd[aoe_model]
-    valid = ak.to_numpy(_one_hit(psd.is_good, is_hit) & _one_hit(aoe.has_aoe, is_hit))
-    single_site = ak.to_numpy(_one_hit(aoe.is_single_site, is_hit))
+    valid = per_hit(psd.is_good) & per_hit(aoe.has_aoe)
+    single_site = per_hit(aoe.is_single_site)
 
     categories = {}
     high = np.zeros(len(valid), dtype=bool)
     if aoe_model == "pulse_lib":
-        high = valid & ak.to_numpy(_one_hit(aoe.is_high_aoe, is_hit))
+        high = valid & per_hit(aoe.is_high_aoe)
         categories["is_high_aoe"] = high
     categories["is_ss_aoe"] = valid & ~high & single_site
     categories["is_low_aoe"] = valid & ~high & ~single_site
@@ -269,34 +270,34 @@ def aoe_categories(
 
 
 def fccd_categories(
-    evt: ak.Array, is_hit: ak.Array, fccd_mm: np.ndarray, energy_thr_kev: float
+    steps: Mapping[str, np.ndarray], fccd_mm: np.ndarray, energy_thr_kev: float
 ) -> dict[str, np.ndarray]:
-    """Return the event masks of the FCCD categories, from the steps of one hit.
+    """Return the hit masks of the FCCD categories.
 
-    The energy in the FCCD layer is the sum of the energy depositions
-    ``geds.surface.edep`` (keV) with a distance to the n+ surface
-    ``geds.surface.distance_to_nplus`` (mm) smaller than the FCCD of the
-    detector. These are the energies as deposited, before the dead-layer
-    model:
+    The energy in the FCCD layer is the sum of the energy depositions near the
+    n+ surface that are closer to it than the FCCD of the detector. These are
+    the energies as deposited, before the dead-layer model:
 
     - ``is_fccd_tagged``: more than `energy_thr_kev` in the FCCD layer;
     - ``not_fccd_tagged``: at most `energy_thr_kev` in the FCCD layer.
 
     Parameters
     ----------
-    evt
-        events of the `evt` tier, with one hit selected by `is_hit` in each.
-    is_hit
-        selection of the hit of each event.
+    steps
+        the depositions near the n+ surface, from :func:`flatten_surface_steps`.
     fccd_mm
-        FCCD in mm of the detector of the hit, for each event.
+        FCCD in mm of each detector, in the order of the UIDs given to
+        :func:`flatten_surface_steps`.
     energy_thr_kev
         energy threshold in keV.
     """
-    surface = evt.geds.surface
-    in_fccd = _one_hit(surface.distance_to_nplus, is_hit) < fccd_mm
-    edep_fccd = ak.sum(_one_hit(surface.edep, is_hit)[in_fccd], axis=-1)
-    tagged = ak.to_numpy(edep_fccd > energy_thr_kev)
+    in_fccd = steps["distance"] < fccd_mm[steps["det"]]
+    edep_fccd = np.bincount(
+        steps["hit"],
+        weights=steps["edep"] * in_fccd,
+        minlength=len(steps["energy_bulk"]),
+    )
+    tagged = edep_fccd > energy_thr_kev
     return {"is_fccd_tagged": tagged, "not_fccd_tagged": ~tagged}
 
 
@@ -338,6 +339,89 @@ def fccd_by_uid(
             )
             fccd_mm[i] = surface_depth
     return uids, fccd_mm
+
+
+def piecewise_linear_activeness(
+    distance: np.ndarray, fccd_mm: np.ndarray | float, dlf: float
+) -> np.ndarray:
+    """Return the charge-collection efficiency of energy depositions near the n+ surface.
+
+    Same model as :func:`reboost.math.functions.piecewise_linear_activeness`,
+    but with one FCCD per deposition: 0 up to ``dlf * fccd_mm`` from the
+    surface, rising linearly to 1 at `fccd_mm`, and 1 beyond.
+
+    Parameters
+    ----------
+    distance
+        distance of each deposition to the n+ surface in mm.
+    fccd_mm
+        FCCD in mm, for each deposition or for all.
+    dlf
+        dead layer fraction, the fraction of the FCCD that is fully inactive.
+    """
+    dead = fccd_mm * dlf
+    with np.errstate(divide="ignore", invalid="ignore"):
+        act = np.clip((distance - dead) / (fccd_mm - dead), 0, 1)
+    # 0/0 only at the inner edge of a dead layer as thick as the FCCD
+    return np.nan_to_num(act, nan=0.0, copy=False)
+
+
+def flatten_surface_steps(geds: ak.Array, uids: np.ndarray) -> dict[str, np.ndarray]:
+    """Return the HPGe depositions near the n+ surface as flat arrays.
+
+    The hits are numbered in the order of ``ak.flatten(geds.energy)``.
+
+    Parameters
+    ----------
+    geds
+        HPGe hits of the `evt` tier, with the ``surface`` subtable.
+    uids
+        sorted detector UIDs.
+
+    Returns
+    -------
+    ``energy_bulk`` (keV), one entry per hit, and one entry per deposition:
+    ``hit`` (the number of its hit), ``det`` (the index of its detector in
+    `uids`), ``edep`` (keV) and ``distance`` (to the n+ surface, mm).
+    """
+    surface = geds.surface
+    n_steps = ak.to_numpy(ak.flatten(ak.num(surface.edep, axis=-1)))
+    hit = np.repeat(np.arange(len(n_steps)), n_steps)
+    hit_det = np.searchsorted(uids, ak.to_numpy(ak.flatten(geds.rawid)))
+    return {
+        "energy_bulk": ak.to_numpy(ak.flatten(surface.energy_bulk)),
+        "hit": hit,
+        "det": hit_det[hit],
+        "edep": ak.to_numpy(ak.flatten(surface.edep, axis=None)),
+        "distance": ak.to_numpy(ak.flatten(surface.distance_to_nplus, axis=None)),
+    }
+
+
+def collected_energy(
+    steps: Mapping[str, np.ndarray], fccd_mm: np.ndarray, dlf: float
+) -> np.ndarray:
+    """Return the energy (keV) collected from each HPGe hit, before smearing.
+
+    The collected energy is ``energy_bulk`` plus the depositions near the n+
+    surface weighted by their activeness (see
+    :func:`piecewise_linear_activeness`). For another dead-layer model, the
+    energy of a hit is its nominal (smeared) energy plus the change of its
+    collected energy, so the smearing of each hit is kept.
+
+    Parameters
+    ----------
+    steps
+        the depositions near the n+ surface, from :func:`flatten_surface_steps`.
+    fccd_mm
+        FCCD in mm of each detector, in the order of the UIDs given to
+        :func:`flatten_surface_steps`.
+    dlf
+        dead layer fraction.
+    """
+    act = piecewise_linear_activeness(steps["distance"], fccd_mm[steps["det"]], dlf)
+    return steps["energy_bulk"] + np.bincount(
+        steps["hit"], weights=steps["edep"] * act, minlength=len(steps["energy_bulk"])
+    )
 
 
 def format_pdf_struct(

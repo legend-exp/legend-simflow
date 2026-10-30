@@ -71,6 +71,9 @@ TIER_SETTINGS: dict = {
     "pdf": {
         "detector_groups": None,
         "fccd_tag_energy_thr_kev": None,
+        "morph_dead_layer": False,
+        "morph_grid": {"fccd_sigma": [-5, 5, 0.5], "dlf": [0, 1, 0.1]},
+        "morph_min_fccd_in_mm": 0.5,
     },
 }
 

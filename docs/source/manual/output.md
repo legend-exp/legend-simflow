@@ -480,6 +480,38 @@ read_pdf("mul1/not_spms_coincident/is_ss_aoe", "pdf.lh5", group="icpc")
 Per-channel or per-pair 2-D PDFs are out of scope for the current
 implementation.
 
+### `pdf_morph/` dead-layer grids
+
+With `morph_dead_layer: true` (see {ref}`pdf-tier-settings`), the multiplicity-1
+PDFs are also built on a grid of dead-layer models, at
+
+```text
+pdf_morph/mul1/<lar_category>/<aoe_category>[/<fccd_category>]/<group>
+```
+
+The categories and groups are the same as in `pdf/`. Each path holds a grid in
+the layout of {func}`legendsimflow.pdf.build_pdf_grid`, with two axes:
+
+- `fccd_sigma`: the FCCD of each detector is its FCCD from the metadata plus
+  `fccd_sigma` times its positive (for `fccd_sigma > 0`) or negative
+  uncertainty. A detector without an uncertainty in the metadata gets 0.2 mm.
+  The FCCD is then limited to the range from `morph_min_fccd_in_mm` to
+  `surface_depth_in_mm`;
+- `dlf`: the dead layer fraction.
+
+At each grid point, the energy of each hit is its nominal energy plus the change
+of its collected energy (see {func}`legendsimflow.pdf.collected_energy`), from
+`geds/surface/edep`, `geds/surface/distance_to_nplus` and
+`geds/surface/energy_bulk`. The energy threshold, the multiplicity and the FCCD
+categories are then applied to the recomputed energies, with the shifted FCCD.
+The A/E and LAr categories are not recomputed. The grid point with
+`fccd_sigma = 0` and the `dead_layer_fraction` of the `hit` tier gives the PDFs
+of `pdf/`, if this point is on the grid and the FCCD is in the allowed range.
+
+Each grid point holds a full set of 1D histograms, about 50 kB each. Keep the
+number of grid points times the number of histograms in `pdf/` small enough for
+the 2 GB memory of a job: the default grid has 231 points.
+
 ### Spectra on a grid of parameters
 
 {func}`legendsimflow.pdf.build_pdf_grid` evaluates a PDF, a function of the
@@ -498,13 +530,20 @@ surface = ak.to_packed(geds.surface[in_det])  # copy the hits of the detector
 energy = ak.flatten(geds.energy[in_det])
 dist = ak.flatten(surface.distance_to_nplus)
 edep = ak.flatten(surface.edep)
-act_nominal = piecewise_linear_activeness(dist, fccd, dlf)
+energy_bulk = ak.flatten(surface.energy_bulk)
+
+
+def collected(fccd, dlf):
+    act = piecewise_linear_activeness(dist, fccd, dlf)
+    return energy_bulk + ak.sum(edep * act, axis=-1)
+
+
+collected_nominal = collected(fccd, dlf)
 
 
 def pdf(pars):
-    act = piecewise_linear_activeness(dist, pars["fccd"], pars["dlf"])
-    # nominal (smeared) energy plus the change of the collected energy
-    e = energy + ak.sum(edep * (act - act_nominal), axis=-1)
+    # nominal (smeared) energy with the nominal collected energy replaced
+    e = energy - collected_nominal + collected(pars["fccd"], pars["dlf"])
     return hist.new.Reg(6000, 0, 6000).Double().fill(e[e > 25])  # keV threshold
 
 

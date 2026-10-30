@@ -282,6 +282,9 @@ def _make_cvt_file_surface(path: Path) -> None:
                     "distance_to_nplus": VectorOfVectors(
                         ak.Array([[[0.5, 2.0]], [[0.3]], [[1.0], [0.1]], [[], [], []]])
                     ),
+                    "energy_bulk": VectorOfVectors(
+                        data=[[975.0], [985.0], [799.0, 0.0], [300.0, 400.0, 5.0]]
+                    ),
                 }
             ),
         }
@@ -313,6 +316,9 @@ def test_pdf_energy_threshold(tmp_path, monkeypatch):
     assert mul2.sum() == 1
     assert mul2[300j, 400j] == 1
 
+    # the dead-layer grids are built only with morph_dead_layer
+    assert not _exists(pdf_file, "pdf_morph")
+
 
 def test_pdf_fccd_tag(tmp_path, monkeypatch):
     meta_dir = _make_metadata(
@@ -336,6 +342,41 @@ def test_pdf_fccd_tag_needs_surface_steps(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="store_surface_steps"):
         _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+
+
+def test_pdf_morph_dead_layer(tmp_path, monkeypatch):
+    meta_dir = _make_metadata(
+        tmp_path,
+        evt={"skip_opt": True},
+        hit={"simulate_psd": False, "store_surface_steps": True},
+        pdf={
+            "morph_dead_layer": True,
+            "morph_grid": {"fccd_sigma": [-5, 5, 5], "dlf": [0, 1, 0.5]},
+            "morph_min_fccd_in_mm": 0.4,
+        },
+    )
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file_surface(cvt_file)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+
+    grid = lh5.read("pdf_morph/mul1/all", pdf_file)
+    assert grid["grid_info"]["axis_0"]["name"].value == b"fccd_sigma"
+    assert grid["grid_info"]["axis_1"]["name"].value == b"dlf"
+
+    def _hist(point):
+        return grid["grid"][point].view_as("hist")
+
+    # the nominal model (FCCD 0.75 mm, DLF 0.5) gives the nominal PDF
+    nominal = lh5.read_as("pdf/mul1/all", pdf_file, "hist")
+    assert _hist("fccd_sigma_1/dlf_1") == nominal
+
+    # DLF 0: the 15 keV at 0.3 mm of event 1 are 40% collected, +6 keV
+    assert _hist("fccd_sigma_1/dlf_0")[1006j] == 1
+
+    # FCCD 0.75 - 5 * 0.1 mm is limited to 0.4 mm, DLF 1: the 5 keV at
+    # 0.5 mm of event 0 are fully collected, the 15 keV at 0.3 mm are lost
+    assert _hist("fccd_sigma_0/dlf_2")[1003j] == 1
+    assert _hist("fccd_sigma_0/dlf_2").sum() == 3
 
 
 def _make_cvt_file_no_geds(path: Path) -> None:

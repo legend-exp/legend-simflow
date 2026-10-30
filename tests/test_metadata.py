@@ -256,6 +256,17 @@ def test_fccd(config):
     assert metadata.get_sanitized_fccd(config.metadata, "B99000A") == 0.75
 
 
+def test_fccd_uncertainty(config, caplog):
+    assert metadata.get_sanitized_fccd_uncertainty(config.metadata, "B99000A") == (
+        0.1,
+        0.1,
+    )
+    with caplog.at_level("WARNING"):
+        unc = metadata.get_sanitized_fccd_uncertainty(config.metadata, "V00000X")
+    assert unc == (0.2, 0.2)
+    assert "no usable FCCD uncertainty" in caplog.text
+
+
 def test_extract_integer():
     """Test extract_integer reads integer from file."""
     with tempfile.TemporaryDirectory() as tmpdir:

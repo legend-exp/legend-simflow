@@ -788,6 +788,13 @@ detector_groups:
 
 # optional: split the events by the energy deposited in the FCCD layer
 fccd_tag_energy_thr_kev: 10
+
+# optional: also build the PDFs on a grid of dead-layer models
+morph_dead_layer: true
+morph_grid:
+  fccd_sigma: [-5, 5, 0.5]
+  dlf: [0, 1, 0.1]
+morph_min_fccd_in_mm: 0.5
 ```
 
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
@@ -808,6 +815,17 @@ fccd_tag_energy_thr_kev: 10
   them by a separate factor, for example for the rejection of n+ surface events.
   Requires `store_surface_steps` in the `hit` tier (see
   {ref}`hit-tier-settings`).
+- `morph_dead_layer` (bool, default `false`) — also build the multiplicity-1
+  PDFs on a grid of dead-layer models, in the `pdf_morph` group of the output
+  (see {ref}`pdf-tier`). Requires `store_surface_steps` in the `hit` tier.
+- `morph_grid` (mapping, default `fccd_sigma: [-5, 5, 0.5]`, `dlf: [0, 1, 0.1]`)
+  — the `[first, last, step]` values of the two grid axes. `fccd_sigma` shifts
+  the FCCD of each detector by this number of standard deviations of its FCCD
+  uncertainty, read from the detector metadata, 0.2 mm if missing. `dlf` is the
+  dead layer fraction.
+- `morph_min_fccd_in_mm` (float, default `0.5`) — smallest physical FCCD in mm.
+  The shifted FCCD is limited to the range from this value to
+  `surface_depth_in_mm` of the `hit` tier.
 
 ## `pars/` — simulation parameters
 
