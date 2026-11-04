@@ -237,7 +237,9 @@ def test_get_simconfig_validates_keys(config):
 
 def test_get_simconfig_invalid_key_raises(config):
     # inject an invalid top-level key and ensure full simconfig load validates it
-    config.metadata.simprod.config.tier.stp[config.experiment].simconfig[123] = {}
+    simconfig = config.metadata.simprod.config.tier.stp[config.experiment].simconfig
+    simconfig.__readonly__ = False
+    simconfig[123] = {}
 
     with pytest.raises(SimflowConfigError, match=r"123"):
         metadata.get_simconfig(config, "stp")

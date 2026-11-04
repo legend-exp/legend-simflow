@@ -100,7 +100,9 @@ def main() -> None:
     cvt_file = str(nersc.dvs_ro(config, args.cvt_file))
     pdf_file = args.pdf_file
 
-    log = ldfs.utils.build_log(config.metadata.simprod.config.logging, args.log_file)
+    log = ldfs.utils.build_log(
+        config.metadata.simprod.config.logging.to_dict(), args.log_file
+    )
     log_script_invocation(log, "tier-pdf", parser, args)
 
     # the number of simulated primary events is written by remage at the root

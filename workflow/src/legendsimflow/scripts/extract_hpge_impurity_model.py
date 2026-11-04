@@ -149,7 +149,9 @@ def main() -> None:
     metadata = config.metadata
 
     if args.log_file is not None:
-        log = ldfs.utils.build_log(metadata.simprod.config.logging, args.log_file)
+        log = ldfs.utils.build_log(
+            metadata.simprod.config.logging.to_dict(), args.log_file
+        )
     else:
         logging.basicConfig(
             level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"

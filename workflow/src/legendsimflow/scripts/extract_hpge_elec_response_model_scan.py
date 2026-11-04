@@ -150,7 +150,7 @@ def main() -> None:
 
         metadata = config.metadata
 
-        log_config = metadata.simprod.config.logging
+        log_config = metadata.simprod.config.logging.to_dict()
         log = ldfs.utils.build_log(log_config, args.log_file)
 
         # the LH5 inputs are large, read them through the NERSC read-only mount

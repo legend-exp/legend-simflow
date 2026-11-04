@@ -147,7 +147,7 @@ def main() -> None:
             raise SimflowConfigError(msg, settings_block)
 
     # setup logging
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), log_file)
     log_script_invocation(log, "tier-opt", parser, args)
     perf_block, print_perf, print_perf_last = reboost.make_profiler()
 

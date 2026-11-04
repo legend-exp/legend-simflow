@@ -97,7 +97,7 @@ def main():
 
     log_file = args.log_file
 
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), log_file)
     log_script_invocation(log, "realistic-psl", parser, args)
 
     electronics_model = dbetto.utils.load_dict(elecmod_file)

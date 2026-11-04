@@ -97,7 +97,9 @@ def main() -> None:
     tier_cvt_settings = get_tier_settings(config, "cvt")
     buffer_len = tier_cvt_settings.buffer_len
 
-    log = ldfs.utils.build_log(config.metadata.simprod.config.logging, log_file)
+    log = ldfs.utils.build_log(
+        config.metadata.simprod.config.logging.to_dict(), log_file
+    )
     log_script_invocation(log, "tier-cvt", parser, args)
     log.info("starting cvt merge")
 

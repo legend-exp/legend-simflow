@@ -73,7 +73,7 @@ def main() -> None:
     runlist = sorted(args.runlist)
 
     # setup logging
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), log_file)
     log_script_invocation(log, "make-simstat-partition-file", parser, args)
 
     # get full simulation event statistics

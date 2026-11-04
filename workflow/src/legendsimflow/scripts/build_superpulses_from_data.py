@@ -124,7 +124,7 @@ def main() -> int:
         args.simflow_config, workflow=None
     ).config
     log = ldfs.utils.build_log(
-        simflow_config.metadata.simprod.config.logging, args.log_file
+        simflow_config.metadata.simprod.config.logging.to_dict(), args.log_file
     )
     log_script_invocation(log, "build-superpulses-from-data", parser, args)
 
