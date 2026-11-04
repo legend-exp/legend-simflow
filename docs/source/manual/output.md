@@ -480,6 +480,40 @@ read_pdf("mul1/not_spms_coincident/is_ss_aoe", "pdf.lh5", group="icpc")
 Per-channel or per-pair 2-D PDFs are out of scope for the current
 implementation.
 
+(pdf-tier-data)=
+
+### Data histograms
+
+With `paths.l200data` set and the `build_l200data_pdfs` setting (see
+{ref}`pdf-tier-settings`), the LEGEND-200 data of the runs of the Simflow is
+histogrammed in the same format, so that data and PDFs compare bin by bin: one
+file per run at `tier/pdf/l200data/<runid>-tier_pdf.lh5`, and their sum over all
+runs at `tier/pdf/l200data/<experiment>-l200data-tier_pdf.lh5`, the counterpart
+of the simulated PDFs, which cover the same runs. The `pdf/` struct has the same
+layout, categories (without the FCCD level, which needs the simulated steps) and
+detector groups. The root holds `livetime_in_s`, the livetime from the `runinfo`
+metadata, in place of `nr_sim_events`. {func}`legendsimflow.pdf.merge_pdf_files`
+does the sum, of any pdf tier files with the same histograms.
+
+The data is read from the `evt` (or `pet`) tier of the data production at
+`paths.l200data`. The functions of {mod}`legendsimflow.selections` apply the
+same selections to both; the fields they read are:
+
+| Selection               | Simulation (`cvt` tier)                   | Data (`evt` or `pet` tier)                                                                                          |
+| ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| hit                     | `geds.energy` above `geds_energy_thr_kev` | same, with the threshold of the `evt` tier settings                                                                 |
+| ON detector             | `geds.quality.is_good_channel`            | same                                                                                                                |
+| clean event             | —                                         | not `trigger.is_forced`, `coincident.puls`, `coincident.muon`, `coincident.muon_offline`; `geds.quality.is_bb_like` |
+| LAr veto                | `coincident.spms`                         | same                                                                                                                |
+| valid A/E               | `psd.is_good` and `psd.<model>.has_aoe`   | `psd.is_good` and a detector whose A/E the simulation models                                                        |
+| single-site             | `psd.<model>.is_single_site`              | `psd.low_aoe.is_single_site`                                                                                        |
+| above the high-side cut | `psd.pulse_lib.is_high_aoe`               | not `psd.high_aoe.is_bulk`                                                                                          |
+
+The data events in detectors that the simulation does not model (see the
+modelable-HPGe cache in `pars/detinfo/`) go to `is_invalid_aoe`, as in the
+simulation. The multiplicity is counted from the hits above threshold in both,
+and reproduces `geds.multiplicity` of the data.
+
 ### Spectra on a grid of parameters
 
 {func}`legendsimflow.pdf.build_pdf_grid` evaluates a PDF, a function of the

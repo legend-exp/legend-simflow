@@ -823,3 +823,24 @@ def benchmark_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
     """The benchmark file path for the `pdf` tier build for a `simid`."""
     pat = config.paths.benchmarks / "pdf" / (tier_pdf_base_segment(config) + ".tsv")
     return _expand(pat, **kwargs)
+
+
+def output_l200data_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the data histograms in the `pdf` tier format for a `runid`."""
+    return _expand(
+        config.paths.tier.pdf / "l200data" / "{runid}-tier_pdf.lh5", **kwargs
+    )
+
+
+def output_merged_l200data_pdf_filename(config: SimflowConfig) -> Path:
+    """The path to the data histograms of all runs of the Simflow, in the `pdf` tier format."""
+    return (
+        config.paths.tier.pdf
+        / "l200data"
+        / f"{config.experiment}-l200data-tier_pdf.lh5"
+    )
+
+
+def log_l200data_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The log file path for the data histograms of a `runid`."""
+    return _expand(log_dirname(config) / "pdf" / "{runid}-tier_pdf.log", **kwargs)

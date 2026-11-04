@@ -794,6 +794,9 @@ detector_groups:
 
 # optional: split the events by the energy deposited in the FCCD layer
 fccd_tag_energy_thr_kev: 10
+
+# optional: do not histogram the LEGEND-200 data in the same format
+build_l200data_pdfs: false
 ```
 
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"500*MB"`). Controls memory
@@ -814,6 +817,10 @@ fccd_tag_energy_thr_kev: 10
   them by a separate factor, for example for the rejection of n+ surface events.
   Requires `store_surface_steps` in the `hit` tier (see
   {ref}`hit-tier-settings`).
+- `build_l200data_pdfs` (bool, default `true`) — also histogram the LEGEND-200
+  data of the runs of the Simflow, read from `paths.l200data`, with the same
+  selections, groups and binning as the PDFs, run by run and summed over all
+  runs (see {ref}`pdf-tier-data`). Ignored if `paths.l200data` is not set.
 
 ## `pars/` — simulation parameters
 
