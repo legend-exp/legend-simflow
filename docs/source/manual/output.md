@@ -415,8 +415,8 @@ pdf/
 
 #### Categories
 
-The categories are computed by the functions in {mod}`legendsimflow.pdf`, which
-other scripts can use too.
+The categories are computed by the functions in {mod}`legendsimflow.selections`,
+which other scripts can use too.
 
 | Level | Category              | Selection                                                                                     |
 | ----- | --------------------- | --------------------------------------------------------------------------------------------- |

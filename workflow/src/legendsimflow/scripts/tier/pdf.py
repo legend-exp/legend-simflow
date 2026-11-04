@@ -32,15 +32,17 @@ from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils
 from legendsimflow.metadata import get_tier_settings
-from legendsimflow.pdf import (
+from legendsimflow.pdf import format_pdf_struct
+from legendsimflow.scripts import log_script_invocation
+from legendsimflow.selections import (
     aoe_categories,
     category_levels,
     fccd_by_uid,
     fccd_categories,
-    format_pdf_struct,
     lar_categories,
+    select_hits,
+    sim_aoe_flags,
 )
-from legendsimflow.scripts import log_script_invocation
 
 
 def _detector_group_uids(
@@ -182,16 +184,11 @@ def main() -> None:
             buffer_len=tier_pdf_settings.buffer_len,
         ):
             data = chunk.view_as("ak")
-            geds = data.geds
+            above_thr, multiplicity, is_good = select_hits(
+                data, tier_evt_settings.geds_energy_thr_kev
+            )
 
-            # apply the energy threshold again. The multiplicity is counted
-            # here, not read from geds.multiplicity, so that it matches the
-            # float32 energies.
-            above_thr = geds.energy > tier_evt_settings.geds_energy_thr_kev
-            multiplicity = ak.sum(above_thr, axis=-1)
-            is_good = ak.all(geds.quality.is_good_channel[above_thr], axis=-1)
-
-            energy_m2 = geds.energy[above_thr][(multiplicity == 2) & is_good]
+            energy_m2 = data.geds.energy[above_thr][(multiplicity == 2) & is_good]
             mul2_hist.fill(ak.min(energy_m2, axis=-1), ak.max(energy_m2, axis=-1))
 
             # multiplicity-1 events have exactly one hit above threshold
@@ -206,7 +203,7 @@ def main() -> None:
             if has_spms_coinc:
                 in_category |= lar_categories(evt_m1)
             if aoe_model is not None:
-                in_category |= aoe_categories(evt_m1, hit_m1, aoe_model)
+                in_category |= aoe_categories(*sim_aoe_flags(evt_m1, hit_m1, aoe_model))
             if fccd_thr is not None:
                 fccd_of_hit = fccd_mm[np.searchsorted(sorted_uids, uid)]
                 in_category |= fccd_categories(evt_m1, hit_m1, fccd_of_hit, fccd_thr)
