@@ -109,6 +109,7 @@ def test_make_macro(config):
 def test_make_macro_errors_1(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
+    metadata.simprod.config.tier.stp.legend.simconfig.__readonly__ = False
 
     metadata.simprod.config.tier.stp.legend.simconfig["birds_nest_K40"]["generator"] = (
         "coddue"
@@ -132,6 +133,7 @@ def test_make_macro_errors_1(fresh_config):
 def test_make_macro_errors_2(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
+    metadata.simprod.config.tier.stp.legend.simconfig.__readonly__ = False
 
     metadata.simprod.config.tier.stp.legend.simconfig["birds_nest_K40"][
         "confinement"
@@ -158,6 +160,7 @@ def test_make_macro_errors_confinement_list(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
     simconfig = metadata.simprod.config.tier.stp.legend.simconfig["birds_nest_K40"]
+    simconfig.__readonly__ = False
 
     # invalid entry first: the valid one that follows must not resurrect the
     # accumulator and crash with a TypeError instead
@@ -180,6 +183,7 @@ def test_make_macro_errors_confinement_list(fresh_config):
 def test_make_macro_errors_vertices(fresh_config):
     config = fresh_config
     metadata = fresh_config.metadata
+    metadata.simprod.config.tier.stp.legend.simconfig.__readonly__ = False
 
     metadata.simprod.config.tier.stp.legend.simconfig.exotic_physics_process[
         "confinement"
@@ -197,6 +201,7 @@ def test_make_macro_errors_vertices(fresh_config):
 def test_make_macro_errors_product(fresh_config):
     config = fresh_config
     vtx = fresh_config.metadata.simprod.config.tier.vtx.legend.simconfig
+    vtx.__readonly__ = False
 
     # kinematics only, no confinement
     with pytest.raises(SimflowConfigError):
@@ -216,6 +221,7 @@ def test_make_macro_errors_product(fresh_config):
 
     # kinematics_and_positions plus a confinement
     stp = fresh_config.metadata.simprod.config.tier.stp.legend.simconfig
+    stp.__readonly__ = False
     stp["muon_physics"]["confinement"] = "~volumes.bulk:hpge_assembly_plate_pen"
     with pytest.raises(SimflowConfigError, match="no confinement allowed"):
         commands.make_remage_macro(config, "muon_physics", "stp")

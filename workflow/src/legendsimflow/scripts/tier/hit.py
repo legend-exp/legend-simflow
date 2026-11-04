@@ -179,7 +179,7 @@ def main() -> None:
     u = pint.UnitRegistry()
 
     # setup logging
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), log_file)
     log_script_invocation(log, "tier-hit", parser, args)
     perf_block, print_perf, _ = reboost.make_profiler()
 

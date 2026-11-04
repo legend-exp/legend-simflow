@@ -132,7 +132,7 @@ def main() -> None:
         dt_file, move2cfs = nersc.make_on_scratch(config, args.drift_time_file)
         metadata = config.metadata
 
-        log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+        log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), log_file)
         log_script_invocation(log, "extract-drift-time-psl-tuning", parser, args)
 
         files = [nersc.dvs_ro(config, s) for s in files]

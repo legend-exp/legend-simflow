@@ -128,7 +128,7 @@ def main() -> None:
     config = utils.init_simflow_context(args.simflow_config, workflow=None).config
     metadata = config.metadata
 
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, args.log_file)
+    log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), args.log_file)
     log_script_invocation(log, "extract-hpge-elecmod", parser, args)
 
     # the LH5 inputs are large, read them through the NERSC read-only mount

@@ -182,7 +182,7 @@ def main() -> None:
     evt_file, move2cfs = nersc.make_on_scratch(config, evt_file)
 
     # setup logging
-    log = ldfs.utils.build_log(metadata.simprod.config.logging, log_file)
+    log = ldfs.utils.build_log(metadata.simprod.config.logging.to_dict(), log_file)
     log_script_invocation(log, "tier-evt", parser, args)
     perf_block, print_stats, print_stats_since_last = reboost.make_profiler()
 
