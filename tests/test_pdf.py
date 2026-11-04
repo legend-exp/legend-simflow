@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import itertools
 
-import awkward as ak
 import hist
 import lh5
 import numpy as np
@@ -10,12 +9,8 @@ import pytest
 from lgdo import Histogram
 
 from legendsimflow.pdf import (
-    aoe_categories,
     build_pdf_grid,
-    fccd_by_uid,
-    fccd_categories,
     format_pdf_struct,
-    lar_categories,
     read_pdf,
     validate_grid,
 )
@@ -88,104 +83,6 @@ def test_validate_grid_different_binning():
 
     with pytest.raises(ValueError, match="different binning"):
         build_pdf_grid(pdf, {"a": (0, 1, 1)})
-
-
-def _assert_partition(categories):
-    np.testing.assert_array_equal(np.sum(list(categories.values()), axis=0), 1)
-
-
-def test_lar_categories():
-    evt = ak.Array({"coincident": {"spms": [True, False, False]}})
-    categories = lar_categories(evt)
-
-    assert categories["is_spms_coincident"].tolist() == [True, False, False]
-    assert categories["not_spms_coincident"].tolist() == [False, True, True]
-
-
-def _psd_events():
-    # one hit per event; the second hit of event 0 is not selected
-    # - event 0: single-site
-    # - event 1: multi-site
-    # - event 2: above the high-side cut
-    # - event 3: no simulated A/E
-    # - event 4: no valid PSD in data
-    def per_hit(values):
-        return [[values[0], False], *([v] for v in values[1:])]
-
-    model = {
-        "has_aoe": per_hit([True, True, True, False, True]),
-        "is_single_site": per_hit([True, False, True, False, True]),
-        "is_high_aoe": per_hit([False, False, True, False, False]),
-    }
-    evt = ak.Array(
-        {
-            "geds": {
-                "psd": {
-                    "is_good": per_hit([True, True, True, True, False]),
-                    "pulse_lib": model,
-                    "single_temp": model,
-                }
-            }
-        }
-    )
-    is_hit = ak.Array([[True, False], [True], [True], [True], [True]])
-    return evt, is_hit
-
-
-def test_aoe_categories_pulse_lib():
-    evt, is_hit = _psd_events()
-    categories = aoe_categories(evt, is_hit, "pulse_lib")
-
-    assert categories["is_ss_aoe"].tolist() == [True, False, False, False, False]
-    assert categories["is_low_aoe"].tolist() == [False, True, False, False, False]
-    assert categories["is_high_aoe"].tolist() == [False, False, True, False, False]
-    assert categories["is_invalid_aoe"].tolist() == [False, False, False, True, True]
-    _assert_partition(categories)
-
-
-def test_aoe_categories_single_temp():
-    evt, is_hit = _psd_events()
-    categories = aoe_categories(evt, is_hit, "single_temp")
-
-    # no high-side cut: event 2 is single-site
-    assert "is_high_aoe" not in categories
-    assert categories["is_ss_aoe"].tolist() == [True, False, True, False, False]
-    _assert_partition(categories)
-
-
-def test_fccd_categories():
-    # FCCD 1 mm; the energy in the FCCD layer is 5, 15 and 0 keV
-    evt = ak.Array(
-        {
-            "geds": {
-                "surface": {
-                    "edep": [[[5.0, 20.0]], [[10.0, 5.0]], [[50.0]]],
-                    "distance_to_nplus": [[[0.5, 2.0]], [[0.1, 0.9]], [[1.5]]],
-                }
-            }
-        }
-    )
-    is_hit = ak.Array([[True], [True], [True]])
-    categories = fccd_categories(
-        evt, is_hit, np.array([1.0, 1.0, 1.0]), energy_thr_kev=10
-    )
-
-    assert categories["is_fccd_tagged"].tolist() == [False, True, False]
-    _assert_partition(categories)
-
-
-def test_fccd_by_uid(config, caplog):
-    uids, fccd_mm = fccd_by_uid(
-        config.metadata, {"V99000A": 5, "B99000A": 2}, surface_depth=3
-    )
-
-    assert uids.tolist() == [2, 5]
-    assert fccd_mm.tolist() == pytest.approx([0.75, 0.75])
-
-    with caplog.at_level("WARNING"):
-        _, fccd_mm = fccd_by_uid(config.metadata, {"V99000A": 5}, surface_depth=0.5)
-    assert fccd_mm.tolist() == [0.5]
-    assert "exceeds surface_depth_in_mm" in caplog.text
 
 
 def test_format_pdf_struct():

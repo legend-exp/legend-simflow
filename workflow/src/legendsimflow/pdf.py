@@ -14,11 +14,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Probability density functions (PDFs) of the pdf tier.
 
-- event categories: LAr veto, A/E and energy in the FCCD layer. The functions
-  take events of the `evt` (or `cvt`) tier as :class:`awkward.Array` and
-  return one event mask per category. Each event is in exactly one category
-  of each level.
 - the output struct of the pdf tier, and reading the sum of its categories.
+  The categories are defined in :mod:`legendsimflow.selections`.
 - spectra on a grid of parameters, in the layout Refit.jl reads as a
   generalised histogram.
 """
@@ -27,22 +24,16 @@ from __future__ import annotations
 
 import functools
 import itertools
-import logging
 import operator
 from collections.abc import Callable, Iterable, Mapping
 from fnmatch import fnmatch
 from pathlib import Path
 
-import awkward as ak
 import h5py
 import hist
 import lh5
 import numpy as np
 from lgdo import Histogram, Scalar, Struct
-
-from .metadata import get_sanitized_fccd
-
-log = logging.getLogger(__name__)
 
 
 def build_pdf_grid(
@@ -151,193 +142,6 @@ def validate_grid(grid: Struct) -> None:
         ):
             msg = f"the histogram at grid point {point} has a different binning"
             raise ValueError(msg)
-
-
-def _one_hit(field: ak.Array, is_hit: ak.Array) -> ak.Array:
-    """Return the field of the one selected hit of each event."""
-    return field[is_hit][:, 0]
-
-
-def category_levels(
-    has_spms_coinc: bool, aoe_model: str | None, fccd_thr: float | None
-) -> list[dict[str, str]]:
-    """Return the event categories (name -> description), one dict per level.
-
-    The names are the keys of the event masks of :func:`lar_categories`,
-    :func:`aoe_categories` and :func:`fccd_categories`. A level is left out when
-    its data is missing.
-
-    Parameters
-    ----------
-    has_spms_coinc
-        whether the LAr veto flag ``coincident.spms`` is available.
-    aoe_model
-        ``pulse_lib``, ``single_temp`` or `None` without simulated PSD.
-    fccd_thr
-        energy threshold in keV of the FCCD tag, or `None` without it.
-    """
-    levels = []
-    if has_spms_coinc:
-        levels.append(
-            {
-                "is_spms_coincident": "light seen by the SiPMs (fails the LAr veto)",
-                "not_spms_coincident": "no light seen by the SiPMs (passes the LAr veto)",
-            }
-        )
-    if aoe_model is not None:
-        aoe_level = {}
-        # the single template has no high-side cut
-        if aoe_model == "pulse_lib":
-            aoe_level["is_high_aoe"] = "A/E above the high-side cut"
-        aoe_level["is_ss_aoe"] = "single-site A/E (passes the A/E cuts)"
-        aoe_level["is_low_aoe"] = "A/E below the low-side cut (multi-site)"
-        aoe_level["is_invalid_aoe"] = "no valid or simulated A/E"
-        levels.append(aoe_level)
-    if fccd_thr is not None:
-        levels.append(
-            {
-                "is_fccd_tagged": f"more than {fccd_thr} keV deposited in the FCCD layer",
-                "not_fccd_tagged": f"at most {fccd_thr} keV deposited in the FCCD layer",
-            }
-        )
-    return levels
-
-
-def lar_categories(evt: ak.Array) -> dict[str, np.ndarray]:
-    """Return the event masks of the LAr veto categories.
-
-    The categories are defined by ``coincident.spms``, the LAr veto flag of
-    the `evt` tier, which is `True` when the SiPMs see enough light:
-
-    - ``is_spms_coincident``: light seen, the event fails the LAr veto;
-    - ``not_spms_coincident``: no light seen, the event passes the LAr veto.
-
-    Parameters
-    ----------
-    evt
-        events of the `evt` tier.
-    """
-    spms = ak.to_numpy(evt.coincident.spms)
-    return {"is_spms_coincident": spms, "not_spms_coincident": ~spms}
-
-
-def aoe_categories(
-    evt: ak.Array, is_hit: ak.Array, aoe_model: str
-) -> dict[str, np.ndarray]:
-    """Return the event masks of the A/E categories, from the A/E of one hit.
-
-    The flags come from ``geds.psd`` and its ``<aoe_model>`` subtable. The A/E
-    classifier is the corrected A/E in units of its resolution, compared in
-    the `hit` tier with the low- and high-side A/E cuts of the detector. In
-    order of precedence:
-
-    - ``is_invalid_aoe``: no A/E available, i.e. ``psd.is_good`` (valid PSD in
-      data) or ``has_aoe`` (A/E simulated) is `False`;
-    - ``is_high_aoe``: classifier above the high-side cut (``is_high_aoe``).
-      Only with the pulse-shape library, the single template has no
-      high-side cut;
-    - ``is_ss_aoe``: single-site, classifier above the low-side cut
-      (``is_single_site``);
-    - ``is_low_aoe``: multi-site, classifier below the low-side cut.
-
-    Each event is in exactly one category.
-
-    Parameters
-    ----------
-    evt
-        events of the `evt` tier, with one hit selected by `is_hit` in each.
-    is_hit
-        selection of the hit of each event.
-    aoe_model
-        ``pulse_lib`` (pulse-shape library) or ``single_temp`` (single
-        template).
-    """
-    psd = evt.geds.psd
-    aoe = psd[aoe_model]
-    valid = ak.to_numpy(_one_hit(psd.is_good, is_hit) & _one_hit(aoe.has_aoe, is_hit))
-    single_site = ak.to_numpy(_one_hit(aoe.is_single_site, is_hit))
-
-    categories = {}
-    high = np.zeros(len(valid), dtype=bool)
-    if aoe_model == "pulse_lib":
-        high = valid & ak.to_numpy(_one_hit(aoe.is_high_aoe, is_hit))
-        categories["is_high_aoe"] = high
-    categories["is_ss_aoe"] = valid & ~high & single_site
-    categories["is_low_aoe"] = valid & ~high & ~single_site
-    categories["is_invalid_aoe"] = ~valid
-    return categories
-
-
-def fccd_categories(
-    evt: ak.Array, is_hit: ak.Array, fccd_mm: np.ndarray, energy_thr_kev: float
-) -> dict[str, np.ndarray]:
-    """Return the event masks of the FCCD categories, from the steps of one hit.
-
-    The energy in the FCCD layer is the sum of the energy depositions
-    ``geds.surface.edep`` (keV) with a distance to the n+ surface
-    ``geds.surface.distance_to_nplus`` (mm) smaller than the FCCD of the
-    detector. These are the energies as deposited, before the dead-layer
-    model:
-
-    - ``is_fccd_tagged``: more than `energy_thr_kev` in the FCCD layer;
-    - ``not_fccd_tagged``: at most `energy_thr_kev` in the FCCD layer.
-
-    Parameters
-    ----------
-    evt
-        events of the `evt` tier, with one hit selected by `is_hit` in each.
-    is_hit
-        selection of the hit of each event.
-    fccd_mm
-        FCCD in mm of the detector of the hit, for each event.
-    energy_thr_kev
-        energy threshold in keV.
-    """
-    surface = evt.geds.surface
-    in_fccd = _one_hit(surface.distance_to_nplus, is_hit) < fccd_mm
-    edep_fccd = ak.sum(_one_hit(surface.edep, is_hit)[in_fccd], axis=-1)
-    tagged = ak.to_numpy(edep_fccd > energy_thr_kev)
-    return {"is_fccd_tagged": tagged, "not_fccd_tagged": ~tagged}
-
-
-def fccd_by_uid(
-    metadata: Mapping,
-    name_to_uid: Mapping[str, int],
-    surface_depth: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return the sorted detector UIDs and their FCCD in mm.
-
-    The FCCD is read from the detector metadata with
-    :func:`.metadata.get_sanitized_fccd`. It is limited to `surface_depth`,
-    the depth of the steps stored in ``geds.surface``, with a warning. The
-    FCCD of the detector of each hit is then
-    ``fccd_mm[np.searchsorted(uids, uid)]``.
-
-    Parameters
-    ----------
-    metadata
-        LEGEND metadata database.
-    name_to_uid
-        map of the detector names to their UIDs, e.g. ``detector_uids`` of
-        the `cvt` tier.
-    surface_depth
-        ``surface_depth_in_mm`` of the `hit` tier settings.
-    """
-    names = sorted(name_to_uid, key=name_to_uid.get)
-    uids = np.array([name_to_uid[n] for n in names], dtype=np.int64)
-    fccd_mm = np.zeros(len(names))
-    for i, name in enumerate(names):
-        fccd_mm[i] = get_sanitized_fccd(metadata, name)
-        # the steps deeper than surface_depth are not stored
-        if fccd_mm[i] > surface_depth:
-            log.warning(
-                "FCCD of %s (%s mm) exceeds surface_depth_in_mm, using %s mm",
-                name,
-                fccd_mm[i],
-                surface_depth,
-            )
-            fccd_mm[i] = surface_depth
-    return uids, fccd_mm
 
 
 def format_pdf_struct(
