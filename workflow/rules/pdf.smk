@@ -1,9 +1,17 @@
 from pathlib import Path
 
-from legendsimflow import aggregate, patterns
+from snakemake.logging import logger
+
+from legendsimflow import aggregate, patterns, utils
 from legendsimflow.metadata import get_tier_settings
 
 _pdf_settings = get_tier_settings(config, "pdf")
+
+if _pdf_settings.build_l200data_pdfs and config.paths.get("l200data") is None:
+    logger.warning(
+        "build_l200data_pdfs is set but paths.l200data is not: "
+        "the LEGEND-200 data histograms are not built"
+    )
 
 
 rule gen_all_tier_pdf:
@@ -64,3 +72,62 @@ rule build_tier_pdf:
         patterns.benchmark_tier_pdf_filename(config)
     script:
         "../src/legendsimflow/scripts/tier/pdf.py"
+
+
+rule build_pdf_from_l200data:
+    """Histogram the LEGEND-200 data of a run in the format of the `pdf` tier.
+
+    Reads the `evt` (or `pet`) tier files of the run from `paths.l200data`,
+    selects the events as `build_tier_pdf` does (see
+    {mod}`legendsimflow.selections`) and writes the histograms of each
+    category and detector group in the same layout, with the livetime of the
+    run in place of the number of simulated events. The A/E of the detectors
+    that the simulation does not model is invalid, as in the simulation.
+    `merge_l200data_pdfs` sums the runs. Only with `paths.l200data` and the
+    `build_l200data_pdfs` setting of the `pdf` tier.
+
+    Uses wildcard `runid`.
+    """
+    message:
+        "Histogramming the data of run {wildcards.runid} in the pdf tier format"
+    input:
+        evt_files=lambda wildcards: utils.lookup_evt_files(
+            config.paths.l200data,
+            wildcards.runid,
+            utils.get_evt_tier_name(config.paths.l200data),
+        ),
+        # params.modeled_detectors reads the modelable-HPGe checkpoint
+        _hpge_cache=smk_wait_for_hpge_cache,
+    params:
+        modeled_detectors=lambda wildcards: sorted(
+            smk_load_hpge_cache().get(wildcards.runid, {})
+        ),
+        detector_groups=_pdf_settings.detector_groups,
+    output:
+        patterns.output_l200data_pdf_filename(config),
+    log:
+        patterns.log_l200data_pdf_filename(config),
+    script:
+        "../src/legendsimflow/scripts/build_pdf_from_l200data.py"
+
+
+rule merge_l200data_pdfs:
+    """Sum the data histograms of all runs of the Simflow into one `pdf` tier file.
+
+    Adds the histograms of `build_pdf_from_l200data` over the runs, and their
+    livetimes, with {func}`legendsimflow.pdf.merge_pdf_files`. The output
+    sits next to the simulated PDFs, which cover the same runs.
+
+    No wildcards are used.
+    """
+    message:
+        "Merging the data histograms of all runs"
+    localrule: True
+    input:
+        aggregate.gen_list_of_all_l200data_pdf_outputs(config),
+    output:
+        patterns.output_merged_l200data_pdf_filename(config),
+    run:
+        from legendsimflow.pdf import merge_pdf_files
+
+        merge_pdf_files(input, output[0])

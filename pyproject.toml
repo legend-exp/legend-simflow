@@ -183,6 +183,7 @@ tier-hit = { description = "Run the hit tier script standalone", cmd = "python -
 tier-evt = { description = "Run the evt tier script standalone", cmd = "python -m legendsimflow.scripts.tier.evt" }
 tier-cvt = { description = "Run the cvt tier script standalone", cmd = "python -m legendsimflow.scripts.tier.cvt" }
 tier-pdf = { description = "Run the pdf tier script standalone", cmd = "python -m legendsimflow.scripts.tier.pdf" }
+tier-pdf-l200data = { description = "Histogram the LEGEND-200 data of a run in the pdf tier format", cmd = "python -m legendsimflow.scripts.build_pdf_from_l200data" }
 
 extract-hpge-obs-models = { description = "Extract HPGe observable models for a LEGEND run", cmd = "python -m legendsimflow.scripts.pars.extract_hpge_observables_models" }
 extract-hpge-currmod = { description = "Extract the HPGe current-pulse model for a LEGEND run", cmd = "python -m legendsimflow.scripts.extract_hpge_current_pulse_model" }

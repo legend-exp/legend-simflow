@@ -71,6 +71,7 @@ TIER_SETTINGS: dict = {
     "pdf": {
         "detector_groups": None,
         "fccd_tag_energy_thr_kev": None,
+        "build_l200data_pdfs": True,
     },
 }
 

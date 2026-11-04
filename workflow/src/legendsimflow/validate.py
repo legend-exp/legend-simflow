@@ -82,7 +82,9 @@ DATAFLOW_CONFIG_SPEC = {
 #: - ``evt_rc_forced_trigger``, ``evt_rc_noise_trigger``: event-tier fields
 #:   read to add random coincidences, for each ``random_coincidence_mode``;
 #: - ``evt_impurity_tuning``: event-tier fields read to tune the HPGe
-#:   impurities.
+#:   impurities;
+#: - ``evt_pdf``: event-tier fields read to histogram the data in the format
+#:   of the pdf tier.
 #:
 #: The format is described in :func:`check_spec`.
 LH5_SPECS = {
@@ -146,6 +148,22 @@ LH5_SPECS = {
             "geds/quality/is_bb_like": {},
             "spms/event_t0": {},
             "spms/energy_sum": {},
+        }
+    },
+    "evt_pdf": {
+        "evt": {
+            "trigger/is_forced": {},
+            "coincident/puls": {},
+            "coincident/muon": {},
+            "coincident/muon_offline": {},
+            "coincident/spms": {},
+            "geds/energy": {},
+            "geds/rawid": {},
+            "geds/quality/is_good_channel": {},
+            "geds/quality/is_bb_like": {},
+            "geds/psd/is_good": {},
+            "geds/psd/low_aoe/is_single_site": {},
+            "geds/psd/high_aoe/is_bulk": {},
         }
     },
 }
@@ -329,6 +347,9 @@ def _data_problems(
             for r in get_runlist(config, simid)
         }
         checks.setdefault((evt_tier, "evt_impurity_tuning"), set()).update(runs)
+
+    if get_tier_settings(config, "pdf").build_l200data_pdfs:
+        checks.setdefault((evt_tier, "evt_pdf"), set()).update(runids)
 
     if not checks:
         return problems

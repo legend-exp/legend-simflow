@@ -182,6 +182,17 @@ def test_l200data_layout_superpulses_t0(fresh_config, l200data, monkeypatch):
     validate.l200data_layout(config)
 
 
+def test_l200data_layout_pdf(fresh_config, l200data):
+    config = fresh_config
+    config.paths["l200data"] = l200data
+    file = next((l200data / "generated/tier/pet/phy/p02/r000").glob("*.lh5"))
+    with h5py.File(file, "a") as f:
+        del f["evt/geds/psd/low_aoe/is_single_site"]
+
+    with pytest.raises(SimflowConfigError, match="low_aoe/is_single_site: not found"):
+        validate.l200data_layout(config)
+
+
 def test_l200data_layout_not_a_folder(fresh_config, tmp_path):
     fresh_config.paths["l200data"] = tmp_path / "nope"
     with pytest.raises(SimflowConfigError, match="is not a folder"):

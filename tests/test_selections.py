@@ -6,6 +6,7 @@ import pytest
 
 from legendsimflow.selections import (
     aoe_categories,
+    aoe_model,
     category_levels,
     data_aoe_flags,
     fccd_by_uid,
@@ -53,6 +54,17 @@ def test_is_clean_data_event():
         }
     )
     assert is_clean_data_event(evt).tolist() == [True] + [False] * 5
+
+
+def test_aoe_model():
+    assert (
+        aoe_model({"simulate_psd": True, "simulate_psd_with_psl": True}) == "pulse_lib"
+    )
+    assert (
+        aoe_model({"simulate_psd": True, "simulate_psd_with_psl": False})
+        == "single_temp"
+    )
+    assert aoe_model({"simulate_psd": False, "simulate_psd_with_psl": False}) is None
 
 
 def test_category_levels():

@@ -533,6 +533,35 @@ def test_skip_opt_and_hit_are_mutually_exclusive(tmp_path):
         )
 
 
+def test_build_l200data_pdfs_adds_data_rules(tmp_path, config):
+    """With `paths.l200data`, the data histograms of every run and their sum are scheduled."""
+    # a data production with one empty pet file per run of the Simflow
+    prod = tmp_path / "l200data"
+    prod.mkdir()
+    shutil.copy(Path(__file__).parent / "l200data/v3.0.0/dataflow-config.yaml", prod)
+    for runid in agg.gen_list_of_all_runids(config):
+        _, period, run, datatype = runid.split("-")
+        folder = prod / "generated/tier/pet" / datatype / period / run
+        folder.mkdir(parents=True)
+        (folder / f"{runid}-tier_pet.lh5").touch()
+
+    rules = {"build_pdf_from_l200data", "merge_l200data_pdfs"}
+    cfg = overrides(tmp_path / "on")
+    cfg["paths"]["l200data"] = str(prod)
+    assert rules <= dag_rule_names(default_config, cfg)
+
+    cfg = overrides(
+        tmp_path / "off",
+        experiment="legend",
+        settings_by_tier={"pdf": {"build_l200data_pdfs": False}},
+    )
+    cfg["paths"]["l200data"] = str(prod)
+    assert not rules & dag_rule_names(default_config, cfg)
+
+    # no data production: nothing to histogram
+    assert not rules & dag_rule_names(default_config, overrides(tmp_path / "none"))
+
+
 def test_geom_plots_scheduled(tmp_path):
     """The geometry validation plots are scheduled with the stp tier."""
     rules = dag_rule_names(default_config, overrides(tmp_path))

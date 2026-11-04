@@ -1081,10 +1081,28 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
 
 # tier pdf
 def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
-    """Generate the list of all ``pdf`` tier files in the Simflow."""
-    return [
+    """Generate the list of all ``pdf`` tier files in the Simflow.
+
+    With the ``build_l200data_pdfs`` setting of the ``pdf`` tier and
+    ``paths.l200data`` set, the data histograms merged over all runs of the
+    Simflow are included.
+    """
+    files = [
         patterns.output_tier_pdf_filename(config, simid=simid, **kwargs)
         for simid in gen_list_of_all_simids(config)
+    ]
+    if get_tier_settings(config, "pdf").build_l200data_pdfs and config.paths.get(
+        "l200data"
+    ):
+        files.append(patterns.output_merged_l200data_pdf_filename(config))
+    return files
+
+
+def gen_list_of_all_l200data_pdf_outputs(config: SimflowConfig) -> list[Path]:
+    """Generate the list of the data histograms of every run of the Simflow."""
+    return [
+        patterns.output_l200data_pdf_filename(config, runid=runid)
+        for runid in sorted(gen_list_of_all_runids(config))
     ]
 
 

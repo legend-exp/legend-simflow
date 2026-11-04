@@ -16,57 +16,35 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
-import itertools
-import logging
-import re
-from collections.abc import Mapping
 
 import awkward as ak
-import hist
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
 import numpy as np
-from lgdo import Histogram, Scalar, Struct
+from lgdo import Scalar, Struct
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, utils
 from legendsimflow.metadata import get_tier_settings
-from legendsimflow.pdf import format_pdf_struct
+from legendsimflow.pdf import (
+    fill_histograms,
+    format_pdf_struct,
+    group_detectors,
+    new_histograms,
+)
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.selections import (
     aoe_categories,
+    aoe_model,
     category_levels,
     fccd_by_uid,
     fccd_categories,
     lar_categories,
+    one_hit,
     select_hits,
     sim_aoe_flags,
 )
-
-
-def _detector_group_uids(
-    groups: Mapping[str, str] | None,
-    name_to_uid: Mapping[str, int],
-    log: logging.Logger,
-) -> dict[str, np.ndarray]:
-    """Return the UIDs of the detectors in each group, plus the implicit ``all`` group."""
-    groups = dict(groups or {})
-    if groups.get("all", ".*") != ".*":
-        log.warning(
-            "detector_groups sets 'all' to %r; it will be overridden by the implicit all-detector group '.*'",
-            groups["all"],
-        )
-    groups["all"] = ".*"
-
-    group_uids = {}
-    for name, pattern in groups.items():
-        rgx = re.compile(pattern)
-        matched = sorted(uid for n, uid in name_to_uid.items() if rgx.fullmatch(n))
-        if not matched:
-            log.warning("detector group %r matches no detectors", name)
-        group_uids[name] = np.asarray(matched, dtype=np.int64)
-    return group_uids
 
 
 @snakemake_compatible(
@@ -120,13 +98,7 @@ def main() -> None:
     # without HPGe data (skip_hit) there is nothing to histogram
     if not tier_evt_settings.skip_hit:
         has_spms_coinc = not tier_evt_settings.skip_opt
-        # the A/E categories come from the pulse-shape library when it was
-        # simulated, otherwise from the single template
-        aoe_model = None
-        if tier_hit_settings.simulate_psd_with_psl:
-            aoe_model = "pulse_lib"
-        elif tier_hit_settings.simulate_psd:
-            aoe_model = "single_temp"
+        model = aoe_model(tier_hit_settings)
         fccd_thr = tier_pdf_settings.fccd_tag_energy_thr_kev
         if fccd_thr is not None and not tier_hit_settings.store_surface_steps:
             msg = (
@@ -138,9 +110,7 @@ def main() -> None:
         # name to UID map written at evt-tier build time
         detector_uids = lh5.read("detector_uids", cvt_file)
         name_to_uid = {n: int(detector_uids[n].value) for n in detector_uids}
-        group_uids = _detector_group_uids(
-            tier_pdf_settings.detector_groups, name_to_uid, log
-        )
+        group_uids = group_detectors(tier_pdf_settings.detector_groups, name_to_uid)
         if fccd_thr is not None:
             sorted_uids, fccd_mm = fccd_by_uid(
                 config.metadata,
@@ -148,21 +118,8 @@ def main() -> None:
                 tier_hit_settings.surface_depth_in_mm,
             )
 
-        # one histogram per combination of categories, one per level, and
-        # detector group; the combinations do not overlap
-        levels = category_levels(has_spms_coinc, aoe_model, fccd_thr)
-        category_desc = {k: v for level in levels for k, v in level.items()}
-        combos = list(itertools.product(*levels))
-        paths = {combo: "/".join(("mul1", *combo)) for combo in combos}
-
-        # 1 keV/bin over 0-6000 keV; boost-histogram only provides Double
-        # (float64) storage
-        histograms = {
-            combo: {g: hist.new.Reg(6000, 0, 6000).Double() for g in group_uids}
-            for combo in combos
-        }
-        # 2-D: (E_min, E_max) for multiplicity-2 events; not split by group
-        mul2_hist = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
+        levels = category_levels(has_spms_coinc, model, fccd_thr)
+        histograms, mul2_hist = new_histograms(levels, group_uids)
 
         log.info("... beginning iteration over cvt file")
 
@@ -171,8 +128,8 @@ def main() -> None:
         fields = ["geds/energy", "geds/rawid", "geds/quality/is_good_channel"]
         if has_spms_coinc:
             fields.append("coincident/spms")
-        if aoe_model is not None:
-            fields += ["geds/psd/is_good", f"geds/psd/{aoe_model}"]
+        if model is not None:
+            fields += ["geds/psd/is_good", f"geds/psd/{model}"]
         if fccd_thr is not None:
             fields += ["geds/surface/edep", "geds/surface/distance_to_nplus"]
 
@@ -184,56 +141,34 @@ def main() -> None:
             buffer_len=tier_pdf_settings.buffer_len,
         ):
             data = chunk.view_as("ak")
-            above_thr, multiplicity, is_good = select_hits(
+            is_hit, multiplicity, is_good = select_hits(
                 data, tier_evt_settings.geds_energy_thr_kev
             )
 
-            energy_m2 = data.geds.energy[above_thr][(multiplicity == 2) & is_good]
+            energy_m2 = data.geds.energy[is_hit][(multiplicity == 2) & is_good]
             mul2_hist.fill(ak.min(energy_m2, axis=-1), ak.max(energy_m2, axis=-1))
 
             # multiplicity-1 events have exactly one hit above threshold
             is_m1 = (multiplicity == 1) & is_good
             evt_m1 = data[is_m1]
-            hit_m1 = above_thr[is_m1]
-            energy = ak.to_numpy(evt_m1.geds.energy[hit_m1][:, 0])
-            uid = ak.to_numpy(evt_m1.geds.rawid[hit_m1][:, 0])
+            hit_m1 = is_hit[is_m1]
+            energy = ak.to_numpy(one_hit(evt_m1.geds.energy, hit_m1))
+            uid = ak.to_numpy(one_hit(evt_m1.geds.rawid, hit_m1))
 
             # event masks of the categories of all levels
             in_category = {}
             if has_spms_coinc:
                 in_category |= lar_categories(evt_m1)
-            if aoe_model is not None:
-                in_category |= aoe_categories(*sim_aoe_flags(evt_m1, hit_m1, aoe_model))
+            if model is not None:
+                in_category |= aoe_categories(*sim_aoe_flags(evt_m1, hit_m1, model))
             if fccd_thr is not None:
                 fccd_of_hit = fccd_mm[np.searchsorted(sorted_uids, uid)]
                 in_category |= fccd_categories(evt_m1, hit_m1, fccd_of_hit, fccd_thr)
 
-            in_group = {g: np.isin(uid, uids) for g, uids in group_uids.items()}
-            for combo, per_group_hists in histograms.items():
-                sel = np.ones(len(energy), dtype=bool)
-                for c in combo:
-                    sel &= in_category[c]
-                for g, h in per_group_hists.items():
-                    h.fill(energy[sel & in_group[g]])
+            fill_histograms(histograms, energy, uid, in_category, group_uids)
 
         log.info("... convert histograms to lgdo")
-        output = format_pdf_struct(
-            {paths[combo]: h for combo, h in histograms.items()},
-            {
-                paths[combo]: "multiplicity 1"
-                + "".join(f", {category_desc[c]}" for c in combo)
-                for combo in combos
-            },
-        )
-        output.add_field(
-            "mul2/all",
-            Histogram(
-                mul2_hist,
-                attrs={
-                    "description": "multiplicity-2 events: (E_low, E_high) for pairs of ON detectors"
-                },
-            ),
-        )
+        output = format_pdf_struct(histograms, levels, mul2_hist)
 
     lh5.write(output, "pdf", pdf_file, wo_mode="w")
     lh5.write(Scalar(number_of_primaries), "nr_sim_events", pdf_file, wo_mode="append")

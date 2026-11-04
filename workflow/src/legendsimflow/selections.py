@@ -97,6 +97,19 @@ def is_clean_data_event(evt: ak.Array) -> ak.Array:
     )
 
 
+def aoe_model(hit_settings: Mapping) -> str | None:
+    """Return the A/E model simulated with the `hit` tier settings.
+
+    ``pulse_lib`` with ``simulate_psd_with_psl``, else ``single_temp`` with
+    ``simulate_psd``, else `None`.
+    """
+    if hit_settings["simulate_psd_with_psl"]:
+        return "pulse_lib"
+    if hit_settings["simulate_psd"]:
+        return "single_temp"
+    return None
+
+
 def category_levels(
     has_spms_coinc: bool, aoe_model: str | None, fccd_thr: float | None
 ) -> list[dict[str, str]]:

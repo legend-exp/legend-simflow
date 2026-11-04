@@ -24,8 +24,10 @@ from __future__ import annotations
 
 import functools
 import itertools
+import logging
 import operator
-from collections.abc import Callable, Iterable, Mapping
+import re
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -34,6 +36,8 @@ import hist
 import lh5
 import numpy as np
 from lgdo import Histogram, Scalar, Struct
+
+log = logging.getLogger(__name__)
 
 
 def build_pdf_grid(
@@ -144,28 +148,179 @@ def validate_grid(grid: Struct) -> None:
             raise ValueError(msg)
 
 
-def format_pdf_struct(
-    histograms: Mapping[str, Mapping[str, hist.Hist]],
-    descriptions: Mapping[str, str],
-) -> Struct:
-    """Nest the histograms of the pdf tier by the levels of their path.
+def group_detectors(
+    groups: Mapping[str, str] | None, detectors: Mapping[str, int]
+) -> dict[str, np.ndarray]:
+    """Return the IDs of the detectors in each group, plus the implicit ``all`` group.
+
+    Parameters
+    ----------
+    groups
+        the ``detector_groups`` setting of the pdf tier: group name to regular
+        expression, matched against the detector names with
+        :func:`re.fullmatch`.
+    detectors
+        detector name to ID: the UID in simulations, the rawid in data.
+    """
+    groups = dict(groups or {})
+    if groups.get("all", ".*") != ".*":
+        log.warning(
+            "detector_groups sets 'all' to %r; it will be overridden by the implicit all-detector group '.*'",
+            groups["all"],
+        )
+    groups["all"] = ".*"
+
+    group_ids = {}
+    for name, pattern in groups.items():
+        rgx = re.compile(pattern)
+        matched = sorted(i for n, i in detectors.items() if rgx.fullmatch(n))
+        if not matched:
+            log.warning("detector group %r matches no detectors", name)
+        group_ids[name] = np.asarray(matched, dtype=np.int64)
+    return group_ids
+
+
+def new_histograms(
+    levels: Sequence[Mapping[str, str]], groups: Iterable[str]
+) -> tuple[dict[tuple[str, ...], dict[str, hist.Hist]], hist.Hist]:
+    """Return the empty histograms of the pdf tier.
+
+    One energy histogram, 1 keV bins from 0 to 6000 keV, per combination of
+    categories (one of each level of `levels`) and detector group, keyed by
+    the combination and the group. And the 2D histogram of the
+    multiplicity-2 events, with the same binning on both axes.
+
+    Parameters
+    ----------
+    levels
+        the category levels, see :func:`.selections.category_levels`.
+    groups
+        the detector group names.
+    """
+    # boost-histogram only provides Double (float64) storage
+    histograms = {
+        combo: {g: hist.new.Reg(6000, 0, 6000).Double() for g in groups}
+        for combo in itertools.product(*levels)
+    }
+    mul2_hist = hist.new.Reg(6000, 0, 6000).Reg(6000, 0, 6000).Double()
+    return histograms, mul2_hist
+
+
+def fill_histograms(
+    histograms: Mapping[tuple[str, ...], Mapping[str, hist.Hist]],
+    energy: np.ndarray,
+    detector: np.ndarray,
+    in_category: Mapping[str, np.ndarray],
+    group_ids: Mapping[str, np.ndarray],
+) -> None:
+    """Fill the histograms of :func:`new_histograms` with multiplicity-1 events.
 
     Parameters
     ----------
     histograms
-        histograms by path (e.g. ``mul1/not_spms_coincident/is_ss_aoe``) and
-        detector group. The groups are the leaves of the output.
-    descriptions
-        description of each path, stored in the ``description`` attribute of
-        its histograms.
+        the histograms, by combination of categories and group.
+    energy
+        energy in keV of the hit of each event.
+    detector
+        ID of the detector of the hit of each event.
+    in_category
+        event mask of each category, see :mod:`legendsimflow.selections`.
+    group_ids
+        IDs of the detectors of each group, see :func:`group_detectors`.
     """
+    in_group = {g: np.isin(detector, ids) for g, ids in group_ids.items()}
+    for combo, per_group in histograms.items():
+        sel = np.ones(len(energy), dtype=bool)
+        for c in combo:
+            sel &= in_category[c]
+        for g, h in per_group.items():
+            h.fill(energy[sel & in_group[g]])
+
+
+def format_pdf_struct(
+    histograms: Mapping[tuple[str, ...], Mapping[str, hist.Hist]],
+    levels: Sequence[Mapping[str, str]],
+    mul2_hist: hist.Hist | None = None,
+) -> Struct:
+    """Nest the histograms of the pdf tier by category and detector group.
+
+    The histogram of a combination of categories and a group goes to
+    ``mul1/<category>/.../<group>``, with a ``description`` attribute listing
+    the categories. `mul2_hist` goes to ``mul2/all``.
+
+    Parameters
+    ----------
+    histograms
+        the histograms of :func:`new_histograms`, by combination of
+        categories and group.
+    levels
+        the category levels, name to description, see
+        :func:`.selections.category_levels`.
+    mul2_hist
+        the 2D histogram of the multiplicity-2 events.
+    """
+    descriptions = {k: v for level in levels for k, v in level.items()}
     output = Struct()
-    for path, per_group in histograms.items():
+    for combo, per_group in histograms.items():
+        desc = "multiplicity 1" + "".join(f", {descriptions[c]}" for c in combo)
         for g, h in per_group.items():
             output.add_field(
-                f"{path}/{g}", Histogram(h, attrs={"description": descriptions[path]})
+                "/".join(("mul1", *combo, g)),
+                Histogram(h, attrs={"description": desc}),
             )
+    if mul2_hist is not None:
+        output.add_field(
+            "mul2/all",
+            Histogram(
+                mul2_hist,
+                attrs={
+                    "description": "multiplicity-2 events: (E_low, E_high) for pairs of ON detectors"
+                },
+            ),
+        )
     return output
+
+
+def histogram_paths(lh5_file: str | Path) -> list[str]:
+    """Return the paths of the histograms below ``pdf/`` in a pdf tier file."""
+    paths = []
+    with h5py.File(lh5_file, "r") as f:
+        f["pdf"].visititems(
+            lambda name, obj: paths.append(name)
+            if isinstance(obj, h5py.Group) and "binning" in obj
+            else None
+        )
+    return paths
+
+
+def merge_pdf_files(files: Iterable[str | Path], output: str | Path) -> None:
+    """Sum the histograms of several pdf tier files into one file.
+
+    The histograms at the same path are added, so the files must hold the
+    same paths and binning: the PDFs of one simulation over several
+    productions, or the data histograms of several runs. The root scalars
+    ``nr_sim_events`` and ``livetime_in_s`` are summed too, when present.
+
+    Parameters
+    ----------
+    files
+        the pdf tier files to sum.
+    output
+        the file to write.
+    """
+    files = [str(f) for f in files]
+    pdf = Struct()
+    for path in histogram_paths(files[0]):
+        h = lh5.read(f"pdf/{path}", files[0])
+        for f in files[1:]:
+            h.weights.nda += lh5.read(f"pdf/{path}", f).weights.nda
+        pdf.add_field(path, h)
+    lh5.write(pdf, "pdf", output, wo_mode="w")
+
+    for name in ("nr_sim_events", "livetime_in_s"):
+        if name in lh5.ls(files[0]):
+            total = sum(lh5.read(name, f).value for f in files)
+            lh5.write(Scalar(total), name, output, wo_mode="append")
 
 
 def read_pdf(
@@ -202,16 +357,8 @@ def read_pdf(
     patterns = [selection] if isinstance(selection, str) else list(selection)
     patterns = [pat.strip("/").split("/") for pat in patterns]
 
-    paths = []
-    with h5py.File(lh5_file, "r") as f:
-        f["pdf"].visititems(
-            lambda name, obj: paths.append(name)
-            if isinstance(obj, h5py.Group) and "binning" in obj
-            else None
-        )
-
     selected = []
-    for path in paths:
+    for path in histogram_paths(lh5_file):
         *levels, g = path.split("/")
         if g == group and any(
             len(levels) >= len(pat)
