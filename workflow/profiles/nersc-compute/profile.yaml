@@ -21,6 +21,8 @@ set-resources:
   # measured up to 2.5 GB
   build_tier_opt:
     mem_mb: 2500
+  build_tier_evt:
+    mem_mb: 2000
   # this SSD.jl processes seems to use a lot of memory, can't run so many in
   # parallel!
   build_hpge_drift_time_map:
