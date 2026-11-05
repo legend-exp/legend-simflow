@@ -412,6 +412,52 @@ def aoe_categories(
     return categories
 
 
+def pick_detector(evt: ak.Array, rawid: int, table: str = "geds") -> ak.Array:
+    """Return the events with a hit in one detector, with the fields of that hit only.
+
+    The per-hit fields of `table` (for example ``geds.energy`` and the steps in
+    ``geds.surface``) lose the hit level: ``energy`` gets one value per event,
+    ``surface.edep`` one list of steps per event. The fields with one value
+    per event (for example ``geds.energy_sum``) and the other tables of `evt`
+    are kept as they are, for the selected events. The hits are taken as
+    stored, with no energy threshold.
+
+    Parameters
+    ----------
+    evt
+        events of the `evt` tier.
+    rawid
+        the detector, as in the ``rawid`` field of `table`.
+    table
+        the detector table, ``geds`` or ``spms``.
+
+    Examples
+    --------
+    >>> v = pick_detector(evt, 1104000)
+    >>> v.geds.energy  # one energy per event, in keV
+    >>> v.geds.surface.distance_to_nplus  # one list of steps per event, in mm
+    >>> v.coincident.spms  # one value per selected event
+    """
+    is_det = evt[table].rawid == rawid
+    if ak.any(ak.sum(is_det, axis=-1) > 1):
+        msg = f"detector {rawid} has more than one hit in an event"
+        raise ValueError(msg)
+
+    in_det = ak.any(is_det, axis=-1)
+    evt = evt[in_det]
+    is_det = is_det[in_det]
+
+    def _pick(field):
+        if field.fields:
+            return ak.zip({k: _pick(field[k]) for k in field.fields}, depth_limit=1)
+        if field.ndim == 1:
+            return field
+        return ak.flatten(field[is_det], axis=1)
+
+    # packed: repeated computations on the steps (e.g. a PDF grid scan) run faster
+    return ak.with_field(evt, ak.to_packed(_pick(evt[table])), table)
+
+
 def fccd_categories(
     evt: ak.Array,
     fccd_mm: np.ndarray,
