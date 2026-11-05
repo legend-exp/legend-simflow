@@ -67,6 +67,7 @@ TIER_SETTINGS: dict = {
         "add_random_coincidences": False,
         "random_coincidence_mode": "forced_trigger",
         "random_coincidence_runid": None,
+        "max_events_per_chunk": 200_000,
     },
     "pdf": {
         "detector_groups": None,

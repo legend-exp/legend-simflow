@@ -435,6 +435,8 @@ skip_hit: false
   this value are discarded.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
+- `max_events_per_chunk` (int, default `200000`) — largest number of events
+  processed at once, see [](meta.md).
 - `skip_opt` (bool, default `false`) — when `true`, the `opt` (SiPM/LAr) tier is
   skipped: the opt Snakemake rule is not run and the evt output contains only
   HPGe data (no `spms` or `coincident/spms` tables).

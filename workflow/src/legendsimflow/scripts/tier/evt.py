@@ -380,6 +380,10 @@ def main() -> None:
             buffer_len=buffer_len,
             h5py_open_mode="a",
         )
+        # buffer_len in memory units counts only the TCM, but every event gets
+        # the full SiPM fields: events with few TCM entries (e.g. in bulk HPGe
+        # simulations) would otherwise make very large chunks
+        it.buffer_len = min(it.buffer_len, tier_evt_settings.max_events_per_chunk)
         for chunk in it:
             unified_tcm = chunk.view_as("ak")
             out_table = Table(size=len(unified_tcm))

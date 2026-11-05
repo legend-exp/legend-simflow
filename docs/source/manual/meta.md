@@ -737,6 +737,12 @@ skip_hit: false
   keys are mandatory. LEGEND-200 uses `4` while LEGEND-1000 uses `1`.
 - `buffer_len` (str) — LH5 read chunk size (e.g. `"50*MB"`). Controls memory
   usage during processing; does not affect the output.
+- `max_events_per_chunk` (int, default `200000`) — largest number of events
+  processed at once. A `buffer_len` in memory units is converted to events from
+  the size of the TCM alone, while every event also carries the SiPM fields of
+  all channels. Events with few TCM entries, as in bulk HPGe simulations, would
+  otherwise give chunks of millions of events and several GB of memory. Does not
+  affect the output.
 - `skip_opt` (bool, default `false`) — when `true`, the `opt` (SiPM/LAr) tier is
   skipped: the opt Snakemake rule is not run and the evt output contains only
   HPGe data (no `spms` or `coincident/spms` tables).
