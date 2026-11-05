@@ -152,6 +152,8 @@ LH5_SPECS = {
     },
     "evt_pdf": {
         "evt": {
+            "trigger/period": {},
+            "trigger/run": {},
             "trigger/is_forced": {},
             "coincident/puls": {},
             "coincident/muon": {},

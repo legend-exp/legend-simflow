@@ -38,14 +38,16 @@ from legendsimflow.pdf import (
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.selections import (
     aoe_categories,
+    aoe_flags,
     aoe_model,
+    attach_modelable_flag,
     category_levels,
-    data_aoe_flags,
-    data_lar_veto,
-    is_clean_data_event,
+    has_hpge_multiplicity,
+    is_clean_event,
+    is_hpge_hit_above_thr,
+    is_spms_coincident,
     lar_categories,
     one_hit,
-    select_hits,
 )
 
 
@@ -108,14 +110,23 @@ def main() -> None:
         pdf_file = patterns.output_l200data_pdf_filename(config, runid=args.runid)
         Path(pdf_file).parent.mkdir(parents=True, exist_ok=True)
 
-    modeled_detectors = args.modeled_detectors
-    if modeled_detectors is None:
+    # the data production stores only the hits above 25 keV
+    energy_thr_kev = tier_evt_settings.geds_energy_thr_kev
+    if energy_thr_kev < 25:
+        msg = f"geds_energy_thr_kev is {energy_thr_kev}, the data has no hits below 25 keV"
+        raise SimflowConfigError(msg)
+
+    if args.modeled_detectors is None:
         cache = patterns.detinfo_filename(config, "is_modelable")
         is_modelable = load_dict(nersc.dvs_ro(config, cache))
         if args.runid not in is_modelable:
             msg = f"run {args.runid} is not in the modelable-HPGe cache {cache}"
             raise SimflowConfigError(msg)
-        modeled_detectors = [n for n, v in is_modelable[args.runid].items() if v]
+    else:
+        is_modelable = {args.runid: dict.fromkeys(args.modeled_detectors, True)}
+    log.info(
+        "... %d detectors with a modeled A/E", sum(is_modelable[args.runid].values())
+    )
 
     evt_files = args.evt_files
     if evt_files is None:
@@ -133,8 +144,6 @@ def main() -> None:
         if ch.get("system") == "geds"
     }
     group_rawids = group_detectors(tier_pdf_settings.detector_groups, name_to_rawid)
-    modeled_rawids = [name_to_rawid[n] for n in modeled_detectors]
-    log.info("... %d detectors with a modeled A/E", len(modeled_rawids))
 
     has_spms_coinc = not tier_evt_settings.skip_opt
     model = aoe_model(tier_hit_settings)
@@ -142,6 +151,8 @@ def main() -> None:
     histograms, mul2_hist = new_histograms(levels, group_rawids)
 
     fields = [
+        "trigger/period",
+        "trigger/run",
         "trigger/is_forced",
         "coincident/puls",
         "coincident/muon",
@@ -167,35 +178,32 @@ def main() -> None:
         buffer_len=tier_pdf_settings.buffer_len,
     ):
         data = chunk.view_as("ak")
-        data = data[is_clean_data_event(data)]
-        is_hit, multiplicity, is_good = select_hits(
-            data, tier_evt_settings.geds_energy_thr_kev
-        )
+        data = data[is_clean_event(data)]
+        if model is not None:
+            data = attach_modelable_flag(data, config, is_modelable)
+        is_hit = is_hpge_hit_above_thr(data, energy_thr_kev)
 
-        energy_m2 = data.geds.energy[is_hit][(multiplicity == 2) & is_good]
+        energy_m2 = data.geds.energy[is_hit][
+            has_hpge_multiplicity(data, 2, None, energy_thr_kev)
+        ]
         mul2_hist.fill(ak.min(energy_m2, axis=-1), ak.max(energy_m2, axis=-1))
 
-        is_m1 = (multiplicity == 1) & is_good
-        evt_m1 = data[is_m1]
-        hit_m1 = is_hit[is_m1]
-        energy = ak.to_numpy(one_hit(evt_m1.geds.energy, hit_m1))
-        rawid = ak.to_numpy(one_hit(evt_m1.geds.rawid, hit_m1))
+        evt_m1 = data[has_hpge_multiplicity(data, 1, None, energy_thr_kev)]
+        hit = one_hit(evt_m1, energy_thr_kev)
+        energy = ak.to_numpy(hit.energy)
+        rawid = ak.to_numpy(hit.rawid)
 
         in_category = {}
         if has_spms_coinc:
-            # the flag is not read from the data production: it must follow
-            # the definition of the Simflow evt tier
             in_category |= lar_categories(
-                data_lar_veto(
+                is_spms_coincident(
                     evt_m1,
                     tier_evt_settings.lar_veto_multiplicity_thr,
                     tier_evt_settings.lar_veto_energy_sum_pe_thr,
                 )
             )
         if model is not None:
-            in_category |= aoe_categories(
-                *data_aoe_flags(evt_m1, hit_m1, model, modeled_rawids)
-            )
+            in_category |= aoe_categories(*aoe_flags(evt_m1, model, energy_thr_kev))
 
         fill_histograms(histograms, energy, rawid, in_category, group_rawids)
 

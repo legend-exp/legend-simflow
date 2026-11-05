@@ -4,18 +4,21 @@ import awkward as ak
 import numpy as np
 import pytest
 
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.selections import (
     aoe_categories,
+    aoe_flags,
     aoe_model,
+    attach_modelable_flag,
     category_levels,
-    data_aoe_flags,
-    data_lar_veto,
     fccd_by_uid,
     fccd_categories,
-    is_clean_data_event,
+    has_hpge_multiplicity,
+    is_clean_event,
+    is_hpge_hit_above_thr,
+    is_spms_coincident,
     lar_categories,
-    select_hits,
-    sim_aoe_flags,
+    one_hit,
 )
 
 
@@ -23,26 +26,65 @@ def _assert_partition(categories):
     np.testing.assert_array_equal(np.sum(list(categories.values()), axis=0), 1)
 
 
-def test_select_hits():
+def test_hits_and_multiplicity():
     # a 10 keV hit is below the 25 keV threshold, in an AC detector
     evt = ak.Array(
         {
             "geds": {
-                "energy": [[1000.0], [800.0, 10.0], [300.0, 400.0], [20.0]],
+                "energy": [
+                    [1000.0],
+                    [800.0, 10.0],
+                    [400.0, 300.0],
+                    [20.0],
+                    [1.0, 2.0, 3.0],
+                ],
                 "quality": {
-                    "is_good_channel": [[True], [True, False], [True, False], [True]]
+                    "is_good_channel": [
+                        [True],
+                        [True, False],
+                        [True, False],
+                        [True],
+                        [True, True, True],
+                    ]
                 },
             }
         }
     )
-    is_hit, multiplicity, is_good = select_hits(evt, 25)
+    is_hit = is_hpge_hit_above_thr(evt)
+    assert is_hit.tolist() == is_hpge_hit_above_thr(evt, 25).tolist()
+    assert is_hit.tolist() == [
+        [True],
+        [True, False],
+        [True, True],
+        [False],
+        [False] * 3,
+    ]
 
-    assert is_hit.tolist() == [[True], [True, False], [True, True], [False]]
-    assert multiplicity.tolist() == [1, 1, 2, 0]
-    assert is_good.tolist() == [True, True, False, True]
+    # event 2 has a hit in an AC detector: never selected
+    assert has_hpge_multiplicity(evt, 1).tolist() == [True, True, False, False, False]
+    assert has_hpge_multiplicity(evt, 2).tolist() == [False] * 5
+    assert has_hpge_multiplicity(evt, 0, 1).tolist() == [True, True, False, True, True]
+    assert has_hpge_multiplicity(evt, 1, np.inf).tolist() == [
+        True,
+        True,
+        False,
+        False,
+        False,
+    ]
+    # a higher threshold drops the 300 keV hit of event 2, the one in the AC detector
+    assert has_hpge_multiplicity(evt, 1, energy_thr_kev=350).tolist() == [
+        True,
+        True,
+        True,
+        False,
+        False,
+    ]
+
+    m1 = evt[has_hpge_multiplicity(evt, 1)]
+    assert one_hit(m1).energy.tolist() == [1000.0, 800.0]
 
 
-def test_is_clean_data_event():
+def test_is_clean_event():
     evt = ak.Array(
         {
             "trigger": {"is_forced": [False, True, False, False, False, False]},
@@ -54,7 +96,7 @@ def test_is_clean_data_event():
             "geds": {"quality": {"is_bb_like": [True, True, True, True, True, False]}},
         }
     )
-    assert is_clean_data_event(evt).tolist() == [True] + [False] * 5
+    assert is_clean_event(evt).tolist() == [True] + [False] * 5
 
 
 def test_aoe_model():
@@ -81,24 +123,22 @@ def test_category_levels():
     assert category_levels(False, None, None) == []
 
 
-def test_lar_categories():
-    categories = lar_categories(np.array([True, False, False]))
-
-    assert categories["is_spms_coincident"].tolist() == [True, False, False]
-    assert categories["not_spms_coincident"].tolist() == [False, True, True]
-
-
-def test_data_lar_veto():
+def test_lar_veto():
     # - event 0: below both thresholds
     # - event 1: the photoelectron sum reaches the threshold
     # - event 2: the multiplicity reaches the threshold
     evt = ak.Array({"spms": {"multiplicity": [2, 2, 4], "energy_sum": [1.5, 4.0, 1.0]}})
-    flag = data_lar_veto(evt, multiplicity_thr=4, energy_sum_thr_pe=4)
+    flag = is_spms_coincident(evt)
     assert flag.tolist() == [False, True, True]
+    assert is_spms_coincident(evt, 5, 5).tolist() == [False, False, False]
+
+    categories = lar_categories(flag)
+    assert categories["is_spms_coincident"].tolist() == [False, True, True]
+    assert categories["not_spms_coincident"].tolist() == [True, False, False]
 
 
 def _per_hit(values):
-    # one hit per event; the second hit of event 0 is not selected
+    # one hit per event; the second hit of event 0 is below threshold
     return [[values[0], False], *([v] for v in values[1:])]
 
 
@@ -107,7 +147,7 @@ def _per_hit(values):
 # - event 2: above the high-side cut
 # - event 3: no simulated A/E (not modeled in data)
 # - event 4: no valid PSD
-_IS_HIT = ak.Array([[True, False], [True], [True], [True], [True]])
+_ENERGY = [[1000.0, 10.0], [1000.0], [1000.0], [1000.0], [1000.0]]
 _IS_GOOD = _per_hit([True, True, True, True, False])
 _IS_SINGLE_SITE = _per_hit([True, False, True, False, True])
 _IS_HIGH = _per_hit([False, False, True, False, False])
@@ -122,7 +162,8 @@ def _sim_events():
     return ak.Array(
         {
             "geds": {
-                "psd": {"is_good": _IS_GOOD, "pulse_lib": model, "single_temp": model}
+                "energy": _ENERGY,
+                "psd": {"is_good": _IS_GOOD, "pulse_lib": model, "single_temp": model},
             }
         }
     )
@@ -131,28 +172,34 @@ def _sim_events():
 def _data_events():
     return ak.Array(
         {
+            "trigger": {"period": [2] * 5, "run": [0] * 5},
             "geds": {
+                "energy": _ENERGY,
                 "rawid": [[1, 0], [1], [1], [2], [1]],
                 "psd": {
                     "is_good": _IS_GOOD,
                     "low_aoe": {"is_single_site": _IS_SINGLE_SITE},
                     "high_aoe": {"is_bulk": [[not v for v in h] for h in _IS_HIGH]},
                 },
-            }
+            },
         }
     )
 
 
 @pytest.mark.parametrize(
-    "flags",
+    "events",
     [
-        lambda model: sim_aoe_flags(_sim_events(), _IS_HIT, model),
-        lambda model: data_aoe_flags(_data_events(), _IS_HIT, model, [1]),
+        _sim_events,
+        lambda: ak.with_field(
+            _data_events(),
+            [[True, False], [True], [True], [False], [True]],
+            ["geds", "psd", "is_modeled"],
+        ),
     ],
     ids=["sim", "data"],
 )
-def test_aoe_categories(flags):
-    categories = aoe_categories(*flags("pulse_lib"))
+def test_aoe_categories(events):
+    categories = aoe_categories(*aoe_flags(events(), "pulse_lib"))
 
     assert categories["is_ss_aoe"].tolist() == [True, False, False, False, False]
     assert categories["is_low_aoe"].tolist() == [False, True, False, False, False]
@@ -161,10 +208,45 @@ def test_aoe_categories(flags):
     _assert_partition(categories)
 
     # no high-side cut: event 2 is single-site
-    categories = aoe_categories(*flags("single_temp"))
+    categories = aoe_categories(*aoe_flags(events(), "single_temp"))
     assert "is_high_aoe" not in categories
     assert categories["is_ss_aoe"].tolist() == [True, False, True, False, False]
     _assert_partition(categories)
+
+
+def test_aoe_flags_need_modelable_flag():
+    with pytest.raises(ValueError, match="attach_modelable_flag"):
+        aoe_flags(_data_events(), "pulse_lib")
+
+
+def test_attach_modelable_flag(config):
+    # the rawids of V99000A and B99000A in the p02 channel map; event 3 is in
+    # run 1, where B99000A is modeled instead
+    evt = _data_events()
+    evt["trigger", "run"] = [0, 0, 0, 1, 0]
+    evt["geds", "rawid"] = [
+        [1234568, 1234569],
+        [1234568],
+        [1234568],
+        [1234569],
+        [1234569],
+    ]
+    is_modelable = {
+        "l200-p02-r000-phy": {"V99000A": True, "B99000A": False},
+        "l200-p02-r001-phy": {"V99000A": False, "B99000A": True},
+    }
+    evt = attach_modelable_flag(evt, config, is_modelable)
+
+    assert evt.geds.psd.is_modeled.tolist() == [
+        [True, False],
+        [True],
+        [True],
+        [True],
+        [False],
+    ]
+
+    with pytest.raises(SimflowConfigError, match=r"period 2 run 1 .* need one run"):
+        attach_modelable_flag(evt, config, {"l200-p02-r000-phy": {}})
 
 
 def test_fccd_categories():
@@ -172,17 +254,15 @@ def test_fccd_categories():
     evt = ak.Array(
         {
             "geds": {
+                "energy": [[1000.0], [1000.0], [1000.0]],
                 "surface": {
                     "edep": [[[5.0, 20.0]], [[10.0, 5.0]], [[50.0]]],
                     "distance_to_nplus": [[[0.5, 2.0]], [[0.1, 0.9]], [[1.5]]],
-                }
+                },
             }
         }
     )
-    is_hit = ak.Array([[True], [True], [True]])
-    categories = fccd_categories(
-        evt, is_hit, np.array([1.0, 1.0, 1.0]), energy_thr_kev=10
-    )
+    categories = fccd_categories(evt, np.array([1.0, 1.0, 1.0]), fccd_thr_kev=10)
 
     assert categories["is_fccd_tagged"].tolist() == [False, True, False]
     _assert_partition(categories)

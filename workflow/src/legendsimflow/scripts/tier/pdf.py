@@ -36,14 +36,16 @@ from legendsimflow.pdf import (
 from legendsimflow.scripts import log_script_invocation
 from legendsimflow.selections import (
     aoe_categories,
+    aoe_flags,
     aoe_model,
     category_levels,
     fccd_by_uid,
     fccd_categories,
+    has_hpge_multiplicity,
+    is_hpge_hit_above_thr,
+    is_spms_coincident,
     lar_categories,
     one_hit,
-    select_hits,
-    sim_aoe_flags,
 )
 
 
@@ -127,7 +129,7 @@ def main() -> None:
         # are large
         fields = ["geds/energy", "geds/rawid", "geds/quality/is_good_channel"]
         if has_spms_coinc:
-            fields.append("coincident/spms")
+            fields += ["spms/multiplicity", "spms/energy_sum"]
         if model is not None:
             fields += ["geds/psd/is_good", f"geds/psd/{model}"]
         if fccd_thr is not None:
@@ -141,29 +143,35 @@ def main() -> None:
             buffer_len=tier_pdf_settings.buffer_len,
         ):
             data = chunk.view_as("ak")
-            is_hit, multiplicity, is_good = select_hits(
-                data, tier_evt_settings.geds_energy_thr_kev
-            )
+            thr = tier_evt_settings.geds_energy_thr_kev
+            is_hit = is_hpge_hit_above_thr(data, thr)
 
-            energy_m2 = data.geds.energy[is_hit][(multiplicity == 2) & is_good]
+            energy_m2 = data.geds.energy[is_hit][
+                has_hpge_multiplicity(data, 2, None, thr)
+            ]
             mul2_hist.fill(ak.min(energy_m2, axis=-1), ak.max(energy_m2, axis=-1))
 
             # multiplicity-1 events have exactly one hit above threshold
-            is_m1 = (multiplicity == 1) & is_good
-            evt_m1 = data[is_m1]
-            hit_m1 = is_hit[is_m1]
-            energy = ak.to_numpy(one_hit(evt_m1.geds.energy, hit_m1))
-            uid = ak.to_numpy(one_hit(evt_m1.geds.rawid, hit_m1))
+            evt_m1 = data[has_hpge_multiplicity(data, 1, None, thr)]
+            hit = one_hit(evt_m1, thr)
+            energy = ak.to_numpy(hit.energy)
+            uid = ak.to_numpy(hit.rawid)
 
             # event masks of the categories of all levels
             in_category = {}
             if has_spms_coinc:
-                in_category |= lar_categories(ak.to_numpy(evt_m1.coincident.spms))
+                in_category |= lar_categories(
+                    is_spms_coincident(
+                        evt_m1,
+                        tier_evt_settings.lar_veto_multiplicity_thr,
+                        tier_evt_settings.lar_veto_energy_sum_pe_thr,
+                    )
+                )
             if model is not None:
-                in_category |= aoe_categories(*sim_aoe_flags(evt_m1, hit_m1, model))
+                in_category |= aoe_categories(*aoe_flags(evt_m1, model, thr))
             if fccd_thr is not None:
                 fccd_of_hit = fccd_mm[np.searchsorted(sorted_uids, uid)]
-                in_category |= fccd_categories(evt_m1, hit_m1, fccd_of_hit, fccd_thr)
+                in_category |= fccd_categories(evt_m1, fccd_of_hit, fccd_thr, thr)
 
             fill_histograms(histograms, energy, uid, in_category, group_uids)
 
