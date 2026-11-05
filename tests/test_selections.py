@@ -19,6 +19,7 @@ from legendsimflow.selections import (
     is_spms_coincident,
     lar_categories,
     one_hit,
+    pick_detector,
 )
 
 
@@ -247,6 +248,39 @@ def test_attach_modelable_flag(config):
 
     with pytest.raises(SimflowConfigError, match=r"period 2 run 1 .* need one run"):
         attach_modelable_flag(evt, config, {"l200-p02-r000-phy": {}})
+
+
+def test_pick_detector():
+    evt = ak.Array(
+        {
+            "geds": {
+                "rawid": [[7], [3, 7], [3]],
+                "energy": [[100.0], [50.0, 200.0], [300.0]],
+                "energy_sum": [100.0, 250.0, 300.0],
+                "surface": {
+                    "edep": [[[]], [[1.0], [2.0, 3.0]], [[4.0]]],
+                    "distance_to_nplus": [[[]], [[0.1], [0.2, 0.3]], [[0.4]]],
+                },
+            },
+            "spms": {"rawid": [[1, 2], [1, 2], [1, 2]], "energy": [[[], [1.0]]] * 3},
+            "weight": [1.0, 2.0, 3.0],
+        }
+    )
+
+    v = pick_detector(evt, 7)
+    assert v.geds.energy.tolist() == [100.0, 200.0]
+    assert v.geds.energy_sum.tolist() == [100.0, 250.0]
+    assert v.geds.surface.edep.tolist() == [[], [2.0, 3.0]]
+    assert v.geds.surface.distance_to_nplus.tolist() == [[], [0.2, 0.3]]
+    assert v.weight.tolist() == [1.0, 2.0]
+
+    v = pick_detector(evt, 2, "spms")
+    assert v.spms.energy.tolist() == [[1.0]] * 3
+    assert v.geds.rawid.tolist() == evt.geds.rawid.tolist()
+
+    evt = ak.Array({"geds": {"rawid": [[7, 7]], "energy": [[1.0, 2.0]]}})
+    with pytest.raises(ValueError, match="more than one hit"):
+        pick_detector(evt, 7)
 
 
 def test_fccd_categories():

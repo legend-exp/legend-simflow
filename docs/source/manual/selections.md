@@ -154,6 +154,21 @@ d_valid, d_ss, d_high = aoe_flags(devt, model)
 An event in a detector that is not modeled, or whose PSD is not usable, is
 invalid on both sides and treated as background by an A/E cut.
 
+## One detector
+
+{func}`~legendsimflow.selections.pick_detector` keeps the events with a hit in
+one detector and, for those, the fields of that hit alone: one energy per event,
+one list of surface steps per event. The hits are taken as stored, with no
+energy threshold, and the other tables of the events stay as they are. The table
+argument picks a SiPM channel instead:
+
+```python
+v = pick_detector(sevt, 1104000)
+v.geds.energy  # keV, one value per event
+v.geds.surface.distance_to_nplus  # mm, one list of steps per event
+pick_detector(sevt, 1057600, "spms").spms.energy  # photoelectrons of one channel
+```
+
 ## The spectrum after all cuts
 
 The flags are boolean arrays, one per event, so any selection is their product.

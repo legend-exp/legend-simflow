@@ -296,7 +296,8 @@ from the corresponding `hit`-tier subtable and are `VectorOfVectors`
 
 Present only with `store_surface_steps: true`. The fields of the `surface`
 subtable of the [`hit` tier](hit-tier-output), for the same hits as
-`geds/energy`.
+`geds/energy`. To keep only the hit of one detector, with one list of steps per
+event, use {func}`legendsimflow.selections.pick_detector`.
 
 | Field               | Type                               | Units | Description                                                                                |
 | ------------------- | ---------------------------------- | ----- | ------------------------------------------------------------------------------------------ |
