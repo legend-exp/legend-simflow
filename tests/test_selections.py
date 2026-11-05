@@ -9,6 +9,7 @@ from legendsimflow.selections import (
     aoe_model,
     category_levels,
     data_aoe_flags,
+    data_lar_veto,
     fccd_by_uid,
     fccd_categories,
     is_clean_data_event,
@@ -81,11 +82,19 @@ def test_category_levels():
 
 
 def test_lar_categories():
-    evt = ak.Array({"coincident": {"spms": [True, False, False]}})
-    categories = lar_categories(evt)
+    categories = lar_categories(np.array([True, False, False]))
 
     assert categories["is_spms_coincident"].tolist() == [True, False, False]
     assert categories["not_spms_coincident"].tolist() == [False, True, True]
+
+
+def test_data_lar_veto():
+    # - event 0: below both thresholds
+    # - event 1: the photoelectron sum reaches the threshold
+    # - event 2: the multiplicity reaches the threshold
+    evt = ak.Array({"spms": {"multiplicity": [2, 2, 4], "energy_sum": [1.5, 4.0, 1.0]}})
+    flag = data_lar_veto(evt, multiplicity_thr=4, energy_sum_thr_pe=4)
+    assert flag.tolist() == [False, True, True]
 
 
 def _per_hit(values):

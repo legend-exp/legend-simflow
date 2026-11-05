@@ -28,7 +28,10 @@ same information under different names. The selections are:
 - multiplicity: number of hits in the event;
 - data cleaning: no forced trigger, pulser or muon event, HPGe hits of good
   quality, see :func:`is_clean_data_event`. Data only;
-- LAr veto: ``coincident.spms``, see :func:`lar_categories`;
+- LAr veto: ``coincident.spms`` of the simulation. In data the flag is
+  computed again from the SiPM multiplicity and photoelectron sum with the
+  Simflow thresholds, see :func:`data_lar_veto`, not read from the data
+  production. See :func:`lar_categories`;
 - A/E: a valid A/E needs a usable PSD (``psd.is_good``) and a modeled A/E:
   simulated (``has_aoe``) or, in data, a detector whose A/E the simulation
   models. Single-site is above the low-side cut, high A/E above the
@@ -155,21 +158,49 @@ def category_levels(
     return levels
 
 
-def lar_categories(evt: ak.Array) -> dict[str, np.ndarray]:
+def data_lar_veto(
+    evt: ak.Array, multiplicity_thr: int, energy_sum_thr_pe: float
+) -> np.ndarray:
+    """Return the LAr veto flag of the data events, as the `evt` tier of the Simflow defines it.
+
+    The event fails the LAr veto when at least `multiplicity_thr` SiPM
+    channels see a pulse (``spms.multiplicity``) or when the pulses sum to
+    `energy_sum_thr_pe` photoelectrons or more (``spms.energy_sum``), the
+    ``lar_veto_multiplicity_thr`` and ``lar_veto_energy_sum_pe_thr``
+    settings of the `evt` tier. The data production counts the physical
+    pulses above its noise threshold in the trigger coincidence window.
+
+    Parameters
+    ----------
+    evt
+        events of the `evt` or `pet` tier of the data.
+    multiplicity_thr
+        number of channels with a pulse that fails the veto.
+    energy_sum_thr_pe
+        summed photoelectrons that fail the veto.
+    """
+    spms = evt.spms
+    return ak.to_numpy(
+        (spms.multiplicity >= multiplicity_thr) | (spms.energy_sum >= energy_sum_thr_pe)
+    )
+
+
+def lar_categories(is_spms_coincident: np.ndarray) -> dict[str, np.ndarray]:
     """Return the event masks of the LAr veto categories.
 
-    The categories are defined by ``coincident.spms``, the LAr veto flag of
-    the `evt` tier, which is `True` when the SiPMs see enough light:
+    The categories are defined by the LAr veto flag, `True` when the SiPMs
+    see enough light: ``coincident.spms`` of the simulated `evt` tier, or
+    :func:`data_lar_veto` in data.
 
     - ``is_spms_coincident``: light seen, the event fails the LAr veto;
     - ``not_spms_coincident``: no light seen, the event passes the LAr veto.
 
     Parameters
     ----------
-    evt
-        events of the `evt` tier.
+    is_spms_coincident
+        the LAr veto flag of each event.
     """
-    spms = ak.to_numpy(evt.coincident.spms)
+    spms = np.asarray(is_spms_coincident, dtype=bool)
     return {"is_spms_coincident": spms, "not_spms_coincident": ~spms}
 
 
