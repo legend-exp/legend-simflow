@@ -23,10 +23,7 @@ mpl.use("Agg")
 
 import awkward as ak
 import hist
-import lh5
 import matplotlib.pyplot as plt
-import numpy as np
-from lgdo import Array, Table
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import plot
@@ -89,31 +86,6 @@ def test_n_nans_none():
 def test_n_nans_some():
     arr = ak.Array([1.0, float("nan"), 3.0, float("nan")])
     assert plot.n_nans(arr) == 2
-
-
-def test_read_concat_wempty_no_files():
-    result = plot.read_concat_wempty([], "some_table")
-    assert result is None
-
-
-def test_read_concat_wempty_with_table(tmp_path):
-    f = tmp_path / "test.lh5"
-    table = Table(size=3)
-    table.add_field("energy", Array(np.array([1.0, 2.0, 3.0])))
-    lh5.write(table, "hit/detectors", f)
-
-    result = plot.read_concat_wempty([f], "detectors")
-    assert result is not None
-    assert len(result) == 3
-
-
-def test_read_concat_wempty_missing_table(tmp_path):
-    f = tmp_path / "test.lh5"
-    table = Table(size=2)
-    lh5.write(table, "hit/other_table", f)
-
-    result = plot.read_concat_wempty([f], "detectors")
-    assert result is None
 
 
 def test_all_savefig_calls_are_preceded_by_decorate():

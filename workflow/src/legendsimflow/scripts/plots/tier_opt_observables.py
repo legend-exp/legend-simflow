@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from collections import Counter
 from pathlib import Path
 
 import awkward as ak
@@ -22,6 +23,7 @@ import hist
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
+from lh5 import LH5Iterator
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import metadata as mutils
@@ -38,9 +40,46 @@ simid = args.wildcards.simid
 def fig(table):
     fig = plt.figure(figsize=(14, 8))
 
-    data = plot.read_concat_wempty(hit_files, table)
+    h_time = hist.new.Reg(
+        375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
+    ).Double()
+    h_peamp_ns = hist.new.Reg(
+        300, 0, 20, name="light per cluster (photoelectrons)"
+    ).Double()
+    h_npe = hist.new.Reg(200, 0, 150, name="light per event (photoelectrons)").Double()
+    n_rows = n_nans_dt = n_nans_energy = n_saturated = 0
+    usability = Counter()
 
-    if data is None or len(data) == 0:
+    # some hit files do not contain the table because there were no hits
+    files = [f for f in hit_files if f"hit/{table}" in lh5.ls(f, "hit/")]
+    chunks = (
+        LH5Iterator(
+            files,
+            f"hit/{table}",
+            field_mask=["dt", "energy", "is_saturated", "usability"],
+            buffer_len="100*MB",
+        )
+        if files
+        else []
+    )
+    for chunk in chunks:
+        data = chunk.view_as("ak")
+        n_rows += len(data)
+
+        h_time.fill_flattened(data.dt)
+        n_nans_dt += n_nans(data.dt)
+
+        vals, counts = np.unique(data.usability, return_counts=True)
+        usability.update(dict(zip(vals.tolist(), counts.tolist(), strict=True)))
+
+        # light of the non-saturated SiPM hits
+        energy = data.energy[~data.is_saturated]
+        h_peamp_ns.fill_flattened(energy)
+        n_nans_energy += n_nans(energy)
+        h_npe.fill(ak.sum(energy, axis=-1))
+        n_saturated += int(ak.sum(data.is_saturated))
+
+    if n_rows == 0:
         ax = fig.add_subplot()
         plot.set_empty(ax)
         return fig
@@ -51,11 +90,7 @@ def fig(table):
 
     # time
     ax = fig.add_subplot(gs_top[0, 0])
-    h_time = hist.new.Reg(
-        375, -1000, 5000, name="photoelectron $t - t_0$ (ns)"
-    ).Double()
-    h_time.fill_flattened(data.dt)
-    plot.plot_hist(h_time, ax, n_nans=n_nans(data.dt))
+    plot.plot_hist(h_time, ax, n_nans=n_nans_dt)
 
     ax.set_ylabel("counts / 16 ns")
     ax.set_yscale("log")
@@ -63,10 +98,10 @@ def fig(table):
     # usability
     ax = fig.add_subplot(gs_top[0, 1])
 
-    raw_vals, counts = np.unique(data.usability, return_counts=True)
-    labels = [mutils.decode_usability(v) for v in raw_vals]
+    vals = sorted(usability)
+    labels = [mutils.decode_usability(v) for v in vals]
     plt.pie(
-        counts,
+        [usability[v] for v in vals],
         labels=labels,
         colors=[plot.USABILITY_COLOR[lab] for lab in labels],
         autopct="%1.1f%%",
@@ -75,25 +110,17 @@ def fig(table):
     ax.set_aspect("equal")  # keep it circular
 
     ax = fig.add_subplot(gs_bot[0, 0])
-    energy = data.energy[~data.is_saturated]
-
-    h_peamp_ns = hist.new.Reg(
-        300, 0, 20, name="light per cluster (photoelectrons)"
-    ).Double()
-    h_peamp_ns.fill_flattened(energy)
-    plot.plot_hist(h_peamp_ns, ax, n_nans=n_nans(energy))
+    plot.plot_hist(h_peamp_ns, ax, n_nans=n_nans_energy)
 
     ax.set_ylabel("counts")
     ax.set_yscale("log")
 
     ax = fig.add_subplot(gs_bot[0, 1])
-    h_npe = hist.new.Reg(200, 0, 150, name="light per event (photoelectrons)").Double()
-    h_npe.fill(ak.sum(energy, axis=-1))
     plot.plot_hist(h_npe, ax, flow="hint", label="non-saturated (sim)")
 
     h_sat = h_npe.copy(deep=True)
     h_sat.reset()
-    h_sat[hist.overflow] = ak.sum(data.is_saturated)
+    h_sat[hist.overflow] = n_saturated
     if h_sat[hist.overflow] > 0:
         h_sat.plot(ax=ax, label="saturated (sim)", flow="show", yerr=False)
 
