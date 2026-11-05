@@ -16,15 +16,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+from pathlib import Path
 
 import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
+from dbetto.utils import load_dict
 from lgdo import Scalar
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import nersc, utils
+from legendsimflow import nersc, patterns, utils
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.metadata import get_tier_settings, runinfo
 from legendsimflow.pdf import (
     fill_histograms,
@@ -72,10 +75,15 @@ def main() -> None:
     parser.add_argument(
         "--modeled-detectors",
         nargs="*",
-        default=[],
-        help="names of the HPGe detectors whose A/E the simulation models",
+        default=None,
+        help="names of the HPGe detectors whose A/E the simulation models, "
+        "default: those of the run in the modelable-HPGe cache (pars/detinfo)",
     )
-    parser.add_argument("--pdf-file", required=True, help="output file")
+    parser.add_argument(
+        "--pdf-file",
+        default=None,
+        help="output file, default: tier/pdf/l200data/<runid>-tier_pdf.lh5",
+    )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
         "--simflow-config",
@@ -95,6 +103,20 @@ def main() -> None:
     log = ldfs.utils.build_log(config.metadata.simprod.config.logging, args.log_file)
     log_script_invocation(log, "tier-pdf-l200data", parser, args)
 
+    pdf_file = args.pdf_file
+    if pdf_file is None:
+        pdf_file = patterns.output_l200data_pdf_filename(config, runid=args.runid)
+        Path(pdf_file).parent.mkdir(parents=True, exist_ok=True)
+
+    modeled_detectors = args.modeled_detectors
+    if modeled_detectors is None:
+        cache = patterns.detinfo_filename(config, "is_modelable")
+        is_modelable = load_dict(nersc.dvs_ro(config, cache))
+        if args.runid not in is_modelable:
+            msg = f"run {args.runid} is not in the modelable-HPGe cache {cache}"
+            raise SimflowConfigError(msg)
+        modeled_detectors = [n for n, v in is_modelable[args.runid].items() if v]
+
     evt_files = args.evt_files
     if evt_files is None:
         l200data = config.paths.l200data
@@ -111,7 +133,8 @@ def main() -> None:
         if ch.get("system") == "geds"
     }
     group_rawids = group_detectors(tier_pdf_settings.detector_groups, name_to_rawid)
-    modeled_rawids = [name_to_rawid[n] for n in args.modeled_detectors]
+    modeled_rawids = [name_to_rawid[n] for n in modeled_detectors]
+    log.info("... %d detectors with a modeled A/E", len(modeled_rawids))
 
     has_spms_coinc = not tier_evt_settings.skip_opt
     model = aoe_model(tier_hit_settings)
@@ -179,12 +202,9 @@ def main() -> None:
     log.info("... convert histograms to lgdo")
     output = format_pdf_struct(histograms, levels, mul2_hist)
 
-    lh5.write(output, "pdf", args.pdf_file, wo_mode="w")
+    lh5.write(output, "pdf", pdf_file, wo_mode="w")
     lh5.write(
-        Scalar(float(info.livetime_in_s)),
-        "livetime_in_s",
-        args.pdf_file,
-        wo_mode="append",
+        Scalar(float(info.livetime_in_s)), "livetime_in_s", pdf_file, wo_mode="append"
     )
 
 

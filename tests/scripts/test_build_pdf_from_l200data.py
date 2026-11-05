@@ -10,6 +10,7 @@ import pytest
 import yaml
 from lgdo import Array, Table, VectorOfVectors
 
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.scripts import build_pdf_from_l200data
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
@@ -103,7 +104,14 @@ def _make_pet_file(path: Path) -> None:
     lh5.write(evt, "evt", path, wo_mode="write_safe")
 
 
-def _run(tmp_path: Path, monkeypatch, pulse_lib: bool = False, lookup: bool = False):
+def _run(
+    tmp_path: Path,
+    monkeypatch,
+    pulse_lib: bool = False,
+    lookup: bool = False,
+    defaults: bool = False,
+    runid: str = "l200-p02-r000-phy",
+):
     """Run the script on a pet file of run l200-p02-r000-phy of the dummy production."""
     meta_dir = tmp_path / "inputs"
     shutil.copytree(dummyprod / "inputs", meta_dir)
@@ -126,20 +134,23 @@ def _run(tmp_path: Path, monkeypatch, pulse_lib: bool = False, lookup: bool = Fa
     raw_config = yaml.safe_load((dummyprod / "simflow-config.yaml").read_text())
     raw_config["paths"]["metadata"] = str(meta_dir)
     raw_config["paths"]["l200data"] = str(l200data)
+    raw_config["paths"]["pars"] = str(tmp_path / "pars")
+    raw_config["paths"]["tier"]["pdf"] = str(tmp_path / "pdf")
     config_path.write_text(yaml.safe_dump(raw_config))
 
+    argv = ["tier-pdf-l200data", "--runid", runid, "--simflow-config", str(config_path)]
     pdf_file = tmp_path / "pdf.lh5"
-    argv = [
-        "tier-pdf-l200data",
-        "--runid",
-        "l200-p02-r000-phy",
-        "--modeled-detectors",
-        "V99000A",
-        "--pdf-file",
-        str(pdf_file),
-        "--simflow-config",
-        str(config_path),
-    ]
+    if defaults:
+        # the modeled detectors from the cache of the par step, the output in
+        # the pdf tier of the production
+        cache = tmp_path / "pars/detinfo/is_modelable.yaml"
+        cache.parent.mkdir(parents=True)
+        cache.write_text(
+            yaml.safe_dump({"l200-p02-r000-phy": {"V99000A": True, "B99000A": False}})
+        )
+        pdf_file = tmp_path / "pdf/l200data" / f"{runid}-tier_pdf.lh5"
+    else:
+        argv += ["--modeled-detectors", "V99000A", "--pdf-file", str(pdf_file)]
     if not lookup:
         argv += ["--evt-files", str(pet_file)]
     monkeypatch.setattr(sys, "argv", argv)
@@ -151,9 +162,11 @@ def _sum(pdf_file: Path, path: str) -> float:
     return lh5.read_as(path, pdf_file, "hist").sum()
 
 
-@pytest.mark.parametrize("lookup", [False, True])
-def test_build_pdf_from_l200data(tmp_path, monkeypatch, lookup):
-    pdf_file = _run(tmp_path, monkeypatch, lookup=lookup)
+@pytest.mark.parametrize(
+    ("lookup", "defaults"), [(False, False), (True, False), (True, True)]
+)
+def test_build_pdf_from_l200data(tmp_path, monkeypatch, lookup, defaults):
+    pdf_file = _run(tmp_path, monkeypatch, lookup=lookup, defaults=defaults)
 
     assert lh5.read("livetime_in_s", pdf_file).value == 10000
     expected = {
@@ -183,3 +196,8 @@ def test_build_pdf_from_l200data_pulse_lib(tmp_path, monkeypatch):
     assert _sum(pdf_file, "pdf/mul1/is_spms_coincident/is_ss_aoe/all") == 0
     assert _sum(pdf_file, "pdf/mul1/not_spms_coincident/is_high_aoe/all") == 0
     assert _sum(pdf_file, "pdf/mul1/not_spms_coincident/is_ss_aoe/all") == 2
+
+
+def test_build_pdf_from_l200data_run_not_in_cache(tmp_path, monkeypatch):
+    with pytest.raises(SimflowConfigError, match="not in the modelable-HPGe cache"):
+        _run(tmp_path, monkeypatch, defaults=True, runid="l200-p02-r001-phy")
