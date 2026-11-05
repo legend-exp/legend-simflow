@@ -4,10 +4,11 @@
 :maxdepth: 3
 
 setup
-meta
 pipeline
+meta
 prod
 output
+validation
 selections
 sites
 tips

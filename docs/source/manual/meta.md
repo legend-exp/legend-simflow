@@ -1,36 +1,3 @@
-# Data names and paths
-
-(file-naming)=
-
-## File naming conventions
-
-The file naming convention for simulation output files is:
-
-```
-{experiment}-{simid}-job_{jobid}-tier_{tier}.{extension}
-```
-
-where each label (in curly brackets `{}`) should be alphanumeric (including
-underscores: `_`) when possible. Avoid dashes (`-`) and other special characters
-unless explicitly supported for that specific field.
-
-- `experiment` — name or label for the experimental configuration being
-  simulated.
-
-- `simid` — stands for "simulation identifier", i.e. a string to uniquely label
-  a simulation. Typically specifies the physical process being simulated and the
-  experiment's components involved.
-
-- `jobid` — stands for "(simulation) job identifier". It's a zero-padded integer
-  that labels independent jobs across which the simulation is split.
-
-- `tier` — the three-character label of the tier. At the moment the simflow
-  supports `vtx`, `stp`, `opt`, `hit`, `evt`, `cvt` and `pdf` tiers.
-
-- `extension` — file extension. `lh5` for LEGEND HDF5 files, `gdml` for GDML
-  geometry files, `yaml` for plain-text YAML configuration files, `log` for log
-  files.
-
 # Metadata
 
 The workflow configuration metadata is stored in
@@ -97,7 +64,7 @@ Example:
 hpge_surface:
   command: >-
     revertex hpge-surf-pos --detectors [VB]* --surface-type nplus --gdml
-    {INPUT_FILE} --out-file {OUTPUT_FILE} --n-events {N_EVENTS}
+    {GDML_FILE} --out-file {OUTPUT_FILE} --n-events {N_EVENTS}
   product: positions
 ```
 
@@ -308,35 +275,14 @@ either by passing this macro file with `--macro-substitutions` (`SEED` and
 `N_EVENTS`), or by inlining the commands directly when using
 [_remage_'s "inline" mode](https://remage.readthedocs.io/en/stable/manual/running.html#executing-commands-in-batch-mode).
 
-(run-partitioning)=
+(runlist-meta)=
 
-### Run partitioning
+### Run list
 
-An important post-processing step of the workflow is to fold detector models
-with parameters that vary during the livetime of the experiment (across "data
-taking runs"), satisfying the following requirements:
-
-- the contribution of each data taking run over the total in terms of livetime
-  must be represented in the final simulated event sample;
-- the statistical properties of the simulated event sample must be kept intact.
-
-Ultimately, the simulated event sample must be directly comparable to the
-observed event sample. The Simflow will partition the total simulated event
-sample (across all simulation jobs) according to the livetime fraction of each
-run (taken from
-[legend-datasets](https://github.com/legend-exp/legend-datasets)) and apply run
-parameters to each partition. The partitions will still all live in the same
-table in the output file. A new column named `runid` holding the run index of
-each event is appended for convenience.
-
-Run partitioning is applied to both the `opt` and `hit` tiers: the LAr response
-is processed with the optical parameters and detector usability of the
-corresponding run partition, and the HPGe response with the energy resolution
-and PSD parameters of the same partition.
-
-The user selects a list of data taking runs ("run list" or "data set") that they
-want to simulate. Runs are specified by run-ids ("run identifiers") in the
-format:
+The run list sets the data taking runs among which the simulated events are
+partitioned (see {ref}`run-partitioning`). The user selects the runs ("run list"
+or "data set") that they want to simulate. Runs are specified by run-ids ("run
+identifiers") in the format:
 
 ```
 l200-<period>-<run>-<datatype>

@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="simflow-runpart" viewBox="0 0 620 206" width="100%" style="display: block; height: auto;" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">
+  <title>Run partitioning</title>
+  <style>
+    /* colors follow the light/dark theme of the docs (Furo variables) */
+    #simflow-runpart { --r0: #0969da; --r1: #bc4c00; --r2: #1a7f37; }
+    body[data-theme="dark"] #simflow-runpart { --r0: #4493f8; --r1: #f0883e; --r2: #3fb950; }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) #simflow-runpart { --r0: #4493f8; --r1: #f0883e; --r2: #3fb950; }
+    }
+    #simflow-runpart text { fill: var(--color-foreground-primary, #1f2328); }
+    #simflow-runpart .muted { fill: var(--color-foreground-secondary, #59636e); }
+    #simflow-runpart .k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+    #simflow-runpart .ks { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+    #simflow-runpart .r0 { fill: var(--r0); fill-opacity: 0.18; stroke: var(--r0); stroke-opacity: 0.7; stroke-width: 1.2; }
+    #simflow-runpart .r1 { fill: var(--r1); fill-opacity: 0.18; stroke: var(--r1); stroke-opacity: 0.7; stroke-width: 1.2; }
+    #simflow-runpart .r2 { fill: var(--r2); fill-opacity: 0.18; stroke: var(--r2); stroke-opacity: 0.7; stroke-width: 1.2; }
+    #simflow-runpart .job { stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.5; stroke-linecap: round; }
+    #simflow-runpart .proj { stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1; stroke-dasharray: 3 3; }
+    #simflow-runpart .arrow { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; }
+    #simflow-runpart .head { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <defs>
+    <marker id="simflow-runpart-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path class="head" d="M2 1.5 L9 5 L2 8.5"/>
+    </marker>
+  </defs>
+
+  <!-- data taking runs, widths proportional to livetime: 30 %, 50 %, 20 % -->
+  <text x="140" y="43" text-anchor="end">data taking runs</text>
+  <text x="140" y="59" text-anchor="end" class="muted" font-size="11">width ∝ livetime</text>
+  <rect class="r0" x="150" y="30" width="135" height="34"/>
+  <rect class="r1" x="285" y="30" width="225" height="34"/>
+  <rect class="r2" x="510" y="30" width="90" height="34"/>
+  <text x="217.5" y="51" text-anchor="middle"><tspan class="k">r001</tspan><tspan class="muted" dx="6" font-size="11">30 %</tspan></text>
+  <text x="397.5" y="51" text-anchor="middle"><tspan class="k">r002</tspan><tspan class="muted" dx="6" font-size="11">50 %</tspan></text>
+  <text x="555" y="51" text-anchor="middle"><tspan class="k">r003</tspan><tspan class="muted" dx="6" font-size="11">20 %</tspan></text>
+
+  <!-- the same cuts applied to the simulated events -->
+  <line class="proj" x1="285" y1="66" x2="285" y2="98"/>
+  <line class="proj" x1="510" y1="66" x2="510" y2="98"/>
+
+  <!-- simulated events: one box per event, 60 events in 3 jobs of 20 -->
+  <text x="140" y="113" text-anchor="end">simulated events</text>
+  <text x="140" y="129" text-anchor="end" class="muted" font-size="11">all jobs, in order</text>
+  <rect class="r0" x="151.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="158.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="166.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="173.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="181.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="188.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="196.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="203.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="211.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="218.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="226.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="233.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="241.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="248.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="256.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="263.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="271.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r0" x="278.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="286.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="293.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="301.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="308.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="316.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="323.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="331.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="338.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="346.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="353.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="361.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="368.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="376.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="383.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="391.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="398.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="406.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="413.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="421.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="428.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="436.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="443.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="451.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="458.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="466.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="473.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="481.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="488.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="496.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r1" x="503.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="511.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="518.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="526.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="533.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="541.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="548.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="556.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="563.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="571.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="578.5" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="586.0" y="100" width="5.5" height="34" rx="1.5"/>
+  <rect class="r2" x="593.5" y="100" width="5.5" height="34" rx="1.5"/>
+
+  <!-- job boundaries -->
+  <text x="152" y="94" class="ks muted">job 0</text>
+  <line class="job" x1="300" y1="84" x2="300" y2="98"/>
+  <text x="304" y="94" class="ks muted">job 1</text>
+  <line class="job" x1="450" y1="84" x2="450" y2="98"/>
+  <text x="454" y="94" class="ks muted">job 2</text>
+
+  <!-- each slice is processed with the parameters of its run -->
+  <path class="arrow" marker-end="url(#simflow-runpart-head)" d="M217.5 140 V162"/>
+  <path class="arrow" marker-end="url(#simflow-runpart-head)" d="M397.5 140 V162"/>
+  <path class="arrow" marker-end="url(#simflow-runpart-head)" d="M555 140 V162"/>
+  <rect class="r0" x="162.5" y="166" width="110" height="24" rx="5"/>
+  <text x="217.5" y="182" text-anchor="middle" class="ks">r001 parameters</text>
+  <rect class="r1" x="342.5" y="166" width="110" height="24" rx="5"/>
+  <text x="397.5" y="182" text-anchor="middle" class="ks">r002 parameters</text>
+  <rect class="r2" x="500" y="166" width="110" height="24" rx="5"/>
+  <text x="555" y="182" text-anchor="middle" class="ks">r003 parameters</text>
+  <text x="140" y="182" text-anchor="end">processed with</text>
+</svg>

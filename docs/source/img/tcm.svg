@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="simflow-tcm" viewBox="0 0 508 322" width="620" height="393" style="display: block; margin: auto; max-width: 100%; height: auto;" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">
+  <title>Detector-wise and event-wise processing</title>
+  <style>
+    /* colors follow the light/dark theme of the docs (Furo variables) */
+    #simflow-tcm { --border: #d1d9e0; --file: #eaeef2; --file-border: #c3cbd3; }
+    body[data-theme="dark"] #simflow-tcm { --border: #3d444d; --file: #262b33; --file-border: #4b525b; }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) #simflow-tcm { --border: #3d444d; --file: #262b33; --file-border: #4b525b; }
+    }
+    #simflow-tcm text { fill: var(--color-foreground-primary, #1f2328); }
+    #simflow-tcm .muted { fill: var(--color-foreground-secondary, #59636e); }
+    #simflow-tcm .b { font-weight: 600; }
+    #simflow-tcm .k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; font-weight: 600; }
+    #simflow-tcm .det { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: var(--color-foreground-secondary, #59636e); }
+    #simflow-tcm .tcm { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+    #simflow-tcm .file { fill: var(--file); stroke: var(--file-border); stroke-width: 1.5; }
+    #simflow-tcm .box { fill: var(--color-background-primary, #ffffff); stroke: var(--border); stroke-width: 1.5; }
+    #simflow-tcm .sep { stroke: var(--border); stroke-width: 1.2; stroke-dasharray: 4 4; }
+    #simflow-tcm .arrow { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; }
+    #simflow-tcm .head { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <defs>
+    <marker id="simflow-tcm-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path class="head" d="M2 1.5 L9 5 L2 8.5"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="22" class="b">per detector</text>
+  <text x="374" y="22" class="b">per event</text>
+  <line class="sep" x1="350" y1="8" x2="350" y2="314"/>
+
+  <!-- stp file: one table per detector, plus the TCM -->
+  <rect class="file" x="20" y="36" width="130" height="192" rx="10"/>
+  <text x="85" y="56" text-anchor="middle" class="k">stp</text>
+  <rect class="box" x="37" y="66" width="96" height="24" rx="5"/>
+  <text x="85" y="82" text-anchor="middle" class="det">/stp/det1</text>
+  <rect class="box" x="37" y="98" width="96" height="24" rx="5"/>
+  <text x="85" y="114" text-anchor="middle" class="det">/stp/det2</text>
+  <rect class="box" x="37" y="130" width="96" height="24" rx="5"/>
+  <text x="85" y="146" text-anchor="middle" class="det">/stp/det3</text>
+  <rect class="box" x="37" y="162" width="96" height="24" rx="5"/>
+  <text x="85" y="178" text-anchor="middle" class="det">/stp/det4</text>
+  <rect class="box" x="37" y="194" width="96" height="24" rx="5"/>
+  <text x="85" y="210" text-anchor="middle" class="tcm">/tcm</text>
+
+  <!-- hit file: tables of the detectors it models, plus the TCM -->
+  <rect class="file" x="196" y="36" width="130" height="128" rx="10"/>
+  <text x="261" y="56" text-anchor="middle" class="k">hit</text>
+  <rect class="box" x="213" y="66" width="96" height="24" rx="5"/>
+  <text x="261" y="82" text-anchor="middle" class="det">/hit/det1</text>
+  <rect class="box" x="213" y="98" width="96" height="24" rx="5"/>
+  <text x="261" y="114" text-anchor="middle" class="det">/hit/det2</text>
+  <rect class="box" x="213" y="130" width="96" height="24" rx="5"/>
+  <text x="261" y="146" text-anchor="middle" class="tcm">/tcm</text>
+
+  <!-- opt file: tables of the detectors it models, plus the TCM -->
+  <rect class="file" x="196" y="176" width="130" height="128" rx="10"/>
+  <text x="261" y="196" text-anchor="middle" class="k">opt</text>
+  <rect class="box" x="213" y="206" width="96" height="24" rx="5"/>
+  <text x="261" y="222" text-anchor="middle" class="det">/hit/det3</text>
+  <rect class="box" x="213" y="238" width="96" height="24" rx="5"/>
+  <text x="261" y="254" text-anchor="middle" class="det">/hit/det4</text>
+  <rect class="box" x="213" y="270" width="96" height="24" rx="5"/>
+  <text x="261" y="286" text-anchor="middle" class="tcm">/tcm</text>
+
+  <!-- evt file: a single table, one row per event -->
+  <rect class="file" x="374" y="36" width="120" height="268" rx="10"/>
+  <text x="434" y="56" text-anchor="middle" class="k">evt</text>
+  <rect class="box" x="391" y="66" width="86" height="228" rx="5"/>
+  <text x="434" y="168" text-anchor="middle" class="det">/evt</text>
+  <text x="434" y="186" text-anchor="middle" class="muted" font-size="11">one row</text>
+  <text x="434" y="200" text-anchor="middle" class="muted" font-size="11">per event</text>
+
+  <!-- each table processed on its own -->
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M137 78 H209"/>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M137 110 H209"/>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M137 142 C175 142, 171 218, 209 218"/>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M137 174 C175 174, 171 250, 209 250"/>
+
+  <!-- the tables are merged into events with the TCMs -->
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M313 78 H387"/>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M313 110 H387"/>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M313 218 H387"/>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M313 250 H387"/>
+
+  <!-- legend -->
+  <rect class="file" x="24" y="244" width="26" height="18" rx="5"/>
+  <text x="60" y="257" class="muted" font-size="12">LH5 file</text>
+  <rect class="box" x="26" y="272" width="22" height="13" rx="3"/>
+  <text x="60" y="283" class="muted" font-size="12">table in the file</text>
+  <path class="arrow" marker-end="url(#simflow-tcm-head)" d="M24 305 H48"/>
+  <text x="60" y="309" class="muted" font-size="12">processed into</text>
+</svg>
