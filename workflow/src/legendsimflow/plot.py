@@ -14,13 +14,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-from collections.abc import Iterable
 from datetime import date
-from pathlib import Path
 
 import awkward as ak
 import hist
-import lh5
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -112,16 +109,6 @@ def plot_hist(h, ax, n_nans: int | None = None, **kwargs):
 
     set_empty(ax)
     return False
-
-
-def read_concat_wempty(files: Iterable[str | Path], table: str) -> ak.Array | None:
-    # some hit files might not contain the table because there were no hits
-    arrays = []
-    for f in files:
-        if f"hit/{table}" in lh5.ls(f, "hit/"):
-            arrays.append(lh5.read_as(f"hit/{table}", f, library="ak"))
-
-    return ak.concatenate(arrays, axis=0) if arrays != [] else None
 
 
 def n_nans(array):

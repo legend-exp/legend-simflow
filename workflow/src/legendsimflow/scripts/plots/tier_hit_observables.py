@@ -15,12 +15,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from collections import Counter
 from pathlib import Path
 
+import awkward as ak
 import hist
 import lh5
 import matplotlib.pyplot as plt
 import numpy as np
+from lh5 import LH5Iterator
 from matplotlib.backends.backend_pdf import PdfPages
 
 from legendsimflow import metadata as mutils
@@ -37,9 +40,66 @@ simid = args.wildcards.simid
 def fig(table):
     fig = plt.figure(figsize=(14, 12))
 
-    data = plot.read_concat_wempty(hit_files, table)
+    bw = 5
+    h_ene = hist.new.Reg(int(5000 / bw), 0, 5000, name="energy (keV)").Double()
+    # 0.5 keV bins, the zoom inset is cut from it
+    h_ene_fine = hist.new.Reg(10000, 0, 5000, name="energy (keV)").Double()
+    h_aoe = hist.new.Reg(200, 0, 2, name="A/E").Double()
+    h_dt = hist.new.Reg(
+        300, 0, 3000, name="drift time · $t_{max(A)} - t_0$ (ns)"
+    ).Double()
+    n_rows = n_aoe = n_dt = n_nans_aoe = n_nans_dt = 0
+    usability = Counter()
+    # hits above 1 MeV for the A/E classifier panels, in file order
+    high_e = []
+    n_high_e = 0
 
-    if data is None or len(data) == 0:
+    # some hit files do not contain the table because there were no hits
+    files = [f for f in hit_files if f"hit/{table}" in lh5.ls(f, "hit/")]
+    chunks = (
+        LH5Iterator(
+            files,
+            f"hit/{table}",
+            field_mask=[
+                "energy",
+                "usability",
+                "psd/single_temp/aoe",
+                "psd/single_temp/aoe_corr",
+                "psd/single_temp/drift_time_amax",
+                "psd/single_temp/is_single_site",
+            ],
+            buffer_len="100*MB",
+        )
+        if files
+        else []
+    )
+    for chunk in chunks:
+        data = chunk.view_as("ak")
+        n_rows += len(data)
+
+        h_ene.fill(data.energy)
+        h_ene_fine.fill(data.energy)
+
+        aoe_raw = data.psd.single_temp.aoe_corr[data.energy > 100]
+        h_aoe.fill(aoe_raw)
+        n_aoe += len(aoe_raw)
+        n_nans_aoe += n_nans(aoe_raw)
+
+        dt = data.psd.single_temp.drift_time_amax[data.energy > 100]
+        h_dt.fill(dt)
+        n_dt += len(dt)
+        n_nans_dt += n_nans(dt)
+
+        vals, counts = np.unique(data.usability, return_counts=True)
+        usability.update(dict(zip(vals.tolist(), counts.tolist(), strict=True)))
+
+        if n_high_e < 10_000:
+            # copy: the iterator overwrites its buffer with the next chunk
+            sel = ak.copy(data[data.energy > 1000][: 10_000 - n_high_e])
+            high_e.append(sel)
+            n_high_e += len(sel)
+
+    if n_rows == 0:
         ax = fig.add_subplot()
         plot.set_empty(ax)
         return fig
@@ -51,9 +111,6 @@ def fig(table):
 
     # energy
     ax = fig.add_subplot(gs_top[0, 0])
-    bw = 5
-    h_ene = hist.new.Reg(int(5000 / bw), 0, 5000, name="energy (keV)").Double()
-    h_ene.fill(data.energy)
     plot.plot_hist(h_ene, ax)
     ax.set_ylabel(f"counts / {bw} keV")
     ax.set_yscale("log")
@@ -66,10 +123,10 @@ def fig(table):
     if _h.sum() != 0:
         argmax_e = _h.axes[0].centers[_h.view().argmax()]
 
-        h_ene_z = hist.new.Reg(
-            80, argmax_e - 20, argmax_e + 20, name="energy (keV)"
-        ).Double()
-        h_ene_z.fill(data.energy)
+        # +-20 keV around the centre of the 5 keV bin, which is the edge
+        # 10 * k + 5 of the 0.5 keV bins
+        i = 10 * h_ene.axes[0].index(argmax_e) + 5
+        h_ene_z = h_ene_fine[i - 40 : i + 40]
         plot.plot_hist(h_ene_z, ax, flow="none")
     else:
         # no events above 1 MeV; mark inset as empty
@@ -80,17 +137,13 @@ def fig(table):
 
     # A/E
     ax = fig.add_subplot(gs_mid[0, 0])
-    aoe_raw = data.psd.single_temp.aoe_corr[data.energy > 100]
-    h_aoe = hist.new.Reg(200, 0, 2, name="A/E").Double()
-    h_aoe.fill(aoe_raw)
-
-    if len(aoe_raw) > 0:
+    if n_aoe > 0:
         plotted = plot.plot_hist(
             h_aoe,
             ax,
             color="tab:red",
             label="energy > 100 keV",
-            n_nans=n_nans(aoe_raw),
+            n_nans=n_nans_aoe,
         )
         if plotted:
             ax.legend()
@@ -99,19 +152,13 @@ def fig(table):
 
     # drift time
     ax = fig.add_subplot(gs_mid[0, 1])
-    h_dt = hist.new.Reg(
-        300, 0, 3000, name="drift time · $t_{max(A)} - t_0$ (ns)"
-    ).Double()
-    dt = data.psd.single_temp.drift_time_amax[data.energy > 100]
-    h_dt.fill(dt)
-
-    if len(dt) > 0:
+    if n_dt > 0:
         plotted = plot.plot_hist(
             h_dt,
             ax,
             color="tab:orange",
             label="energy > 100 keV",
-            n_nans=n_nans(dt),
+            n_nans=n_nans_dt,
         )
         if plotted:
             ax.legend()
@@ -120,10 +167,10 @@ def fig(table):
 
     # usability
     ax = fig.add_subplot(gs_mid[0, 2])
-    vals, counts = np.unique(data.usability, return_counts=True)
+    vals = sorted(usability)
     labels = [mutils.decode_usability(v) for v in vals]
     plt.pie(
-        counts,
+        [usability[v] for v in vals],
         labels=labels,
         colors=[plot.USABILITY_COLOR[lab] for lab in labels],
         autopct="%1.1f%%",
@@ -131,7 +178,7 @@ def fig(table):
     ax.set_aspect("equal")  # keep it circular
 
     # A/E classifier
-    _d = data[data.energy > 1000][:10_000]
+    _d = ak.concatenate(high_e)
     _ss = _d.psd.single_temp.is_single_site
 
     ax1 = fig.add_subplot(gs_bot[0, 0])
