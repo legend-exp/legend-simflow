@@ -18,6 +18,7 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
   configuration file.
 - `sites.md`: Computing site execution tips.
 - `tips.md`: Collection of tips&tricks.
+- `validation.md`: how to validate the output of the Simflow.
 
 ## Conventions
 

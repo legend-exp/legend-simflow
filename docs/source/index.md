@@ -61,8 +61,8 @@ macros or post-processing settings) is stored at
    "hit" represents a collection of Geant4 "step" in a single detector
    (sensitive volume). In these tiers, hit-wise operations like optical map or
    HPGe detector models application are typically performed. The "run
-   partitioning" is also performed at this stage (see below). Two tiers belong
-   to this group:
+   partitioning" is also performed at this stage (see {ref}`run-partitioning`).
+   Two tiers belong to this group:
    - Tier `opt`: convolution of the optical models (i.e. optical "maps")
    - Tier `hit`: convolution of HPGe detector models (energy and pulse shape)
 
@@ -81,22 +81,6 @@ macros or post-processing settings) is stored at
 1. Validation plots are produced at several stages of the Simflow.
 
 1. Tier `pdf` building: summarize `evt`-tier output into histograms (the pdfs).
-
-### Run partitioning
-
-"Run partitioning" refers to incorporating information about the experiment's
-data taking runs for which the user wants to build pdfs:
-
-- Partition the simulated event statistics into fractions corresponding to the
-  actual total livetime fraction spanned by each selected run. This information
-  is extracted from
-  [`legend-metadata/datasets/runinfo.yaml`](https://github.com/legend-exp/legend-datasets/blob/main/runinfo.yaml)
-- For each partition, apply HPGe models such as energy resolution or
-  pulse-shape.
-- ...apply optical models (detection probability lookup tables) for the
-  scintillators.
-- ...apply detector status flags (available in
-  [`legend-metadata/datasets/statuses`](https://github.com/legend-exp/legend-datasets/blob/main/statuses))
 
 ## Next steps
 

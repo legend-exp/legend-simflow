@@ -1,23 +1,139 @@
 # Pipeline steps
 
-This page describes what each step of the Simflow pipeline does and how it uses
-the metadata and configuration described in [](meta.md).
+The Simflow produces a list of simulations, each labelled by a `simid`. A
+simulation describes one physical process in one part of the experiment, for
+example the decays of a radioactive isotope in the HPGe detector bulk. Every
+simulation goes through the same chain of steps:
+
+```{raw} html
+:file: ../img/pipeline.svg
+```
+
+- `vtx` and `stp` simulate the particle interactions in the experiment. `stp`
+  runs _remage_ and records the energy depositions (steps) in the detectors.
+  `vtx` runs before it only when the primary vertices come from an external
+  generator.
+- `opt` and `hit` turn the energy depositions into the observables of the SiPMs
+  and of the HPGe detectors. They split the events among the LEGEND data taking
+  runs (see {ref}`run-partitioning`) and apply the detector parameters of each
+  run.
+- `par` extracts those detector parameters, per run and per detector, mostly
+  from the LEGEND data. All simulations share them.
+- `evt` combines the SiPM and HPGe observables into events, `cvt` concatenates
+  the event files of a simulation, and `pdf` fills the histograms (the pdfs).
+
+Each simulation is split into independent jobs with the same number of
+primaries. The steps drawn as stacked cards write one file per job, so their
+jobs can run in parallel. `cvt` joins them into a single file per simulation.
+
+(detector-tables-and-events)=
+
+## Detector tables and events
+
+```{raw} html
+:file: ../img/tcm.svg
+```
+
+Up to the `opt` and `hit` steps, the data are stored per detector, not per
+event. _remage_ writes one table per detector in the `stp` file, with one row
+per hit (the energy depositions of one event in one detector). `opt` and `hit`
+keep this layout: they read one detector table at a time, in chunks of rows,
+apply the model and parameters of that detector, and write one output table per
+detector. A detector model does not need the hits of the other detectors, so
+these steps never build events.
+
+To keep track of which hits belong together, each `stp`, `opt` and `hit` file
+holds a time-coincidence map (TCM, see {ref}`tcm-output`). For every event, the
+TCM lists the detector tables and rows of its hits.
+
+The `evt` step builds the events. It combines the TCMs of the `stp` and `opt`
+files into one TCM that points to both the HPGe and the SiPM tables, and loops
+over the events, in chunks. For each event, it uses the TCM to read the
+observables of its hits from the detector tables, and it writes one row per
+event. `cvt` keeps this layout, and `pdf` fills its histograms from these
+events. Quantities that combine detectors, like the HPGe multiplicity or the LAr
+veto, are therefore computed only from the `evt` step on.
+
+(run-partitioning)=
+
+## Run partitioning
+
+```{raw} html
+:file: ../img/runpart.svg
+```
+
+The detector parameters change during the data taking. From one LEGEND run to
+the next, detectors are switched on or off, and their energy resolution and
+pulse-shape response change. A simulation is therefore compared with a list of
+data taking runs, and each run must be represented in the simulated events in
+proportion to its livetime.
+
+The Simflow splits the simulated events of each simulation into partitions, one
+per run. It counts the events in the TCM of all jobs and gives each run a share
+proportional to its livetime fraction, taken from
+[legend-datasets](https://github.com/legend-exp/legend-datasets). Each partition
+is a range of consecutive events. A partition can extend over two or more jobs,
+and a job can hold two or more partitions: the first job might hold all the
+events of the first run and the first events of the second run.
+
+The `par` step computes the partitions once per simulation. The data of all the
+later tiers are partitioned in this way, the hit-oriented and the event-oriented
+ones alike. In the detector tables of `opt` and `hit`, the rows of the events of
+a partition are processed with the parameters of its run: the usability of each
+detector, and the energy resolution and pulse-shape parameters of the HPGe
+detectors. In the event table of `evt`, the events of a partition are built with
+the SiPM channels that are on in that run and, when random coincidences are
+added, with coincidences drawn from the LEGEND data of that run. The partitions
+stay in the same tables, split at the same events in every tier, and each row
+records the period and run it belongs to.
+
+Every simulated event belongs to exactly one partition, so no event is lost or
+used twice. The simulated events can then be compared directly with the data of
+the same runs.
 
 ## `vtx` — event vertex generation
 
-:::{todo}
+Some simulations start from primary vertices that _remage_ cannot sample by
+itself. An example is the position of decays on the n+ surface of the HPGe
+detectors, generated by [revertex](https://revertex.readthedocs.io). The `vtx`
+step runs such an external generator before the particle simulation and writes
+the vertices to a file that the `stp` step reads.
 
-Document the vertex generation step.
+The step runs only for the simulations that ask for external vertices (see
+{ref}`vtx-tier-meta`). It is not a separate stage of the production: Snakemake
+runs the generator when the `stp` jobs need the vertices.
 
-:::
+Each `stp` job reads its own vertex file, written by the `vtx` job with the same
+job number. The `vtx` job generates one vertex per primary of the `stp` job, in
+the same geometry that `stp` then simulates.
+
+A generator provides the positions of the primaries, their kinematics (particle
+type, energy and momentum direction), or both. _remage_ reads what the generator
+provides and samples the rest by itself.
 
 ## `stp` — particle simulation
 
-:::{todo}
+The `stp` step simulates the passage of particles through the experiment with
+[_remage_](https://remage.readthedocs.io), a simulation program based on Geant4.
+It records the energy depositions (steps) in the detectors.
 
-Document the remage simulation step.
+Each simulation has its own geometry. The geometry generator of the experiment
+(for example [legend-pygeom-l200](https://legend-pygeom-l200.readthedocs.io) for
+LEGEND-200) builds it from the LEGEND metadata, with the changes requested by
+that simulation (see {ref}`geom-config.yaml`). It writes the geometry to a GDML
+file (a text format for Geant4 geometries). The `vtx`, `opt` and `hit` steps
+read the same GDML file, so the whole chain uses the same geometry.
 
-:::
+The Simflow then writes one _remage_ macro per simulation, which sets the
+primary particles and where they start (see {ref}`simconfig.yaml`). All jobs of
+a simulation run this macro. Each job gets its number of primaries and a random
+seed for _remage_. The seed is a hash of the path of the output file of the job,
+so every job has a different seed, and a job that runs again with the same
+inputs simulates the same events.
+
+Each job runs _remage_ in a single thread: the Simflow gets its parallelism from
+running many jobs at the same time. A job writes one `stp` file, with one table
+per detector and a TCM (see {ref}`detector-tables-and-events`).
 
 ## `par` — parameter extraction
 
@@ -186,9 +302,6 @@ per-detector files that apply to a given `runid` into a single merged LH5 file
 keyed by detector name. If no drift-time maps exist for a run, an empty HDF5
 file is created.
 
-`plot_hpge_drift_time_maps` produces a validation PDF for each
-`(detector, voltage)` pair from the single-detector output.
-
 The `SolidStateDetectors.jl` (SSD) simulation parameters (grid size, refinement
 thresholds, padding) are controlled by {ref}`ssd-settings-meta`.
 
@@ -337,8 +450,7 @@ merged electronics model file, and applies the following processing chain:
 The output for a single `(runid, detector)` pair is in the pulse-shape-library
 format consumed by reboost ({func}`reboost.hpge.load_hpge_pulse_shape_library`).
 See the [`convolve_hpge_ideal_pulse_shape_lib`](../api/snakemake_rules.md) rule
-reference for the output fields. Validation plots (R and Z waveform scans and an
-A/E R/Z heatmap) are produced alongside.
+reference for the output fields.
 
 `merge_hpge_realistic_psls` copies the per-detector realistic PSL objects into a
 single merged LH5 file keyed by detector name for each `runid`. This merged file

@@ -4,6 +4,37 @@ This page documents the fields (columns) produced by each post-processing tier
 of the Simflow. All output files use the
 [LEGEND HDF5 (LH5) format](https://legend-exp.github.io/legend-data-format-specs/dev/hdf5/).
 
+(file-naming)=
+
+## File naming conventions
+
+The file naming convention for simulation output files is:
+
+```
+{experiment}-{simid}-job_{jobid}-tier_{tier}.{extension}
+```
+
+where each label (in curly brackets `{}`) should be alphanumeric (including
+underscores: `_`) when possible. Avoid dashes (`-`) and other special characters
+unless explicitly supported for that specific field.
+
+- `experiment` — name or label for the experimental configuration being
+  simulated.
+
+- `simid` — stands for "simulation identifier", i.e. a string to uniquely label
+  a simulation. Typically specifies the physical process being simulated and the
+  experiment's components involved.
+
+- `jobid` — stands for "(simulation) job identifier". It's a zero-padded integer
+  that labels independent jobs across which the simulation is split.
+
+- `tier` — the three-character label of the tier. At the moment the simflow
+  supports `vtx`, `stp`, `opt`, `hit`, `evt`, `cvt` and `pdf` tiers.
+
+- `extension` — file extension. `lh5` for LEGEND HDF5 files, `gdml` for GDML
+  geometry files, `yaml` for plain-text YAML configuration files, `log` for log
+  files.
+
 (par-output-files)=
 
 ## `par` tier — HPGe PSD parameter files
@@ -330,6 +361,8 @@ argon.
 | ------ | ------- | ----- | ------------------------------------------------------------------------------------ |
 | `geds` | `Array` | —     | Boolean. `True` if the HPGe multiplicity is greater than zero.                       |
 | `spms` | `Array` | —     | Boolean LAr veto flag. `True` if `spms/multiplicity >= 4` or `spms/energy_sum >= 4`. |
+
+(tcm-output)=
 
 ## Time-coincidence map (TCM)
 

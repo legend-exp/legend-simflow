@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="simflow-pipeline" viewBox="80 0 650 684" width="650" height="684" style="display: block; margin: auto; max-width: 100%; height: auto;" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">
+  <title>Simflow pipeline steps</title>
+  <style>
+    /* colors follow the light/dark theme of the docs (Furo variables) */
+    #simflow-pipeline { --par: #bc4c00; --border: #d1d9e0; }
+    body[data-theme="dark"] #simflow-pipeline { --par: #f0883e; --border: #3d444d; }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) #simflow-pipeline { --par: #f0883e; --border: #3d444d; }
+    }
+    #simflow-pipeline text { fill: var(--color-foreground-primary, #1f2328); }
+    #simflow-pipeline .muted { fill: var(--color-foreground-secondary, #59636e); }
+    #simflow-pipeline .b { font-weight: 600; }
+    #simflow-pipeline .k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; font-weight: 600; }
+    #simflow-pipeline .ks { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    #simflow-pipeline .sw { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10.5px; fill: var(--color-foreground-secondary, #59636e); opacity: 0.85; }
+    #simflow-pipeline .sim { fill: var(--color-brand-primary, #0969da); }
+    #simflow-pipeline .par { fill: var(--par); }
+    #simflow-pipeline .frame { fill: var(--color-background-secondary, #f6f8fa); stroke: var(--border); stroke-width: 1.5; }
+    #simflow-pipeline .group { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.2; stroke-dasharray: 6 4; opacity: 0.6; }
+    #simflow-pipeline .box { fill: var(--color-background-primary, #ffffff); stroke: var(--border); stroke-width: 1.5; }
+    #simflow-pipeline .arrow { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; }
+    #simflow-pipeline .optional { stroke-dasharray: 3 4; }
+    #simflow-pipeline .head { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <defs>
+    <marker id="simflow-pipeline-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path class="head" d="M2 1.5 L9 5 L2 8.5"/>
+    </marker>
+  </defs>
+
+  <!-- one chain per simulation (simid), stacked -->
+  <rect class="frame" x="112" y="24" width="408" height="626" rx="12"/>
+  <rect class="frame" x="104" y="32" width="408" height="626" rx="12"/>
+  <rect class="frame" x="96" y="40" width="408" height="626" rx="12"/>
+  <text x="112" y="64" class="b">simulation</text>
+  <text x="488" y="64" text-anchor="end"><tspan class="muted">×</tspan><tspan class="ks sim" dx="4">simid</tspan></text>
+
+  <!-- stacked cards: one file per simulation job -->
+
+  <!-- vtx -->
+  <rect class="box" x="218" y="76" width="180" height="62" rx="8"/>
+  <rect class="box" x="214" y="80" width="180" height="62" rx="8"/>
+  <rect class="box" x="210" y="84" width="180" height="62" rx="8"/>
+  <text x="300" y="105" text-anchor="middle" class="k sim">vtx</text>
+  <text x="300" y="123" text-anchor="middle" class="muted">vertex generation</text>
+  <text x="300" y="138" text-anchor="middle" class="sw">e.g. revertex</text>
+  <path class="arrow optional" marker-end="url(#simflow-pipeline-head)" d="M300 150 V172"/>
+  <text x="309" y="165" class="muted" font-size="11">optional</text>
+
+  <!-- stp -->
+  <rect class="box" x="218" y="176" width="180" height="62" rx="8"/>
+  <rect class="box" x="214" y="180" width="180" height="62" rx="8"/>
+  <rect class="box" x="210" y="184" width="180" height="62" rx="8"/>
+  <text x="300" y="205" text-anchor="middle" class="k sim">stp</text>
+  <text x="300" y="223" text-anchor="middle" class="muted">particle simulation</text>
+  <text x="300" y="238" text-anchor="middle" class="sw">remage</text>
+  <path class="arrow" marker-end="url(#simflow-pipeline-head)" d="M300 250 V272"/>
+
+  <!-- detector response: opt and hit -->
+  <rect class="group" x="116" y="276" width="368" height="112" rx="10"/>
+  <text x="132" y="294" class="muted" font-size="12">detector response</text>
+  <rect class="box" x="140" y="304" width="160" height="62" rx="8"/>
+  <rect class="box" x="136" y="308" width="160" height="62" rx="8"/>
+  <rect class="box" x="132" y="312" width="160" height="62" rx="8"/>
+  <text x="212" y="333" text-anchor="middle" class="k">opt</text>
+  <text x="212" y="351" text-anchor="middle" class="muted">SiPMs</text>
+  <text x="212" y="366" text-anchor="middle" class="sw">reboost</text>
+  <rect class="box" x="316" y="304" width="160" height="62" rx="8"/>
+  <rect class="box" x="312" y="308" width="160" height="62" rx="8"/>
+  <rect class="box" x="308" y="312" width="160" height="62" rx="8"/>
+  <text x="388" y="333" text-anchor="middle" class="k">hit</text>
+  <text x="388" y="351" text-anchor="middle" class="muted">HPGe detectors</text>
+  <text x="388" y="366" text-anchor="middle" class="sw">reboost</text>
+  <path class="arrow" marker-end="url(#simflow-pipeline-head)" d="M300 392 V416"/>
+
+  <!-- evt -->
+  <rect class="box" x="218" y="420" width="180" height="62" rx="8"/>
+  <rect class="box" x="214" y="424" width="180" height="62" rx="8"/>
+  <rect class="box" x="210" y="428" width="180" height="62" rx="8"/>
+  <text x="300" y="449" text-anchor="middle" class="k">evt</text>
+  <text x="300" y="467" text-anchor="middle" class="muted">event building</text>
+  <text x="300" y="482" text-anchor="middle" class="sw">reboost</text>
+  <path class="arrow" marker-end="url(#simflow-pipeline-head)" d="M300 494 V516"/>
+
+  <!-- cvt, pdf: one file per simulation -->
+  <rect class="box" x="210" y="520" width="180" height="50" rx="8"/>
+  <text x="300" y="541" text-anchor="middle" class="k">cvt</text>
+  <text x="300" y="559" text-anchor="middle" class="muted">concatenation</text>
+  <path class="arrow" marker-end="url(#simflow-pipeline-head)" d="M300 574 V596"/>
+
+  <rect class="box" x="210" y="600" width="180" height="50" rx="8"/>
+  <text x="300" y="621" text-anchor="middle" class="k">pdf</text>
+  <text x="300" y="639" text-anchor="middle" class="muted">histograms</text>
+
+  <!-- par: shared by all simulations -->
+  <rect class="box" x="544" y="312" width="170" height="62" rx="8"/>
+  <text x="629" y="333" text-anchor="middle" class="k par">par</text>
+  <text x="629" y="351" text-anchor="middle" class="muted" font-size="12">detector parameters</text>
+  <text x="629" y="366" text-anchor="middle" class="sw">reboost, pygama, SSD.jl</text>
+  <path class="arrow" marker-end="url(#simflow-pipeline-head)" d="M540 343 H488"/>
+
+  <!-- legend -->
+  <rect class="box" x="548" y="622" width="20" height="14" rx="3"/>
+  <rect class="box" x="546" y="624" width="20" height="14" rx="3"/>
+  <rect class="box" x="544" y="626" width="20" height="14" rx="3"/>
+  <text x="576" y="637" class="muted" font-size="11">per-job files</text>
+</svg>
