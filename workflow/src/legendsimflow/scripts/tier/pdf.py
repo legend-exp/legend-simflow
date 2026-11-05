@@ -158,7 +158,7 @@ def main() -> None:
             # event masks of the categories of all levels
             in_category = {}
             if has_spms_coinc:
-                in_category |= lar_categories(evt_m1)
+                in_category |= lar_categories(ak.to_numpy(evt_m1.coincident.spms))
             if model is not None:
                 in_category |= aoe_categories(*sim_aoe_flags(evt_m1, hit_m1, model))
             if fccd_thr is not None:

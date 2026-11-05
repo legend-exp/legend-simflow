@@ -499,15 +499,15 @@ The data is read from the `evt` (or `pet`) tier of the data production at
 `paths.l200data`. The functions of {mod}`legendsimflow.selections` apply the
 same selections to both; the fields they read are:
 
-| Selection               | Simulation (`cvt` tier)                   | Data (`evt` or `pet` tier)                                                                                          |
-| ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| hit                     | `geds.energy` above `geds_energy_thr_kev` | same, with the threshold of the `evt` tier settings                                                                 |
-| ON detector             | `geds.quality.is_good_channel`            | same                                                                                                                |
-| clean event             | —                                         | not `trigger.is_forced`, `coincident.puls`, `coincident.muon`, `coincident.muon_offline`; `geds.quality.is_bb_like` |
-| LAr veto                | `coincident.spms`                         | same                                                                                                                |
-| valid A/E               | `psd.is_good` and `psd.<model>.has_aoe`   | `psd.is_good` and a detector whose A/E the simulation models                                                        |
-| single-site             | `psd.<model>.is_single_site`              | `psd.low_aoe.is_single_site`                                                                                        |
-| above the high-side cut | `psd.pulse_lib.is_high_aoe`               | not `psd.high_aoe.is_bulk`                                                                                          |
+| Selection               | Simulation (`cvt` tier)                   | Data (`evt` or `pet` tier)                                                                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hit                     | `geds.energy` above `geds_energy_thr_kev` | same, with the threshold of the `evt` tier settings                                                                                                                                                                                               |
+| ON detector             | `geds.quality.is_good_channel`            | same                                                                                                                                                                                                                                              |
+| clean event             | —                                         | not `trigger.is_forced`, `coincident.puls`, `coincident.muon`, `coincident.muon_offline`; `geds.quality.is_bb_like`                                                                                                                               |
+| LAr veto                | `coincident.spms`                         | computed again as the Simflow does: `spms.multiplicity` at or above `lar_veto_multiplicity_thr`, or `spms.energy_sum` at or above `lar_veto_energy_sum_pe_thr`, the `evt` tier settings. The `coincident.spms` of the data production is not used |
+| valid A/E               | `psd.is_good` and `psd.<model>.has_aoe`   | `psd.is_good` and a detector whose A/E the simulation models                                                                                                                                                                                      |
+| single-site             | `psd.<model>.is_single_site`              | `psd.low_aoe.is_single_site`                                                                                                                                                                                                                      |
+| above the high-side cut | `psd.pulse_lib.is_high_aoe`               | not `psd.high_aoe.is_bulk`                                                                                                                                                                                                                        |
 
 The data events in detectors that the simulation does not model (see the
 modelable-HPGe cache in `pars/detinfo/`) go to `is_invalid_aoe`, as in the

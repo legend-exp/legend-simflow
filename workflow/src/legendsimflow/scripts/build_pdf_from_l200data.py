@@ -38,6 +38,7 @@ from legendsimflow.selections import (
     aoe_model,
     category_levels,
     data_aoe_flags,
+    data_lar_veto,
     is_clean_data_event,
     lar_categories,
     one_hit,
@@ -128,7 +129,7 @@ def main() -> None:
         "geds/quality/is_bb_like",
     ]
     if has_spms_coinc:
-        fields.append("coincident/spms")
+        fields += ["spms/multiplicity", "spms/energy_sum"]
     if model is not None:
         fields += ["geds/psd/is_good", "geds/psd/low_aoe/is_single_site"]
     if model == "pulse_lib":
@@ -159,7 +160,15 @@ def main() -> None:
 
         in_category = {}
         if has_spms_coinc:
-            in_category |= lar_categories(evt_m1)
+            # the flag is not read from the data production: it must follow
+            # the definition of the Simflow evt tier
+            in_category |= lar_categories(
+                data_lar_veto(
+                    evt_m1,
+                    tier_evt_settings.lar_veto_multiplicity_thr,
+                    tier_evt_settings.lar_veto_energy_sum_pe_thr,
+                )
+            )
         if model is not None:
             in_category |= aoe_categories(
                 *data_aoe_flags(evt_m1, hit_m1, model, modeled_rawids)

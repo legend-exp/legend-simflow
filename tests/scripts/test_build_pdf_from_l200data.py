@@ -75,7 +75,16 @@ def _make_pet_file(path: Path) -> None:
     )
     forced = np.array([F, F, F, F, F, T, F, F, F, F])
     puls = np.array([F, F, F, F, F, F, F, T, F, F])
-    spms = np.array([F, F, F, T, F, F, F, F, F, F])
+    # event 3 fails the LAr veto with 5 pe summed; the thresholds are 4
+    # channels and 4 pe
+    energy_sum = np.full(10, 0.5)
+    energy_sum[3] = 5
+    spms = Table(
+        col_dict={
+            "multiplicity": Array(np.full(10, 2)),
+            "energy_sum": Array(energy_sum),
+        }
+    )
     evt = Table(
         col_dict={
             "trigger": Table(col_dict={"is_forced": Array(forced)}),
@@ -84,9 +93,9 @@ def _make_pet_file(path: Path) -> None:
                     "puls": Array(puls),
                     "muon": Array(np.zeros(10, dtype=bool)),
                     "muon_offline": Array(np.zeros(10, dtype=bool)),
-                    "spms": Array(spms),
                 }
             ),
+            "spms": spms,
             "geds": geds,
         }
     )
