@@ -493,7 +493,13 @@ of the simulated PDFs, which cover the same runs. The `pdf/` struct has the same
 layout, categories (without the FCCD level, which needs the simulated steps) and
 detector groups. The root holds `livetime_in_s`, the livetime from the `runinfo`
 metadata, in place of `nr_sim_events`. {func}`legendsimflow.pdf.merge_pdf_files`
-does the sum, of any pdf tier files with the same histograms.
+does the sum, of any pdf tier files with the same histograms. One run can also
+be histogrammed by hand, into the same file the workflow writes, with the
+modeled detectors of the `par` step:
+
+```console
+> pixi run tier-pdf-l200data --runid l200-p16-r000-phy --simflow-config simflow-config.yaml
+```
 
 The data is read from the `evt` (or `pet`) tier of the data production at
 `paths.l200data`. The functions of {mod}`legendsimflow.selections` apply the

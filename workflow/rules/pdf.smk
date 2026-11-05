@@ -100,7 +100,7 @@ rule build_pdf_from_l200data:
         _hpge_cache=smk_wait_for_hpge_cache,
     params:
         modeled_detectors=lambda wildcards: sorted(
-            smk_load_hpge_cache().get(wildcards.runid, {})
+            smk_load_hpge_cache()[wildcards.runid]
         ),
         detector_groups=_pdf_settings.detector_groups,
     output:
