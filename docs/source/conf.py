@@ -36,6 +36,8 @@ exclude_patterns = [
 
 # Furo theme
 html_theme = "furo"
+html_title = "legend-simflow"
+html_logo = "../../.github/logo.png"
 html_theme_options = {
     "footer_icons": [
         {
