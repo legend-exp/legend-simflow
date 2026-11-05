@@ -8,6 +8,7 @@ meta
 pipeline
 prod
 output
+selections
 sites
 tips
 ```

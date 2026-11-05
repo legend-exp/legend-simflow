@@ -21,4 +21,6 @@ from .exceptions import SimflowConfigError
 # Type alias to make it explicit this is the simflow configuration object
 SimflowConfig = AttrsDict
 
-__all__ = ["SimflowConfig", "SimflowConfigError"]
+from .utils import load_simflow_config  # noqa: E402
+
+__all__ = ["SimflowConfig", "SimflowConfigError", "load_simflow_config"]

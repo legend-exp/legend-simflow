@@ -173,6 +173,11 @@ def test_init_simflow_context_loads_from_path(tmp_path, legend_testdata):
     assert config.paths.pars == pars_path
     assert config.paths.geom == pars_path / "geom"
     assert config.paths.dtmaps == pars_path / "hpge/dtmaps"
+
+    # the user entry point reads the same file from the production directory
+    config = utils.load_simflow_config(tmp_path)
+    assert isinstance(config.metadata, LegendMetadata)
+    assert config.paths.pars == pars_path
     assert config._proctime
 
 

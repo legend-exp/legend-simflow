@@ -125,6 +125,18 @@ def _default_path_pairs(
     ]
 
 
+def load_simflow_config(prod_dir: str | Path) -> SimflowConfig:
+    """Return the Simflow configuration of the production at `prod_dir`.
+
+    Reads the ``simflow-config.yaml`` file of the production directory with
+    :func:`init_simflow_context`: the defaults are filled, the paths resolved
+    and the LEGEND metadata attached as ``config.metadata``.
+    """
+    return init_simflow_context(
+        Path(prod_dir) / "simflow-config.yaml", workflow=None
+    ).config
+
+
 def remove_stale_path_links(
     paths: dict,
     workflow_basedir: str | Path,

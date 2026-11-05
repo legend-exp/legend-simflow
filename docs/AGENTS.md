@@ -12,6 +12,8 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
 - `pipeline.md`: description of the workflow steps and what they do. No details
   about the output formats here, they go in `output.md`;
 - `prod.md`: Simflow execution modes and configuration;
+- `selections.md`: tutorial on the event selections of the pdf tier, applied to
+  simulations and LEGEND-200 data with the same functions;
 - `setup.md`: high level setup of the Simflow, installation and main
   configuration file.
 - `sites.md`: Computing site execution tips.

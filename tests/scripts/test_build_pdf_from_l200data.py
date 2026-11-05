@@ -88,7 +88,13 @@ def _make_pet_file(path: Path) -> None:
     )
     evt = Table(
         col_dict={
-            "trigger": Table(col_dict={"is_forced": Array(forced)}),
+            "trigger": Table(
+                col_dict={
+                    "period": Array(np.full(10, 2)),
+                    "run": Array(np.zeros(10, dtype=int)),
+                    "is_forced": Array(forced),
+                }
+            ),
             "coincident": Table(
                 col_dict={
                     "puls": Array(puls),
@@ -111,14 +117,18 @@ def _run(
     lookup: bool = False,
     defaults: bool = False,
     runid: str = "l200-p02-r000-phy",
+    evt_settings: dict | None = None,
 ):
     """Run the script on a pet file of run l200-p02-r000-phy of the dummy production."""
     meta_dir = tmp_path / "inputs"
     shutil.copytree(dummyprod / "inputs", meta_dir)
+    overrides = {"evt": evt_settings or {}}
     if pulse_lib:
-        f = meta_dir / "simprod/config/tier/hit/legend/settings.yaml"
+        overrides["hit"] = {"simulate_psd": False, "simulate_psd_with_psl": True}
+    for tier, values in overrides.items():
+        f = meta_dir / f"simprod/config/tier/{tier}/legend/settings.yaml"
         settings = yaml.safe_load(f.read_text())
-        settings.update({"simulate_psd": False, "simulate_psd_with_psl": True})
+        settings.update(values)
         f.write_text(yaml.safe_dump(settings))
 
     l200data = tmp_path / "l200data"
@@ -201,3 +211,8 @@ def test_build_pdf_from_l200data_pulse_lib(tmp_path, monkeypatch):
 def test_build_pdf_from_l200data_run_not_in_cache(tmp_path, monkeypatch):
     with pytest.raises(SimflowConfigError, match="not in the modelable-HPGe cache"):
         _run(tmp_path, monkeypatch, defaults=True, runid="l200-p02-r001-phy")
+
+
+def test_build_pdf_from_l200data_threshold_below_data(tmp_path, monkeypatch):
+    with pytest.raises(SimflowConfigError, match="no hits below 25 keV"):
+        _run(tmp_path, monkeypatch, evt_settings={"geds_energy_thr_kev": 20})

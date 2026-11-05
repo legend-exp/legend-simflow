@@ -95,6 +95,17 @@ def _run_pdf(
     return pdf_file
 
 
+def _spms_table(is_coincident) -> Table:
+    """SiPM table failing the LAr veto (4 channels, 4 pe) where `is_coincident`."""
+    multiplicity = np.where(is_coincident, 4, 0)
+    return Table(
+        col_dict={
+            "multiplicity": Array(multiplicity),
+            "energy_sum": Array(np.zeros(len(multiplicity))),
+        }
+    )
+
+
 def _make_cvt_file(path: Path, with_psd: bool = True) -> None:
     """Write a minimal cvt LH5 file with the fields expected by the pdf script."""
     # 6 events:
@@ -121,7 +132,7 @@ def _make_cvt_file(path: Path, with_psd: bool = True) -> None:
     is_single_site = VectorOfVectors(
         data=[[True], [False], [False], [True], [True, True], [False]]
     )
-    spms = Array(np.array([False, False, False, True, False, False]))
+    spms = _spms_table([False, False, False, True, False, False])
 
     single_temp = Table(
         col_dict={
@@ -145,8 +156,7 @@ def _make_cvt_file(path: Path, with_psd: bool = True) -> None:
     )
     if with_psd:
         geds.add_field("psd", psd)
-    coincident = Table(col_dict={"spms": spms})
-    evt = Table(col_dict={"geds": geds, "coincident": coincident})
+    evt = Table(col_dict={"geds": geds, "spms": spms})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
     _write_cvt_root(path, ["V01", "B02"], [1, 2])
 
@@ -212,8 +222,8 @@ def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
             "psd": psd,
         }
     )
-    spms = Array(np.array([False, False, False, False, True]))
-    evt = Table(col_dict={"geds": geds, "coincident": Table(col_dict={"spms": spms})})
+    spms = _spms_table([False, False, False, False, True])
+    evt = Table(col_dict={"geds": geds, "spms": spms})
 
     cvt_file = tmp_path / "cvt.lh5"
     lh5.write(evt, "evt", cvt_file, wo_mode="write_safe")
@@ -340,9 +350,8 @@ def test_pdf_fccd_tag_needs_surface_steps(tmp_path, monkeypatch):
 
 def _make_cvt_file_no_geds(path: Path) -> None:
     """Write a minimal cvt LH5 file with no geds subtable (mimics ``skip_hit: true``)."""
-    spms = Array(np.array([False, True, False, True, False, False]))
-    coincident = Table(col_dict={"spms": spms})
-    evt = Table(col_dict={"coincident": coincident})
+    spms = _spms_table([False, True, False, True, False, False])
+    evt = Table(col_dict={"spms": spms})
     lh5.write(evt, "evt", path, wo_mode="write_safe")
     # detector_uids is still present (skip_hit produces an empty mapping at evt tier)
     _write_cvt_root(path, [], [])
