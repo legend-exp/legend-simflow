@@ -1,6 +1,6 @@
 # legend-simflow
 
-<img src=".github/logo.jpg" alt="legend-simflow logo" align="left" height="170">
+<img src=".github/logo.png" alt="legend-simflow logo" align="left" height="170">
 
 [![PyPI](https://img.shields.io/pypi/v/legend-simflow?logo=pypi)](https://pypi.org/project/legend-simflow/)
 ![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/legend-exp/legend-simflow?logo=git)
