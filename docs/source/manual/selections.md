@@ -129,10 +129,13 @@ d_vetoed = is_spms_coincident(devt)
 
 ## A/E
 
-A valid A/E needs a usable PSD in the run (`psd.is_good`, the same information
-in both tables) and an A/E the simulation models. The simulation stores this per
-hit (`has_aoe`). The data does not know which detectors the simulation models,
-and the set changes with the run:
+A valid A/E needs a usable A/E in the run and an A/E the simulation models. The
+usable A/E is `psd.is_good` in the simulation, from the
+`analysis.psd.status.low_aoe` channel map field, and `psd.low_aoe.is_good` in
+data. The validity of the other PSD classifiers, such as LQ, plays no role. The
+low-side and high-side A/E are always valid together. The simulation stores the
+modeled A/E per hit (`has_aoe`). The data does not know which detectors the
+simulation models, and the set changes with the run:
 {func}`~legendsimflow.selections.attach_modelable_flag` adds the flag to the
 data events, from the modelable-HPGe cache of the `par` step (see
 {ref}`pdf-tier-data`) and the run of each event:

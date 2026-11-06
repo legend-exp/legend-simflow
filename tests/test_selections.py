@@ -178,8 +178,9 @@ def _data_events():
                 "energy": _ENERGY,
                 "rawid": [[1, 0], [1], [1], [2], [1]],
                 "psd": {
-                    "is_good": _IS_GOOD,
-                    "low_aoe": {"is_single_site": _IS_SINGLE_SITE},
+                    # LQ not valid in event 0: no effect on the A/E
+                    "is_good": _per_hit([False, True, True, True, False]),
+                    "low_aoe": {"is_good": _IS_GOOD, "is_single_site": _IS_SINGLE_SITE},
                     "high_aoe": {"is_bulk": [[not v for v in h] for h in _IS_HIGH]},
                 },
             },

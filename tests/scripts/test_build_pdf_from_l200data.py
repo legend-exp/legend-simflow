@@ -32,7 +32,7 @@ def _hits(values):
 def _make_pet_file(path: Path) -> None:
     # - event 0: m1, 500 keV,   spms=False, single-site         -> not_spms_coincident/is_ss_aoe
     # - event 1: m1, 1000 keV,  spms=False, multi-site          -> not_spms_coincident/is_low_aoe
-    # - event 2: m1, 1500 keV,  spms=False, PSD not good        -> not_spms_coincident/is_invalid_aoe
+    # - event 2: m1, 1500 keV,  spms=False, A/E not good        -> not_spms_coincident/is_invalid_aoe
     # - event 3: m1, 2000 keV,  spms=True,  above high-side cut -> is_spms_coincident/is_high_aoe (pulse_lib)
     # - event 4: m2, 200+300 keV
     # - event 5: m1, 2500 keV,  forced trigger                  -> dropped
@@ -61,10 +61,12 @@ def _make_pet_file(path: Path) -> None:
             ),
             "psd": Table(
                 col_dict={
-                    "is_good": _hits([T, T, F, T, T, T, T, T, T, T]),
+                    # all PSD classifiers: not read, the A/E validity is low_aoe.is_good
+                    "is_good": _hits([F] * 10),
                     "low_aoe": Table(
                         col_dict={
-                            "is_single_site": _hits([T, F, F, T, T, T, T, T, T, T])
+                            "is_good": _hits([T, T, F, T, T, T, T, T, T, T]),
+                            "is_single_site": _hits([T, F, F, T, T, T, T, T, T, T]),
                         }
                     ),
                     "high_aoe": Table(
