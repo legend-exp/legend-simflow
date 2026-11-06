@@ -164,7 +164,7 @@ LH5_SPECS = {
             "geds/rawid": {},
             "geds/quality/is_good_channel": {},
             "geds/quality/is_bb_like": {},
-            "geds/psd/is_good": {},
+            "geds/psd/low_aoe/is_good": {},
             "geds/psd/low_aoe/is_single_site": {},
             "geds/psd/high_aoe/is_bulk": {},
         }

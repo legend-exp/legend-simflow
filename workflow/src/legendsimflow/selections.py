@@ -37,9 +37,10 @@ selections are:
 - LAr veto: the SiPM multiplicity and photoelectron sum against the
   ``lar_veto_multiplicity_thr`` and ``lar_veto_energy_sum_pe_thr`` settings of
   the `evt` tier, see :func:`is_spms_coincident` and :func:`lar_categories`;
-- A/E: a valid A/E needs a usable PSD (``psd.is_good``) and a modeled A/E:
-  simulated (``has_aoe``) or, in data, a detector whose A/E the simulation
-  models (``is_modeled``, see :func:`attach_modelable_flag`). Single-site is
+- A/E: a valid A/E needs a usable A/E in the run (``psd.is_good`` in the
+  simulation, ``psd.low_aoe.is_good`` in data) and a modeled A/E: simulated
+  (``has_aoe``) or, in data, a detector whose A/E the simulation models
+  (``is_modeled``, see :func:`attach_modelable_flag`). Single-site is
   above the low-side cut, high A/E above the high-side cut (pulse-shape
   library only). See :func:`aoe_flags` and :func:`aoe_categories`;
 - FCCD: energy deposited in the FCCD layer, from the surface steps of the
@@ -333,9 +334,11 @@ def aoe_flags(
     The flags come from ``geds.psd``. The data (`evt` or `pet` tier) is
     recognized by its ``psd.low_aoe`` table:
 
-    - valid: ``psd.is_good`` (valid PSD in data) and a modeled A/E:
-      ``psd.<aoe_model>.has_aoe`` in the simulation, ``psd.is_modeled`` of
-      :func:`attach_modelable_flag` in data;
+    - valid: a usable and modeled A/E. In the simulation ``psd.is_good`` (the
+      ``analysis.psd.status.low_aoe`` channel map field is ``valid``) and
+      ``psd.<aoe_model>.has_aoe``. In data ``psd.low_aoe.is_good`` (other PSD
+      classifiers, such as LQ, play no role) and ``psd.is_modeled`` of
+      :func:`attach_modelable_flag`;
     - single-site: the classifier is above the low-side cut,
       ``psd.<aoe_model>.is_single_site`` or ``psd.low_aoe.is_single_site`` in
       data;
@@ -360,15 +363,15 @@ def aoe_flags(
                 "no geds.psd.is_modeled in the data, add it with attach_modelable_flag"
             )
             raise ValueError(msg)
-        modeled = psd.is_modeled
+        valid = psd.low_aoe.is_good & psd.is_modeled
         single_site = psd.low_aoe.is_single_site
         high = ~psd.high_aoe.is_bulk if aoe_model == "pulse_lib" else None
     else:
         aoe = psd[aoe_model]
-        modeled = aoe.has_aoe
+        valid = psd.is_good & aoe.has_aoe
         single_site = aoe.is_single_site
         high = aoe.is_high_aoe if aoe_model == "pulse_lib" else None
-    valid = ak.to_numpy(psd.is_good & modeled)
+    valid = ak.to_numpy(valid)
     single_site = ak.to_numpy(single_site)
     if high is not None:
         high = ak.to_numpy(high)

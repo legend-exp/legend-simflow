@@ -459,7 +459,7 @@ which apply the same selections to the LEGEND-200 data (see {ref}`selections`).
 | A/E   | `is_high_aoe`         | A/E above the high-side cut (`is_high_aoe`). Pulse-shape library only                                                                      |
 | A/E   | `is_ss_aoe`           | single-site: A/E above the low-side cut (`is_single_site`) and below the high-side cut                                                     |
 | A/E   | `is_low_aoe`          | multi-site: A/E below the low-side cut                                                                                                     |
-| A/E   | `is_invalid_aoe`      | no A/E available: `psd.is_good` or `has_aoe` is `False`                                                                                    |
+| A/E   | `is_invalid_aoe`      | no A/E available: `psd.is_good` (`psd.low_aoe.is_good` in data) or `has_aoe` is `False`                                                    |
 | FCCD  | `is_fccd_tagged`      | more than `fccd_tag_energy_thr_kev` deposited in the FCCD layer                                                                            |
 | FCCD  | `not_fccd_tagged`     | at most `fccd_tag_energy_thr_kev` deposited in the FCCD layer                                                                              |
 
@@ -545,7 +545,7 @@ same selections to both (see {ref}`selections`); the fields they read are:
 | ON detector             | `geds.quality.is_good_channel`                                                                                                                      | same                                                                                                                |
 | clean event             | —                                                                                                                                                   | not `trigger.is_forced`, `coincident.puls`, `coincident.muon`, `coincident.muon_offline`; `geds.quality.is_bb_like` |
 | LAr veto                | `spms.multiplicity` at or above `lar_veto_multiplicity_thr`, or `spms.energy_sum` at or above `lar_veto_energy_sum_pe_thr`, the `evt` tier settings | same. The `coincident.spms` of the data production is not used                                                      |
-| valid A/E               | `psd.is_good` and `psd.<model>.has_aoe`                                                                                                             | `psd.is_good` and a detector whose A/E the simulation models in the run of the event                                |
+| valid A/E               | `psd.is_good` and `psd.<model>.has_aoe`                                                                                                             | `psd.low_aoe.is_good` and a detector whose A/E the simulation models in the run of the event                        |
 | single-site             | `psd.<model>.is_single_site`                                                                                                                        | `psd.low_aoe.is_single_site`                                                                                        |
 | above the high-side cut | `psd.pulse_lib.is_high_aoe`                                                                                                                         | not `psd.high_aoe.is_bulk`                                                                                          |
 

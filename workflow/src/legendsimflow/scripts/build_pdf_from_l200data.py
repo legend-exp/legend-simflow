@@ -165,7 +165,7 @@ def main() -> None:
     if has_spms_coinc:
         fields += ["spms/multiplicity", "spms/energy_sum"]
     if model is not None:
-        fields += ["geds/psd/is_good", "geds/psd/low_aoe/is_single_site"]
+        fields += ["geds/psd/low_aoe/is_good", "geds/psd/low_aoe/is_single_site"]
     if model == "pulse_lib":
         fields.append("geds/psd/high_aoe/is_bulk")
 
