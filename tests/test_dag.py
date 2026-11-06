@@ -550,6 +550,14 @@ def test_build_l200data_pdfs_adds_data_rules(tmp_path, config):
     cfg["paths"]["l200data"] = str(prod)
     assert rules <= dag_rule_names(default_config, cfg)
 
+    # also with an explicit simlist reaching the pdf tier, but not below it
+    cfg = overrides(tmp_path / "simlist", simlist="pdf.birds_nest_K40")
+    cfg["paths"]["l200data"] = str(prod)
+    assert rules <= dag_rule_names(default_config, cfg)
+    cfg = overrides(tmp_path / "simlist-cvt", simlist="cvt.birds_nest_K40")
+    cfg["paths"]["l200data"] = str(prod)
+    assert not rules & dag_rule_names(default_config, cfg)
+
     cfg = overrides(
         tmp_path / "off",
         experiment="legend",

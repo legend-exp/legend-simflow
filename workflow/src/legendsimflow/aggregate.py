@@ -1080,20 +1080,29 @@ def gen_list_of_all_tier_cvt_outputs(config: SimflowConfig, **kwargs) -> list[Pa
 
 
 # tier pdf
+def builds_l200data_pdfs(config: SimflowConfig) -> bool:
+    """Whether the LEGEND-200 data is histogrammed in the ``pdf`` tier.
+
+    True with the ``build_l200data_pdfs`` setting of the ``pdf`` tier and
+    ``paths.l200data`` set.
+    """
+    return bool(
+        get_tier_settings(config, "pdf").build_l200data_pdfs
+        and config.paths.get("l200data")
+    )
+
+
 def gen_list_of_all_tier_pdf_outputs(config: SimflowConfig, **kwargs) -> list[Path]:
     """Generate the list of all ``pdf`` tier files in the Simflow.
 
-    With the ``build_l200data_pdfs`` setting of the ``pdf`` tier and
-    ``paths.l200data`` set, the data histograms merged over all runs of the
-    Simflow are included.
+    With :func:`builds_l200data_pdfs`, the data histograms merged over all
+    runs of the Simflow are included.
     """
     files = [
         patterns.output_tier_pdf_filename(config, simid=simid, **kwargs)
         for simid in gen_list_of_all_simids(config)
     ]
-    if get_tier_settings(config, "pdf").build_l200data_pdfs and config.paths.get(
-        "l200data"
-    ):
+    if builds_l200data_pdfs(config):
         files.append(patterns.output_merged_l200data_pdf_filename(config))
     return files
 
@@ -1119,6 +1128,10 @@ def process_simlist(
     :func:`~legendsimflow.metadata.expand_simlist`). The tier is interpreted as the
     *latest* tier requested for that simid; outputs are produced cumulatively
     for all tiers up to (and including) that tier in `make_steps`.
+
+    If any item reaches the ``pdf`` tier and :func:`builds_l200data_pdfs`, the
+    data histograms merged over all runs of the Simflow are included once: they
+    are the counterpart of every PDF, not of one simid.
     """
     if simlist is None:
         simlist = config.simlist
@@ -1130,6 +1143,7 @@ def process_simlist(
     exclude = get_simlist_exclude(config)
 
     mlist: list[Path] = []
+    wants_pdf = False
     for line in simlist:
         parts = line.split(".")
         if len(parts) != 2:
@@ -1175,5 +1189,9 @@ def process_simlist(
                 mlist.append(patterns.output_tier_cvt_filename(config, simid=simid))
             elif t == "pdf":
                 mlist.append(patterns.output_tier_pdf_filename(config, simid=simid))
+                wants_pdf = True
+
+    if wants_pdf and builds_l200data_pdfs(config):
+        mlist.append(patterns.output_merged_l200data_pdf_filename(config))
 
     return mlist

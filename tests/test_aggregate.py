@@ -74,6 +74,34 @@ def test_process_simlist_is_cumulative(config):
     assert set(targets_evt2).issubset(targets_cvt)
 
 
+def test_process_simlist_adds_l200data_pdfs(fresh_config, monkeypatch):
+    merged = patterns.output_merged_l200data_pdf_filename(fresh_config)
+    simid = "birds_nest_K40"
+
+    # no data production: nothing to histogram
+    assert merged not in agg.process_simlist(fresh_config, simlist=[f"pdf.{simid}"])
+
+    fresh_config.paths.l200data = Path("/some/l200data")
+    targets = agg.process_simlist(fresh_config, simlist=[f"pdf.{simid}"])
+    assert targets.count(merged) == 1
+    assert merged not in agg.process_simlist(fresh_config, simlist=[f"cvt.{simid}"])
+
+    # once, whatever the number of simids reaching the pdf tier
+    targets = agg.process_simlist(
+        fresh_config, simlist=[f"pdf.{simid}", "pdf.pen_plates_Ra224_to_Pb208"]
+    )
+    assert targets.count(merged) == 1
+
+    get_tier_settings = agg_mod.get_tier_settings
+    monkeypatch.setattr(
+        agg_mod,
+        "get_tier_settings",
+        lambda c, t: get_tier_settings(c, t)
+        | ({"build_l200data_pdfs": False} if t == "pdf" else {}),
+    )
+    assert merged not in agg.process_simlist(fresh_config, simlist=[f"pdf.{simid}"])
+
+
 def test_process_simlist_is_cumulative_make_steps(config):
     make_steps = ["stp", "evt"]
     simid = "birds_nest_K40"
