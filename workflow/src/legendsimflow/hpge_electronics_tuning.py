@@ -380,7 +380,8 @@ def fit_electronics_parameters(
     """Fit the electronics response parameters sigma and tau.
 
     Minimises the mean RMS between simulated and measured current
-    superpulses across drift-time slices using Minuit (MIGRAD).
+    superpulses across drift-time slices with Minuit (the simplex algorithm by
+    default, see ``minimiser_mode``).
 
     Parameters
     ----------

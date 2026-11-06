@@ -5,10 +5,13 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
 
 ## Structure
 
+- `impurity-tuning.md`: tuning of the HPGe impurity profiles on data, a subpage
+  of `par.md`;
 - `meta.md`: description of the input metadata that configures the production,
   format and meaning;
 - `output.md`: description of the outputs of the production, format and
   contents, organized by step;
+- `par.md`: details of the `par` step, a subpage of `pipeline.md`;
 - `pipeline.md`: description of the workflow steps and what they do. No details
   about the output formats here, they go in `output.md`;
 - `prod.md`: Simflow execution modes and configuration;
