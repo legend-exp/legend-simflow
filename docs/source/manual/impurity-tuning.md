@@ -5,23 +5,47 @@
 The electric field in an HPGe crystal, and with it the drift times and the pulse
 shapes of the detector, depend on the net impurity density in the crystal. The
 impurity profile along the crystal is known only approximately: the crystal
-metadata gives a model fitted to a few measurements on the boule, and the
-detector metadata gives the measured depletion voltage. The impurity tuning fits
-two parameters of the profile of each detector to LEGEND-200 data:
+metadata gives a model fitted to a few measurements on the boule by the crystal
+vendor, and the detector metadata gives the measured depletion voltage.
+
+The impurity tuning determines the best-fit impurity profile of each detector by
+matching two things to LEGEND-200 data: the shape of the current pulses, and the
+distribution of the drift times. Both are simulated for a grid of impurity
+profiles, and the profile that reproduces the data best is kept. The profiles of
+the grid differ in two parameters:
 
 - the slope, a factor that scales the variation of the impurity density along
   the crystal (0 keeps the profile of the metadata; the density at the seed end
   of the boule is kept fixed);
 - the depletion voltage, reached by rescaling the whole impurity density.
 
+```{image} ../img/impurity-model-light.svg
+:alt: Impurity density along the boule of crystal V04545 and the effect of the two tuning parameters
+:class: only-light
+```
+
+```{image} ../img/impurity-model-dark.svg
+:alt: Impurity density along the boule of crystal V04545 and the effect of the two tuning parameters
+:class: only-dark
+```
+
+The figure shows the impurity model of one crystal, fitted to the measurements
+of the vendor, and how the two parameters change it.
+
 The tuned values are then used by the pulse-shape simulation of later
 productions (see {ref}`hpge-psl-overview`).
 
-```{raw} html
-:file: ../img/imptune.svg
-```
-
 ## A tuning-only production
+
+:::{warning}
+
+The tuning and a standard production cannot run in the same production. With the
+tuning switched on, the file of tuned profiles is the only output: no `hit`,
+`evt` or `pdf` files are built, and the detectors are selected with the tuning
+criteria below. Run the tuning first, then a separate standard production that
+reads the tuned profiles.
+
+:::
 
 The tuning runs as a separate production, switched on in the `hit` settings (see
 {ref}`hit-tier-settings` and {ref}`impurityscan-settings-meta`). Each simulation
@@ -37,6 +61,13 @@ its pulse-shape discrimination is marked as valid in the data. Unlike in a
 standard production (see {ref}`hpge-modeling-criteria`), the margin above the
 depletion voltage is not checked, since the depletion voltage is one of the
 fitted parameters.
+
+Each tuned detector goes through the chain in the figure below; the following
+sections describe its steps.
+
+```{raw} html
+:file: ../img/imptune.svg
+```
 
 ## Pulse-shape scan
 
@@ -85,10 +116,14 @@ $$
 
 where $\Delta t_\text{peak}$ and $\Delta t_{90}$ are the differences between
 data and simulation in the two drift-time observables, and RMS is the residual
-of the electronics fit. The grid point with the smallest $\chi^2$ gives the
-tuned slope and depletion voltage of the detector; there is no interpolation
-between grid points. The uncertainties in the two denominators can be changed
-(see {ref}`impurityscan-settings-meta`).
+of the electronics fit. The two denominators are the systematic uncertainties of
+the comparison: a closer match than about 50 ns in the drift times, or than an
+RMS of 0.5 in the pulse shapes, is not meaningful given the limits of the
+simulation and of the data. They set the scale of each term, so that the two
+terms weigh in the sum according to how well each can be trusted. The grid point
+with the smallest $\chi^2$ gives the tuned slope and depletion voltage of the
+detector; there is no interpolation between grid points. The uncertainties can
+be changed (see {ref}`impurityscan-settings-meta`).
 
 The tuned values of all the detectors are written to one file. A later
 production reads it (see the `hpge_impurity_model` path in [](setup.md)): its

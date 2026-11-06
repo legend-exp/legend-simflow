@@ -19,6 +19,10 @@ with that of the HPGe detectors in the detector-info files (see
 
 ## Where the parameters come from
 
+The figure below shows the parameters, where they come from and how they reach
+the `hit` step. Dashed arrows are inputs from the data production that the
+metadata can replace, as explained below.
+
 ```{raw} html
 :file: ../img/pardag.svg
 ```
@@ -108,8 +112,8 @@ $$
 $$
 
 with $E$ in keV, taken per run and per detector from the A/E calibration of the
-data production. The `hit` step smears the simulated A/E with it. Overrides go
-in {ref}`aoeresmod-metadata-dir`.
+data production. The `hit` step expresses the simulated A/E in units of it, as
+the data analysis does. Overrides go in {ref}`aoeresmod-metadata-dir`.
 
 (hpge-psdcuts-extraction)=
 
@@ -152,7 +156,7 @@ correct for this with a second pass (see {ref}`hit-tier-settings`): a first
 `hit` pass is built for a calibration-source simulation (by default the Tl-208
 decays in the calibration sources), the mean simulated A/E is fitted as a
 function of the energy in Compton-continuum bands, as the data calibration does,
-and the final `hit` pass normalises the simulated A/E with it. The fit is done
+and the final `hit` pass subtracts it from the simulated A/E. The fit is done
 once per detector and holds for all runs. When the same data exist in the data
 production, the same fit on data is stored next to it for validation. Overrides
 go in {ref}`aoemeanmod-metadata-dir`.

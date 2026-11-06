@@ -11,7 +11,8 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
   format and meaning;
 - `output.md`: description of the outputs of the production, format and
   contents, organized by step;
-- `par.md`: details of the `par` step, a subpage of `pipeline.md`;
+- `vtx.md`, `stp.md`, `par.md`, `opt.md`, `hit.md`, `evt.md` (with `cvt`),
+  `pdf.md`: one page per workflow step, subpages of `pipeline.md`;
 - `pipeline.md`: description of the workflow steps and what they do. No details
   about the output formats here, they go in `output.md`;
 - `prod.md`: Simflow execution modes and configuration;
