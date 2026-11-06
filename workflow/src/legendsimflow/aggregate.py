@@ -392,7 +392,7 @@ def gen_hpge_modeling_status(
     ``simprod/config/pars/{experiment}/geds/skip/`` for `runid`, it has an
     operational voltage, and its crystal metadata provides an impurity curve.
     Further criteria depend on the ``tune_hpge_impurities_on_data`` hit-tier setting
-    (default ``True``):
+    (default ``False``):
 
     - ``True``: the PSD status (``analysis.psd.status.low_aoe`` in the channel
       map, ``valid`` if absent) is ``valid``.

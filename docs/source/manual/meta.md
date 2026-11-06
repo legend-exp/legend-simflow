@@ -1014,7 +1014,9 @@ V02160A:
 
 - `default` _(optional)_ — current-pulse model applied to all HPGe detectors not
   listed explicitly.
-- `<detector>` _(optional)_ — per-detector override.
+- `<detector>` _(optional)_ — per-detector override. It is honoured only when a
+  `default` key is present: without it the file is ignored and the model is
+  fitted on the data.
 
 Each entry must contain:
 
@@ -1035,7 +1037,8 @@ at runtime.
 
 These settings apply only when the pulse-shape-library (PSL) PSD simulation is
 enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
-`False`). See {ref}`hpge-psl-overview`.
+`False`), or when the HPGe impurities are tuned on data. See
+{ref}`hpge-psl-overview`.
 
 :::
 
@@ -1089,7 +1092,8 @@ works only with event tiers).
 
 These settings apply only when the pulse-shape-library (PSL) PSD simulation is
 enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
-`False`). See {ref}`hpge-psl-overview`.
+`False`), or when the HPGe impurities are tuned on data. See
+{ref}`hpge-psl-overview`.
 
 :::
 
@@ -1137,10 +1141,10 @@ at runtime.
 
 These settings apply only when the pulse-shape-library (PSL) PSD simulation is
 enabled with `simulate_psd_with_psl: True` in {ref}`hit-tier-settings` (default
-`False`), and only when the fit actually runs, i.e. when the
-{ref}`elecmod-metadata-dir` has no `default` key. When a `default` key is
-present the fit is bypassed and these settings are ignored, except `curr_mwa`.
-See {ref}`hpge-psl-overview`.
+`False`), or when the HPGe impurities are tuned on data, and only when the fit
+actually runs, i.e. when the {ref}`elecmod-metadata-dir` has no `default` key.
+When a `default` key is present the fit is bypassed and these settings are
+ignored, except `curr_mwa`. See {ref}`hpge-psl-overview`.
 
 :::
 
@@ -1299,7 +1303,7 @@ B00091B: "asymmetric geometry not yet supported"
 
 Each entry is a mapping of detector name (as it appears in the channel map, e.g.
 `V02160A`) to a free-form reason string describing why the detector is excluded.
-The reason is written to the workflow log as a WARNING when the skip is applied.
+The reason is documentation only, the workflow does not read it.
 
 Detectors listed here are removed from the "modelable" HPGe list for the
 matching runs. They will not get a drift-time map nor a current-pulse model

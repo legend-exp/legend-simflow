@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="simflow-pardag" viewBox="0 0 764 420" width="100%" style="display: block; height: auto;" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12">
+  <title>Outputs of the par step, their inputs and how hit uses them</title>
+  <style>
+    /* colors follow the light/dark theme of the docs (Furo variables) */
+    #simflow-pardag { --border: #d1d9e0; --file: #eaeef2; --file-border: #c3cbd3; }
+    body[data-theme="dark"] #simflow-pardag { --border: #3d444d; --file: #262b33; --file-border: #4b525b; }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) #simflow-pardag { --border: #3d444d; --file: #262b33; --file-border: #4b525b; }
+    }
+    #simflow-pardag text { fill: var(--color-foreground-primary, #1f2328); }
+    #simflow-pardag .muted { fill: var(--color-foreground-secondary, #59636e); }
+    #simflow-pardag .b { font-weight: 600; }
+    #simflow-pardag .k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; font-weight: 600; }
+    #simflow-pardag .sub { font-size: 10.5px; fill: var(--color-foreground-secondary, #59636e); }
+    #simflow-pardag .group { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.2; stroke-dasharray: 6 4; opacity: 0.6; }
+    #simflow-pardag .file { fill: var(--file); stroke: var(--file-border); stroke-width: 1.5; }
+    #simflow-pardag .box { fill: var(--color-background-primary, #ffffff); stroke: var(--border); stroke-width: 1.5; }
+    #simflow-pardag .arrow { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+    #simflow-pardag .opt { stroke-dasharray: 4 3; }
+    #simflow-pardag .head { fill: none; stroke: var(--color-foreground-secondary, #59636e); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <!-- data production -->
+  <rect class="file" x="16" y="16" width="732" height="36" rx="8"/>
+  <text x="382" y="38" text-anchor="middle" class="b">LEGEND-200 data production</text>
+
+  <!-- observables -->
+  <rect class="group" x="16" y="72" width="226" height="228" rx="10"/>
+  <text x="40" y="88" class="b">observables</text>
+  <rect class="box" x="40" y="98" width="166" height="40" rx="6"/>
+  <text x="123" y="115" text-anchor="middle">energy resolution</text>
+  <text x="123" y="130" text-anchor="middle" class="sub">FWHM vs energy</text>
+  <rect class="box" x="40" y="148" width="166" height="40" rx="6"/>
+  <text x="123" y="165" text-anchor="middle">A/E resolution</text>
+  <text x="123" y="180" text-anchor="middle" class="sub">σ(A/E) vs energy</text>
+  <rect class="box" x="40" y="198" width="166" height="40" rx="6"/>
+  <text x="123" y="215" text-anchor="middle">PSD cuts</text>
+  <text x="123" y="230" text-anchor="middle" class="sub">low and high A/E cuts</text>
+  <rect class="box" x="40" y="248" width="166" height="40" rx="6"/>
+  <text x="123" y="265" text-anchor="middle" font-size="11">A/E mean energy dependence</text>
+  <text x="123" y="280" text-anchor="middle" class="sub">from a first hit pass</text>
+
+  <!-- single-template PSD -->
+  <rect class="group" x="254" y="72" width="226" height="128" rx="10"/>
+  <text x="278" y="88" class="b">single-template PSD</text>
+  <rect class="box" x="278" y="98" width="166" height="40" rx="6"/>
+  <text x="361" y="115" text-anchor="middle">drift-time maps</text>
+  <text x="361" y="130" text-anchor="middle" class="sub">simulated with SSD</text>
+  <rect class="box" x="278" y="148" width="166" height="40" rx="6"/>
+  <text x="361" y="165" text-anchor="middle">current-pulse template</text>
+  <text x="361" y="180" text-anchor="middle" class="sub">from a calibration waveform fit</text>
+
+  <!-- PSL-based PSD -->
+  <rect class="group" x="492" y="72" width="256" height="206" rx="10"/>
+  <text x="504" y="88" class="b">PSL-based PSD</text>
+  <rect class="box" x="504" y="98" width="112" height="40" rx="6"/>
+  <text x="560" y="115" text-anchor="middle">ideal pulse shapes</text>
+  <text x="560" y="130" text-anchor="middle" class="sub">simulated with SSD</text>
+  <rect class="box" x="632" y="98" width="112" height="40" rx="6"/>
+  <text x="688" y="115" text-anchor="middle">data superpulses</text>
+  <text x="688" y="130" text-anchor="middle" class="sub">binned in drift time</text>
+  <rect class="box" x="540" y="162" width="160" height="40" rx="6"/>
+  <text x="620" y="179" text-anchor="middle">electronics response</text>
+  <text x="620" y="194" text-anchor="middle" class="sub">fit to the superpulses</text>
+  <rect class="box" x="540" y="226" width="160" height="40" rx="6"/>
+  <text x="620" y="243" text-anchor="middle">realistic pulse shapes</text>
+  <text x="620" y="258" text-anchor="middle" class="sub">ideal shapes + electronics</text>
+
+  <!-- arrows: dashed ones are optional inputs from the data production -->
+  <path class="arrow opt" d="M28 52 V218"/>
+  <path class="arrow opt" d="M28 118 H40"/>
+  <path class="head" d="M33 114.5 L40 118 L33 121.5"/>
+  <path class="arrow opt" d="M28 168 H40"/>
+  <path class="head" d="M33 164.5 L40 168 L33 171.5"/>
+  <path class="arrow opt" d="M28 218 H40"/>
+  <path class="head" d="M33 214.5 L40 218 L33 221.5"/>
+  <path class="arrow" d="M206 168 H218"/>
+  <path class="arrow" d="M206 218 H218"/>
+  <path class="arrow" d="M206 268 H218"/>
+  <path class="arrow" d="M206 118 H218 V340"/>
+  <path class="head" d="M214.5 333 L218 340 L221.5 333"/>
+  <path class="arrow opt" d="M266 52 V168"/>
+  <path class="arrow opt" d="M266 168 H278"/>
+  <path class="head" d="M271 164.5 L278 168 L271 171.5"/>
+  <path class="arrow" d="M444 168 H456"/>
+  <path class="arrow" d="M444 118 H456 V340"/>
+  <path class="head" d="M452.5 333 L456 340 L459.5 333"/>
+  <path class="arrow opt" d="M688 52 V98"/>
+  <path class="head" d="M684.5 91 L688 98 L691.5 91"/>
+  <path class="arrow" d="M560 138 V162"/>
+  <path class="head" d="M556.5 155 L560 162 L563.5 155"/>
+  <path class="arrow" d="M688 138 V162"/>
+  <path class="head" d="M684.5 155 L688 162 L691.5 155"/>
+  <path class="arrow" d="M620 202 V226"/>
+  <path class="head" d="M616.5 219 L620 226 L623.5 219"/>
+  <path class="arrow" d="M620 266 V340"/>
+  <path class="head" d="M616.5 333 L620 340 L623.5 333"/>
+  <!-- hit -->
+  <rect class="box" x="16" y="340" width="732" height="44" rx="8"/>
+  <text x="382" y="359" text-anchor="middle" class="k">hit</text>
+  <text x="382" y="375" text-anchor="middle" class="sub">HPGe detector response</text>
+
+  <!-- legend -->
+  <path class="arrow opt" d="M16 406 H44"/>
+  <path class="head" d="M37 402.5 L44 406 L37 409.5"/>
+  <text x="52" y="410" class="muted" font-size="11">optional: the parameter can be given in the metadata instead</text>
+</svg>
