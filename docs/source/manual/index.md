@@ -9,7 +9,7 @@ meta
 prod
 output
 validation
-selections
+analysis
 sites
 tips
 ```

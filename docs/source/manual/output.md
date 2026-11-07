@@ -279,7 +279,7 @@ axis. The categories are:
 | FCCD  | `is_fccd_tagged`, `not_fccd_tagged` (optional)                                        |
 
 Their definitions are on [](pdf.md) and in {mod}`legendsimflow.selections` (see
-[](selections.md)). The categories of a level do not overlap, so any other
+[](analysis.md)). The categories of a level do not overlap, so any other
 selection is a sum of them.
 
 Without HPGe data, the file holds only `nr_sim_events`.
