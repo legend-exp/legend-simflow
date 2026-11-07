@@ -12,8 +12,9 @@ most productions.
 
 `ssd/settings.yaml` sets the grid of the
 [SolidStateDetectors.jl](https://juliaphysics.github.io/SolidStateDetectors.jl/stable/)
-simulation, shared by the drift-time maps, the pulse-shape libraries and the
-impurity scan:
+simulation, shared by the drift-time maps (see {ref}`hpge-dtmap-extraction`),
+the ideal pulse shapes (see {ref}`hpge-ideal-psl-extraction`) and the impurity
+scan:
 
 `grid_size_in_mm` (default 0.5)
 

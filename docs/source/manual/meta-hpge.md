@@ -3,7 +3,8 @@
 The `par` step collects the parameters of the HPGe detectors per run and per
 detector, mostly from the LEGEND-200 data production (see [](par.md)). The
 metadata in `simprod/config/pars/{experiment}/geds/` can replace them, and
-selects which detectors get a pulse-shape model.
+selects which detectors get a pulse-shape model. The output files of the step
+are listed in {ref}`par-output-files`.
 
 ## Parameter directories
 
@@ -39,7 +40,8 @@ are used only when they give a `default`.
 
 ### Energy resolution
 
-`eresmod/`. An entry has `expression: FWHMLinear` and `parameters: {a, b}`, for
+`eresmod/`, see {ref}`hpge-eresmod-extraction`. An entry has
+`expression: FWHMLinear` and `parameters: {a, b}`, for
 
 $$
 \text{FWHM}(E) = \sqrt{a + b E},
@@ -52,8 +54,9 @@ supported here. `uncertainties` may be given and are not used.
 
 ### A/E resolution
 
-`aoeresmod/`. An entry has `expression: SigmaFit` and `parameters: {a, b, c}`,
-for the width of the A/E distribution of single-site events,
+`aoeresmod/`, see {ref}`hpge-aoeresmod-extraction`. An entry has
+`expression: SigmaFit` and `parameters: {a, b, c}`, for the width of the A/E
+distribution of single-site events,
 
 $$
 \sigma_{A/E}(E) = \sqrt{a + (b/E)^c},
@@ -65,17 +68,19 @@ with $E$ in keV and $\sigma_{A/E}$ in units of A/E.
 
 ### PSD cuts
 
-`psdcuts/`. An entry has `aoe: {low_side, high_side}`, the low and the high cut
-on the A/E classifier, in units of the A/E resolution. Missing values are taken
-from `psdcuts_default` of the `hit` settings.
+`psdcuts/`, see {ref}`hpge-psdcuts-extraction`. An entry has
+`aoe: {low_side, high_side}`, the low and the high cut on the A/E classifier, in
+units of the A/E resolution. Missing values are taken from `psdcuts_default` of
+the `hit` settings.
 
 (currmod-metadata-dir)=
 
 ### Current-pulse model
 
-`currmod/`. Used only for the single-template PSD, for the detectors that get a
-pulse-shape model, and only when the file gives a `default`: otherwise the model
-is fitted on the data. An entry has:
+`currmod/`, see {ref}`hpge-currmod-extraction`. Used only for the
+single-template PSD, for the detectors that get a pulse-shape model, and only
+when the file gives a `default`: otherwise the model is fitted on the data. An
+entry has:
 
 - `current_pulse_pars`: the parameters of the template, `amax`, `mu`, `sigma`,
   `tail_fraction`, `tau`, and optionally `high_tail_fraction` and `high_tau`

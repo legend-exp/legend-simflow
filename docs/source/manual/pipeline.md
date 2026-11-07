@@ -9,18 +9,20 @@ simulation goes through the same chain of steps:
 :file: ../img/pipeline.svg
 ```
 
-- `vtx` and `stp` simulate the particle interactions in the experiment. `stp`
-  runs _remage_ and records the energy depositions (steps) in the detectors.
-  `vtx` runs before it only when the primary vertices come from an external
-  generator.
-- `opt` and `hit` turn the energy depositions into the observables of the SiPMs
-  and of the HPGe detectors. They split the events among the LEGEND data taking
-  runs (see {ref}`run-partitioning`) and apply the detector parameters of each
-  run.
-- `par` extracts those detector parameters, per run and per detector, mostly
-  from the LEGEND data. All simulations share them.
-- `evt` combines the SiPM and HPGe observables into events, `cvt` concatenates
-  the event files of a simulation, and `pdf` fills the histograms (the pdfs).
+- [`vtx`](vtx.md) and [`stp`](stp.md) simulate the particle interactions in the
+  experiment. `stp` runs _remage_ and records the energy depositions (steps) in
+  the detectors. `vtx` runs before it only when the primary vertices come from
+  an external generator.
+- [`opt`](opt.md) and [`hit`](hit.md) turn the energy depositions into the
+  observables of the SiPMs and of the HPGe detectors. They split the events
+  among the LEGEND data taking runs (see {ref}`run-partitioning`) and apply the
+  detector parameters of each run.
+- [`par`](par.md) extracts those detector parameters, per run and per detector,
+  mostly from the LEGEND data. All simulations share them.
+- [`evt`](evt.md) combines the SiPM and HPGe observables into events, `cvt`
+  concatenates the event files of a simulation, and [`pdf`](pdf.md) fills the
+  histograms (the pdfs). The metadata that steers each step is described in
+  [](meta.md), and the output files in [](output.md).
 
 Each simulation is split into independent jobs with the same number of
 primaries. The steps drawn as stacked cards write one file per job, so their

@@ -33,6 +33,23 @@ event gets:
 
 An event without kept HPGe hits stays in the output, with multiplicity zero.
 
+With the surface depositions of the `hit` step stored (see
+{ref}`hit-tier-settings`), each kept hit also carries its energy depositions
+near the n+ surface, as deposited, with their distance to the surface. They make
+it possible to recompute the energy of the hit for another model of the surface
+layer, for example another FCCD or dead layer fraction, with
+{func}`reboost.math.piecewise_linear_activeness`.
+
+:::{warning}
+
+The hits are selected with the energy threshold computed with the nominal
+surface model. A hit below the threshold for the nominal model can pass it for a
+thinner FCCD, but it is missing from the event. Energies recomputed for another
+model are therefore biased near the threshold, and so is the multiplicity of the
+events.
+
+:::
+
 ## SiPMs
 
 The event lists the photoelectron pulses of every SiPM channel that is not off
@@ -83,7 +100,8 @@ after the other, in the order of the runs, into the same table.
 The `cvt` step concatenates the event tables of all the jobs of a simulation, in
 the order of the jobs, into one file. It does not select, reorder or reweight
 events. The number of simulated primaries of the jobs is summed, so that the
-file can be normalised (see [](pdf.md)).
+file can be normalised (see [](pdf.md)). The content of the file is described in
+{ref}`cvt-tier`.
 
 :::{note}
 

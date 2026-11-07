@@ -60,7 +60,12 @@ analysis: no forced triggers, no pulser or muon coincidences, and events that
 pass the quality cuts. The LAr veto is recomputed from the SiPM multiplicity and
 amplitude sum of the data with the thresholds of the simulation, rather than
 taken from the data production. The data files store the livetime of the runs
-instead of the number of primaries.
+instead of the number of primaries (see {ref}`pdf-tier-data`). One run can also
+be histogrammed by hand, into the file the workflow writes:
+
+```console
+> pixi run tier-pdf-l200data --runid l200-p16-r000-phy --simflow-config simflow-config.yaml
+```
 
 :::{note}
 
