@@ -7,8 +7,11 @@ Sphinx-based. Build: `cd docs && make`. Config in `docs/source/conf.py`. See
 
 - `impurity-tuning.md`: tuning of the HPGe impurity profiles on data, a subpage
   of `par.md`;
-- `meta.md`: description of the input metadata that configures the production,
-  format and meaning;
+- `meta.md`: overview of the input metadata that configures the production
+  (layout, settings files, validity-based directories), with the subpages
+  `meta-simulations.md` (simulations, geometry, run lists), `meta-steps.md`
+  (step settings), `meta-hpge.md` (HPGe parameters) and `meta-pulse-shapes.md`
+  (pulse-shape and impurity-tuning settings);
 - `output.md`: description of the outputs of the production, format and
   contents, organized by step;
 - `vtx.md`, `stp.md`, `par.md`, `opt.md`, `hit.md`, `evt.md` (with `cvt`),

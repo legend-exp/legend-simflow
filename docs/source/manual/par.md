@@ -158,8 +158,8 @@ decays in the calibration sources), the mean simulated A/E is fitted as a
 function of the energy in Compton-continuum bands, as the data calibration does,
 and the final `hit` pass subtracts it from the simulated A/E. The fit is done
 once per detector and holds for all runs. When the same data exist in the data
-production, the same fit on data is stored next to it for validation. Overrides
-go in {ref}`aoemeanmod-metadata-dir`.
+production, the same fit on data is stored next to it for validation. The
+settings are described in {ref}`aoemeanmod-metadata-dir`.
 
 (hpge-psl-overview)=
 
