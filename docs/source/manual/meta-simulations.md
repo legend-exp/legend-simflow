@@ -9,7 +9,7 @@ by the `simlist` of the configuration file (see [](setup.md)).
 ## `simconfig.yaml`
 
 `tier/stp/{experiment}/simconfig.yaml` maps each simulation identifier (simid)
-to the description of the simulation:
+to the description of the simulation, run by the `stp` step (see [](stp.md)):
 
 ```{code-block} yaml
 :caption: tier/stp/{experiment}/simconfig.yaml

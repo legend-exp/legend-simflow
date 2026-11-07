@@ -14,6 +14,8 @@ output.
 
 ## `opt`
 
+See [](opt.md) for the step and {ref}`opt-tier` for its output.
+
 ```{code-block} yaml
 :caption: tier/opt/{experiment}/settings.yaml
 
@@ -86,6 +88,8 @@ Poisson sampling.
 
 ## `hit`
 
+See [](hit.md) for the step and {ref}`hit-tier-output` for its output.
+
 ```{code-block} yaml
 :caption: tier/hit/{experiment}/settings.yaml
 
@@ -152,6 +156,8 @@ keV for each PSD method.
 
 ## `evt`
 
+See [](evt.md) for the step and {ref}`evt-tier` for its output.
+
 ```{code-block} yaml
 :caption: tier/evt/{experiment}/settings.yaml
 
@@ -207,11 +213,13 @@ not change the output.
 
 ## `cvt`
 
-`buffer_len` is the only setting.
+`buffer_len` is the only setting (see [](evt.md) for the step).
 
 (pdf-tier-settings)=
 
 ## `pdf`
+
+See [](pdf.md) for the step and {ref}`pdf-tier` for its output.
 
 ```{code-block} yaml
 :caption: tier/pdf/{experiment}/settings.yaml
