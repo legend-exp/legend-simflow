@@ -5,8 +5,7 @@ energy: the probability density functions (pdfs) of the background model. It can
 also histogram the LEGEND-200 data in the same format, with the same event
 selection, so that simulations and data can be compared directly. The settings
 are described in {ref}`pdf-tier-settings` and the structure of the output in
-{ref}`pdf-tier`; [](selections.md) shows how to apply the same selections by
-hand.
+{ref}`pdf-tier`; [](analysis.md) shows how to apply the same selections by hand.
 
 ## Normalisation
 
