@@ -1,0 +1,34 @@
+experiment: l200cfg09
+metadata_repo: legend-metadata
+metadata_version: v1.6.0
+
+runlist: []
+simlist: ~simlists:ssc
+
+make_steps:
+  - par
+
+paths:
+  generated: $_/generated
+  l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/v3.3.1
+  benchmarks: $_/generated/benchmarks
+  log: $_/generated/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+
+  pars: $_/generated/pars
+  macros: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/macros
+  geom: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/pars/geom
+  tier:
+    vtx: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/tier/vtx
+    stp: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/tier/stp
+    opt: $_/generated/tier/opt
+    hit: $_/generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
+
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow

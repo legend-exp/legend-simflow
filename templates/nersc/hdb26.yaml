@@ -1,0 +1,48 @@
+experiment: l200cfg09
+metadata_repo: legend-metadata
+metadata_version: v1.6.0
+
+runlist:
+  - ~runlists:heidelberg26.phy.p19
+  - ~runlists:heidelberg26.phy.p20
+  - ~runlists:heidelberg26.phy.p21
+  - ~runlists:heidelberg26.phy.p22
+
+simlist_exclude:
+  - ~simlists:ssc
+  - ~simlists:rdc
+
+make_steps:
+  - par
+  - opt
+  - hit
+  - evt
+  - cvt
+  - pdf
+
+paths:
+  generated: $_/generated
+  l200data: /dvs_ro/cfs/projectdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/tmp/v3.5.0dev3
+  benchmarks: $_/generated/benchmarks
+  log: $_/generated/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    lar: /dvs_ro/cfs/cdirs/m2676/sims/optmap/l200cfg09/l200cfg09-optmap-v7.lh5
+
+  pars: $_/generated/pars
+  macros: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/macros
+  geom: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/pars/geom
+  tier:
+    vtx: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/tier/vtx
+    stp: /dvs_ro/cfs/cdirs/m2676/sims/prod/l200cfg09/v4.0.0/generated/tier/stp
+    opt: $_/generated/tier/opt
+    hit: $_/generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
+
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow

@@ -1,0 +1,40 @@
+experiment: l1000dsg01
+metadata_repo: legend1000-metadata
+metadata_version: main
+
+simlist: all
+runlist: l1000-p01-r000-phy
+
+make_steps:
+  - par
+  - hit
+  - opt
+  - evt
+  - cvt
+  - pdf
+
+paths:
+  generated: $_/generated
+  benchmarks: $_/generated/benchmarks
+  log: $_/generated/log
+
+  metadata: $_/inputs
+  config: $_/inputs/simprod/config
+  optical_maps:
+    lar: /dvs_ro/cfs/cdirs/m2676/sims/optmap/l1000dsg01/l1000dsg01-ular-optmap-v2.lh5
+
+  pars: $_/generated/pars
+  macros: /dvs_ro/cfs/cdirs/m2676/sims/prod/l1000dsg01/v1.0.0/generated/macros
+  geom: /dvs_ro/cfs/cdirs/m2676/sims/prod/l1000dsg01/v1.0.0/generated/pars/geom
+  tier:
+    vtx: /dvs_ro/cfs/cdirs/m2676/sims/prod/l1000dsg01/v1.0.0/generated/tier/vtx
+    stp: /dvs_ro/cfs/cdirs/m2676/sims/prod/l1000dsg01/v1.0.0/generated/tier/stp
+    opt: $_/generated/tier/opt
+    hit: $_/generated/tier/hit
+    evt: $_/generated/tier/evt
+    cvt: $_/generated/tier/cvt
+    pdf: $_/generated/tier/pdf
+
+nersc:
+  dvs_ro: true
+  scratch: $SCRATCH/legend-simflow
