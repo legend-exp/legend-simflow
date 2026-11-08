@@ -75,11 +75,6 @@ jobs:
         with:
           environments: test
 
-      # TODO: remove once conda-forge ships openlibm >= 0.8.4, see #436
-      - name: Clear executable stack flag of libopenlibm
-        run: |
-          pixi exec patchelf --clear-execstack .pixi/envs/test/lib/libopenlibm.so.4.0
-
       - name: Run unit tests
         run: |
           pixi run -e test test-python-pixi
@@ -104,11 +99,6 @@ jobs:
         with:
           environments: test
 
-      # TODO: remove once conda-forge ships openlibm >= 0.8.4, see #436
-      - name: Clear executable stack flag of libopenlibm
-        run: |
-          pixi exec patchelf --clear-execstack .pixi/envs/test/lib/libopenlibm.so.4.0
-
       - name: Run tests
         run: |
           pixi run -e test test-${{ matrix.experiment }}-workflow
@@ -123,11 +113,6 @@ jobs:
       - uses: prefix-dev/setup-pixi@v0
         with:
           environments: test
-
-      # TODO: remove once conda-forge ships openlibm >= 0.8.4, see #436
-      - name: Clear executable stack flag of libopenlibm
-        run: |
-          pixi exec patchelf --clear-execstack .pixi/envs/test/lib/libopenlibm.so.4.0
 
       - name: Run Julia tests with coverage
         run: |
