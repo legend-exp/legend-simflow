@@ -18,6 +18,7 @@
   The categories are defined in :mod:`legendsimflow.selections`.
 - spectra on a grid of parameters, in the layout Refit.jl reads as a
   generalised histogram.
+- the energy of the HPGe hits for other dead-layer models.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from fnmatch import fnmatch
 from pathlib import Path
 
+import awkward as ak
 import h5py
 import hist
 import lh5
@@ -79,7 +81,7 @@ def build_pdf_grid(
     grid_info = Struct()
     values = {}
     for d, (name, (first, last, step)) in enumerate(axes.items()):
-        values[name] = first + step * np.arange(round((last - first) / step) + 1)
+        values[name] = grid_axis_values(first, last, step)
         grid_info.add_field(f"axis_{d}/name", Scalar(name))
         for key, value in (("first", first), ("last", last), ("step", step)):
             grid_info.add_field(f"axis_{d}/values/{key}", Scalar(float(value)))
@@ -105,6 +107,11 @@ def build_pdf_grid(
 
     # one grid if pdf returns one histogram
     return grids.get(None, grids)
+
+
+def grid_axis_values(first: float, last: float, step: float) -> np.ndarray:
+    """Return the values of a grid axis of :func:`build_pdf_grid`."""
+    return first + step * np.arange(round((last - first) / step) + 1)
 
 
 def validate_grid(grid: Struct) -> None:
@@ -235,6 +242,145 @@ def fill_histograms(
             sel &= in_category[c]
         for g, h in per_group.items():
             h.fill(energy[sel & in_group[g]])
+
+
+def mul1_hits(
+    energy: np.ndarray,
+    hit_evt: np.ndarray,
+    is_good: np.ndarray,
+    energy_thr_kev: float,
+) -> np.ndarray:
+    """Return the indices of the one hit above threshold of the multiplicity-1 events.
+
+    The same selection as :func:`.selections.has_hpge_multiplicity` and
+    :func:`.selections.one_hit`, on flat arrays with one entry per HPGe hit, so
+    that it can be repeated quickly for recomputed energies.
+
+    Parameters
+    ----------
+    energy
+        energy in keV of each hit.
+    hit_evt
+        index of the event of each hit.
+    is_good
+        whether the detector of each hit is ON (``geds.quality.is_good_channel``).
+    energy_thr_kev
+        hit energy threshold in keV.
+    """
+    above_thr = energy > energy_thr_kev
+    multiplicity = np.bincount(hit_evt, weights=above_thr)
+    n_not_good = np.bincount(hit_evt, weights=above_thr & ~is_good)
+    return np.flatnonzero(
+        above_thr & (multiplicity[hit_evt] == 1) & (n_not_good[hit_evt] == 0)
+    )
+
+
+def piecewise_linear_activeness(
+    distance: np.ndarray, fccd_mm: np.ndarray | float, dlf: float
+) -> np.ndarray:
+    """Return the charge-collection efficiency of energy depositions near the n+ surface.
+
+    Same model as :func:`reboost.math.functions.piecewise_linear_activeness`,
+    but with one FCCD per deposition: 0 up to ``dlf * fccd_mm`` from the
+    surface, rising linearly to 1 at `fccd_mm`, and 1 beyond.
+
+    Parameters
+    ----------
+    distance
+        distance of each deposition to the n+ surface in mm.
+    fccd_mm
+        FCCD in mm, for each deposition or for all.
+    dlf
+        dead layer fraction, the fraction of the FCCD that is fully inactive.
+    """
+    dead = fccd_mm * dlf
+    with np.errstate(divide="ignore", invalid="ignore"):
+        act = np.clip((distance - dead) / (fccd_mm - dead), 0, 1)
+    # 0/0 only at the inner edge of a dead layer as thick as the FCCD
+    return np.nan_to_num(act, nan=0.0, copy=False)
+
+
+def flatten_surface_steps(geds: ak.Array, uids: np.ndarray) -> dict[str, np.ndarray]:
+    """Return the HPGe depositions near the n+ surface as flat arrays.
+
+    The hits are numbered in the order of ``ak.flatten(geds.energy)``.
+
+    Parameters
+    ----------
+    geds
+        HPGe hits of the `evt` tier, with the ``surface`` subtable.
+    uids
+        sorted detector UIDs.
+
+    Returns
+    -------
+    ``energy_bulk`` (keV), one entry per hit, and one entry per deposition:
+    ``hit`` (the number of its hit), ``det`` (the index of its detector in
+    `uids`), ``edep`` (keV) and ``distance`` (to the n+ surface, mm).
+    """
+    surface = geds.surface
+    n_steps = ak.to_numpy(ak.flatten(ak.num(surface.edep, axis=-1)))
+    hit = np.repeat(np.arange(len(n_steps)), n_steps)
+    hit_det = np.searchsorted(uids, ak.to_numpy(ak.flatten(geds.rawid)))
+    return {
+        "energy_bulk": ak.to_numpy(ak.flatten(surface.energy_bulk)),
+        "hit": hit,
+        "det": hit_det[hit],
+        "edep": ak.to_numpy(ak.flatten(surface.edep, axis=None)),
+        "distance": ak.to_numpy(ak.flatten(surface.distance_to_nplus, axis=None)),
+    }
+
+
+def collected_energy(
+    steps: Mapping[str, np.ndarray], fccd_mm: np.ndarray, dlf: float
+) -> np.ndarray:
+    """Return the energy (keV) collected from each HPGe hit, before smearing.
+
+    The collected energy is ``energy_bulk`` plus the depositions near the n+
+    surface weighted by their activeness (see
+    :func:`piecewise_linear_activeness`). For another dead-layer model, the
+    energy of a hit is its nominal (smeared) energy plus the change of its
+    collected energy, so the smearing of each hit is kept.
+
+    Parameters
+    ----------
+    steps
+        the depositions near the n+ surface, from :func:`flatten_surface_steps`.
+    fccd_mm
+        FCCD in mm of each detector, in the order of the UIDs given to
+        :func:`flatten_surface_steps`.
+    dlf
+        dead layer fraction.
+    """
+    act = piecewise_linear_activeness(steps["distance"], fccd_mm[steps["det"]], dlf)
+    return steps["energy_bulk"] + np.bincount(
+        steps["hit"], weights=steps["edep"] * act, minlength=len(steps["energy_bulk"])
+    )
+
+
+def fccd_layer_energy(
+    steps: Mapping[str, np.ndarray], fccd_mm: np.ndarray
+) -> np.ndarray:
+    """Return the energy (keV) deposited in the FCCD layer by each HPGe hit.
+
+    The per-hit version of the energy of :func:`.selections.fccd_categories`:
+    the sum of the depositions closer to the n+ surface than the FCCD, before
+    the dead-layer model.
+
+    Parameters
+    ----------
+    steps
+        the depositions near the n+ surface, from :func:`flatten_surface_steps`.
+    fccd_mm
+        FCCD in mm of each detector, in the order of the UIDs given to
+        :func:`flatten_surface_steps`.
+    """
+    in_fccd = steps["distance"] < fccd_mm[steps["det"]]
+    return np.bincount(
+        steps["hit"],
+        weights=steps["edep"] * in_fccd,
+        minlength=len(steps["energy_bulk"]),
+    )
 
 
 def format_pdf_struct(

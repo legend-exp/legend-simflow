@@ -292,6 +292,9 @@ def _make_cvt_file_surface(path: Path) -> None:
                     "distance_to_nplus": VectorOfVectors(
                         ak.Array([[[0.5, 2.0]], [[0.3]], [[1.0], [0.1]], [[], [], []]])
                     ),
+                    "energy_bulk": VectorOfVectors(
+                        data=[[975.0], [985.0], [799.0, 0.0], [300.0, 400.0, 5.0]]
+                    ),
                 }
             ),
         }
@@ -323,6 +326,9 @@ def test_pdf_energy_threshold(tmp_path, monkeypatch):
     assert mul2.sum() == 1
     assert mul2[300j, 400j] == 1
 
+    # the dead-layer grids are built only with morph_dead_layer
+    assert not _exists(pdf_file, "pdf_morph")
+
 
 def test_pdf_fccd_tag(tmp_path, monkeypatch):
     meta_dir = _make_metadata(
@@ -346,6 +352,100 @@ def test_pdf_fccd_tag_needs_surface_steps(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="store_surface_steps"):
         _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+
+
+def test_pdf_morph_dead_layer(tmp_path, monkeypatch):
+    meta_dir = _make_metadata(
+        tmp_path,
+        evt={"skip_opt": True},
+        hit={"simulate_psd": False, "store_surface_steps": True},
+        pdf={
+            "morph_dead_layer": True,
+            "morph_grid": {"fccd_sigma": [-5, 5, 5], "dlf": [0, 1, 0.5]},
+            "morph_min_fccd_in_mm": 0.4,
+        },
+    )
+    cvt_file = tmp_path / "cvt.lh5"
+    _make_cvt_file_surface(cvt_file)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+
+    grid = lh5.read("pdf_morph/mul1/all", pdf_file)
+    assert grid["grid_info"]["axis_0"]["name"].value == b"fccd_sigma"
+    assert grid["grid_info"]["axis_1"]["name"].value == b"dlf"
+
+    def _hist(point):
+        return grid["grid"][point].view_as("hist")
+
+    # the nominal model (FCCD 0.75 mm, DLF 0.5) gives the nominal PDF
+    nominal = lh5.read_as("pdf/mul1/all", pdf_file, "hist")
+    assert _hist("fccd_sigma_1/dlf_1") == nominal
+
+    # DLF 0: the 15 keV at 0.3 mm of event 1 are 40% collected, +6 keV
+    assert _hist("fccd_sigma_1/dlf_0")[1006j] == 1
+
+    # FCCD 0.75 - 5 * 0.1 mm is limited to 0.4 mm, DLF 1: the 5 keV at
+    # 0.5 mm of event 0 are fully collected, the 15 keV at 0.3 mm are lost
+    assert _hist("fccd_sigma_0/dlf_2")[1003j] == 1
+    assert _hist("fccd_sigma_0/dlf_2").sum() == 3
+
+
+def test_pdf_morph_nominal_point_with_categories(tmp_path, monkeypatch):
+    # the events of _make_cvt_file, with LAr and A/E categories, plus surface
+    # steps: the nominal grid point must give the PDFs of pdf/ in all of them
+    _make_cvt_file(tmp_path / "base.lh5")
+    evt = lh5.read("evt", tmp_path / "base.lh5")
+    evt["geds"].add_field(
+        "surface",
+        Table(
+            col_dict={
+                "edep": VectorOfVectors(
+                    ak.Array([[[5.0]], [[15.0]], [[1.0]], [[]], [[2.0], []], [[3.0]]])
+                ),
+                "distance_to_nplus": VectorOfVectors(
+                    ak.Array([[[0.5]], [[0.3]], [[1.0]], [[]], [[0.1], []], [[2.0]]])
+                ),
+                "energy_bulk": VectorOfVectors(
+                    data=[
+                        [495.0],
+                        [985.0],
+                        [1499.0],
+                        [2000.0],
+                        [198.0, 300.0],
+                        [2497.0],
+                    ]
+                ),
+            }
+        ),
+    )
+    cvt_file = tmp_path / "cvt.lh5"
+    lh5.write(evt, "evt", cvt_file, wo_mode="write_safe")
+    _write_cvt_root(cvt_file, ["V99000A", "B99000A"], [1, 2])
+
+    meta_dir = _make_metadata(
+        tmp_path,
+        hit={"store_surface_steps": True},
+        pdf={
+            "fccd_tag_energy_thr_kev": 10,
+            "morph_dead_layer": True,
+            "morph_grid": {"fccd_sigma": [-1, 1, 1], "dlf": [0, 1, 0.5]},
+        },
+    )
+    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+
+    paths = [
+        f"mul1/{lar}/{aoe}/{fccd}/all"
+        for lar in ("is_spms_coincident", "not_spms_coincident")
+        for aoe in ("is_ss_aoe", "is_low_aoe", "is_invalid_aoe")
+        for fccd in ("is_fccd_tagged", "not_fccd_tagged")
+    ]
+    assert sum(_sum(pdf_file, f"pdf/{p}") for p in paths) == 5
+    assert _sum(pdf_file, "pdf/mul1/not_spms_coincident/is_low_aoe/is_fccd_tagged/all")
+    for path in paths:
+        nominal = lh5.read_as(f"pdf/{path}", pdf_file, "hist")
+        point = lh5.read_as(
+            f"pdf_morph/{path}/grid/fccd_sigma_1/dlf_1", pdf_file, "hist"
+        )
+        assert point == nominal, path
 
 
 def _make_cvt_file_no_geds(path: Path) -> None:

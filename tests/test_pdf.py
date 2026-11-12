@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+import awkward as ak
 import hist
 import lh5
 import numpy as np
 import pytest
 from lgdo import Scalar
+from reboost.math.functions import piecewise_linear_activeness as reference
 
 from legendsimflow.pdf import (
     build_pdf_grid,
+    collected_energy,
+    fccd_layer_energy,
     fill_histograms,
+    flatten_surface_steps,
     format_pdf_struct,
     group_detectors,
     merge_pdf_files,
+    mul1_hits,
     new_histograms,
+    piecewise_linear_activeness,
     read_pdf,
     validate_grid,
 )
@@ -195,3 +202,66 @@ def test_merge_pdf_files(tmp_path):
     )
     assert lh5.read("livetime_in_s", merged).value == 3000
     assert "nr_sim_events" not in lh5.ls(merged)
+
+
+def test_mul1_hits():
+    # event 0: one hit above 25 keV; event 1: two hits; event 2: one hit in an
+    # AC detector; event 3: one hit above and one below threshold
+    energy = np.array([100.0, 100.0, 200.0, 100.0, 300.0, 10.0])
+    hit_evt = np.array([0, 1, 1, 2, 3, 3])
+    is_good = np.array([True, True, True, False, True, False])
+    assert mul1_hits(energy, hit_evt, is_good, 25).tolist() == [0, 4]
+
+
+def _geds_surface():
+    # the second hit of event 1 (UID 2) has no depositions near the surface
+    return ak.Array(
+        {
+            "energy": [[1000.0], [800.0, 300.0]],
+            "rawid": [[1], [1, 2]],
+            "surface": {
+                "edep": [[[10.0, 20.0]], [[5.0], []]],
+                "distance_to_nplus": [[[0.5, 2.0]], [[0.1], []]],
+                "energy_bulk": [[970.0], [795.0, 300.0]],
+            },
+        }
+    )
+
+
+def test_flatten_surface_steps():
+    steps = flatten_surface_steps(_geds_surface(), np.array([1, 2]))
+
+    assert steps["energy_bulk"].tolist() == [970.0, 795.0, 300.0]
+    assert steps["hit"].tolist() == [0, 0, 1]
+    assert steps["det"].tolist() == [0, 0, 0]
+    assert steps["edep"].tolist() == [10.0, 20.0, 5.0]
+
+
+def test_fccd_layer_energy():
+    # FCCD 1 mm: the 20 keV at 2 mm are outside the FCCD layer
+    steps = flatten_surface_steps(_geds_surface(), np.array([1, 2]))
+    energy = fccd_layer_energy(steps, np.array([1.0, 1.0]))
+    assert energy.tolist() == [10.0, 5.0, 0.0]
+
+
+@pytest.mark.parametrize("dlf", [0, 0.5, 1])
+def test_piecewise_linear_activeness(dlf):
+    distance = np.array([0, 0.2, 0.5, 0.9, 1.0, 1.5])
+    assert piecewise_linear_activeness(distance, 1.0, dlf) == pytest.approx(
+        reference(ak.Array(distance), 1.0, dlf).to_numpy()
+    )
+
+
+def test_collected_energy():
+    steps = flatten_surface_steps(_geds_surface(), np.array([1, 2]))
+
+    # activeness at 0.5 mm and 0.1 mm, FCCD 1 mm: 0 and 0 with DLF 0.5, 0.5 and
+    # 0.1 with DLF 0
+    collected = collected_energy(steps, np.array([1.0, 1.0]), 0.5)
+    assert collected.tolist() == pytest.approx([990.0, 795.0, 300.0])
+    collected = collected_energy(steps, np.array([1.0, 1.0]), 0)
+    assert collected.tolist() == pytest.approx([995.0, 795.5, 300.0])
+
+    # FCCD 0.4 mm: the deposition at 0.5 mm is fully collected
+    collected = collected_energy(steps, np.array([0.4, 1.0]), 0.5)
+    assert collected.tolist() == pytest.approx([1000.0, 795.0, 300.0])
