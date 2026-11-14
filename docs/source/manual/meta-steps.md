@@ -245,3 +245,19 @@ settings.
 
 : also histogram the LEGEND-200 data. Without the data production, a warning is
 issued and nothing is built.
+
+`morph_dead_layer` (default `false`)
+
+: also build the multiplicity-1 PDFs on a grid of dead-layer models (see
+[](pdf.md)). It needs `store_surface_steps` in the `hit` settings.
+
+`morph_grid` (default `fccd_sigma: [-5, 5, 0.5]`, `dlf: [0, 1, 0.1]`)
+
+: the `[first, last, step]` values of the two axes of the grid. `fccd_sigma` is
+the shift of the FCCD of each detector, in standard deviations of its FCCD
+uncertainty. `dlf` is the dead layer fraction.
+
+`morph_min_fccd_in_mm` (default `0.5`)
+
+: the smallest FCCD of the grid, in mm. The shifted FCCD is limited to the range
+from this value to `surface_depth_in_mm` of the `hit` settings.

@@ -73,6 +73,9 @@ TIER_SETTINGS: dict = {
         "detector_groups": None,
         "fccd_tag_energy_thr_kev": None,
         "build_l200data_pdfs": True,
+        "morph_dead_layer": False,
+        "morph_grid": {"fccd_sigma": [-5, 5, 0.5], "dlf": [0, 1, 0.1]},
+        "morph_min_fccd_in_mm": 0.5,
     },
 }
 

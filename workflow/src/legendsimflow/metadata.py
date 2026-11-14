@@ -539,6 +539,41 @@ def get_sanitized_fccd(metadata: MetadataRepository, det_name: str) -> float:
     return fccd
 
 
+def get_sanitized_fccd_uncertainty(
+    metadata: MetadataRepository, det_name: str, default: float = 0.2
+) -> tuple[float, float]:
+    """Return the (negative, positive) FCCD uncertainty in mm of `det_name`.
+
+    Falls back to `default` (mm) for both sides, with a warning, if the
+    uncertainty is missing from the detector metadata.
+    """
+    try:
+        det_meta = metadata.hardware.detectors.germanium.diodes[det_name]
+        has_unc = validate_dict_schema(
+            det_meta.characterization,
+            {
+                "combined_0vbb_analysis": {
+                    "fccd_in_mm": {"uncertainty": {"neg": 0.0, "pos": 0.0}}
+                }
+            },
+            greedy=False,
+            verbose=False,
+        )
+    except (FileNotFoundError, KeyError, AttributeError):
+        has_unc = False
+
+    if not has_unc:
+        log.warning(
+            "%s metadata has no usable FCCD uncertainty, setting it to %s mm",
+            det_name,
+            default,
+        )
+        return default, default
+
+    unc = det_meta.characterization.combined_0vbb_analysis.fccd_in_mm.uncertainty
+    return float(unc.neg), float(unc.pos)
+
+
 def is_runid(runid: str) -> bool:
     """Whether a runid (run identifier) is correctly formatted.
 

@@ -284,6 +284,17 @@ selection is a sum of them.
 
 Without HPGe data, the file holds only `nr_sim_events`.
 
+With `morph_dead_layer` (see [](pdf.md)), the file also holds the multiplicity-1
+histograms on a grid of dead-layer models, at
+
+```text
+pdf_morph/mul1/<lar_category>/<aoe_category>[/<fccd_category>]/<group>
+```
+
+with the same categories and groups as `pdf/`. Each path holds a grid in the
+layout of {func}`legendsimflow.pdf.build_pdf_grid`, with the axes `fccd_sigma`
+and `dlf`, which Refit.jl reads as a generalised histogram.
+
 (pdf-tier-data)=
 
 ### LEGEND-200 data
