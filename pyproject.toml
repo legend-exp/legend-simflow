@@ -149,7 +149,7 @@ reboost = ">=1.4.2,<1.5"
 mesalib = "*"
 
 # tier stp
-remage = ">=1.1,<1.2"
+remage = ">=1.2.1,<1.3"
 
 # drift-time maps and other SSD.jl jobs
 julia = ">=1.12,<1.13"
