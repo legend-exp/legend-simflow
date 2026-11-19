@@ -102,7 +102,9 @@ def main() -> None:
     tier_evt_settings = get_tier_settings(config, "evt")
     tier_hit_settings = get_tier_settings(config, "hit")
 
-    log = ldfs.utils.build_log(config.metadata.simprod.config.logging, args.log_file)
+    log = ldfs.utils.build_log(
+        config.metadata.simprod.config.logging.to_dict(), args.log_file
+    )
     log_script_invocation(log, "tier-pdf-l200data", parser, args)
 
     pdf_file = args.pdf_file
