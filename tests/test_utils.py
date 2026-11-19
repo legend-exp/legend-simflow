@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from dbetto import AttrsDict
 from legendmeta import Legend1000Metadata, LegendMetadata
-from lgdo import Array, Table
+from lgdo import Array, Scalar, Struct, Table
 
 from legendsimflow import SimflowConfigError, hpge_pars, utils
 
@@ -811,3 +811,47 @@ def test_lookup_curr_mw_pars(test_l200data, caplog):
         utils.lookup_curr_mw_pars(l200data, dsp_output="curr_up")
     with pytest.raises(KeyError, match="not found"):
         utils.lookup_curr_mw_pars(l200data, dsp_output="no_such_output")
+
+
+def _write_detector_uids(path: Path, mapping: dict[str, int]) -> None:
+    s = Struct({name: Scalar(uid) for name, uid in mapping.items()})
+    lh5.write(s, "detector_uids", path, wo_mode="write_safe")
+
+
+def test_union_detector_uids_identical_mappings(tmp_path):
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11, "V02": 12})
+    _write_detector_uids(f2, {"V01": 11, "V02": 12})
+
+    assert utils.union_detector_uids([f1, f2]) == {"V01": 11, "V02": 12}
+
+
+def test_union_detector_uids_disjoint_subsets(tmp_path):
+    """A detector present in one job but missing in another (zero-hit) must union."""
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11, "V02": 12})
+    _write_detector_uids(f2, {"V01": 11, "V03": 13})
+
+    assert utils.union_detector_uids([f1, f2]) == {"V01": 11, "V02": 12, "V03": 13}
+
+
+def test_union_detector_uids_name_collision_raises(tmp_path):
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11})
+    _write_detector_uids(f2, {"V01": 99})
+
+    with pytest.raises(ValueError, match="'V01' maps to 11"):
+        utils.union_detector_uids([f1, f2])
+
+
+def test_union_detector_uids_uid_collision_raises(tmp_path):
+    f1 = tmp_path / "a.lh5"
+    f2 = tmp_path / "b.lh5"
+    _write_detector_uids(f1, {"V01": 11})
+    _write_detector_uids(f2, {"V02": 11})
+
+    with pytest.raises(ValueError, match="UID 11 maps to"):
+        utils.union_detector_uids([f1, f2])

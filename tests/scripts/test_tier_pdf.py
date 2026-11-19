@@ -12,19 +12,31 @@ import pytest
 import yaml
 from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
 
+from legendsimflow.pdf import read_pdf
 from legendsimflow.scripts.tier import pdf
 
 dummyprod = Path(__file__).parent.parent / "dummyprod"
 
-# number of simulated primary events stored in the synthetic cvt files; the pdf
-# script reads it back and writes it as ``nr_sim_events``.
+# number of simulated primaries of a synthetic evt file, all assigned to one
+# run by the default synthetic partition file
 _N_SIM_EVENTS = 1000
+_RUNID = "l200-p03-r000-phy"
 
 
-def _write_cvt_root(
-    path: Path, names: list[str], uids: list[int], n_sim_events: int = _N_SIM_EVENTS
+def _write_evt(
+    evt: Table,
+    path: Path,
+    names: list[str],
+    uids: list[int],
+    runs: list[int] | None = None,
+    n_sim_events: int = _N_SIM_EVENTS,
 ) -> None:
-    """Write the cvt root metadata: detector_uids and number_of_simulated_events."""
+    """Write an evt file: the `evt` table, with the period 3 and `runs`, and the root objects."""
+    n = len(evt)
+    runs = np.zeros(n) if runs is None else np.asarray(runs, dtype=np.float64)
+    trigger = Table(col_dict={"period": Array(np.full(n, 3.0)), "run": Array(runs)})
+    evt.add_field("trigger", trigger)
+    lh5.write(evt, "evt", path, wo_mode="write_safe")
     detector_uids = Struct(
         {name: Scalar(int(uid)) for name, uid in zip(names, uids, strict=True)}
     )
@@ -32,6 +44,10 @@ def _write_cvt_root(
     lh5.write(
         Scalar(n_sim_events), "number_of_simulated_events", path, wo_mode="append"
     )
+
+
+def _evt_path(tmp_path: Path, jobid: int = 0) -> Path:
+    return tmp_path / f"l200cfg01-{_SIMID_LEGEND}-job_{jobid:04d}-tier_evt.lh5"
 
 
 _SIMID_LEGEND = "birds_nest_K40"
@@ -65,15 +81,28 @@ def _make_metadata(tmp_path: Path, **tier_settings: dict) -> Path:
 def _run_pdf(
     tmp_path: Path,
     monkeypatch,
-    cvt_file: Path,
+    evt_files: Path | list[Path],
     meta_dir: Path | None = None,
     simid: str = _SIMID_LEGEND,
     config_template: str = "simflow-config.yaml",
+    partitions: dict | Path | None = None,
+    runlist: list[str] | None = None,
 ) -> Path:
+    """Run the script and return the summed pdf file, the run files are in ``tmp_path/runs``."""
     config_path = tmp_path / config_template
     raw_config = yaml.safe_load((dummyprod / config_template).read_text())
     raw_config["paths"]["metadata"] = str(meta_dir or (dummyprod / "inputs"))
     config_path.write_text(yaml.safe_dump(raw_config))
+
+    if isinstance(evt_files, Path):
+        evt_files = [evt_files]
+    if partitions is None:
+        partitions = {"job_0000": {_RUNID: [0, _N_SIM_EVENTS - 1]}}
+    if isinstance(partitions, dict):
+        part_file = tmp_path / "partitions.yaml"
+        part_file.write_text(yaml.safe_dump(partitions))
+    else:
+        part_file = partitions
 
     pdf_file = tmp_path / "pdf.lh5"
     monkeypatch.setattr(
@@ -81,12 +110,17 @@ def _run_pdf(
         "argv",
         [
             "pdf",
-            "--cvt-file",
-            str(cvt_file),
+            "--evt-files",
+            *[str(f) for f in evt_files],
+            "--simstat-part-file",
+            str(part_file),
             "--pdf-file",
             str(pdf_file),
+            "--run-dir",
+            str(tmp_path / "runs"),
             "--simid",
             simid,
+            *(["--runlist", *runlist] if runlist else []),
             "--simflow-config",
             str(config_path),
         ],
@@ -106,8 +140,8 @@ def _spms_table(is_coincident) -> Table:
     )
 
 
-def _make_cvt_file(path: Path, with_psd: bool = True) -> None:
-    """Write a minimal cvt LH5 file with the fields expected by the pdf script."""
+def _make_evt_file(path: Path, with_psd: bool = True) -> None:
+    """Write a minimal evt LH5 file with the fields expected by the pdf script."""
     # 6 events:
     # - event 0: m1, 500 keV,      spms=False, PSD valid+simulated+single-site → not_spms_coincident/is_ss_aoe
     # - event 1: m1, 1000 keV,     spms=False, PSD valid+simulated+multi-site  → not_spms_coincident/is_low_aoe
@@ -156,15 +190,15 @@ def _make_cvt_file(path: Path, with_psd: bool = True) -> None:
     )
     if with_psd:
         geds.add_field("psd", psd)
-    evt = Table(col_dict={"geds": geds, "spms": spms})
-    lh5.write(evt, "evt", path, wo_mode="write_safe")
-    _write_cvt_root(path, ["V01", "B02"], [1, 2])
+    _write_evt(
+        Table(col_dict={"geds": geds, "spms": spms}), path, ["V01", "B02"], [1, 2]
+    )
 
 
 def test_pdf_script_cli(tmp_path, monkeypatch):
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file)
 
     assert pdf_file.exists()
     root_keys = lh5.ls(pdf_file)
@@ -172,7 +206,6 @@ def test_pdf_script_cli(tmp_path, monkeypatch):
     assert "nr_sim_events" in root_keys
     nr_sim_events = lh5.read("nr_sim_events", pdf_file)
     assert np.issubdtype(type(nr_sim_events.value), np.integer)
-    # the pdf script must read number_of_events back from the cvt file
     assert nr_sim_events.value == _N_SIM_EVENTS
 
     expected = {
@@ -223,15 +256,12 @@ def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
         }
     )
     spms = _spms_table([False, False, False, False, True])
-    evt = Table(col_dict={"geds": geds, "spms": spms})
-
-    cvt_file = tmp_path / "cvt.lh5"
-    lh5.write(evt, "evt", cvt_file, wo_mode="write_safe")
-    _write_cvt_root(cvt_file, ["V01"], [1])
+    evt_file = _evt_path(tmp_path)
+    _write_evt(Table(col_dict={"geds": geds, "spms": spms}), evt_file, ["V01"], [1])
     meta_dir = _make_metadata(
         tmp_path, hit={"simulate_psd": False, "simulate_psd_with_psl": True}
     )
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
     # (not_spms_coincident, is_spms_coincident)
     expected = {
@@ -248,10 +278,10 @@ def test_pdf_pulse_lib_cuts(tmp_path, monkeypatch):
 
 
 def test_pdf_no_psd(tmp_path, monkeypatch):
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file, with_psd=False)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file, with_psd=False)
     meta_dir = _make_metadata(tmp_path, hit={"simulate_psd": False})
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
     # without PSD the A/E level is left out: events 0, 1, 2, 5 pass the LAr
     # veto, event 3 does not
@@ -260,8 +290,8 @@ def test_pdf_no_psd(tmp_path, monkeypatch):
     assert not _exists(pdf_file, "pdf/mul1/not_spms_coincident/is_ss_aoe")
 
 
-def _make_cvt_file_surface(path: Path) -> None:
-    """Write a cvt file with surface steps and hits below the 25 keV threshold."""
+def _make_evt_file_surface(path: Path) -> None:
+    """Write an evt file with surface steps and hits below the 25 keV threshold."""
     # detector V99000A has a FCCD of 0.75 mm; a "-" hit is below threshold and
     # in an AC detector, it must be ignored
     # - event 0: m1, 1000 keV, 5 keV in the FCCD             -> not_fccd_tagged
@@ -296,19 +326,18 @@ def _make_cvt_file_surface(path: Path) -> None:
             ),
         }
     )
-    lh5.write(Table(col_dict={"geds": geds}), "evt", path, wo_mode="write_safe")
-    _write_cvt_root(path, ["V99000A", "B99000A"], [1, 2])
+    _write_evt(Table(col_dict={"geds": geds}), path, ["V99000A", "B99000A"], [1, 2])
 
 
 def test_pdf_energy_threshold(tmp_path, monkeypatch):
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file_surface(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file_surface(evt_file)
     meta_dir = _make_metadata(
         tmp_path,
         evt={"skip_opt": True},
         hit={"simulate_psd": False, "store_surface_steps": True},
     )
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
     def _hist(path):
         return lh5.read_as(path, pdf_file, "hist")
@@ -331,9 +360,9 @@ def test_pdf_fccd_tag(tmp_path, monkeypatch):
         hit={"simulate_psd": False, "store_surface_steps": True},
         pdf={"fccd_tag_energy_thr_kev": 10},
     )
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file_surface(cvt_file)
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file_surface(evt_file)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
     assert _sum(pdf_file, "pdf/mul1/is_fccd_tagged/all") == 1
     assert _sum(pdf_file, "pdf/mul1/not_fccd_tagged/all") == 2
@@ -341,28 +370,26 @@ def test_pdf_fccd_tag(tmp_path, monkeypatch):
 
 def test_pdf_fccd_tag_needs_surface_steps(tmp_path, monkeypatch):
     meta_dir = _make_metadata(tmp_path, pdf={"fccd_tag_energy_thr_kev": 10})
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
 
     with pytest.raises(ValueError, match="store_surface_steps"):
-        _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+        _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
 
-def _make_cvt_file_no_geds(path: Path) -> None:
-    """Write a minimal cvt LH5 file with no geds subtable (mimics ``skip_hit: true``)."""
+def _make_evt_file_no_geds(path: Path) -> None:
+    """Write a minimal evt LH5 file with no geds subtable (mimics ``skip_hit: true``)."""
     spms = _spms_table([False, True, False, True, False, False])
-    evt = Table(col_dict={"spms": spms})
-    lh5.write(evt, "evt", path, wo_mode="write_safe")
     # detector_uids is still present (skip_hit produces an empty mapping at evt tier)
-    _write_cvt_root(path, [], [])
+    _write_evt(Table(col_dict={"spms": spms}), path, [], [])
 
 
 def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
     """With no spms coincidence data (skip_opt), LAr histograms must be absent."""
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
     meta_dir = _make_metadata(tmp_path, evt={"skip_opt": True})
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
     assert pdf_file.exists()
 
@@ -376,13 +403,13 @@ def test_pdf_script_cli_skip_opt(tmp_path, monkeypatch):
 
 def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
     """With no geds data (skip_hit), no histogram can be filled: none must be written."""
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file_no_geds(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file_no_geds(evt_file)
     with caplog.at_level("WARNING"):
         pdf_file = _run_pdf(
             tmp_path,
             monkeypatch,
-            cvt_file,
+            evt_file,
             meta_dir=_make_metadata(tmp_path, evt={"skip_hit": True}),
         )
     # no detector groups are resolved without HPGe data
@@ -396,32 +423,129 @@ def test_pdf_script_cli_skip_hit(tmp_path, monkeypatch, caplog):
 
 
 @pytest.mark.needs_remage
-def test_pdf_script_cli_with_real_cvt(tmp_path, monkeypatch, legend_cvt_path):
-    """Run the pdf script on a real cvt file produced by the full test pipeline."""
+def test_pdf_script_cli_with_real_evt(
+    tmp_path, monkeypatch, legend_evt_path, legend_simstat_part_path
+):
+    evt_file = tmp_path / f"l200cfg01-{_SIMID_L1000}-job_0000-tier_evt.lh5"
+    shutil.copy(legend_evt_path, evt_file)
     pdf_file = _run_pdf(
         tmp_path,
         monkeypatch,
-        legend_cvt_path,
+        evt_file,
         simid=_SIMID_L1000,
         config_template="simflow-config-l200.yaml",
+        partitions=legend_simstat_part_path,
     )
 
-    assert pdf_file.exists(), "pdf output file was not created"
+    n_primaries = lh5.read("number_of_simulated_events", evt_file).value
+    assert lh5.read("nr_sim_events", pdf_file).value == n_primaries
 
-    root_keys = lh5.ls(pdf_file)
-    assert "pdf" in root_keys
-    assert "nr_sim_events" in root_keys
-
-    nr_sim_events = lh5.read("nr_sim_events", pdf_file)
-    assert np.issubdtype(type(nr_sim_events.value), np.integer)
-    assert nr_sim_events.value > 0
+    run_files = sorted((tmp_path / "runs").glob("*.lh5"))
+    runids = yaml.safe_load(legend_simstat_part_path.read_text())["job_0000"]
+    assert len(run_files) == len(runids) == 2
+    assert sum(lh5.read("nr_sim_events", f).value for f in run_files) == n_primaries
 
     for name in (
         "pdf/mul1/is_spms_coincident/is_ss_aoe/all",
         "pdf/mul1/not_spms_coincident/is_ss_aoe/all",
         "pdf/mul2/all",
     ):
-        assert _exists(pdf_file, name), name
+        assert _sum(pdf_file, name) == sum(_sum(f, name) for f in run_files), name
+    assert all(read_pdf("mul1", f).sum() > 0 for f in run_files)
+
+
+def _evt_m1(energies: list[float]) -> Table:
+    n = len(energies)
+    geds = Table(
+        col_dict={
+            "energy": VectorOfVectors(data=[[e] for e in energies]),
+            "rawid": VectorOfVectors(data=[[1]] * n),
+            "quality": Table(
+                col_dict={"is_good_channel": VectorOfVectors(data=[[True]] * n)}
+            ),
+            "multiplicity": Array(np.ones(n, dtype=np.int32)),
+        }
+    )
+    return Table(col_dict={"geds": geds})
+
+
+_TWO_RUN_PARTITIONS = {
+    "job_0000": {"l200-p03-r000-phy": [0, 599], "l200-p03-r001-phy": [600, 999]},
+    "job_0001": {"l200-p03-r001-phy": [0, 499]},
+}
+
+
+# with 2 events per chunk, r000 continues in the chunk where r001 starts
+@pytest.mark.parametrize("buffer_len", [1, 2, 1000])
+def test_pdf_splits_runs(tmp_path, monkeypatch, buffer_len):
+    # 3000 primaries, 600 and 900 of the 1500 partitioned events in r000 and
+    # r001. r002 has no events
+    files = [_evt_path(tmp_path, 0), _evt_path(tmp_path, 1)]
+    # the 500 keV event has no run (NaN) and is left out
+    _write_evt(
+        _evt_m1([500.0, 1000.0, 1000.0, 2000.0]),
+        files[0],
+        ["V01"],
+        [1],
+        runs=[np.nan, 0, 0, 1],
+        n_sim_events=2000,
+    )
+    _write_evt(_evt_m1([2000.0]), files[1], ["V01"], [1], runs=[1], n_sim_events=1000)
+    meta_dir = _make_metadata(
+        tmp_path,
+        evt={"skip_opt": True},
+        hit={"simulate_psd": False},
+        pdf={"buffer_len": buffer_len},
+    )
+    pdf_file = _run_pdf(
+        tmp_path,
+        monkeypatch,
+        files,
+        meta_dir=meta_dir,
+        partitions=_TWO_RUN_PARTITIONS,
+        runlist=["l200-p03-r002-phy"],
+    )
+
+    expected = {
+        "r000": (1200, {1000j: 2, 2000j: 0}),
+        "r001": (1800, {1000j: 0, 2000j: 2}),
+        "r002": (0, {1000j: 0, 2000j: 0}),
+    }
+    for run, (nr, counts) in expected.items():
+        f = (
+            tmp_path
+            / "runs"
+            / f"legend-{_SIMID_LEGEND}-l200-p03-{run}-phy-tier_pdf.lh5"
+        )
+        assert lh5.read("nr_sim_events", f).value == nr, run
+        h = lh5.read_as("pdf/mul1/all", f, "hist")
+        for energy, n in counts.items():
+            assert h[energy] == n, (run, energy)
+        assert _exists(f, "pdf/mul2/all")
+
+    assert lh5.read("nr_sim_events", pdf_file).value == 3000
+    h = lh5.read_as("pdf/mul1/all", pdf_file, "hist")
+    assert h[1000j] == 2
+    assert h[2000j] == 2
+    assert h.sum() == 4
+
+
+def test_pdf_event_of_run_not_in_job(tmp_path, monkeypatch):
+    files = [_evt_path(tmp_path, 0), _evt_path(tmp_path, 1)]
+    _write_evt(_evt_m1([1000.0, 2000.0]), files[0], ["V01"], [1], runs=[0, 1])
+    # r000 is not in job 1 according to the partition file
+    _write_evt(_evt_m1([2000.0, 3000.0]), files[1], ["V01"], [1], runs=[1, 0])
+    meta_dir = _make_metadata(
+        tmp_path, evt={"skip_opt": True}, hit={"simulate_psd": False}
+    )
+    with pytest.raises(RuntimeError, match="not in the partition file"):
+        _run_pdf(
+            tmp_path,
+            monkeypatch,
+            files,
+            meta_dir=meta_dir,
+            partitions=_TWO_RUN_PARTITIONS,
+        )
 
 
 _ALL_CATEGORIES = tuple(
@@ -437,10 +561,10 @@ def test_pdf_detector_groups_schema(tmp_path, monkeypatch):
         tmp_path, pdf={"detector_groups": {"icpc": "V.*", "bege": "B.*"}}
     )
 
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
 
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
     assert pdf_file.exists()
 
     root_keys = lh5.ls(str(pdf_file))
@@ -461,10 +585,10 @@ def test_pdf_no_detector_groups_schema(tmp_path, monkeypatch):
     """Without detector_groups, output has only 'all' histograms for every category."""
     meta_dir = _make_metadata(tmp_path, pdf={})
 
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
 
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
     assert pdf_file.exists()
 
     assert _exists(pdf_file, "pdf/mul2/all")
@@ -481,10 +605,10 @@ def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
         tmp_path, pdf={"detector_groups": {"icpc": "V.*", "bege": "B.*"}}
     )
 
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
 
-    pdf_file = _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+    pdf_file = _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
 
     def _counts(path):
         return lh5.read_as(path, str(pdf_file), "hist").values()
@@ -505,9 +629,9 @@ def test_pdf_explicit_all_group(tmp_path, monkeypatch, caplog, all_regex, warns)
     meta_dir = _make_metadata(
         tmp_path, pdf={"detector_groups": {"all": all_regex, "icpc": "V.*"}}
     )
-    cvt_file = tmp_path / "cvt.lh5"
-    _make_cvt_file(cvt_file)
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
 
     with caplog.at_level("WARNING"):
-        _run_pdf(tmp_path, monkeypatch, cvt_file, meta_dir=meta_dir)
+        _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
     assert ("overridden by the implicit all-detector group" in caplog.text) == warns

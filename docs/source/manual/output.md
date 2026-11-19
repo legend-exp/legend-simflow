@@ -13,16 +13,18 @@ the parameters of the `par` step are YAML or LH5 files.
 
 Each step writes to its own folder, `paths.tier.<tier>`:
 
-| Step                              | File                                                                    |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `vtx`, `stp`, `opt`, `hit`, `evt` | `{simid}/{experiment}-{simid}-job_{jobid}-tier_{tier}.lh5`, one per job |
-| `cvt`                             | `{experiment}-{simid}-tier_cvt.lh5`, one per simulation                 |
-| `pdf`                             | `{experiment}-{simid}-tier_pdf.lh5`, one per simulation                 |
+| Step                              | File                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| `vtx`, `stp`, `opt`, `hit`, `evt` | `{simid}/{experiment}-{simid}-job_{jobid}-tier_{tier}.lh5`, one per job  |
+| `cvt`                             | `{experiment}-{simid}-tier_cvt.lh5`, one per simulation                  |
+| `pdf`                             | `{experiment}-{simid}-tier_pdf.lh5`, one per simulation                  |
+| `pdf`                             | `runwise/{simid}/{experiment}-{simid}-{runid}-tier_pdf.lh5`, one per run |
 
 `experiment` is the experimental configuration, `simid` the simulation (see
-{ref}`simconfig.yaml`) and `jobid` the zero-padded job number. Hyphens separate
-these fields, which is why simids should use underscores. The GDML geometry of a
-simulation is `paths.geom/{experiment}-{simid}-tier_stp-geom.gdml` (see
+{ref}`simconfig.yaml`), `jobid` the zero-padded job number and `runid` the
+LEGEND-200 run (e.g. `l200-p16-r000-phy`). Hyphens separate these fields, which
+is why simids should use underscores. The GDML geometry of a simulation is
+`paths.geom/{experiment}-{simid}-tier_stp-geom.gdml` (see
 {ref}`geom-config.yaml`). The `par` step writes its files below `paths.pars`
 (see {ref}`par-output-files`). Control plots go to `paths.tier.<tier>/plots/`,
 and logs and benchmarks to `paths.log` and `paths.benchmarks`.
@@ -260,8 +262,10 @@ row per row of the `stp` TCM.
 
 The `pdf` file of a simulation (see [](pdf.md)) holds the histograms of the HPGe
 energy below `pdf/`, and `nr_sim_events`, the number of simulated primaries of
-the simulation, used to normalise them. The energy histograms of the
-multiplicity-1 events are at
+the simulation, used to normalise them. The file of a run has the same layout,
+with the events and the primaries of that run. The file of the simulation is the
+sum of the files of its runs. The energy histograms of the multiplicity-1 events
+are at
 
 ```text
 pdf/mul1/<lar_category>/<aoe_category>[/<fccd_category>]/<group>
@@ -289,7 +293,7 @@ Without HPGe data, the file holds only `nr_sim_events`.
 ### LEGEND-200 data
 
 The histograms of the LEGEND-200 data (see [](pdf.md)) are
-`paths.tier.pdf/l200data/{runid}-tier_pdf.lh5`, one per run, and their sum
-`paths.tier.pdf/l200data/{experiment}-l200data-tier_pdf.lh5`. They have the
+`paths.tier.pdf/l200data/runwise/{runid}-tier_pdf.lh5`, one per run, and their
+sum `paths.tier.pdf/l200data/{experiment}-l200data-tier_pdf.lh5`. They have the
 layout of the simulated ones, without the FCCD level, and store `livetime_in_s`,
 the livetime of the runs in s, instead of `nr_sim_events`.

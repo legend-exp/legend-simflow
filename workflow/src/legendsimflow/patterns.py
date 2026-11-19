@@ -806,8 +806,22 @@ def tier_pdf_base_segment(config: SimflowConfig, **kwargs) -> str:
     return _expand(config.experiment + "-{simid}-tier_pdf", **kwargs)
 
 
+def tier_pdf_run_dirname(config: SimflowConfig, **kwargs) -> Path:
+    """The folder of the `pdf` tier files of the runs of a `simid`."""
+    return _expand(config.paths.tier.pdf / "runwise" / "{simid}", **kwargs)
+
+
+def output_tier_pdf_run_filename(config: SimflowConfig, **kwargs) -> Path:
+    """The path to the `pdf` tier output file for a `simid` and `runid`."""
+    return _expand(
+        tier_pdf_run_dirname(config)
+        / (config.experiment + "-{simid}-{runid}-tier_pdf.lh5"),
+        **kwargs,
+    )
+
+
 def output_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
-    """The path to the merged `pdf` tier output file for a `simid`."""
+    """The path to the `pdf` tier output file for a `simid`, summed over its runs."""
     return _expand(
         config.paths.tier.pdf / (tier_pdf_base_segment(config) + ".lh5"), **kwargs
     )
@@ -828,7 +842,8 @@ def benchmark_tier_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
 def output_l200data_pdf_filename(config: SimflowConfig, **kwargs) -> Path:
     """The path to the data histograms in the `pdf` tier format for a `runid`."""
     return _expand(
-        config.paths.tier.pdf / "l200data" / "{runid}-tier_pdf.lh5", **kwargs
+        config.paths.tier.pdf / "l200data" / "runwise" / "{runid}-tier_pdf.lh5",
+        **kwargs,
     )
 
 

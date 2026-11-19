@@ -33,6 +33,7 @@ import dbetto
 import h5py
 import legenddataflowscripts as ldfs
 import lgdo
+import lh5
 import numpy as np
 import yaml
 from dbetto import AttrsDict, TextDB
@@ -758,6 +759,40 @@ def get_evt_tier_name(l200data: str) -> str:
 
     msg = f"The l200data {l200data} does not contain a valid pet or evt tier"
     raise RuntimeError(msg)
+
+
+def union_detector_uids(evt_files: Sequence[str | Path]) -> dict[str, int]:
+    """Build the union detector name to UID mapping over a set of evt files.
+
+    Different jobs in the same simid can produce evt files with different
+    detector subsets when low-rate decays leave some detectors with zero hits.
+    Their ``detector_uids`` structs then disagree on which detector names are
+    present, even though the underlying name to UID mapping is consistent.
+    This helper unions the entries; any genuine collision (a name mapped to
+    different UIDs, or a UID mapped to different names, across files) is
+    treated as a real inconsistency and raises.
+    """
+    union: dict[str, int] = {}
+    uid_to_name: dict[int, str] = {}
+    for f in evt_files:
+        per_file = lh5.read("detector_uids", f)
+        for name in per_file:
+            uid = int(per_file[name].value)
+            if name in union and union[name] != uid:
+                msg = (
+                    f"detector_uids inconsistency: '{name}' maps to {union[name]} "
+                    f"in earlier evt files but to {uid} in {f}"
+                )
+                raise ValueError(msg)
+            if uid in uid_to_name and uid_to_name[uid] != name:
+                msg = (
+                    f"detector_uids inconsistency: UID {uid} maps to "
+                    f"'{uid_to_name[uid]}' in earlier evt files but to '{name}' in {f}"
+                )
+                raise ValueError(msg)
+            union[name] = uid
+            uid_to_name[uid] = name
+    return union
 
 
 def hash_dict(d: dict | AttrsDict) -> str:

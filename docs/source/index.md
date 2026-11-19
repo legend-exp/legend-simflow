@@ -80,7 +80,8 @@ macros or post-processing settings) is stored at
 
 1. Validation plots are produced at several stages of the Simflow.
 
-1. Tier `pdf` building: summarize `evt`-tier output into histograms (the pdfs).
+1. Tier `pdf` building: summarize `evt`-tier output into histograms (the pdfs),
+   one file per run and their sum.
 
 ## Next steps
 

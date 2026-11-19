@@ -50,22 +50,32 @@ rule archive_pdfs:
 
 
 rule build_tier_pdf:
-    """Produce a `pdf` tier file.
+    """Produce the `pdf` tier files of a simulation: one per run, and their sum.
 
-    Reads `cvt` tier data and bins it into histograms (the PDFs) according to
-    the PDF configuration file.
+    Reads the `evt` tier events of the simulation, once and in the order of the
+    jobs, and bins the events of each run (see the `make_simstat_partition_file`
+    rule) into histograms (the PDFs), with the event selection of
+    {mod}`legendsimflow.selections`. The file of a run is written as soon as all its
+    events are read. The simulated primaries are shared among the runs with
+    {func}`legendsimflow.partitioning.primaries_per_run`. The files of the runs
+    are then summed with {func}`legendsimflow.pdf.merge_pdf_files`.
 
     Uses wildcard `simid`.
     """
     message:
         "Producing output file for job pdf.{wildcards.simid}"
     input:
-        cvt_file=patterns.output_tier_cvt_filename(config),
+        evt_files=lambda wildcards: aggregate.gen_list_of_simid_outputs(
+            config, tier="evt", simid=wildcards.simid
+        ),
+        simstat_part_file=patterns.simstat_part_filename(config),
     params:
+        runlist=lambda wildcards: aggregate.get_runlist(config, wildcards.simid),
         # surfaced so Snakemake invalidates outputs when the regex map changes
         detector_groups=_pdf_settings.detector_groups,
     output:
-        patterns.output_tier_pdf_filename(config),
+        pdf_file=patterns.output_tier_pdf_filename(config),
+        run_dir=directory(patterns.tier_pdf_run_dirname(config)),
     log:
         patterns.log_tier_pdf_filename(config),
     benchmark:

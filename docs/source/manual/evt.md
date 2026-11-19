@@ -99,9 +99,8 @@ after the other, in the order of the runs, into the same table.
 
 The `cvt` step concatenates the event tables of all the jobs of a simulation, in
 the order of the jobs, into one file. It does not select, reorder or reweight
-events. The number of simulated primaries of the jobs is summed, so that the
-file can be normalised (see [](pdf.md)). The content of the file is described in
-{ref}`cvt-tier`.
+events. The number of simulated primaries of the jobs is summed. The content of
+the file is described in {ref}`cvt-tier`.
 
 :::{note}
 

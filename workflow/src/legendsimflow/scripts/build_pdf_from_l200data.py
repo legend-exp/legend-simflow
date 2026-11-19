@@ -84,7 +84,7 @@ def main() -> None:
     parser.add_argument(
         "--pdf-file",
         default=None,
-        help="output file, default: tier/pdf/l200data/<runid>-tier_pdf.lh5",
+        help="output file, default: tier/pdf/l200data/runwise/<runid>-tier_pdf.lh5",
     )
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(

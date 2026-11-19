@@ -403,3 +403,11 @@ def test_pdf_filenames(config):
     assert result.suffix == ".tsv"
     assert result.parent.name == "pdf"
     assert result.parent.parent.name == "benchmarks"
+
+
+def test_pdf_run_filenames(config):
+    runid = "l200-p03-r000-phy"
+    run_dir = p.tier_pdf_run_dirname(config, simid=SIMID)
+    assert run_dir == config.paths.tier.pdf / "runwise" / SIMID
+    result = p.output_tier_pdf_run_filename(config, simid=SIMID, runid=runid)
+    assert result == run_dir / f"{config.experiment}-{SIMID}-{runid}-tier_pdf.lh5"

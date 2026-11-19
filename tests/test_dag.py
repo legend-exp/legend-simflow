@@ -570,6 +570,16 @@ def test_build_l200data_pdfs_adds_data_rules(tmp_path, config):
     assert not rules & dag_rule_names(default_config, overrides(tmp_path / "none"))
 
 
+def test_pdf_one_job_per_simid(tmp_path):
+    """The pdfs of the runs of a simulation and their sum come from one job."""
+    dag = run_snakemake(
+        default_config, overrides(tmp_path, simlist="pdf.birds_nest_K40")
+    )
+    (job,) = [j for j in dag.jobs if j.rule.name.startswith("build_tier_pdf")]
+    assert job.rule.name == "build_tier_pdf"
+    assert job.wildcards["simid"] == "birds_nest_K40"
+
+
 def test_geom_plots_scheduled(tmp_path):
     """The geometry validation plots are scheduled with the stp tier."""
     rules = dag_rule_names(default_config, overrides(tmp_path))
@@ -707,9 +717,15 @@ def recorded_prod(tmp_path, monkeypatch):
     run_single_job = local.Executor.run_single_job
 
     def touch_outputs(job):
-        for f in map(Path, [*job.output, *([job.benchmark] if job.benchmark else [])]):
-            f.parent.mkdir(parents=True, exist_ok=True)
-            f.touch()
+        for f in job.output:
+            if f.is_directory:
+                Path(f).mkdir(parents=True, exist_ok=True)
+            else:
+                Path(f).parent.mkdir(parents=True, exist_ok=True)
+                Path(f).touch()
+        if job.benchmark:
+            Path(job.benchmark).parent.mkdir(parents=True, exist_ok=True)
+            Path(job.benchmark).touch()
 
     def run_cache_rules_only(executor, job):
         ran[job.rule.name].append(dict(job.wildcards))

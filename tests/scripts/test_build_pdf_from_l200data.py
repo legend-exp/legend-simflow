@@ -160,7 +160,7 @@ def _run(
         cache.write_text(
             yaml.safe_dump({"l200-p02-r000-phy": {"V99000A": True, "B99000A": False}})
         )
-        pdf_file = tmp_path / "pdf/l200data" / f"{runid}-tier_pdf.lh5"
+        pdf_file = tmp_path / "pdf/l200data/runwise" / f"{runid}-tier_pdf.lh5"
     else:
         argv += ["--modeled-detectors", "V99000A", "--pdf-file", str(pdf_file)]
     if not lookup:

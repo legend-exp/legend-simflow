@@ -9,12 +9,28 @@ are described in {ref}`pdf-tier-settings` and the structure of the output in
 
 ## Normalisation
 
-The histograms hold raw counts, one file per simulation, summed over all the
-runs of its run list (the events are already shared among the runs in proportion
-to their livetime, see {ref}`run-partitioning`). The file also stores the number
-of simulated primaries. Dividing the counts by it gives the probability per
+The events of a simulation are shared among the runs of its run list in
+proportion to their livetime (see {ref}`run-partitioning`). The step fills one
+file per run with the events of that run, and sums these files into one file per
+simulation. The histograms hold raw counts. Each file also stores the number of
+simulated primaries it covers. The partitioning counts only the events with
+energy in a detector, so the primaries of the simulation are shared among the
+runs in proportion to their events, that is to their livetime (see
+{func}`legendsimflow.partitioning.primaries_per_run`). The file of the
+simulation holds the total. Dividing the counts by it gives the probability per
 primary; multiplying by the number of decays of the source in the livetime of
 the runs gives the expected counts.
+
+One job per simulation reads its `evt` files once, in the order of the jobs, and
+writes the file of each run as soon as all its events are read. The files of a
+simulation can also be built by hand:
+
+```console
+> pixi run tier-pdf --simid birds_nest_K40 \
+    --evt-files generated/tier/evt/birds_nest_K40/*.lh5 \
+    --simstat-part-file generated/pars/simstat/partitions_birds_nest_K40.yaml \
+    --pdf-file pdf.lh5 --run-dir pdf-runs --simflow-config simflow-config.yaml
+```
 
 ## Event selection
 
@@ -70,6 +86,7 @@ be histogrammed by hand, into the file the workflow writes:
 
 The merged data file covers the runs of all the simulations, while the pdf of a
 simulation covers only the runs of its own run list. For a simulation with a
-reduced run list, compare it with the data files of its runs.
+reduced run list, compare it with the data files of its runs. The files of one
+run, simulated and data, can always be compared directly.
 
 :::

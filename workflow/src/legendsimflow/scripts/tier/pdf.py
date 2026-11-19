@@ -16,21 +16,27 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import argparse
+import re
+from collections.abc import Iterable
+from pathlib import Path
 
 import awkward as ak
 import legenddataflowscripts as ldfs
 import legenddataflowscripts.utils
 import lh5
 import numpy as np
+from dbetto.utils import load_dict
 from lgdo import Scalar, Struct
 from snakemake_argparse_bridge import snakemake_compatible
 
-from legendsimflow import nersc, utils
-from legendsimflow.metadata import get_tier_settings
+from legendsimflow import nersc, patterns, utils
+from legendsimflow.metadata import get_tier_settings, parse_runid
+from legendsimflow.partitioning import primaries_per_run
 from legendsimflow.pdf import (
     fill_histograms,
     format_pdf_struct,
     group_detectors,
+    merge_pdf_files,
     new_histograms,
 )
 from legendsimflow.scripts import log_script_invocation
@@ -51,17 +57,42 @@ from legendsimflow.selections import (
 
 @snakemake_compatible(
     mapping={
-        "cvt_file": "input.cvt_file",
-        "pdf_file": "output[0]",
+        "evt_files": "input.evt_files",
+        "simstat_part_file": "input.simstat_part_file",
+        "runlist": "params.runlist",
+        "pdf_file": "output.pdf_file",
+        "run_dir": "output.run_dir",
         "log_file": "log[0]",
         "simid": "wildcards.simid",
         "simflow_config": "config",
     }
 )
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build the pdf tier.")
-    parser.add_argument("--cvt-file", required=True, help="input cvt tier file")
-    parser.add_argument("--pdf-file", required=True, help="output pdf tier file")
+    parser = argparse.ArgumentParser(
+        description="Build the pdf tier files of the runs of a simulation, and their sum."
+    )
+    parser.add_argument(
+        "--evt-files", nargs="+", required=True, help="evt tier files of the simulation"
+    )
+    parser.add_argument(
+        "--simstat-part-file",
+        required=True,
+        help="simulation statistics partition file of the simulation",
+    )
+    parser.add_argument(
+        "--runlist",
+        nargs="+",
+        default=None,
+        help="runs of the simulation, default: those in the partition file",
+    )
+    parser.add_argument(
+        "--pdf-file", required=True, help="output pdf tier file, summed over the runs"
+    )
+    parser.add_argument(
+        "--run-dir",
+        required=True,
+        help="output folder of the pdf tier files of the runs",
+    )
     parser.add_argument("--simid", required=True, help="simulation ID wildcard")
     parser.add_argument("--log-file", default=None, help="log file")
     parser.add_argument(
@@ -79,26 +110,60 @@ def main() -> None:
     tier_evt_settings = get_tier_settings(config, "evt")
     tier_hit_settings = get_tier_settings(config, "hit")
 
-    cvt_file = str(nersc.dvs_ro(config, args.cvt_file))
-    pdf_file = args.pdf_file
-
     log = ldfs.utils.build_log(
         config.metadata.simprod.config.logging.to_dict(), args.log_file
     )
     log_script_invocation(log, "tier-pdf", parser, args)
 
-    # the number of simulated primary events is written by remage at the root
-    # of each stp file, forwarded through the evt tier and summed over all jobs
-    # at the cvt tier.
-    number_of_primaries = int(lh5.read("number_of_simulated_events", cvt_file).value)
+    partitions = load_dict(nersc.dvs_ro(config, args.simstat_part_file))
+    runlist = sorted(
+        set(args.runlist or []) | {r for part in partitions.values() for r in part}
+    )
+    runid_of = {parse_runid(r)[1:3]: r for r in runlist}
+
+    # the last job holding events of each run: its file is written after it
+    last_job = {}
+    for job in sorted(partitions):
+        for runid in partitions[job]:
+            last_job[runid] = job
+
+    evt_files = {}
+    for f in nersc.dvs_ro(config, list(args.evt_files)):
+        m = re.search(r"job_\d+", Path(f).name)
+        if m is None or m.group() not in partitions:
+            msg = f"{f} does not contain a job number of the partition file"
+            raise RuntimeError(msg)
+        evt_files[m.group()] = str(f)
+
+    # the number of simulated primaries of each job is written by remage at
+    # the root of its stp file and forwarded by the evt tier
+    n_primaries = sum(
+        int(lh5.read("number_of_simulated_events", f).value) for f in evt_files.values()
+    )
+    primaries = primaries_per_run(partitions, n_primaries)
     log.info(
-        "... read number of simulated events from %s: %s", cvt_file, number_of_primaries
+        "... %s simulated events shared among the runs: %s", n_primaries, primaries
     )
 
-    output = Struct()
+    run_dir = Path(args.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    def run_file(runid: str) -> Path:
+        name = patterns.output_tier_pdf_run_filename(
+            config, simid=args.simid, runid=runid
+        ).name
+        return run_dir / name
+
+    def write(runid: str, output: Struct) -> None:
+        f = run_file(runid)
+        lh5.write(output, "pdf", f, wo_mode="w")
+        lh5.write(Scalar(primaries.get(runid, 0)), "nr_sim_events", f, wo_mode="append")
 
     # without HPGe data (skip_hit) there is nothing to histogram
-    if not tier_evt_settings.skip_hit:
+    if tier_evt_settings.skip_hit:
+        for runid in runlist:
+            write(runid, Struct())
+    else:
         has_spms_coinc = not tier_evt_settings.skip_opt
         model = aoe_model(tier_hit_settings)
         fccd_thr = tier_pdf_settings.fccd_tag_energy_thr_kev
@@ -110,8 +175,7 @@ def main() -> None:
             raise ValueError(msg)
 
         # name to UID map written at evt-tier build time
-        detector_uids = lh5.read("detector_uids", cvt_file)
-        name_to_uid = {n: int(detector_uids[n].value) for n in detector_uids}
+        name_to_uid = utils.union_detector_uids(list(evt_files.values()))
         group_uids = group_detectors(tier_pdf_settings.detector_groups, name_to_uid)
         if fccd_thr is not None:
             sorted_uids, fccd_mm = fccd_by_uid(
@@ -121,31 +185,10 @@ def main() -> None:
             )
 
         levels = category_levels(has_spms_coinc, model, fccd_thr)
-        histograms, mul2_hist = new_histograms(levels, group_uids)
+        thr = tier_evt_settings.geds_energy_thr_kev
 
-        log.info("... beginning iteration over cvt file")
-
-        # read only the fields used here: the SiPM table and the surface steps
-        # are large
-        fields = ["geds/energy", "geds/rawid", "geds/quality/is_good_channel"]
-        if has_spms_coinc:
-            fields += ["spms/multiplicity", "spms/energy_sum"]
-        if model is not None:
-            fields += ["geds/psd/is_good", f"geds/psd/{model}"]
-        if fccd_thr is not None:
-            fields += ["geds/surface/edep", "geds/surface/distance_to_nplus"]
-
-        # a single cvt file might be large, need to iterate
-        for chunk in lh5.LH5Iterator(
-            cvt_file,
-            "evt",
-            field_mask=fields,
-            buffer_len=tier_pdf_settings.buffer_len,
-        ):
-            data = chunk.view_as("ak")
-            thr = tier_evt_settings.geds_energy_thr_kev
+        def fill(data: ak.Array, histograms: dict, mul2_hist) -> None:
             is_hit = is_hpge_hit_above_thr(data, thr)
-
             energy_m2 = data.geds.energy[is_hit][
                 has_hpge_multiplicity(data, 2, None, thr)
             ]
@@ -175,11 +218,83 @@ def main() -> None:
 
             fill_histograms(histograms, energy, uid, in_category, group_uids)
 
-        log.info("... convert histograms to lgdo")
-        output = format_pdf_struct(histograms, levels, mul2_hist)
+        # read only the fields used here: the SiPM table and the surface steps
+        # are large
+        fields = [
+            "trigger/period",
+            "trigger/run",
+            "geds/energy",
+            "geds/rawid",
+            "geds/quality/is_good_channel",
+        ]
+        if has_spms_coinc:
+            fields += ["spms/multiplicity", "spms/energy_sum"]
+        if model is not None:
+            fields += ["geds/psd/is_good", f"geds/psd/{model}"]
+        if fccd_thr is not None:
+            fields += ["geds/surface/edep", "geds/surface/distance_to_nplus"]
 
-    lh5.write(output, "pdf", pdf_file, wo_mode="w")
-    lh5.write(Scalar(number_of_primaries), "nr_sim_events", pdf_file, wo_mode="append")
+        open_runs = {}
+        written = set()
+
+        def flush(done: Iterable[str]) -> None:
+            for runid in done:
+                log.info("... writing %s", run_file(runid))
+                histograms, mul2_hist = open_runs.pop(runid)
+                write(runid, format_pdf_struct(histograms, levels, mul2_hist))
+                written.add(runid)
+
+        # the evt tier writes the events of each job run by run, in the order
+        # of the runs, and a run spans consecutive jobs. A run is complete when
+        # a later run starts in its last job, so only the histograms of a few
+        # runs are in memory at a time
+        for job in sorted(evt_files):
+            log.info("... reading %s", evt_files[job])
+            for chunk in lh5.LH5Iterator(
+                evt_files[job],
+                "evt",
+                field_mask=fields,
+                buffer_len=tier_pdf_settings.buffer_len,
+            ):
+                data = chunk.view_as("ak")
+                # the evt tier takes the period and run from the hit tier: they
+                # are NaN for events without HPGe hits, which fill no histogram
+                data = data[~np.isnan(data.trigger.run)]
+                period = ak.to_numpy(data.trigger.period).astype(int)
+                run = ak.to_numpy(data.trigger.run).astype(int)
+                runids = {}
+                for p, r in set(zip(period, run, strict=True)):
+                    runid = runid_of.get((p, r))
+                    if runid not in partitions[job] or runid in written:
+                        msg = (
+                            f"{evt_files[job]} has events of period {p} run {r}, "
+                            "not in the partition file or not in the order of the runs"
+                        )
+                        raise RuntimeError(msg)
+                    runids[runid] = (period == p) & (run == r)
+
+                if not runids:
+                    continue
+                last = max(runids)
+                flush([r for r in open_runs if r < min(runids) and last_job[r] == job])
+                for runid in sorted(runids):
+                    if runid not in open_runs:
+                        open_runs[runid] = new_histograms(levels, group_uids)
+                    fill(data[runids[runid]], *open_runs[runid])
+                    if runid < last and last_job[runid] == job:
+                        flush([runid])
+
+            flush([r for r in open_runs if last_job[r] == job])
+
+        # runs without events get empty histograms
+        for runid in sorted(set(runlist) - written):
+            histograms, mul2_hist = open_runs.pop(runid, None) or new_histograms(
+                levels, group_uids
+            )
+            write(runid, format_pdf_struct(histograms, levels, mul2_hist))
+
+    log.info("... summing the runs into %s", args.pdf_file)
+    merge_pdf_files([run_file(r) for r in runlist], args.pdf_file)
 
 
 if __name__ == "__main__":

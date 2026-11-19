@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from legendsimflow.partitioning import partition_simstat
+from legendsimflow.partitioning import partition_simstat, primaries_per_run
 
 
 def test_partition_simstat_expected_dict():
@@ -55,3 +55,19 @@ def test_partition_simstat_rejects_duplicate_runids():
 
     with pytest.raises(ValueError, match="duplicate runids"):
         partition_simstat(n_events, n_events_part, runlist)
+
+
+def test_primaries_per_run():
+    partitions = {
+        "job_000": {"r1": [0, 0], "r2": [1, 1]},
+        "job_001": {"r3": [0, 0]},
+    }
+    # 10 / 3 each, the leftover primary goes to the first run
+    assert primaries_per_run(partitions, 10) == {"r1": 4, "r2": 3, "r3": 3}
+
+    partitions = {
+        "job_000": {"r1": [0, 299]},
+        "job_001": {"r1": [0, 99], "r2": [100, 199]},
+    }
+    assert primaries_per_run(partitions, 1000) == {"r1": 800, "r2": 200}
+    assert primaries_per_run({"job_000": {}}, 1000) == {}

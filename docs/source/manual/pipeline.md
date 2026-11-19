@@ -53,8 +53,9 @@ files into one TCM that points to both the HPGe and the SiPM tables, and loops
 over the events, in chunks. For each event, it uses the TCM to read the
 observables of its hits from the detector tables, and it writes one row per
 event. `cvt` keeps this layout, and `pdf` fills its histograms from these
-events. Quantities that combine detectors, like the HPGe multiplicity or the LAr
-veto, are therefore computed only from the `evt` step on.
+events, run by run. Quantities that combine detectors, like the HPGe
+multiplicity or the LAr veto, are therefore computed only from the `evt` step
+on.
 
 (run-partitioning)=
 
