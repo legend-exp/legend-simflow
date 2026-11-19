@@ -14,8 +14,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
+import math
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 
 
 def partition_simstat(
@@ -128,34 +129,30 @@ def partition_simstat(
 
 
 def primaries_per_run(
-    partitions: Mapping[str, Mapping[str, Sequence[int]]], n_primaries: int
+    livetimes: Mapping[str, float], n_primaries: int
 ) -> dict[str, int]:
-    """Share the simulated primaries among the runs of a partitioning.
+    """Share the simulated primaries among runs in proportion to their livetime.
 
-    The partitioning of :func:`partition_simstat` counts the events with energy
-    deposited in a detector, not the simulated primaries. The primaries are
-    shared in proportion to the events of each run, that is to its livetime.
     The shares are rounded to integers with the largest-remainder method, so
     that they sum to `n_primaries`. Ties go to the run that comes first in
     alphabetical order.
 
     Parameters
     ----------
-    partitions
-        the partitioning, as returned by :func:`partition_simstat`.
+    livetimes
+        livetime of each run, in any unit.
     n_primaries
         the number of simulated primaries of all the jobs.
     """
-    events: dict[str, int] = {}
-    for part in partitions.values():
-        for run, (start, end) in part.items():
-            events[run] = events.get(run, 0) + end - start + 1
+    total = sum(livetimes.values())
+    if total <= 0:
+        msg = f"total livetime of runs {sorted(livetimes)} is zero"
+        raise ValueError(msg)
 
-    total = sum(events.values())
-    if total == 0:
-        return dict.fromkeys(events, 0)
-
-    shares = {run: divmod(n_primaries * n, total) for run, n in events.items()}
-    n_left = n_primaries - sum(q for q, _ in shares.values())
-    by_remainder = sorted(shares, key=lambda run: (-shares[run][1], run))
-    return {run: q + (run in by_remainder[:n_left]) for run, (q, _) in shares.items()}
+    exact = {run: n_primaries * t / total for run, t in livetimes.items()}
+    shares = {run: math.floor(x) for run, x in exact.items()}
+    n_left = n_primaries - sum(shares.values())
+    by_remainder = sorted(exact, key=lambda run: (shares[run] - exact[run], run))
+    for run in by_remainder[:n_left]:
+        shares[run] += 1
+    return shares

@@ -12,6 +12,7 @@ import pytest
 import yaml
 from lgdo import Array, Scalar, Struct, Table, VectorOfVectors
 
+from legendsimflow.exceptions import SimflowConfigError
 from legendsimflow.pdf import read_pdf
 from legendsimflow.scripts.tier import pdf
 
@@ -103,6 +104,9 @@ def _run_pdf(
         part_file.write_text(yaml.safe_dump(partitions))
     else:
         part_file = partitions
+        partitions = yaml.safe_load(part_file.read_text())
+    if runlist is None:
+        runlist = sorted({r for part in partitions.values() for r in part})
 
     pdf_file = tmp_path / "pdf.lh5"
     monkeypatch.setattr(
@@ -120,7 +124,8 @@ def _run_pdf(
             str(tmp_path / "runs"),
             "--simid",
             simid,
-            *(["--runlist", *runlist] if runlist else []),
+            "--runlist",
+            *runlist,
             "--simflow-config",
             str(config_path),
         ],
@@ -478,8 +483,8 @@ _TWO_RUN_PARTITIONS = {
 # with 2 events per chunk, r000 continues in the chunk where r001 starts
 @pytest.mark.parametrize("buffer_len", [1, 2, 1000])
 def test_pdf_splits_runs(tmp_path, monkeypatch, buffer_len):
-    # 3000 primaries, 600 and 900 of the 1500 partitioned events in r000 and
-    # r001. r002 has no events
+    # 3000 primaries, shared among the 3 runs of equal livetime. r002 has no
+    # events
     files = [_evt_path(tmp_path, 0), _evt_path(tmp_path, 1)]
     # the 500 keV event has no run (NaN) and is left out
     _write_evt(
@@ -503,13 +508,13 @@ def test_pdf_splits_runs(tmp_path, monkeypatch, buffer_len):
         files,
         meta_dir=meta_dir,
         partitions=_TWO_RUN_PARTITIONS,
-        runlist=["l200-p03-r002-phy"],
+        runlist=["l200-p03-r000-phy", "l200-p03-r001-phy", "l200-p03-r002-phy"],
     )
 
     expected = {
-        "r000": (1200, {1000j: 2, 2000j: 0}),
-        "r001": (1800, {1000j: 0, 2000j: 2}),
-        "r002": (0, {1000j: 0, 2000j: 0}),
+        "r000": (1000, {1000j: 2, 2000j: 0}),
+        "r001": (1000, {1000j: 0, 2000j: 2}),
+        "r002": (1000, {1000j: 0, 2000j: 0}),
     }
     for run, (nr, counts) in expected.items():
         f = (
@@ -635,3 +640,31 @@ def test_pdf_explicit_all_group(tmp_path, monkeypatch, caplog, all_regex, warns)
     with caplog.at_level("WARNING"):
         _run_pdf(tmp_path, monkeypatch, evt_file, meta_dir=meta_dir)
     assert ("overridden by the implicit all-detector group" in caplog.text) == warns
+
+
+def test_pdf_input_checks(tmp_path, monkeypatch):
+    files = [_evt_path(tmp_path, 0), _evt_path(tmp_path, 1)]
+    for f in files:
+        _write_evt(_evt_m1([1000.0]), f, ["V01"], [1])
+    meta_dir = _make_metadata(
+        tmp_path, evt={"skip_opt": True}, hit={"simulate_psd": False}
+    )
+
+    with pytest.raises(RuntimeError, match="partition file of jobs"):
+        _run_pdf(
+            tmp_path,
+            monkeypatch,
+            files[:1],
+            meta_dir=meta_dir,
+            partitions=_TWO_RUN_PARTITIONS,
+        )
+    with pytest.raises(RuntimeError, match="same as another evt file"):
+        _run_pdf(tmp_path, monkeypatch, [files[0], files[0]], meta_dir=meta_dir)
+    with pytest.raises(SimflowConfigError, match="differ only by the data type"):
+        _run_pdf(
+            tmp_path,
+            monkeypatch,
+            files[0],
+            meta_dir=meta_dir,
+            runlist=["l200-p03-r000-cal", "l200-p03-r000-phy"],
+        )

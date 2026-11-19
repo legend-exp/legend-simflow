@@ -58,16 +58,10 @@ def test_partition_simstat_rejects_duplicate_runids():
 
 
 def test_primaries_per_run():
-    partitions = {
-        "job_000": {"r1": [0, 0], "r2": [1, 1]},
-        "job_001": {"r3": [0, 0]},
-    }
     # 10 / 3 each, the leftover primary goes to the first run
-    assert primaries_per_run(partitions, 10) == {"r1": 4, "r2": 3, "r3": 3}
-
-    partitions = {
-        "job_000": {"r1": [0, 299]},
-        "job_001": {"r1": [0, 99], "r2": [100, 199]},
-    }
-    assert primaries_per_run(partitions, 1000) == {"r1": 800, "r2": 200}
-    assert primaries_per_run({"job_000": {}}, 1000) == {}
+    livetimes = {"r1": 1.0, "r2": 1.0, "r3": 1.0}
+    assert primaries_per_run(livetimes, 10) == {"r1": 4, "r2": 3, "r3": 3}
+    assert primaries_per_run({"r1": 300.0, "r2": 100.0}, 1000) == {"r1": 750, "r2": 250}
+    assert primaries_per_run({"r1": 1.0, "r2": 2.0}, 0) == {"r1": 0, "r2": 0}
+    with pytest.raises(ValueError, match="zero"):
+        primaries_per_run({"r1": 0.0}, 10)

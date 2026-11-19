@@ -56,8 +56,8 @@ rule build_tier_pdf:
     jobs, and bins the events of each run (see the `make_simstat_partition_file`
     rule) into histograms (the PDFs), with the event selection of
     {mod}`legendsimflow.selections`. The file of a run is written as soon as all its
-    events are read. The simulated primaries are shared among the runs with
-    {func}`legendsimflow.partitioning.primaries_per_run`. The files of the runs
+    events are read. The simulated primaries are shared among the runs in proportion to their
+    livetime, with {func}`legendsimflow.partitioning.primaries_per_run`. The files of the runs
     are then summed with {func}`legendsimflow.pdf.merge_pdf_files`.
 
     Uses wildcard `simid`.

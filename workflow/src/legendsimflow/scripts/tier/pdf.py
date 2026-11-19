@@ -30,7 +30,8 @@ from lgdo import Scalar, Struct
 from snakemake_argparse_bridge import snakemake_compatible
 
 from legendsimflow import nersc, patterns, utils
-from legendsimflow.metadata import get_tier_settings, parse_runid
+from legendsimflow.exceptions import SimflowConfigError
+from legendsimflow.metadata import get_tier_settings, parse_runid, runinfo
 from legendsimflow.partitioning import primaries_per_run
 from legendsimflow.pdf import (
     fill_histograms,
@@ -80,10 +81,7 @@ def main() -> None:
         help="simulation statistics partition file of the simulation",
     )
     parser.add_argument(
-        "--runlist",
-        nargs="+",
-        default=None,
-        help="runs of the simulation, default: those in the partition file",
+        "--runlist", nargs="+", required=True, help="runs of the simulation"
     )
     parser.add_argument(
         "--pdf-file", required=True, help="output pdf tier file, summed over the runs"
@@ -116,10 +114,22 @@ def main() -> None:
     log_script_invocation(log, "tier-pdf", parser, args)
 
     partitions = load_dict(nersc.dvs_ro(config, args.simstat_part_file))
-    runlist = sorted(
-        set(args.runlist or []) | {r for part in partitions.values() for r in part}
-    )
-    runid_of = {parse_runid(r)[1:3]: r for r in runlist}
+    runlist = sorted(set(args.runlist))
+    if extra := {r for part in partitions.values() for r in part} - set(runlist):
+        msg = f"runs {sorted(extra)} of the partition file are not in the run list"
+        raise SimflowConfigError(msg)
+
+    # the evt tier stores only the period and run of each event
+    runid_of = {}
+    for runid in runlist:
+        key = parse_runid(runid)[1:3]
+        if key in runid_of:
+            msg = (
+                f"{runid_of[key]} and {runid} differ only by the data type, "
+                "their events cannot be told apart in the evt tier"
+            )
+            raise SimflowConfigError(msg)
+        runid_of[key] = runid
 
     # the last job holding events of each run: its file is written after it
     last_job = {}
@@ -130,17 +140,24 @@ def main() -> None:
     evt_files = {}
     for f in nersc.dvs_ro(config, list(args.evt_files)):
         m = re.search(r"job_\d+", Path(f).name)
-        if m is None or m.group() not in partitions:
-            msg = f"{f} does not contain a job number of the partition file"
+        if m is None or m.group() in evt_files:
+            msg = f"{f} has no job number or the same as another evt file"
             raise RuntimeError(msg)
         evt_files[m.group()] = str(f)
+    if set(evt_files) != set(partitions):
+        msg = (
+            f"the evt files are of jobs {sorted(evt_files)}, "
+            f"the partition file of jobs {sorted(partitions)}"
+        )
+        raise RuntimeError(msg)
 
     # the number of simulated primaries of each job is written by remage at
     # the root of its stp file and forwarded by the evt tier
     n_primaries = sum(
         int(lh5.read("number_of_simulated_events", f).value) for f in evt_files.values()
     )
-    primaries = primaries_per_run(partitions, n_primaries)
+    livetimes = {r: runinfo(config.metadata, r).livetime_in_s for r in runlist}
+    primaries = primaries_per_run(livetimes, n_primaries)
     log.info(
         "... %s simulated events shared among the runs: %s", n_primaries, primaries
     )
@@ -157,7 +174,7 @@ def main() -> None:
     def write(runid: str, output: Struct) -> None:
         f = run_file(runid)
         lh5.write(output, "pdf", f, wo_mode="w")
-        lh5.write(Scalar(primaries.get(runid, 0)), "nr_sim_events", f, wo_mode="append")
+        lh5.write(Scalar(primaries[runid]), "nr_sim_events", f, wo_mode="append")
 
     # without HPGe data (skip_hit) there is nothing to histogram
     if tier_evt_settings.skip_hit:
