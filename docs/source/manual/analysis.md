@@ -114,38 +114,66 @@ With the PSL-based PSD (see {ref}`hit-tier-settings`), the `par` step writes the
 average current and charge pulses of the calibration data, the superpulses (see
 {ref}`hpge-superpulses-extraction`), and the realistic pulse-shape libraries
 (see {ref}`hpge-realistic-psl-extraction`).
-{func}`~legendsimflow.superpulses.read_superpulses` reads the superpulses of a
-detector, one per drift-time slice.
-{func}`reboost.hpge.load_hpge_pulse_shape_libraries` reads the library of a
-detector: one current pulse per point of an $(r, z)$ grid in the crystal, per
-azimuth with respect to the crystal axes.
+
+(analysis-superpulses)=
+
+### Data superpulses
+
+{func}`~legendsimflow.superpulses.read_superpulses` returns a dictionary from
+drift-time slice to superpulse, with the longest drift times first (the format
+is in {ref}`superpulses-output`):
 
 ```python
 import numpy as np
 from legendsimflow.superpulses import read_superpulses
 
-pars = "/path/to/prod/generated/pars/hpge"
-sp_file = f"{pars}/superpulses/l200-p19-r006-phy-V00050A-superpulses.lh5"
-psl = f"{pars}/psl/realistic/l200-p19-r006-phy-hpge-pulse-shape-lib.lh5"
+sp_file = "/path/to/prod/generated/pars/hpge/superpulses/V00050A-superpulses.lh5"
+superpulses = read_superpulses(sp_file, "V00050A")
 
-superpulses = read_superpulses(sp_file, "V00050A")  # slice -> superpulse
+for sl, sp in superpulses.items():
+    print(sl.drift_time_range, sp.n_events_final)  # ns, number of waveforms
+
 sl, sp = next(iter(superpulses.items()))  # the longest drift times
-sp.current_wf, sp.current_time_axis  # time in ns
+sp.charge_time_axis, sp.charge_wf  # ns, plateau about 1
+dt = np.diff(sp.current_time_axis)[0]  # sampling period, ns
+sp.current_time_axis, sp.current_wf / dt  # ns, 1/ns
+```
+
+Without the Simflow package, read a slice with `lh5`:
+
+```python
+import lh5
+
+lh5.ls(sp_file, "V00050A/")  # the slices, e.g. "V00050A/dt_1000_1200_ns"
+sp = lh5.read("V00050A/dt_1000_1200_ns", sp_file)
+sp["current_time_axis"].view_as("np"), sp["current_wf"].view_as("np")
+```
+
+### Pulse-shape libraries
+
+{func}`reboost.hpge.load_hpge_pulse_shape_libraries` reads the library of a
+detector: one current pulse per point of an $(r, z)$ grid in the crystal, per
+azimuth with respect to the crystal axes.
+
+```python
+import lh5
+import reboost.hpge
+
+psl = "/path/to/prod/generated/pars/hpge/psl/realistic/l200-p19-r006-phy-hpge-pulse-shape-lib.lh5"
 
 lib = reboost.hpge.load_hpge_pulse_shape_libraries(psl, "V00050A", angles=[0])[0]
 lib.waveforms, lib.t  # shape (n_r, n_z, n_samples), time in ns
 drift_time = lh5.read("V00050A/drift_time_000_deg", psl).view_as("np")  # ns
 ```
 
-The superpulse file is `V00050A-superpulses.lh5` when it is built from all runs
-together (see {ref}`superpulses-settings-meta`). The library file holds all the
-detectors of the run and can be very large: read one detector and only the
-azimuths you need.
+The library file holds all the detectors of the run and can be very large: read
+one detector and only the azimuths you need.
 
-Both time axes have their zero at the current maximum. The mean of the library
-pulses with a drift time in a slice is the simulated superpulse that the
-electronics fit compares with the data (see {ref}`hpge-elecmod-extraction`).
-Each grid point counts once, as in the fit:
+Both the library and the superpulse time axes have their zero at the current
+maximum. The mean of the library pulses with a drift time in a slice `sl` of the
+superpulses above is the simulated superpulse that the electronics fit compares
+with the data (see {ref}`hpge-elecmod-extraction`). Each grid point counts once,
+as in the fit:
 
 ```python
 lo, hi = sl.drift_time_range  # ns
