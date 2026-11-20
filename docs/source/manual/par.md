@@ -221,7 +221,9 @@ up to 100 waveforms are averaged, the waveforms that differ too much from this
 average are discarded with a $\chi^2$ cut on the charge pulses, and the mean of
 the remaining ones is the superpulse. By default one set of superpulses per
 detector is built from all runs together; they can also be built per run (see
-{ref}`superpulses-settings-meta`).
+{ref}`superpulses-settings-meta`). The file format is in
+{ref}`superpulses-output`, and how to read the files in
+{ref}`analysis-superpulses`.
 
 (hpge-elecmod-extraction)=
 

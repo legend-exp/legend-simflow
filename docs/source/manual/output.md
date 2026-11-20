@@ -46,7 +46,7 @@ noted, per run (`{runid}`) and detector (`{detector}`):
 | A/E mean energy dependence | `hpge/aoemeanmod/model.yaml`, for all runs, see {ref}`hpge-aoemeanmod-extraction`                             |
 | drift-time maps            | `paths.dtmaps/{runid}-hpge-drift-time-maps.lh5`, see {ref}`hpge-dtmap-extraction`                             |
 | ideal pulse shapes         | `hpge/psl/ideal/singles/{detector}-{voltage}V-hpge-pulse-shape-lib.lh5`, see {ref}`hpge-ideal-psl-extraction` |
-| data superpulses           | `hpge/superpulses/{detector}-superpulses.lh5`, see {ref}`hpge-superpulses-extraction`                         |
+| data superpulses           | `hpge/superpulses/{detector}-superpulses.lh5`, see {ref}`superpulses-output`                                  |
 | electronics response       | `hpge/elecmod/{runid}-model.yaml`, see {ref}`hpge-elecmod-extraction`                                         |
 | realistic pulse shapes     | `hpge/psl/realistic/{runid}-hpge-pulse-shape-lib.lh5`, see {ref}`hpge-realistic-psl-extraction`               |
 | tuned impurity profiles    | `hpge/impurity.yaml`, see [](impurity-tuning.md)                                                              |
@@ -58,6 +58,37 @@ they combine sit in `singles/` subfolders next to them. With `build_per_runid`
 its settings: the pulse-shape files only with PSD simulation, the A/E mean only
 with the two-pass correction, the tuned profiles only in an impurity tuning (see
 {ref}`hit-tier-settings`).
+
+(superpulses-output)=
+
+### Data superpulses
+
+The superpulses of a detector (see {ref}`hpge-superpulses-extraction`) are in
+`paths.pars/hpge/superpulses/{detector}-superpulses.lh5`, or in
+`{runid}-{detector}-superpulses.lh5` with `build_per_runid` (see
+{ref}`superpulses-settings-meta`). The plots of the waveforms that enter each
+superpulse are in the `plots/` subfolder.
+
+The file holds one group per drift-time slice, `{detector}/dt_{lo}_{hi}_ns`,
+with `lo` and `hi` the edges of the slice in ns (e.g.
+`V00050A/dt_1000_1200_ns`). A slice with fewer than `min_number_wfs` selected
+waveforms has no group. Each group holds:
+
+| Field                                                 | Type            | Units    | Description                                                                                                                            |
+| ----------------------------------------------------- | --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `charge_wf`                                           | array of floats |          | the average charge pulse; each waveform is divided by its uncalibrated energy (`cuspEmax`) before averaging, so the plateau is about 1 |
+| `charge_time_axis`                                    | array of floats | ns       | its time axis, in steps of 1 ns                                                                                                        |
+| `current_wf`                                          | array of floats | 1/sample | the average current pulse, as computed in the data analysis (`curr_av`) and divided by the same energy                                 |
+| `current_time_axis`                                   | array of floats | ns       | its time axis, at the sampling of the digitizer                                                                                        |
+| `drift_time_lo`, `drift_time_hi`, `drift_time_center` | float           | ns       | the drift-time range of the slice and its center                                                                                       |
+| `energy_lo`, `energy_hi`                              | float           | keV      | the energy range of the events, 1500 to 2000 keV                                                                                       |
+| `detector`                                            | string          |          | the detector name                                                                                                                      |
+| `n_events_preliminary`                                | integer         |          | the number of waveforms averaged before the $\chi^2$ cut                                                                               |
+| `n_events_final`                                      | integer         |          | the number of waveforms in the superpulse, after the $\chi^2$ cut                                                                      |
+
+Both time axes have their zero at the current maximum and lie between −2000 and
+3000 ns. The charge and current pulses have different time axes, so they can
+differ in length. How to read the superpulses is in {ref}`analysis-superpulses`.
 
 (par-detinfo)=
 
