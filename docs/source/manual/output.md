@@ -20,6 +20,9 @@ Each step writes to its own folder, `paths.tier.<tier>`:
 | `pdf`                             | `{experiment}-{simid}-tier_pdf.lh5`, one per simulation                  |
 | `pdf`                             | `runwise/{simid}/{experiment}-{simid}-{runid}-tier_pdf.lh5`, one per run |
 
+The files of the runs are kept only with the `build_runwise_pdfs` setting (see
+{ref}`pdf-tier-settings`).
+
 `experiment` is the experimental configuration, `simid` the simulation (see
 {ref}`simconfig.yaml`), `jobid` the zero-padded job number and `runid` the
 LEGEND-200 run (e.g. `l200-p16-r000-phy`). Hyphens separate these fields, which

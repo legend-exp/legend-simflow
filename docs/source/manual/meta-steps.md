@@ -245,3 +245,9 @@ settings.
 
 : also histogram the LEGEND-200 data. Without the data production, a warning is
 issued and nothing is built.
+
+`build_runwise_pdfs` (default `true`)
+
+: keep one file per run, for the simulations and the data, next to their sum.
+With `false`, the files of the simulations are not written and those of the data
+are deleted after the sum.

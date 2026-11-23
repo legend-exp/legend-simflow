@@ -12,13 +12,14 @@ are described in {ref}`pdf-tier-settings` and the structure of the output in
 The events of a simulation are shared among the runs of its run list in
 proportion to their livetime (see {ref}`run-partitioning`). The step fills one
 file per run with the events of that run, and sums these files into one file per
-simulation. The histograms hold raw counts. Each file also stores the number of
-simulated primaries it covers: for a run, the primaries of the simulation shared
-among the runs in proportion to their livetime (see
-{func}`legendsimflow.partitioning.primaries_per_run`); for the simulation, the
-total. Dividing the counts by it gives the probability per primary; multiplying
-by the number of decays of the source in the livetime of the runs gives the
-expected counts.
+simulation. With `build_runwise_pdfs: false` (see {ref}`pdf-tier-settings`), it
+fills only the file of the simulation. The histograms hold raw counts. Each file
+also stores the number of simulated primaries it covers: for a run, the
+primaries of the simulation shared among the runs in proportion to their
+livetime (see {func}`legendsimflow.partitioning.primaries_per_run`); for the
+simulation, the total. Dividing the counts by it gives the probability per
+primary; multiplying by the number of decays of the source in the livetime of
+the runs gives the expected counts.
 
 ## Event selection
 

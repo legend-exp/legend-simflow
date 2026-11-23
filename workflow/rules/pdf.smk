@@ -7,6 +7,11 @@ from legendsimflow.metadata import get_tier_settings
 
 _pdf_settings = get_tier_settings(config, "pdf")
 
+# the files of the runs, kept only with the build_runwise_pdfs setting
+_pdf_outputs = {"pdf_file": patterns.output_tier_pdf_filename(config)}
+if _pdf_settings.build_runwise_pdfs:
+    _pdf_outputs["run_dir"] = directory(patterns.tier_pdf_run_dirname(config))
+
 if _pdf_settings.build_l200data_pdfs and config.paths.get("l200data") is None:
     logger.warning(
         "build_l200data_pdfs is set but paths.l200data is not: "
@@ -58,7 +63,8 @@ rule build_tier_pdf:
     {mod}`legendsimflow.selections`. The file of a run is written as soon as all its
     events are read. The simulated primaries are shared among the runs in proportion to their
     livetime, with {func}`legendsimflow.partitioning.primaries_per_run`. The files of the runs
-    are then summed with {func}`legendsimflow.pdf.merge_pdf_files`.
+    are then summed with {func}`legendsimflow.pdf.merge_pdf_files`. Without the
+    `build_runwise_pdfs` setting of the `pdf` tier, only the sum is written.
 
     Uses wildcard `simid`.
     """
@@ -74,8 +80,7 @@ rule build_tier_pdf:
         # surfaced so Snakemake invalidates outputs when the regex map changes
         detector_groups=_pdf_settings.detector_groups,
     output:
-        pdf_file=patterns.output_tier_pdf_filename(config),
-        run_dir=directory(patterns.tier_pdf_run_dirname(config)),
+        **_pdf_outputs,
     log:
         patterns.log_tier_pdf_filename(config),
     benchmark:
@@ -94,7 +99,8 @@ rule build_pdf_from_l200data:
     run in place of the number of simulated events. The A/E of the detectors
     that the simulation does not model is invalid, as in the simulation.
     `merge_l200data_pdfs` sums the runs. Only with `paths.l200data` and the
-    `build_l200data_pdfs` setting of the `pdf` tier.
+    `build_l200data_pdfs` setting of the `pdf` tier. Without the
+    `build_runwise_pdfs` setting, the file is deleted after the sum.
 
     Uses wildcard `runid`.
     """
@@ -114,7 +120,11 @@ rule build_pdf_from_l200data:
         ),
         detector_groups=_pdf_settings.detector_groups,
     output:
-        patterns.output_l200data_pdf_filename(config),
+        (
+            patterns.output_l200data_pdf_filename(config)
+            if _pdf_settings.build_runwise_pdfs
+            else temp(patterns.output_l200data_pdf_filename(config))
+        ),
     log:
         patterns.log_l200data_pdf_filename(config),
     script:

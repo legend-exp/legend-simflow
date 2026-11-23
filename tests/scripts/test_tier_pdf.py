@@ -88,6 +88,7 @@ def _run_pdf(
     config_template: str = "simflow-config.yaml",
     partitions: dict | Path | None = None,
     runlist: list[str] | None = None,
+    runwise: bool = True,
 ) -> Path:
     """Run the script and return the summed pdf file, the run files are in ``tmp_path/runs``."""
     config_path = tmp_path / config_template
@@ -120,8 +121,7 @@ def _run_pdf(
             str(part_file),
             "--pdf-file",
             str(pdf_file),
-            "--run-dir",
-            str(tmp_path / "runs"),
+            *(["--run-dir", str(tmp_path / "runs")] if runwise else []),
             "--simid",
             simid,
             "--runlist",
@@ -535,7 +535,41 @@ def test_pdf_splits_runs(tmp_path, monkeypatch, buffer_len):
     assert h.sum() == 4
 
 
-def test_pdf_event_of_run_not_in_job(tmp_path, monkeypatch):
+def test_pdf_not_runwise(tmp_path, monkeypatch):
+    files = [_evt_path(tmp_path, 0), _evt_path(tmp_path, 1)]
+    _write_evt(
+        _evt_m1([500.0, 1000.0, 1000.0, 2000.0]),
+        files[0],
+        ["V01"],
+        [1],
+        runs=[np.nan, 0, 0, 1],
+        n_sim_events=2000,
+    )
+    _write_evt(_evt_m1([2000.0]), files[1], ["V01"], [1], runs=[1], n_sim_events=1000)
+    meta_dir = _make_metadata(
+        tmp_path, evt={"skip_opt": True}, hit={"simulate_psd": False}
+    )
+    pdf_file = _run_pdf(
+        tmp_path,
+        monkeypatch,
+        files,
+        meta_dir=meta_dir,
+        partitions=_TWO_RUN_PARTITIONS,
+        runlist=["l200-p03-r000-phy", "l200-p03-r001-phy", "l200-p03-r002-phy"],
+        runwise=False,
+    )
+
+    assert not (tmp_path / "runs").exists()
+    assert lh5.read("nr_sim_events", pdf_file).value == 3000
+    h = lh5.read_as("pdf/mul1/all", pdf_file, "hist")
+    assert h[1000j] == 2
+    assert h[2000j] == 2
+    assert h.sum() == 4
+    assert _exists(pdf_file, "pdf/mul2/all")
+
+
+@pytest.mark.parametrize("runwise", [True, False])
+def test_pdf_event_of_run_not_in_job(tmp_path, monkeypatch, runwise):
     files = [_evt_path(tmp_path, 0), _evt_path(tmp_path, 1)]
     _write_evt(_evt_m1([1000.0, 2000.0]), files[0], ["V01"], [1], runs=[0, 1])
     # r000 is not in job 1 according to the partition file
@@ -550,6 +584,7 @@ def test_pdf_event_of_run_not_in_job(tmp_path, monkeypatch):
             files,
             meta_dir=meta_dir,
             partitions=_TWO_RUN_PARTITIONS,
+            runwise=runwise,
         )
 
 

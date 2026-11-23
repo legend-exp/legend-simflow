@@ -88,8 +88,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--run-dir",
-        required=True,
-        help="output folder of the pdf tier files of the runs",
+        default=None,
+        help="output folder of the pdf tier files of the runs, none if not given",
     )
     parser.add_argument("--simid", required=True, help="simulation ID wildcard")
     parser.add_argument("--log-file", default=None, help="log file")
@@ -162,8 +162,10 @@ def main() -> None:
         "... %s simulated events shared among the runs: %s", n_primaries, primaries
     )
 
-    run_dir = Path(args.run_dir)
-    run_dir.mkdir(parents=True, exist_ok=True)
+    runwise = args.run_dir is not None
+    if runwise:
+        run_dir = Path(args.run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
 
     def run_file(runid: str) -> Path:
         name = patterns.output_tier_pdf_run_filename(
@@ -171,15 +173,17 @@ def main() -> None:
         ).name
         return run_dir / name
 
-    def write(runid: str, output: Struct) -> None:
-        f = run_file(runid)
+    def write(f: str | Path, output: Struct, nr_sim_events: int) -> None:
         lh5.write(output, "pdf", f, wo_mode="w")
-        lh5.write(Scalar(primaries[runid]), "nr_sim_events", f, wo_mode="append")
+        lh5.write(Scalar(nr_sim_events), "nr_sim_events", f, wo_mode="append")
 
     # without HPGe data (skip_hit) there is nothing to histogram
     if tier_evt_settings.skip_hit:
-        for runid in runlist:
-            write(runid, Struct())
+        if runwise:
+            for runid in runlist:
+                write(run_file(runid), Struct(), primaries[runid])
+        else:
+            write(args.pdf_file, Struct(), n_primaries)
     else:
         has_spms_coinc = not tier_evt_settings.skip_opt
         model = aoe_model(tier_hit_settings)
@@ -251,6 +255,36 @@ def main() -> None:
         if fccd_thr is not None:
             fields += ["geds/surface/edep", "geds/surface/distance_to_nplus"]
 
+        if not runwise:
+            histograms, mul2_hist = new_histograms(levels, group_uids)
+            for job in sorted(evt_files):
+                log.info("... reading %s", evt_files[job])
+                for chunk in lh5.LH5Iterator(
+                    evt_files[job],
+                    "evt",
+                    field_mask=fields,
+                    buffer_len=tier_pdf_settings.buffer_len,
+                ):
+                    data = chunk.view_as("ak")
+                    data = data[~np.isnan(data.trigger.run)]
+                    period = ak.to_numpy(data.trigger.period).astype(int)
+                    run = ak.to_numpy(data.trigger.run).astype(int)
+                    for p, r in set(zip(period, run, strict=True)):
+                        if runid_of.get((p, r)) not in partitions[job]:
+                            msg = (
+                                f"{evt_files[job]} has events of period {p} run {r}, "
+                                "not in the partition file"
+                            )
+                            raise RuntimeError(msg)
+                    fill(data, histograms, mul2_hist)
+            log.info("... writing %s", args.pdf_file)
+            write(
+                args.pdf_file,
+                format_pdf_struct(histograms, levels, mul2_hist),
+                n_primaries,
+            )
+            return
+
         open_runs = {}
         written = set()
 
@@ -258,7 +292,11 @@ def main() -> None:
             for runid in done:
                 log.info("... writing %s", run_file(runid))
                 histograms, mul2_hist = open_runs.pop(runid)
-                write(runid, format_pdf_struct(histograms, levels, mul2_hist))
+                write(
+                    run_file(runid),
+                    format_pdf_struct(histograms, levels, mul2_hist),
+                    primaries[runid],
+                )
                 written.add(runid)
 
         # the evt tier writes the events of each job run by run, in the order
@@ -308,10 +346,15 @@ def main() -> None:
             histograms, mul2_hist = open_runs.pop(runid, None) or new_histograms(
                 levels, group_uids
             )
-            write(runid, format_pdf_struct(histograms, levels, mul2_hist))
+            write(
+                run_file(runid),
+                format_pdf_struct(histograms, levels, mul2_hist),
+                primaries[runid],
+            )
 
-    log.info("... summing the runs into %s", args.pdf_file)
-    merge_pdf_files([run_file(r) for r in runlist], args.pdf_file)
+    if runwise:
+        log.info("... summing the runs into %s", args.pdf_file)
+        merge_pdf_files([run_file(r) for r in runlist], args.pdf_file)
 
 
 if __name__ == "__main__":

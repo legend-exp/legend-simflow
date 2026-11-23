@@ -570,6 +570,26 @@ def test_build_l200data_pdfs_adds_data_rules(tmp_path, config):
     assert not rules & dag_rule_names(default_config, overrides(tmp_path / "none"))
 
 
+def test_build_runwise_pdfs(tmp_path):
+    def pdf_job(cfg):
+        dag = run_snakemake(default_config, cfg)
+        (job,) = [j for j in dag.jobs if j.rule.name == "build_tier_pdf"]
+        return job
+
+    job = pdf_job(overrides(tmp_path / "on", simlist="pdf.birds_nest_K40"))
+    assert set(job.output.keys()) == {"pdf_file", "run_dir"}
+
+    job = pdf_job(
+        overrides(
+            tmp_path / "off",
+            simlist="pdf.birds_nest_K40",
+            experiment="legend",
+            settings_by_tier={"pdf": {"build_runwise_pdfs": False}},
+        )
+    )
+    assert set(job.output.keys()) == {"pdf_file"}
+
+
 def test_pdf_one_job_per_simid(tmp_path):
     """The pdfs of the runs of a simulation and their sum come from one job."""
     dag = run_snakemake(
