@@ -12,6 +12,15 @@ _pdf_outputs = {"pdf_file": patterns.output_tier_pdf_filename(config)}
 if _pdf_settings.build_runwise_pdfs:
     _pdf_outputs["run_dir"] = directory(patterns.tier_pdf_run_dirname(config))
 
+
+def smk_pdf_hpge_detectors(wildcards) -> list[str]:
+    """The HPGe detectors with a detector group of their own, see `build_hpge_detector_pdfs`."""
+    if not _pdf_settings.build_hpge_detector_pdfs:
+        return []
+    smk_load_hpge_cache()
+    return HPGES_ON
+
+
 if _pdf_settings.build_l200data_pdfs and config.paths.get("l200data") is None:
     logger.warning(
         "build_l200data_pdfs is set but paths.l200data is not: "
@@ -65,6 +74,9 @@ rule build_tier_pdf:
     livetime, with {func}`legendsimflow.partitioning.primaries_per_run`. The files of the runs
     are then summed with {func}`legendsimflow.pdf.merge_pdf_files`. Without the
     `build_runwise_pdfs` setting of the `pdf` tier, only the sum is written.
+    With the `build_hpge_detector_pdfs` setting, each HPGe detector ON in at
+    least one run of the Simflow (from the `cache_modelable_hpges` checkpoint)
+    is a detector group of its own.
 
     Uses wildcard `simid`.
     """
@@ -75,8 +87,13 @@ rule build_tier_pdf:
             config, tier="evt", simid=wildcards.simid
         ),
         simstat_part_file=patterns.simstat_part_filename(config),
+        # params.hpge_detectors reads the modelable-HPGe checkpoint
+        _hpge_cache=(
+            smk_wait_for_hpge_cache if _pdf_settings.build_hpge_detector_pdfs else []
+        ),
     params:
         runlist=lambda wildcards: aggregate.get_runlist(config, wildcards.simid),
+        hpge_detectors=smk_pdf_hpge_detectors,
         # surfaced so Snakemake invalidates outputs when the regex map changes
         detector_groups=_pdf_settings.detector_groups,
     output:
@@ -100,7 +117,8 @@ rule build_pdf_from_l200data:
     that the simulation does not model is invalid, as in the simulation.
     `merge_l200data_pdfs` sums the runs. Only with `paths.l200data` and the
     `build_l200data_pdfs` setting of the `pdf` tier. Without the
-    `build_runwise_pdfs` setting, the file is deleted after the sum.
+    `build_runwise_pdfs` setting, the file is deleted after the sum. The
+    detector groups are those of `build_tier_pdf`.
 
     Uses wildcard `runid`.
     """
@@ -115,6 +133,7 @@ rule build_pdf_from_l200data:
         # params.modeled_detectors reads the modelable-HPGe checkpoint
         _hpge_cache=smk_wait_for_hpge_cache,
     params:
+        hpge_detectors=smk_pdf_hpge_detectors,
         modeled_detectors=lambda wildcards: sorted(
             smk_load_hpge_cache()[wildcards.runid]
         ),

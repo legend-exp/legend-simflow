@@ -56,6 +56,7 @@ from legendsimflow.selections import (
         "runid": "wildcards.runid",
         "evt_files": "input.evt_files",
         "modeled_detectors": "params.modeled_detectors",
+        "hpge_detectors": "params.hpge_detectors",
         "pdf_file": "output[0]",
         "log_file": "log[0]",
         "simflow_config": "config",
@@ -80,6 +81,12 @@ def main() -> None:
         default=None,
         help="names of the HPGe detectors whose A/E the simulation models, "
         "default: those of the run in the modelable-HPGe cache (pars/detinfo)",
+    )
+    parser.add_argument(
+        "--hpge-detectors",
+        nargs="*",
+        default=[],
+        help="names of the HPGe detectors with a detector group of their own",
     )
     parser.add_argument(
         "--pdf-file",
@@ -145,7 +152,9 @@ def main() -> None:
         for name, ch in meta.channelmap(info.start_key).items()
         if ch.get("system") == "geds"
     }
-    group_rawids = group_detectors(tier_pdf_settings.detector_groups, name_to_rawid)
+    group_rawids = group_detectors(
+        tier_pdf_settings.detector_groups, name_to_rawid, args.hpge_detectors
+    )
 
     has_spms_coinc = not tier_evt_settings.skip_opt
     model = aoe_model(tier_hit_settings)

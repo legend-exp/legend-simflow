@@ -246,6 +246,7 @@ def test_dag_simlist_reads_hpge_checkpoint(tmp_path, config):
     detinfo_dir.mkdir(parents=True)
     for flag in ("is_modelable", "operational_voltage_in_V"):
         dbetto.utils.write_dict(detinfo[flag], detinfo_dir / f"{flag}.yaml")
+    dbetto.utils.write_dict(detinfo["usability"], detinfo_dir / "hpge_usability.yaml")
 
     rules = dag_rule_names(
         default_config,
@@ -588,6 +589,22 @@ def test_build_runwise_pdfs(tmp_path):
         )
     )
     assert set(job.output.keys()) == {"pdf_file"}
+    assert job.params.hpge_detectors == []
+
+
+def test_build_hpge_detector_pdfs(tmp_path):
+    """The HPGe detectors ON in a run of the Simflow come from the checkpoint."""
+    dag = run_snakemake(
+        default_config,
+        overrides(
+            tmp_path,
+            simlist="pdf.birds_nest_K40",
+            experiment="legend",
+            settings_by_tier={"pdf": {"build_hpge_detector_pdfs": True}},
+        ),
+    )
+    (job,) = [j for j in dag.jobs if j.rule.name == "build_tier_pdf"]
+    assert job.params.hpge_detectors == ["V99000A"]
 
 
 def test_pdf_one_job_per_simid(tmp_path):

@@ -131,6 +131,7 @@ rule _init_julia_env:
 
 # loaded once per Snakemake invocation, see smk_load_hpge_cache()
 HPGE_MODELING_CACHE: dict | None = None
+HPGES_ON: list[str] | None = None
 
 
 def smk_load_hpge_cache() -> dict:
@@ -145,31 +146,36 @@ def smk_load_hpge_cache() -> dict:
 
     The on-disk cache lists every deployed HPGe with an ``is_modelable`` flag;
     this function returns only the modelable detectors (still keyed by name, per
-    runid), so callers can expand the per-detector modeling rules directly.
+    runid), so callers can expand the per-detector modeling rules directly. It
+    also sets ``HPGES_ON``, the sorted HPGe detectors ON in at least one run.
 
     Falls back to computing the cache on-demand when running under the touch
     executor, which marks the checkpoint complete without executing its
     ``run:`` block (so the YAML may not exist on disk).
     """
-    global HPGE_MODELING_CACHE
+    global HPGE_MODELING_CACHE, HPGES_ON
 
     outputs = checkpoints.cache_modelable_hpges.get().output
     if HPGE_MODELING_CACHE is not None:
         return HPGE_MODELING_CACHE
 
-    is_modelable_path = Path(outputs.is_modelable)
-    opv_path = Path(outputs.operational_voltage_in_V)
-    if is_modelable_path.exists() and opv_path.exists():
-        is_modelable = dbetto.utils.load_dict(is_modelable_path)
-        opv = dbetto.utils.load_dict(opv_path)
+    flags = ("is_modelable", "operational_voltage_in_V", "hpge_usability")
+    paths = [Path(getattr(outputs, flag)) for flag in flags]
+    if all(p.exists() for p in paths):
+        is_modelable, opv, usability = (dbetto.utils.load_dict(p) for p in paths)
     else:
         # touch executor marks the checkpoint complete without running it
         detinfo = aggregate.pivot_detinfo(
             aggregate.gen_list_of_all_hpges_valid_for_modeling(config),
-            flags=("is_modelable", "operational_voltage_in_V"),
+            flags=("is_modelable", "operational_voltage_in_V", "usability"),
         )
         is_modelable = detinfo["is_modelable"]
         opv = detinfo["operational_voltage_in_V"]
+        usability = detinfo["usability"]
+
+    HPGES_ON = sorted(
+        {det for dets in usability.values() for det, u in dets.items() if u == "on"}
+    )
 
     HPGE_MODELING_CACHE = {
         runid: {
@@ -199,9 +205,10 @@ checkpoint cache_modelable_hpges:
     Computing which HPGe detectors are suitable for drift-time map and
     current-pulse model generation requires querying `legend-metadata` for
     every run in the Simflow. This can be slow, so the result is cached on disk
-    under ``pars/detinfo/`` as one file per flag (``is_modelable.yaml`` and
-    ``operational_voltage_in_V.yaml``), each a mapping ``runid -> detector ->
-    value`` covering every deployed HPGe (both modelable and not). Downstream
+    under ``pars/detinfo/`` as one file per flag (``is_modelable.yaml``,
+    ``operational_voltage_in_V.yaml`` and ``hpge_usability.yaml``), each a
+    mapping ``runid -> detector -> value`` covering every deployed HPGe (both
+    modelable and not). Downstream
     rules that need this information (e.g. `merge_hpge_drift_time_maps`) depend
     on this checkpoint so that the DAG can be re-evaluated after the cache is
     built.
@@ -231,15 +238,17 @@ checkpoint cache_modelable_hpges:
         operational_voltage_in_V=patterns.detinfo_filename(
             config, "operational_voltage_in_V"
         ),
+        hpge_usability=patterns.detinfo_filename(config, "hpge_usability"),
     run:
         detinfo = aggregate.pivot_detinfo(
             aggregate.gen_list_of_all_hpges_valid_for_modeling(config),
-            flags=("is_modelable", "operational_voltage_in_V"),
+            flags=("is_modelable", "operational_voltage_in_V", "usability"),
         )
         dbetto.utils.write_dict(detinfo["is_modelable"], output.is_modelable)
         dbetto.utils.write_dict(
             detinfo["operational_voltage_in_V"], output.operational_voltage_in_V
         )
+        dbetto.utils.write_dict(detinfo["usability"], output.hpge_usability)
 
 
 rule cache_detector_usabilities:

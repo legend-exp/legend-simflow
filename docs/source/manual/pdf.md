@@ -49,10 +49,10 @@ the A/E without PSD simulation.
 
 The energy histograms span 0 to 6000 keV in 1 keV bins; energies outside this
 range are not stored. Each category has one histogram per detector group: all
-detectors, and the groups defined in the settings by patterns on the detector
-names. The categories select whole events, the groups select the detector of the
-hit. The two-dimensional multiplicity-2 histogram has no categories and no
-groups.
+detectors, the groups defined in the settings by patterns on the detector names
+and, optionally, one group per HPGe detector (see {ref}`pdf-tier-settings`). The
+categories select whole events, the groups select the detector of the hit. The
+two-dimensional multiplicity-2 histogram has no categories and no groups.
 
 ## LEGEND-200 data
 
@@ -70,6 +70,9 @@ be histogrammed by hand, into the file the workflow writes:
 ```console
 > pixi run tier-pdf-l200data --runid l200-p16-r000-phy --simflow-config simflow-config.yaml
 ```
+
+With `build_hpge_detector_pdfs`, list the detectors that get their own
+histograms with `--hpge-detectors`.
 
 :::{note}
 

@@ -149,7 +149,9 @@ def validate_grid(grid: Struct) -> None:
 
 
 def group_detectors(
-    groups: Mapping[str, str] | None, detectors: Mapping[str, int]
+    groups: Mapping[str, str] | None,
+    detectors: Mapping[str, int],
+    single_detectors: Iterable[str] = (),
 ) -> dict[str, np.ndarray]:
     """Return the IDs of the detectors in each group, plus the implicit ``all`` group.
 
@@ -161,6 +163,9 @@ def group_detectors(
         :func:`re.fullmatch`.
     detectors
         detector name to ID: the UID in simulations, the rawid in data.
+    single_detectors
+        detector names that get a group of their own, named after the
+        detector. A name missing from `detectors` gets an empty group.
     """
     groups = dict(groups or {})
     if groups.get("all", ".*") != ".*":
@@ -170,6 +175,11 @@ def group_detectors(
         )
     groups["all"] = ".*"
 
+    single_detectors = list(single_detectors)
+    if clash := sorted(set(groups) & set(single_detectors)):
+        msg = f"detector groups {clash} have the name of a detector"
+        raise ValueError(msg)
+
     group_ids = {}
     for name, pattern in groups.items():
         rgx = re.compile(pattern)
@@ -177,6 +187,9 @@ def group_detectors(
         if not matched:
             log.warning("detector group %r matches no detectors", name)
         group_ids[name] = np.asarray(matched, dtype=np.int64)
+    for name in single_detectors:
+        ids = [detectors[name]] if name in detectors else []
+        group_ids[name] = np.asarray(ids, dtype=np.int64)
     return group_ids
 
 
@@ -228,13 +241,25 @@ def fill_histograms(
     group_ids
         IDs of the detectors of each group, see :func:`group_detectors`.
     """
-    in_group = {g: np.isin(detector, ids) for g, ids in group_ids.items()}
+    # groups of one detector (there can be hundreds) take the events of their
+    # detector from the events sorted by detector, instead of a mask each
+    single = {g: ids[0] for g, ids in group_ids.items() if len(ids) == 1}
+    in_group = {
+        g: np.isin(detector, ids) for g, ids in group_ids.items() if len(ids) > 1
+    }
     for combo, per_group in histograms.items():
         sel = np.ones(len(energy), dtype=bool)
         for c in combo:
             sel &= in_category[c]
-        for g, h in per_group.items():
-            h.fill(energy[sel & in_group[g]])
+        for g, mask in in_group.items():
+            per_group[g].fill(energy[sel & mask])
+        if single:
+            order = np.argsort(detector[sel], kind="stable")
+            det_sorted = detector[sel][order]
+            energy_sorted = energy[sel][order]
+            for g, i in single.items():
+                lo, hi = np.searchsorted(det_sorted, [i, i + 1])
+                per_group[g].fill(energy_sorted[lo:hi])
 
 
 def format_pdf_struct(

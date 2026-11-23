@@ -251,3 +251,22 @@ issued and nothing is built.
 : keep one file per run, for the simulations and the data, next to their sum.
 With `false`, the files of the simulations are not written and those of the data
 are deleted after the sum.
+
+`build_hpge_detector_pdfs` (default `false`)
+
+: also give each HPGe detector a detector group of its own, named after the
+detector. The detectors are those ON in at least one run of the Simflow; the
+detectors that are off or AC in all runs are left out. A detector off or AC in a
+run has empty histograms in that run.
+
+:::{warning}
+
+With both `build_runwise_pdfs` and `build_hpge_detector_pdfs` set to `true`, the
+`pdf` tier becomes very large. Each file holds one energy histogram of 6000 bins
+per detector and category: with about 100 HPGe detectors and up to 16
+categories, up to 75 MB before compression. There is one such file per
+simulation and per run, so a production with hundreds of runs and simulations
+writes terabytes. Set `build_runwise_pdfs: false` with
+`build_hpge_detector_pdfs: true`, unless the files of single runs are needed.
+
+:::

@@ -61,6 +61,7 @@ from legendsimflow.selections import (
         "evt_files": "input.evt_files",
         "simstat_part_file": "input.simstat_part_file",
         "runlist": "params.runlist",
+        "hpge_detectors": "params.hpge_detectors",
         "pdf_file": "output.pdf_file",
         "run_dir": "output.run_dir",
         "log_file": "log[0]",
@@ -90,6 +91,12 @@ def main() -> None:
         "--run-dir",
         default=None,
         help="output folder of the pdf tier files of the runs, none if not given",
+    )
+    parser.add_argument(
+        "--hpge-detectors",
+        nargs="*",
+        default=[],
+        help="names of the HPGe detectors with a detector group of their own",
     )
     parser.add_argument("--simid", required=True, help="simulation ID wildcard")
     parser.add_argument("--log-file", default=None, help="log file")
@@ -197,7 +204,9 @@ def main() -> None:
 
         # name to UID map written at evt-tier build time
         name_to_uid = utils.union_detector_uids(list(evt_files.values()))
-        group_uids = group_detectors(tier_pdf_settings.detector_groups, name_to_uid)
+        group_uids = group_detectors(
+            tier_pdf_settings.detector_groups, name_to_uid, args.hpge_detectors
+        )
         if fccd_thr is not None:
             sorted_uids, fccd_mm = fccd_by_uid(
                 config.metadata,

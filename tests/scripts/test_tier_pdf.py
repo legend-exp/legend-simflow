@@ -89,6 +89,7 @@ def _run_pdf(
     partitions: dict | Path | None = None,
     runlist: list[str] | None = None,
     runwise: bool = True,
+    hpge_detectors: tuple[str, ...] = (),
 ) -> Path:
     """Run the script and return the summed pdf file, the run files are in ``tmp_path/runs``."""
     config_path = tmp_path / config_template
@@ -122,6 +123,8 @@ def _run_pdf(
             "--pdf-file",
             str(pdf_file),
             *(["--run-dir", str(tmp_path / "runs")] if runwise else []),
+            "--hpge-detectors",
+            *hpge_detectors,
             "--simid",
             simid,
             "--runlist",
@@ -662,6 +665,23 @@ def test_pdf_detector_groups_sum_equals_all(tmp_path, monkeypatch):
             all_counts,
             err_msg=f"sum(icpc + bege) != all for '{path}'",
         )
+
+
+def test_pdf_hpge_detectors(tmp_path, monkeypatch):
+    meta_dir = _make_metadata(tmp_path, pdf={"detector_groups": {"icpc": "V.*"}})
+    evt_file = _evt_path(tmp_path)
+    _make_evt_file(evt_file)
+    pdf_file = _run_pdf(
+        tmp_path, monkeypatch, evt_file, meta_dir=meta_dir, hpge_detectors=("V01",)
+    )
+
+    for path in _ALL_CATEGORIES:
+        np.testing.assert_array_equal(
+            lh5.read_as(f"pdf/{path}/V01", pdf_file, "hist").values(),
+            lh5.read_as(f"pdf/{path}/icpc", pdf_file, "hist").values(),
+        )
+        assert not _exists(pdf_file, f"pdf/{path}/B02")
+    assert sum(_sum(pdf_file, f"pdf/{p}/V01") for p in _ALL_CATEGORIES) > 0
 
 
 @pytest.mark.parametrize(("all_regex", "warns"), [(".*", False), ("V.*", True)])

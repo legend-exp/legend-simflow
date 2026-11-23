@@ -74,6 +74,7 @@ TIER_SETTINGS: dict = {
         "fccd_tag_energy_thr_kev": None,
         "build_l200data_pdfs": True,
         "build_runwise_pdfs": True,
+        "build_hpge_detector_pdfs": False,
     },
 }
 
