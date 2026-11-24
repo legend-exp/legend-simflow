@@ -29,6 +29,16 @@ output_pdf = args.output[0]
 
 vtx = lh5.read_as("/vtx", remage_file, n_rows=10_000, library="ak")
 
+# remage stores no positions with /RMG/Output/Vertex/SkipPrimaryVertexOutput
+if "xloc" not in vtx.fields:
+    fig = plt.figure(figsize=(8, 3))
+    fig.text(
+        0.5, 0.5, "no vertex positions stored in the stp file", ha="center", va="center"
+    )
+    decorate(fig)
+    plt.savefig(output_pdf)
+    raise SystemExit(0)
+
 x = vtx.xloc.to_numpy()
 y = vtx.yloc.to_numpy()
 z = vtx.zloc.to_numpy()
