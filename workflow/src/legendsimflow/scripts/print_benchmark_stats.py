@@ -29,7 +29,7 @@ def round_down_2sf_5(x):
     k = math.floor(math.log10(x))
     m = x / 10**k
 
-    m_rd = round(m / 0.5) * 0.5
+    m_rd = math.floor(m / 0.5) * 0.5
     return m_rd * 10**k
 
 
@@ -39,10 +39,14 @@ def printline(*line):
 
 args = nersc.dvs_ro_snakemake(snakemake)  # noqa: F821
 
+# remage prints small or large numbers in scientific notation (e.g. 9.9536e-05)
+_number = r"([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)"
 speed_pattern = re.compile(
     r"^.*Stats: average event processing time was\s+"
-    r"([0-9]+(?:\.[0-9]+)?)\s+seconds/event\s+=\s+"
-    r"([0-9]+(?:\.[0-9]+)?)\s+events/second\s*$",
+    + _number
+    + r"\s+seconds/event\s+=\s+"
+    + _number
+    + r"\s+events/second\s*$",
     re.MULTILINE,
 )
 
