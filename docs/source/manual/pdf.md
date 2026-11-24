@@ -12,13 +12,14 @@ are described in {ref}`pdf-tier-settings` and the structure of the output in
 The events of a simulation are shared among the runs of its run list in
 proportion to their livetime (see {ref}`run-partitioning`). The step fills one
 file per run with the events of that run, and sums these files into one file per
-simulation. The histograms hold raw counts. Each file also stores the number of
-simulated primaries it covers: for a run, the primaries of the simulation shared
-among the runs in proportion to their livetime (see
-{func}`legendsimflow.partitioning.primaries_per_run`); for the simulation, the
-total. Dividing the counts by it gives the probability per primary; multiplying
-by the number of decays of the source in the livetime of the runs gives the
-expected counts.
+simulation. With `build_runwise_pdfs: false` (see {ref}`pdf-tier-settings`), it
+fills only the file of the simulation. The histograms hold raw counts. Each file
+also stores the number of simulated primaries it covers: for a run, the
+primaries of the simulation shared among the runs in proportion to their
+livetime (see {func}`legendsimflow.partitioning.primaries_per_run`); for the
+simulation, the total. Dividing the counts by it gives the probability per
+primary; multiplying by the number of decays of the source in the livetime of
+the runs gives the expected counts.
 
 ## Event selection
 
@@ -48,10 +49,10 @@ the A/E without PSD simulation.
 
 The energy histograms span 0 to 6000 keV in 1 keV bins; energies outside this
 range are not stored. Each category has one histogram per detector group: all
-detectors, and the groups defined in the settings by patterns on the detector
-names. The categories select whole events, the groups select the detector of the
-hit. The two-dimensional multiplicity-2 histogram has no categories and no
-groups.
+detectors, the groups defined in the settings by patterns on the detector names
+and, optionally, one group per HPGe detector (see {ref}`pdf-tier-settings`). The
+categories select whole events, the groups select the detector of the hit. The
+two-dimensional multiplicity-2 histogram has no categories and no groups.
 
 ## LEGEND-200 data
 
@@ -69,6 +70,9 @@ be histogrammed by hand, into the file the workflow writes:
 ```console
 > pixi run tier-pdf-l200data --runid l200-p16-r000-phy --simflow-config simflow-config.yaml
 ```
+
+With `build_hpge_detector_pdfs`, list the detectors that get their own
+histograms with `--hpge-detectors`.
 
 :::{note}
 

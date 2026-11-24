@@ -20,6 +20,9 @@ Each step writes to its own folder, `paths.tier.<tier>`:
 | `pdf`                             | `{experiment}-{simid}-tier_pdf.lh5`, one per simulation                  |
 | `pdf`                             | `runwise/{simid}/{experiment}-{simid}-{runid}-tier_pdf.lh5`, one per run |
 
+The files of the runs are kept only with the `build_runwise_pdfs` setting (see
+{ref}`pdf-tier-settings`).
+
 `experiment` is the experimental configuration, `simid` the simulation (see
 {ref}`simconfig.yaml`), `jobid` the zero-padded job number and `runid` the
 LEGEND-200 run (e.g. `l200-p16-r000-phy`). Hyphens separate these fields, which
@@ -83,6 +86,7 @@ l200-p03-r000-phy:
 | `crystal_metadata_usability.yaml` | HPGe      | status string or `null`       | whether the crystal metadata of the detector is good enough for the simulation    |
 | `is_modelable.yaml`               | HPGe      | `true`, `false`               | whether the detector gets a pulse-shape model (see {ref}`hpge-modeling-criteria`) |
 | `operational_voltage_in_V.yaml`   | HPGe      | integer or `null`             | the operating voltage of the detector in the run; `null` without one              |
+| `hpge_usability.yaml`             | HPGe      | `on`, `ac`, `off`             | as `usability.yaml`, for the HPGe detectors, written with `is_modelable.yaml`     |
 | `hpge_ssd_modeling.yaml`          | HPGe      | mapping                       | the field simulation of each modelled detector (see below)                        |
 
 `hpge_ssd_modeling.yaml` records, for each modelled detector, the factor that
@@ -271,10 +275,11 @@ are at
 pdf/mul1/<lar_category>/<aoe_category>[/<fccd_category>]/<group>
 ```
 
-with 1 keV bins from 0 to 6000 keV, one per detector group (`all` and the groups
-of {ref}`pdf-tier-settings`). The two-dimensional histogram of the
-multiplicity-2 events is `pdf/mul2/all`, with the lower energy on the first
-axis. The categories are:
+with 1 keV bins from 0 to 6000 keV, one per detector group (`all`, the groups of
+{ref}`pdf-tier-settings` and, with `build_hpge_detector_pdfs`, one per HPGe
+detector, named after it). The two-dimensional histogram of the multiplicity-2
+events is `pdf/mul2/all`, with the lower energy on the first axis. The
+categories are:
 
 | Level | Categories                                                                            |
 | ----- | ------------------------------------------------------------------------------------- |

@@ -104,6 +104,13 @@ def test_group_detectors(caplog):
     assert "overridden by the implicit all-detector group" in caplog.text
     assert "'coax' matches no detectors" in caplog.text
 
+    groups = group_detectors({"icpc": "V.*"}, detectors, ["V01", "V09"])
+    assert groups["V01"].tolist() == [1]
+    assert groups["V09"].tolist() == []
+
+    with pytest.raises(ValueError, match="have the name of a detector"):
+        group_detectors({"V01": "V01"}, detectors, ["V01"])
+
 
 _LEVELS = [{"a": "A", "b": "B"}, {"c": "C", "d": "D"}]
 
@@ -131,6 +138,27 @@ def test_fill_histograms():
     assert histograms["a", "d"]["icpc"].sum() == 0
     assert histograms["b", "c"]["all"].sum() == 1
     assert histograms["b", "d"]["all"].sum() == 0
+
+
+def test_fill_histograms_single_detectors():
+    rng = np.random.default_rng(42)
+    energy = rng.uniform(0, 3000, 1000)
+    detector = rng.integers(1, 6, 1000)
+    in_category = {c: rng.random(1000) < 0.5 for c in "abcd"}
+    # V04 and V05 also by mask, through two-detector groups
+    groups = group_detectors(
+        {"m4": "V0[4X]", "m5": "V0[5X]"},
+        {f"V0{i}": i for i in range(1, 6)} | {"VX": 99},
+        ["V04", "V05", "V06"],
+    )
+    histograms, _ = new_histograms(_LEVELS, groups)
+    fill_histograms(histograms, energy, detector, in_category, groups)
+
+    for per_group in histograms.values():
+        assert per_group["V04"] == per_group["m4"]
+        assert per_group["V05"] == per_group["m5"]
+        assert per_group["V04"].sum() > 0
+        assert per_group["V06"].sum() == 0
 
 
 def test_format_pdf_struct():

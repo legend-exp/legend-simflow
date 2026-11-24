@@ -383,6 +383,7 @@ def gen_hpge_modeling_status(
           'V00048A': {
             'is_modelable': True,
             'operational_voltage_in_V': 4200,
+            'usability': 'on',
           },
           ...
         }
@@ -405,7 +406,8 @@ def gen_hpge_modeling_status(
       metadata).
 
     ``operational_voltage_in_V`` is ``None`` for detectors with no operational
-    voltage (e.g. off detectors).
+    voltage (e.g. off detectors). ``usability`` is the ``analysis.usability``
+    field of the channel map.
 
     Warning
     -------
@@ -449,11 +451,12 @@ def gen_hpge_modeling_status(
         except AttributeError:
             psd_usability = "valid"
 
+        usability = chmap[name].analysis.usability
         status[name] = {
             "is_modelable": _hpge_is_modelable(
                 config,
                 name,
-                chmap[name].analysis.usability,
+                usability,
                 skip,
                 operational_voltage,
                 tune_hpge_impurities_on_data,
@@ -462,6 +465,7 @@ def gen_hpge_modeling_status(
                 tuned_hpges,
             ),
             "operational_voltage_in_V": operational_voltage,
+            "usability": usability,
         }
 
     return status
@@ -503,15 +507,19 @@ def gen_list_of_all_hpges_valid_for_modeling(
 
         {
           'l200-p03-r000-phy': {
-            'V00048A': {'is_modelable': True, 'operational_voltage_in_V': 4200},
+            'V00048A': {
+              'is_modelable': True,
+              'operational_voltage_in_V': 4200,
+              'usability': 'on',
+            },
             ...
           },
           ...
         }
 
     i.e. a mapping ``runid -> hpge -> {"is_modelable": flag,
-    "operational_voltage_in_V": voltage}`` covering both modelable and
-    non-modelable detectors. Filter on ``is_modelable`` to recover the
+    "operational_voltage_in_V": voltage, "usability": usability}`` covering
+    both modelable and non-modelable detectors. Filter on ``is_modelable`` to recover the
     detectors valid for modeling.
     """
     all_runids = set()
