@@ -188,3 +188,35 @@ def test_l1000_workflow():
     assert opt_files, f"no opt output files found under {generated}/tier/opt"
     for f in opt_files:
         assert "hit/spms" in lh5.ls(f, "hit/")
+
+
+@pytest.mark.needs_remage
+@pytest.mark.skipif(shutil.which("remage") is None, reason="remage not installed")
+def test_hades_workflow(monkeypatch):
+    # legend-pygeom-hades reads the test stand and the runs from hades-metadata
+    monkeypatch.setenv("HADES_METADATA", str(dummyprod / "hades-metadata"))
+
+    _run_workflow(dummyprod / "simflow-config-hades.yaml")
+
+    generated = dummyprod / "generated-hades"
+    simid = "V99001A_ba_HS4_top_r001"
+
+    # the geometry of the run named by run_key in the simconfig: detector
+    # V99001A with the Ba-133 source on top
+    gdml = generated / f"pars/geom/hades-{simid}-tier_stp-geom.gdml"
+    assert gdml.is_file()
+    gdml_text = gdml.read_text()
+    for volume in ("V99001A", "source_active", "source_foil_hdpe", "castle_lead"):
+        assert f'name="{volume}"' in gdml_text, f"no volume {volume} in {gdml}"
+
+    # the geometry rendering is an output of the stp tier
+    assert (generated / f"tier/stp/plots/{simid}-tier-stp-geom-rendering.png").is_file()
+
+    # the only detector is the HPGe, and some decays leave energy in it
+    stp_files = sorted((generated / "tier/stp" / simid).rglob("*.lh5"))
+    assert stp_files, f"no stp output files found under {generated}/tier/stp/{simid}"
+    n_steps = 0
+    for f in stp_files:
+        assert "stp/V99001A" in lh5.ls(f, "stp/")
+        n_steps += len(lh5.read_as("stp/V99001A/edep", str(f), library="ak"))
+    assert n_steps > 0, "no energy deposition in V99001A in any stp file"

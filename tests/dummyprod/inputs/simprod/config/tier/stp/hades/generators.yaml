@@ -1,0 +1,6 @@
+# full Ba-133 decays (electron capture to the stable Cs-133)
+Ba133:
+  - /RMG/Generator/Select GPS
+  - /gps/particle ion
+  - /gps/energy 0 eV
+  - /gps/ion 56 133

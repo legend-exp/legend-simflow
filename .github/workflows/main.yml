@@ -90,7 +90,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        experiment: [l200, l200-lar, l1000]
+        experiment: [l200, l200-lar, l1000, hades]
     steps:
       - uses: actions/checkout@v7
 

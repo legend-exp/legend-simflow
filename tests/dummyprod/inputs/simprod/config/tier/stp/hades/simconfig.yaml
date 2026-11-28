@@ -1,0 +1,8 @@
+V99001A_ba_HS4_top_r001:
+  template: $_/template.mac
+  generator: ~defines:Ba133
+  confinement: ~volumes.bulk:source_active
+  primaries_per_job: 20_000
+  number_of_jobs: 1
+  geom_config_extra:
+    run_key: V99001A-c1-ba_HS4_top_dlt-run0001

@@ -73,7 +73,8 @@ def dummyprod_testdata(legend_testdata):
     `legend1000-metadata` of legend-testdata, while the `simprod` configuration
     of the production is the one committed here, which changes far more often.
     ``$_/testdata`` points at the rest of legend-testdata, for the optical map.
-    All are gitignored.
+    ``hades-metadata`` is the mock `hades-metadata` of legend-testdata, which
+    `legend-pygeom-hades` reads through ``HADES_METADATA``. All are gitignored.
     """
     testdata = dummyprod / "testdata"
     testdata.unlink(missing_ok=True)
@@ -88,9 +89,14 @@ def dummyprod_testdata(legend_testdata):
             (metadata / folder).symlink_to(testdata / "metadata" / repo / folder)
         (metadata / "simprod").symlink_to(dummyprod / "inputs/simprod")
 
+    hades_metadata = dummyprod / "hades-metadata"
+    hades_metadata.unlink(missing_ok=True)
+    hades_metadata.symlink_to(testdata / "metadata" / "hades-metadata")
+
     yield
 
     testdata.unlink(missing_ok=True)
+    hades_metadata.unlink(missing_ok=True)
     for repo in repos:
         shutil.rmtree(dummyprod / repo, ignore_errors=True)
 

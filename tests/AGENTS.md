@@ -47,7 +47,14 @@ records for the pulse-shape simulation. Both germanium detectors are copies of
 but the default detail level does not build the PMTs. The optics use the
 combined map (`optmap_per_sipm: false`) of the LEGEND-200 dummy optical map.
 
-The dummy production uses four experiments:
+`legend-pygeom-hades` builds the HADES test stand from the mock `hades-metadata`
+of legend-testdata, linked as `tests/dummyprod/hades-metadata` and passed
+through the `HADES_METADATA` environment variable: the test ICPC `V99001A` in
+its cryostat on a static table, inside the lead castle, with a source on top.
+The run named by `run_key` in the simconfig sets detector, table and source
+position. The germanium record of `V99001A` is in the mock `legend-metadata`.
+
+The dummy production uses five experiments:
 
 - `legend`: a generic experiment name used for unit tests and DAG-building
   tests; its runlist contains real p02 run IDs but is not intended to run an
@@ -60,6 +67,8 @@ The dummy production uses four experiments:
 - `l1000dsg01`: the LEGEND-1000 experiment
   (`metadata_repo: legend1000-metadata`). `test_l1000_workflow` runs it in CI on
   the mock metadata
+- `hades`: the HADES test stand, `stp` tier only. `test_hades_workflow` runs it
+  in CI on the mock `hades-metadata`
 
 `legend_testdata` (from `legendtestdata`) is still available as a pytest fixture
 for tests that require LH5 data files or other binary assets from the testdata
@@ -159,3 +168,6 @@ Current full-chain tests:
    on `l200-p13-r003-aph` of the mock `legend-metadata` (no HPGe detectors),
    experiment `l200cfg06`; runs in CI:
    `pixi run -e test test-l200-lar-workflow`.
+4. **`test_hades_workflow`** (`needs_remage`) — runs the stp tier with real
+   remage on a Ba-133 run of the mock `hades-metadata`, experiment `hades`; runs
+   in CI: `pixi run -e test test-hades-workflow`.

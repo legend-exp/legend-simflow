@@ -61,7 +61,7 @@ To run a specific Python test or test function:
 
 The Python test suite includes both unit tests (in `tests/`) and integration
 tests that exercise the Snakemake workflow with a dummy production configured in
-`tests/dummyprod`. The dummy production defines four experiments:
+`tests/dummyprod`. The dummy production defines five experiments:
 
 - `legend`: a generic experiment used for unit tests and DAG-building tests; its
   runlist contains real p02 run IDs but is not intended to run an actual
@@ -76,6 +76,8 @@ tests that exercise the Snakemake workflow with a dummy production configured in
   exercises the vtx→cvt pipeline on a run of the mock LEGEND-200 metadata with
   the LAr instrumentation alone (no HPGe detectors, `skip_hit: true`); runs in
   CI
+- `hades`: used by the `test_hades_workflow` integration test, which exercises
+  the stp tier on a run of the mock HADES metadata; runs in CI
 
 Test data for LEGEND-200 is stored in `tests/l200data/`.
 

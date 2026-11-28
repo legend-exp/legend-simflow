@@ -1,0 +1,23 @@
+experiment: hades
+metadata_repo: legend-metadata
+
+# the HADES test stand: one detector in its cryostat, with a source on top
+make_steps:
+  - stp
+
+paths:
+  generated: $_/generated-hades
+  benchmarks: $_/generated-hades/benchmarks
+  log: $_/generated-hades/log
+
+  metadata: $_/legend-metadata
+  config: $_/legend-metadata/simprod/config
+
+  pars: $_/generated-hades/pars
+  macros: $_/generated-hades/macros
+  tier:
+    stp: $_/generated-hades/tier/stp
+
+nersc:
+  dvs_ro: false
+  scratch: false

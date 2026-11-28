@@ -1,0 +1,6 @@
+executable: legend-pygeom-hades
+# the run of the mock hades-metadata in legend-testdata that sets detector,
+# table and source position. Each simulation names its own run through
+# `geom_config_extra` in tier/stp/hades/simconfig.yaml. Fields added next to
+# run_key replace those of the run, so none are set here
+run_key: V99001A-c1-ba_HS4_top_dlt-run0001

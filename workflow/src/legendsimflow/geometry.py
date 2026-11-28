@@ -145,6 +145,17 @@ def render_geometry(config: SimflowConfig, geom_config: Mapping, output: str) ->
 
         registry = core.construct(config=geom_config)
 
+    elif executable == "legend-pygeom-hades":
+        from dbetto import AttrsDict  # noqa: PLC0415
+        from pygeomhades import core  # noqa: PLC0415
+
+        # silence pygeomhades' log output while rendering, as done for the
+        # other geometry packages above
+        logging.getLogger("pygeomhades").setLevel(logging.ERROR)
+
+        # pygeomhades expects attribute access on its configuration
+        registry = core.construct(AttrsDict(dict(geom_config)))
+
     else:
         msg = f"Unknown geometry executable {executable!r}"
         raise ValueError(msg)
